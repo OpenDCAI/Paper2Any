@@ -256,8 +256,15 @@ def post_process_combine_pipeline_result(results: Dict) -> str:
 
 
 # =================================================================== 算子RAG部分代码：
-import os, httpx, numpy as np, faiss
-from typing import List
+import os
+import json
+import pickle
+import httpx
+import numpy as np
+import faiss
+from typing import List, Dict, Union, Optional
+
+import dataflow_agent.utils as utils
 
 def _call_openai_embedding_api(
     texts: List[str],
@@ -266,15 +273,7 @@ def _call_openai_embedding_api(
     api_key: str | None = None,
     timeout: float = 30.0,
 ) -> np.ndarray:
-    """
-    入参:
-        texts      : 待编码的字符串列表
-        model_name : OpenAI embedding model，如 'text-embedding-ada-002'
-        base_url   : 你的服务器地址，默认直连官方
-        api_key    : OpenAI API key，若为 None 则读取环境变量 OPENAI_API_KEY
-    返回:
-        shape=(len(texts), dim) 的 np.ndarray(float32)，已做 L2 归一化
-    """
+    """调用OpenAI API获取文本向量"""
     if api_key is None:
         api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -296,13 +295,10 @@ def _call_openai_embedding_api(
             try:
                 resp.raise_for_status()
             except httpx.HTTPStatusError as e:
-                raise RuntimeError(
-                    f"调用 OpenAI embedding 失败: {e}\n{resp.text}"
-                ) from e
+                raise RuntimeError(f"调用 OpenAI embedding 失败: {e}\n{resp.text}") from e
 
             try:
                 data = resp.json()
-                # OpenAI 返回格式: {"data":[{"embedding":[...], "index":0, ...}]}
                 vec = data["data"][0]["embedding"]
             except Exception as e:
                 raise RuntimeError(f"解析返回 JSON 失败: {resp.text}") from e
@@ -310,61 +306,200 @@ def _call_openai_embedding_api(
             vecs.append(vec)
 
     arr = np.asarray(vecs, dtype=np.float32)
-    # L2 归一化，方便后续用内积≈余弦相似度
     faiss.normalize_L2(arr)
     return arr
 
-def rag_build_index(
-    category: str,
-    ops_json_path: str,
-    model_name: str = "text-embedding-ada-002",
-    base_url: str = "https://api.openai.com/v1/embeddings",
-    api_key: str | None = None,
-    top_k: int = 5,
-):
-    """
-    示例构建向量索引，并返回 Top-K 结果验证
-    """
-    # 1) 载入指定类别的算子文本
-    with open(ops_json_path, "r", encoding="utf-8") as f:
-        all_ops = json.load(f)
 
-    ops = all_ops.get(category, [])
-    texts = [f"{o['name']} {o.get('description','')}" for o in ops]
-
-    # 2) 调用 OpenAI 取向量
-    embeddings = _call_openai_embedding_api(
-        texts, model_name=model_name, base_url=base_url, api_key=api_key
-    )
-
-    # 3) 建立简单的 FAISS 索引
-    dim = embeddings.shape[1]
-    index = faiss.IndexFlatIP(dim)          
-    index.add(embeddings)
-
-    # 4) 写一个内部查询函数
-    def _search(query: str, k: int = top_k) -> List[str]:
-        q_vec = _call_openai_embedding_api(
-            [query], model_name=model_name, base_url=base_url, api_key=api_key
+class RAGOperatorSearch:
+    """RAG 算子检索类，支持向量持久化和批量查询"""
+    
+    def __init__(
+        self,
+        ops_json_path: str,
+        category: Optional[str] = None,
+        faiss_index_path: Optional[str] = None,
+        model_name: str = "text-embedding-ada-002",
+        base_url: str = "https://api.openai.com/v1/embeddings",
+        api_key: Optional[str] = None,
+    ):
+        """
+        初始化 RAG 检索器
+        
+        Args:
+            ops_json_path: 算子JSON文件路径
+            category: 算子类别，如果为None则读取全部
+            faiss_index_path: FAISS索引文件路径，如果存在则复用，否则生成并保存
+            model_name: embedding模型名称
+            base_url: API base URL
+            api_key: OpenAI API key
+        """
+        self.ops_json_path = ops_json_path
+        self.category = category
+        self.faiss_index_path = faiss_index_path
+        self.model_name = model_name
+        self.base_url = base_url
+        self.api_key = api_key
+        
+        self.index = None
+        self.ops_list = []
+        
+        self._load_or_build_index()
+    
+    def _load_operators(self) -> List[Dict]:
+        """加载算子数据"""
+        with open(self.ops_json_path, "r", encoding="utf-8") as f:
+            all_ops = json.load(f)
+        
+        if self.category:
+            # 指定类别
+            ops = all_ops.get(self.category, [])
+            print(f"✓ 加载类别 '{self.category}' 的算子: {len(ops)} 个")
+        else:
+            # 读取全部类别
+            ops = []
+            for cat, op_list in all_ops.items():
+                ops.extend(op_list)
+            print(f"✓ 加载全部算子: {len(ops)} 个")
+        
+        return ops
+    
+    def _load_or_build_index(self):
+        """加载或构建FAISS索引"""
+        # 检查是否可以复用索引
+        if self.faiss_index_path and os.path.exists(self.faiss_index_path):
+            meta_path = self.faiss_index_path + ".meta"
+            if os.path.exists(meta_path):
+                print(f"✓ 从 {self.faiss_index_path} 加载已有索引...")
+                self.index = faiss.read_index(self.faiss_index_path)
+                with open(meta_path, "rb") as f:
+                    self.ops_list = pickle.load(f)
+                print(f"✓ 索引加载成功，包含 {len(self.ops_list)} 个算子")
+                return
+        
+        # 重新构建索引
+        print("⚙ 开始构建新的向量索引...")
+        self.ops_list = self._load_operators()
+        
+        if not self.ops_list:
+            raise ValueError("没有找到任何算子数据！")
+        
+        # 生成文本描述
+        texts = [f"{op['name']} {op.get('description', '')}" for op in self.ops_list]
+        
+        # 调用API获取向量
+        print(f"⚙ 正在获取 {len(texts)} 个算子的 embedding...")
+        embeddings = _call_openai_embedding_api(
+            texts,
+            model_name=self.model_name,
+            base_url=self.base_url,
+            api_key=self.api_key,
         )
-        D, I = index.search(q_vec, k)      
-        return [ops[i]["name"] for i in I[0]]
+        
+        # 构建FAISS索引
+        dim = embeddings.shape[1]
+        self.index = faiss.IndexFlatIP(dim)
+        self.index.add(embeddings)
+        print(f"✓ 索引构建完成，维度: {dim}")
+        
+        # 保存索引（如果指定了路径）
+        if self.faiss_index_path:
+            # 确保目录存在
+            os.makedirs(os.path.dirname(self.faiss_index_path) or ".", exist_ok=True)
+            print(f"⚙ 保存索引到 {self.faiss_index_path}...")
+            faiss.write_index(self.index, self.faiss_index_path)
+            with open(self.faiss_index_path + ".meta", "wb") as f:
+                pickle.dump(self.ops_list, f)
+            print("✓ 索引保存成功")
+    
+    def search(
+        self,
+        queries: Union[str, List[str]],
+        top_k: int = 5
+    ) -> Union[List[str], List[List[str]]]:
+        """
+        检索最相关的算子
+        
+        Args:
+            queries: 单个查询字符串或查询列表
+            top_k: 返回top-k个结果
+        
+        Returns:
+            如果输入是字符串，返回List[str]
+            如果输入是列表，返回List[List[str]]
+        """
+        # 统一处理为列表
+        is_single = isinstance(queries, str)
+        if is_single:
+            queries = [queries]
+        
+        # 批量获取query向量
+        query_vecs = _call_openai_embedding_api(
+            queries,
+            model_name=self.model_name,
+            base_url=self.base_url,
+            api_key=self.api_key,
+        )
+        
+        # 检索
+        D, I = self.index.search(query_vecs, top_k)
+        
+        # 组织结果
+        results = []
+        for i, indices in enumerate(I):
+            matched_ops = [self.ops_list[idx]["name"] for idx in indices]
+            results.append(matched_ops)
+            print(f"Query {i+1}: '{queries[i][:50]}...' -> {matched_ops}")
+        
+        # 如果是单查询，返回单个列表
+        return results[0] if is_single else results
 
-    # 5) 返回查询函数或立刻测试
-    return _search
 
-def get_operators_by_rag(search_goal: str,category: str = "text2sql",top_k: int = 4) -> str:
-    OPS_JSON = "/mnt/h_h_public/lh/lz/DataFlow/dataflow/dataflowagent/toolkits/resources/ops.json"
-
-    search_fn = rag_build_index(
-        category="text2sql",
-        ops_json_path=OPS_JSON,
-        model_name="text-embedding-3-small",
-        base_url="http://123.129.219.111:3000/v1/embeddings",
-        api_key="sk-",
-        top_k=4,
+def get_operators_by_rag(
+    search_queries: Union[str, List[str]],
+    category: Optional[str] = None,
+    top_k: int = 4,
+    ops_json_path: str = utils.get_project_root() / "dataflow_agent/toolkits/resources/ops.json",
+    faiss_index_path: Optional[str] = None,
+    model_name: str = "text-embedding-3-small",
+    base_url: str = "http://123.129.219.111:3000/v1/embeddings",
+    api_key: str = os.getenv("DF_API_KEY"),
+) -> Union[List[str], List[List[str]]]:
+    """
+    通过RAG检索算子
+    
+    Args:
+        search_queries: 单个查询字符串 或 查询列表 ['xxx1', 'xxx2']
+        category: 算子类别，None表示读取全部
+        top_k: 每个查询返回top-k结果
+        ops_json_path: 算子JSON文件路径
+        faiss_index_path: FAISS索引文件路径，如果存在则复用，否则重新生成
+        model_name: embedding模型
+        base_url: API地址
+        api_key: API密钥
+    
+    Returns:
+        单查询返回List[str]，多查询返回List[List[str]]
+    
+    Examples:
+        # 单个查询
+        result = get_operators_by_rag("将自然语言转换为SQL")
+        # 返回: ['op1', 'op2', 'op3', 'op4']
+        
+        # 批量查询
+        results = get_operators_by_rag(['query1', 'query2'])
+        # 返回: [['op1', 'op2'], ['op3', 'op4']]
+    """
+    searcher = RAGOperatorSearch(
+        ops_json_path=ops_json_path,
+        category=category,
+        faiss_index_path=faiss_index_path,
+        model_name=model_name,
+        base_url=base_url,
+        api_key=api_key,
     )
-    return search_fn(search_goal)
+    
+    return searcher.search(search_queries, top_k=top_k)
+
 
 def local_tool_for_get_match_operator_code(pre_task_result):
     import time
@@ -387,7 +522,6 @@ def local_tool_for_get_match_operator_code(pre_task_result):
         try:
             cls_src = inspect.getsource(cls)
             module_src = inspect.getsource(sys.modules[cls.__module__])
-            # 保留所有import语句
             import_lines = [
                 l for l in module_src.splitlines()
                 if l.strip().startswith(("import ", "from "))
@@ -397,10 +531,61 @@ def local_tool_for_get_match_operator_code(pre_task_result):
             blocks.append(src_block)
         except (OSError, TypeError) as e:
             blocks.append(f"# --- Failed to get the source code of {op_name}: {e} ---")
+    
     elapsed = time.time() - start_time
-    log.info(f"[local_tool_for_get_match_operator_code] Time used: {elapsed:.4f} seconds")
+    print(f"[local_tool_for_get_match_operator_code] Time used: {elapsed:.4f} seconds")
     return "\n\n".join(blocks)
 
-if __name__ == "__main__":
-    print(get_operators_by_rag("将自然语言转换为SQL查询语句"))
 
+if __name__ == "__main__":
+    # ============ 示例1: 单个查询 + 指定category + 持久化索引 ============
+    print("\n" + "="*70)
+    print("示例1: 单个查询 + 指定category + 持久化索引")
+    print("="*70)
+    result1 = get_operators_by_rag(
+        search_queries="将自然语言转换为SQL查询语句",
+        category="text2sql",
+        top_k=3,
+        faiss_index_path="./faiss_cache/text2sql.index"  # 第一次生成，后续复用
+    )
+    print(f"\n返回结果: {result1}\n")
+    
+    # ============ 示例2: 批量查询 + 读取全部category ============
+    print("\n" + "="*70)
+    print("示例2: 批量查询 + 读取全部category")
+    print("="*70)
+    queries = [
+        "数据清洗和预处理",
+        "文本分类任务",
+        "生成SQL语句"
+    ]
+    result2 = get_operators_by_rag(
+        search_queries=queries,
+        category=None,  # 不指定category，读取全部
+        top_k=2,
+        faiss_index_path="./faiss_cache/all_ops.index"
+    )
+    print(f"\n返回结果: {result2}\n")
+    
+    # ============ 示例3: 不持久化，每次重新生成 ============
+    print("\n" + "="*70)
+    print("示例3: 不持久化索引，每次重新生成")
+    print("="*70)
+    result3 = get_operators_by_rag(
+        search_queries=["数据可视化", "模型训练"],
+        category="text2sql",
+        top_k=3,
+        faiss_index_path=None  # 不指定路径，不持久化
+    )
+    print(f"\n返回结果: {result3}\n")
+    
+    # ============ 示例4: 自定义top_k ============
+    print("\n" + "="*70)
+    print("示例4: 自定义top_k=5")
+    print("="*70)
+    result4 = get_operators_by_rag(
+        search_queries="数据库查询",
+        top_k=5,
+        faiss_index_path="./faiss_cache/all_ops.index"
+    )
+    print(f"\n返回结果: {result4}\n")
