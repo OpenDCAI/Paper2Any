@@ -32,9 +32,9 @@ from langgraph.graph import StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
-from dataflow import get_logger
+from dataflow_agent.logger import get_logger
 MAX_DEBUG_ROUNDS = 3
-log = get_logger()
+log = get_logger(__name__)
 
 # ======================================================================
 # create_pipeline_graph
@@ -339,3 +339,10 @@ def create_pipeline_graph() -> GenericGraphBuilder:
 
     builder.add_nodes(nodes).add_edges(edges).add_conditional_edges({"builder": builder_condition})
     return builder
+
+# 暴露出去
+from dataflow_agent.workflow.registry import register
+
+@register("pipelinerecommend")
+def factory():
+    return create_pipeline_graph()

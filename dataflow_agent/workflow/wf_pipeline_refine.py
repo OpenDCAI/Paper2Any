@@ -15,10 +15,10 @@ from dataflow_agent.agentroles.refine import (
     create_json_pipeline_refiner,
 )
 from dataflow_agent.toolkits.tool_manager import ToolManager
-from dataflow import get_logger
+from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import robust_parse_json
 
-log = get_logger()
+log = get_logger(__name__)
 
 def create_pipeline_refine_graph() -> GenericGraphBuilder:
     """

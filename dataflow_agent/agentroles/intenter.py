@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI
 
-from dataflow import get_logger
+from dataflow_agent.logger import get_logger
 from dataflow_agent.promptstemplates.prompt_template import (
     PromptsTemplateGenerator,
 )
@@ -16,7 +16,7 @@ from dataflow_agent.toolkits.tool_manager import ToolManager
 from dataflow_agent.utils import robust_parse_json
 
 # 统一日志实例
-log = get_logger()
+log = get_logger(__name__)
 
 # 复用公共父类
 from .base_agent import BaseAgent

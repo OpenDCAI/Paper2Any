@@ -15,10 +15,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from dataflow import get_logger
+from dataflow_agent.logger import get_logger
 from dataflow.utils.registry import OPERATOR_REGISTRY
 
-log = get_logger()
+log = get_logger(__name__)
 
 EXTRA_IMPORTS: set[str] = set()  
 

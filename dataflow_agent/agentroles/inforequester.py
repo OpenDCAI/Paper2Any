@@ -4,11 +4,11 @@ import inspect
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from dataflow import get_logger
+from dataflow_agent.logger import get_logger
 from dataflow_agent.agentroles.base_agent import BaseAgent
 from dataflow_agent.state import DFState
 
-log = get_logger()
+log = get_logger(__name__)
 
 
 class InfoRequester(BaseAgent):

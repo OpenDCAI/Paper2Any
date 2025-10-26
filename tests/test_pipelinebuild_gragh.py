@@ -20,7 +20,7 @@ except ModuleNotFoundError:
     from langgraph.prebuilt import ToolNode, tools_condition
 
 # ------------------------- DataFlow 相关 ----------------------------
-from dataflow import get_logger
+from dataflow_agent.logger import get_logger
 from dataflow.cli_funcs.paths import DataFlowPath
 from dataflow_agent.state import DFRequest, DFState
 from dataflow_agent.toolkits.tool_manager import get_tool_manager
@@ -35,7 +35,7 @@ from dataflow_agent.agentroles.pipelinebuilder import create_pipeline_builder
 from dataflow_agent.agentroles.debugger import create_code_debugger
 from dataflow_agent.agentroles.rewriter import create_rewriter
 
-log = get_logger()
+log = get_logger(__name__)
 
 # ----------------------------- 常量 ----------------------------------
 BASE_DIR = DataFlowPath.get_dataflow_dir()

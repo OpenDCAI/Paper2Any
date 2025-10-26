@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from dataflow import get_logger
+from dataflow_agent.logger import get_logger
 from dataflow_agent.agentroles.base_agent import BaseAgent
 from dataflow_agent.state import DFState
 from dataflow_agent.toolkits.tool_manager import ToolManager
@@ -34,7 +34,7 @@ from dataflow_agent.toolkits.pipetool.pipe_tools import (
     write_pipeline_file,
 )
 
-log = get_logger()
+log = get_logger(__name__)
 
 # ---------------------------------------------------------------------- #
 #                              工具函数                                   #
