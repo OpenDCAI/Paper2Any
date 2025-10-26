@@ -13,32 +13,51 @@ COLOR_MAP = {
     "INFO": "\033[32m",     # 绿色
     "WARNING": "\033[33m",  # 黄色
     "ERROR": "\033[31m",    # 红色
-    "CRITICAL": "\033[41m", # 红底
+    "CRITICAL": "\033[41m\033[37m", # 红底白字
     "RESET": "\033[0m",
+}
+
+# 字段颜色
+FIELD_COLORS = {
+    "time": "\033[90m",      # 灰色
+    "name": "\033[35m",      # 紫色/洋红
+    "location": "\033[96m",  # 亮青色
 }
 
 class ColorFormatter(logging.Formatter):
     """
-    支持不同日志级别高亮显示的 Formatter，仅限控制台输出。
+    支持不同字段高亮显示的 Formatter，仅限控制台输出。
     """
     def format(self, record):
         level_name = record.levelname
-        color = COLOR_MAP.get(level_name, "")
+        level_color = COLOR_MAP.get(level_name, "")
         reset = COLOR_MAP["RESET"]
-        msg = super().format(record)
-        if color:
-            msg = f"{color}{msg}{reset}"
-        return msg
+        
+        # 格式化各个字段
+        asctime = self.formatTime(record, self.datefmt)
+        levelname = record.levelname
+        name = record.name
+        filename = record.filename
+        lineno = record.lineno
+        message = record.getMessage()
+        
+        # 组合带颜色的输出 - 每个字段不同颜色
+        formatted = (
+            f"{FIELD_COLORS['time']}{asctime}{reset} | "
+            f"{level_color}{levelname:<8}{reset} | "
+            f"{FIELD_COLORS['name']}{name}{reset} | "
+            f"{FIELD_COLORS['location']}{filename}:{lineno}{reset} | "
+            f"{level_color}{message}{reset}"  # 消息使用级别颜色
+        )
+        
+        return formatted
 
 def _create_handler():
     """创建控制台和文件的日志处理器。"""
     # 控制台输出（带颜色）
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(DEFAULT_LOG_LEVEL)
-    color_formatter = ColorFormatter(
-        fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(filename)s:%(lineno)d | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    )
+    color_formatter = ColorFormatter(datefmt="%Y-%m-%d %H:%M:%S")
     stream_handler.setFormatter(color_formatter)
 
     # 文件输出（不带颜色）

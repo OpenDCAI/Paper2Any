@@ -65,7 +65,7 @@ async def main() -> None:
         json_file=f"{DATAFLOW_DIR}/dataflow/example/GeneralTextPipeline/translation.jsonl",
         target="给我随意符合逻辑的5个算子，过滤，去重！",
         python_file_path=str(python_file_path),  # pipeline 的输出脚本路径
-        need_debug=True,  # 是否需要 Debug
+        need_debug= False,  # 是否需要 Debug
         max_debug_rounds=2,
         session_id=session_id,
         # cache_dir="dataflow-agent-kupasi/cache_dir"

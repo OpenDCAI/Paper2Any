@@ -50,6 +50,9 @@ class DFRequest:
     
     # cache_dir 
     cache_dir: str = f"{PROJDIR}/cache_dir"
+
+    # session_id
+    session_id: str = "default_session"
     
 
 

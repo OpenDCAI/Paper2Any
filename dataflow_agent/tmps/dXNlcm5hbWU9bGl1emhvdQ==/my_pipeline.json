@@ -1,0 +1,95 @@
+{
+  "nodes": [
+    {
+      "id": "node1",
+      "name": "CodeDocumentQualitySampleEvaluator",
+      "type": "eval",
+      "config": {
+        "init": {
+          "thresholds": null
+        },
+        "run": {
+          "storage": "self.storage.step()",
+          "input_key": "raw_content"
+        }
+      }
+    },
+    {
+      "id": "node2",
+      "name": "CodeDocumentQualityFilter",
+      "type": "filter",
+      "config": {
+        "init": {
+          "min_score": 1.0,
+          "max_score": 1.0,
+          "thresholds": null
+        },
+        "run": {
+          "storage": "self.storage.step()",
+          "input_key": "raw_content",
+          "output_key": "step1"
+        }
+      }
+    },
+    {
+      "id": "node3",
+      "name": "CodeLengthSampleEvaluator",
+      "type": "eval",
+      "config": {
+        "init": {},
+        "run": {
+          "storage": "self.storage.step()",
+          "input_key": "step1"
+        }
+      }
+    },
+    {
+      "id": "node4",
+      "name": "CodeLengthSampleFilter",
+      "type": "filter",
+      "config": {
+        "init": {
+          "min_score": 1.0,
+          "max_score": 1.0
+        },
+        "run": {
+          "storage": "self.storage.step()",
+          "input_key": "step1",
+          "output_key": "step2"
+        }
+      }
+    },
+    {
+      "id": "node5",
+      "name": "CodeTextCompositionSampleEvaluator",
+      "type": "eval",
+      "config": {
+        "init": {},
+        "run": {
+          "storage": "self.storage.step()",
+          "input_key": "step2"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "node2",
+      "target": "node3",
+      "source_port": "output_key",
+      "target_port": "input_key"
+    },
+    {
+      "source": "node2",
+      "target": "node4",
+      "source_port": "output_key",
+      "target_port": "input_key"
+    },
+    {
+      "source": "node4",
+      "target": "node5",
+      "source_port": "output_key",
+      "target_port": "input_key"
+    }
+  ]
+}
