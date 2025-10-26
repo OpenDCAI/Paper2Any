@@ -42,32 +42,94 @@ agent = AgentCls(tool_manager=tm)
 agent = create_agent("icon_editor", tool_manager=tm, temperature=0.7)
 ```
 
-### ReAct 模式说明
+### ReAct 模式说明（基于 BaseAgent 代码）
 
-ReAct（Reasoning + Acting）模式允许 Agent 在执行过程中进行推理-行动循环：
+- `react_mode=True` 时，Agent 调用 LLM 后，会自动校验输出格式/内容。
+- 如果输出未通过验证（如不是合格 JSON、缺字段等），Agent 会自动将错误反馈追加到对话消息，要求 LLM 修正并重试。
+- 这一过程会循环进行，直到 LLM 输出通过所有验证器或达到最大重试次数。
+- 注意：**此 ReAct 模式并没有实现经典的“Thought-Action-Observation”多轮推理与工具调用流程**，仅用于自动格式纠错和结果自我修正。
+
+#### 主要流程：
+1. 构建初始对话消息，调用 LLM 生成输出。
+2. 校验输出（格式、内容等）。
+3. 未通过则将错误作为人类反馈追加，要求 LLM 重新生成。
+4. 重复以上步骤，直到通过或达到最大重试次数。
+
 
 ```python
-# 开启 ReAct 模式
-state = await agent.execute(state, use_agent=True)
-
-# 执行流程：
-# 1. Thought: 分析当前状态，确定下一步行动
-# 2. Action: 调用工具执行操作
-# 3. Observation: 观察执行结果
-# 4. 重复 1-3 直到任务完成
+exporter = create_exporter(
+    tool_manager=get_tool_manager(),    # 工具管理器实例
+    react_mode=True,                   # 启用 ReAct 模式
+    react_max_retries=3                # 最多自动纠错（重试）3次
+)
 ```
 
 ### Agent-as-Tool 说明
 
-Agent 可以被其他 Agent 作为工具调用，实现多 Agent 协作：
+
+> 一句话结论：  
+> *register_agent_as_tool* 只是把 **Agent 包装成 LangChain Tool 并注册为「后置工具（post-tool）」**。  
+> 之后能否被调用，取决于：  
+> 1. 执行父 Agent 时用 `use_agent=True`，  
+> 2. 其 `ToolManager` 中确实包含该 Tool，  
+> 3. LLM 在生成回答时主动选择调用该 Tool。
+
+---
+
+#### 1. 注册流程
 
 ```python
-# 在 tool_manager 中注册 Agent 作为工具
-tool_manager.register_agent_as_tool("icon_editor", IconEditor)
+tool_manager = get_tool_manager()
 
-# 其他 Agent 可以调用
-result = await parent_agent.call_tool("icon_editor", state=state)
+# ① 创建要被包装的 Agent 实例（必须提前把同一个 tool_manager 传进去）
+icon_editor = IconEditor.create(tool_manager=tool_manager)
+
+# ② 把它注册成工具；本质上会放进 role_post_tools 或 global_post_tools
+tool_manager.register_agent_as_tool(icon_editor, state, role="parent_agent_role")
 ```
+
+源码要点（tool_manager.py）  
+
+```python
+def register_agent_as_tool(self, agent, state, role=None):
+    tool = agent.as_tool(state)          # <─ 把 Agent 包成 LangChain Tool
+    self.register_post_tool(tool, role)  # <─ 存到“后置工具”列表
+```
+
+> • “后置工具”= 只有在 **父 Agent 使用 _graph/agent 模式_（`use_agent=True`）** 时，  
+>   `create_llm(..., bind_post_tools=True)` 才会把这些 Tool 绑定给 LLM。  
+>
+> • 如果用普通 `react_mode` / `simple_mode`，因为 `bind_post_tools=False`，LLM 根本看不到这些工具。
+
+---
+
+#### 2. 调用方式
+
+1. **由 LLM 自动调用（推荐）**
+
+   ```python
+   # 让父 Agent 进入图模式
+   await parent_agent.execute(state, use_agent=True)
+   ```
+   - `execute()` 检测到 `use_agent=True` 且存在后置工具 → 进入 **graph 模式**  
+   - 生成的 LLM 被 `bind_tools(...)`，可以在回答中产生 `tool_calls`。  
+   - 如果模型选择调用 `icon_editor`，LangChain 会自动触发  
+     `icon_editor._execute_as_tool(state, **tool_kwargs)`，再递归执行子 Agent。
+
+2. **直接在 Python 调用（调试或脚本化使用）**
+
+   源码里没有 `call_tool` 方法；若想手动触发，可用下面两种做法：
+
+   ```python
+   # 方法 A：用 Tool 对象
+   tool = icon_editor.as_tool(state)
+   result = await tool.coroutine(task_description="...", additional_params={...})
+
+   # 方法 B：用封装好的内部方法
+   result = await icon_editor._execute_as_tool(state,
+                                               task_description="...",
+                                               additional_params={...})
+   ```
 
 ## Workflow 注册与调用机制
 
