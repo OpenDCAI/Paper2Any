@@ -141,5 +141,5 @@ class IconGenState(MainState):
     request: IconGenRequest = field(default_factory=IconGenRequest)
 
     # 下面是 icongen 自己的产物 / 临时数据
-    icon_prompts: list[str] = field(default_factory=list)
-    svg_results: list[str] = field(default_factory=list)   # 或 base64, 路径等
+    icon_prompt: str = ""                                 # 生成的图标提示词
+    img_save_path: str = ""                              # 生成的图标保存路径

@@ -10,7 +10,9 @@ icongen workflow
 """
 
 from __future__ import annotations
+import asyncio
 import json
+import os
 from dataflow_agent.state import MainState
 from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register   # <- 核心装饰器
@@ -23,6 +25,8 @@ from langgraph.prebuilt import ToolNode, tools_condition
 
 from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
+
+from dataflow_agent.toolkits.imtool.req_img import generate_and_save_image_async
 
 log = get_logger(__name__)
 
@@ -67,6 +71,16 @@ def create_icongen_graph() -> GenericGraphBuilder:  # noqa: N802
 
     # async def icon_prompt_generator_node(state: MainState) -> MainState:
     #     return state
+    async def gen_img_node(state: MainState) -> MainState:
+        b64 = await generate_and_save_image_async(
+            prompt=state.agent_results["icon_prompt_generator"]["results"]["icon_prompt"],
+            save_path="./icon.png",
+            api_url=state.request.chat_api_url,
+            api_key=os.getenv("DF_API_KEY"), 
+            model="gemini-2.5-flash-image-preview"
+        )
+        state.agent_results["gen_img"] = {"base64": b64}
+        return state
 
 
     # ==============================================================
@@ -74,6 +88,7 @@ def create_icongen_graph() -> GenericGraphBuilder:  # noqa: N802
     # ==============================================================
     nodes = {
         "icon_prompt_generator": icon_prompt_generator_node,
+        "gen_img": gen_img_node,
         '_end_': lambda state: state,  # 终止节点
     }
 
@@ -81,7 +96,8 @@ def create_icongen_graph() -> GenericGraphBuilder:  # noqa: N802
     # EDGES  (从节点 A 指向节点 B)
     # ------------------------------------------------------------------
     edges = [
-        ("icon_prompt_generator", "_end_"),
+        ("icon_prompt_generator", "gen_img"),
+        ("gen_img", "_end_"),
     ]
 
     builder.add_nodes(nodes).add_edges(edges)

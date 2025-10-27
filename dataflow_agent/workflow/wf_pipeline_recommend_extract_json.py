@@ -86,7 +86,7 @@ def create_pipeline_graph() -> GenericGraphBuilder:
 
     @builder.pre_tool("error_trace", "code_debugger")
     def get_error_trace_for_debug(state: DFState):
-        return state.execution_result.get("stderr", "") or state.execution_result.get("traceback", "")
+        return state.execution_result.get("stderr", "") or state.execution_result.get("s't'dou't", "")
 
     @builder.pre_tool("pipeline_code", "rewriter")
     def get_pipeline_code_for_rewrite(state: DFState):
@@ -94,7 +94,7 @@ def create_pipeline_graph() -> GenericGraphBuilder:
 
     @builder.pre_tool("error_trace", "rewriter")
     def get_error_trace_for_rewrite(state: DFState):
-        return state.execution_result.get("stderr", "") or state.execution_result.get("traceback", "")
+        return state.execution_result.get("stderr", "") or state.execution_result.get("stdout", "")
 
     @builder.pre_tool("debug_reason", "rewriter")
     def get_debug_reason(state: DFState):
@@ -116,7 +116,7 @@ def create_pipeline_graph() -> GenericGraphBuilder:
     @builder.pre_tool("error_trace", "info_requester")
     def ir_error_trace(state: DFState):
         return state.execution_result.get("stderr", "") \
-            or state.execution_result.get("traceback", "")
+            or state.execution_result.get("stdout", "")
     
     class ModuleListInput(BaseModel):
         module_list: list = Field(
