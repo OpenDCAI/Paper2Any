@@ -14,7 +14,17 @@ import json
 from dataflow_agent.state import MainState
 from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register   # <- 核心装饰器
+from dataflow_agent.agentroles import get_agent_cls, create_agent
 
+from dataflow_agent.toolkits.tool_manager import get_tool_manager
+from langchain.tools import tool
+from langgraph.graph import StateGraph
+from langgraph.prebuilt import ToolNode, tools_condition
+
+from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
+from dataflow_agent.logger import get_logger
+
+log = get_logger(__name__)
 
 @register("icongen")
 def create_icongen_graph() -> GenericGraphBuilder:  # noqa: N802
@@ -22,7 +32,7 @@ def create_icongen_graph() -> GenericGraphBuilder:  # noqa: N802
     Workflow factory: dfa run --wf icongen
     """
     builder = GenericGraphBuilder(state_model=MainState,
-                                  entry_point="step1")  # 自行修改入口
+                                  entry_point="icon_prompt_generator")  # 自行修改入口
 
     # ----------------------------------------------------------------------
     # TOOLS (pre_tool definitions)
@@ -35,38 +45,44 @@ def create_icongen_graph() -> GenericGraphBuilder:  # noqa: N802
     # @builder.post_tool('','')
     # def _post_tool1():
     # ----------------------------------------------------------------------
+    @builder.pre_tool("keywords", "icon_prompt_generator")
+    def _keywords(state: MainState):
+        return state.request.get("keywords", "")
+    
+    @builder.pre_tool("style", "icon_prompt_generator")
+    def _keywords(state: MainState):
+        return state.request.get("style", "")
+
 
     # ==============================================================
     # NODES
     # ==============================================================
-    async def step1(state: MainState) -> MainState:
+    async def icon_prompt_generator_node(state: MainState) -> MainState:
         """
-        示例节点 1
+        图标提示词生成器节点
         """
-        # TODO: 替换为真正的业务逻辑
-        state.agent_results["step1"] = {"msg": "hello step1"}
+        icon_prompt_generator = create_agent("icon_prompt_generator", tool_manager=get_tool_manager())
+        state = await icon_prompt_generator.execute(state, use_agent=False)
         return state
 
-    async def step2(state: MainState) -> MainState:
-        """
-        示例节点 2
-        """
-        state.agent_results["step2"] = {"msg": "hello step2"}
-        return state
+    # async def icon_prompt_generator_node(state: MainState) -> MainState:
+
+    #     return state
+
 
     # ==============================================================
     # 注册 nodes / edges
     # ==============================================================
     nodes = {
-        "step1": step1,
-        "step2": step2,
+        "icon_prompt_generator": icon_prompt_generator_node,
+        '_end_': lambda state: state,  # 终止节点
     }
 
     # ------------------------------------------------------------------
     # EDGES  (从节点 A 指向节点 B)
     # ------------------------------------------------------------------
     edges = [
-        ("step1", "step2"),
+        ("icon_prompt_generator", "_end_"),
     ]
 
     builder.add_nodes(nodes).add_edges(edges)

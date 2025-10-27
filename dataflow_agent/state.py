@@ -40,6 +40,9 @@ class MainState:
     """所有State的基类，只包含核心字段"""
     request: MainRequest = field(default_factory=MainRequest)
     messages: Annotated[list[BaseMessage], add_messages] = field(default_factory=list)
+    # 通用字段
+    agent_results: Dict[str, Any] = field(default_factory=dict)
+    temp_data: Dict[str, Any] = field(default_factory=dict)
 
     def get(self, key, default=None):
         return getattr(self, key, default)
@@ -79,10 +82,7 @@ class DFState(MainState):
     """主流程的State，继承自MainState"""
     # 重写request类型为DFRequest
     request: DFRequest = field(default_factory=DFRequest)
-    
-    # 通用字段
-    agent_results: Dict[str, Any] = field(default_factory=dict)
-    temp_data: Dict[str, Any] = field(default_factory=dict)
+
     
     # 主流程特有字段
     category: Dict[str, Any] = field(default_factory=dict)
@@ -123,3 +123,17 @@ class DataCollectionState(MainState):
 
 
 # Iconagent相关 State 和 Request 定义
+# ==================== Icon 生成 Request ====================
+@dataclass
+class IconGenRequest(MainRequest):      
+    keywords: str = ""
+    style: str = ""
+
+# ==================== Icon 生成 State ======================
+@dataclass
+class IconGenState(MainState):
+    request: IconGenRequest = field(default_factory=IconGenRequest)
+
+    # 下面是 icongen 自己的产物 / 临时数据
+    icon_prompts: list[str] = field(default_factory=list)
+    svg_results: list[str] = field(default_factory=list)   # 或 base64, 路径等

@@ -30,20 +30,13 @@ def get_workflow(name: str):
     return RuntimeRegistry.get(name)
 
 async def run_workflow(name: str, state):
-    """
-    执行指定名称的工作流。
+    factory = get_workflow(name)
+    graph_builder = factory()
 
-    Args:
-        name (str): 工作流名称（注册名）
-        state (Any): 初始状态数据（将传递给工作流）
+    # graph = graph_builder.compile()
+    graph = graph_builder.build()       
 
-    Returns:
-        Any: 工作流执行结果（通常是终节点的输出）
-    """
-    factory = get_workflow(name)             # 获取 create_pipeline_graph 工厂
-    graph_builder = factory()                # 构建图生成器实例
-    graph = graph_builder.compile()          # 编译生成可执行的 Graph 实例
-    return await graph.ainvoke(state)        # 异步执行工作流
+    return await graph.ainvoke(state)
 
 # ---- 3. 工作流注册信息公开接口 -------------------------------------------
 # 提供所有已注册工作流的列表，便于外部查询与 introspection
