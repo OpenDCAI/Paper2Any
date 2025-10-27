@@ -2,32 +2,28 @@
   "nodes": [
     {
       "id": "node1",
-      "name": "PromptedFilter",
+      "name": "ContentNullFilter",
       "type": "filter",
       "config": {
-        "init": {
-          "llm_serving": "self.llm_serving",
-          "system_prompt": "Please evaluate the quality of this data on a scale from 1 to 5.",
-          "min_score": 1,
-          "max_score": 5
-        },
+        "init": {},
         "run": {
           "storage": "self.storage.step()",
-          "input_key": "raw_content",
+          "input_key": "input1",
           "output_key": "step1"
         }
       }
     },
     {
       "id": "node2",
-      "name": "GeneralFilter",
+      "name": "HashDeduplicateFilter",
       "type": "filter",
       "config": {
         "init": {
-          "filter_rules": null
+          "hash_func": "md5"
         },
         "run": {
           "storage": "self.storage.step()",
+          "input_keys": null,
           "input_key": "step1",
           "output_key": "step2"
         }
@@ -35,12 +31,12 @@
     },
     {
       "id": "node3",
-      "name": "PromptedRefiner",
-      "type": "refine",
+      "name": "SentenceNumberFilter",
+      "type": "filter",
       "config": {
         "init": {
-          "llm_serving": "self.llm_serving",
-          "system_prompt": "You are a helpful agent."
+          "min_sentences": 3,
+          "max_sentences": 7500
         },
         "run": {
           "storage": "self.storage.step()",
@@ -51,11 +47,11 @@
     },
     {
       "id": "node4",
-      "name": "EmbeddingGenerator",
-      "type": "generate",
+      "name": "SymbolWordRatioFilter",
+      "type": "filter",
       "config": {
         "init": {
-          "embedding_serving": null
+          "threshold": 0.4
         },
         "run": {
           "storage": "self.storage.step()",
@@ -66,11 +62,12 @@
     },
     {
       "id": "node5",
-      "name": "PandasOperator",
-      "type": "refine",
+      "name": "AlphaWordsFilter",
+      "type": "filter",
       "config": {
         "init": {
-          "process_fn": null
+          "threshold": null,
+          "use_tokenizer": null
         },
         "run": {
           "storage": "self.storage.step()",

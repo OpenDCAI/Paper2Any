@@ -5,7 +5,7 @@ from dataflow.pipeline import PipelineABC
 from dataflow.utils.storage import FileStorage
 from dataflow.serving import APILLMServing_request, LocalModelLLMServing_vllm
 
-from dataflow.operators.core_text import EmbeddingGenerator, GeneralFilter, PandasOperator, PromptedFilter, PromptedRefiner
+from dataflow.operators.general_text import AlphaWordsFilter, ContentNullFilter, HashDeduplicateFilter, SentenceNumberFilter, SymbolWordRatioFilter
 
 
 
@@ -27,27 +27,27 @@ class RecommendPipeline(PipelineABC):
             max_workers=100,
         )
 
-        self.prompted_filter = PromptedFilter(llm_serving=self.llm_serving, system_prompt='Please evaluate the quality of this data on a scale from 1 to 5.', min_score=1, max_score=5)
-        self.general_filter = GeneralFilter(filter_rules=None)
-        self.prompted_refiner = PromptedRefiner(llm_serving=self.llm_serving, system_prompt='You are a helpful agent.')
-        self.embedding_generator = EmbeddingGenerator(embedding_serving=None)
-        self.pandas_operator = PandasOperator(process_fn=None)
+        self.content_null_filter = ContentNullFilter()
+        self.hash_deduplicate_filter = HashDeduplicateFilter(hash_func='md5')
+        self.sentence_number_filter = SentenceNumberFilter(min_sentences=3, max_sentences=7500)
+        self.symbol_word_ratio_filter = SymbolWordRatioFilter(threshold=0.4)
+        self.alpha_words_filter = AlphaWordsFilter(threshold=None, use_tokenizer=None)
 
     def forward(self):
-        self.prompted_filter.run(
-            storage=self.storage.step(), input_key='raw_content', output_key='eval'
+        self.content_null_filter.run(
+            storage=self.storage.step(), input_key=None, output_key='content_null_filter_label'
         )
-        self.general_filter.run(
-            storage=self.storage.step()
+        self.hash_deduplicate_filter.run(
+            storage=self.storage.step(), input_keys=None, input_key=None, output_key='minhash_deduplicated_label'
         )
-        self.prompted_refiner.run(
-            storage=self.storage.step(), input_key='raw_content'
+        self.sentence_number_filter.run(
+            storage=self.storage.step(), input_key=None, output_key='sentence_number_filter_label'
         )
-        self.embedding_generator.run(
-            storage=self.storage.step(), input_key='text', output_key='embeddings'
+        self.symbol_word_ratio_filter.run(
+            storage=self.storage.step(), input_key=None, output_key='symbol_word_ratio_filter_label'
         )
-        self.pandas_operator.run(
-            storage=self.storage.step()
+        self.alpha_words_filter.run(
+            storage=self.storage.step(), input_key=None, output_key='alpha_words_filter_label'
         )
 
 if __name__ == "__main__":

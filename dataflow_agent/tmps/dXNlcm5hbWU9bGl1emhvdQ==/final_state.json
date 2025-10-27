@@ -21,27 +21,27 @@
       "response_metadata": {},
       "type": "system",
       "name": null,
-      "id": "e7aaccb8-5b0e-4b38-9968-e4193bc1423d"
+      "id": "f7cc261e-7920-499a-9b4f-5888b13cffd9"
     },
     {
-      "content": "\n[ROLE] You are a data governance workflow recommendation system.\nYou need to automatically select appropriate operator nodes and assemble a complete data processing pipeline based on contextual information.\n\n[INPUT]\nYou will receive the following information:\nThe requirements that the pipeline must meet:\n========\n给我随意符合逻辑的5个算子，过滤，去重！\n========\nSample data information:\n========\n[{'raw_content': 'The study investigates the impact of data quality on the performance of large language models.'}]\n========\nThe list of available operators for each data type:\n============================\n\"PromptedGenerator\":\"基于用户提供的提示词（prompt）生成数据。结合系统提示词和输入内容生成符合要求的输出文本。输入参数：\n- llm_serving：LLM服务对象，需实现LLMServingABC接口\n- system_prompt：系统提示词，定义模型行为，默认为'You are a helpful agent.'\n- input_key：输入内容字段名，默认为'raw_content'\n- output_key：输出生成内容字段名，默认为'generated_content'\n输出参数：\n- 包含生成内容的DataFrame\n- 返回输出字段名，用于后续算子引用\"; \"PairedPromptedGenerator\":\"PairedPromptedGenerator：基于两列配对输入（input_key_1 与 input_key_2）进行成对提示生成。\n算子会将 system_prompt 与每行的两列文本按固定模板拼接后，调用 LLM 服务批量生成结果，并将模型输出写回到 DataFrame 的指定列。\n\n输入参数：\n- llm_serving：LLM 服务对象（实现 LLMServingABC 接口）\n- system_prompt：系统提示词（默认 'You are a helpful agent.'）。该提示会放在每条样本前缀，  用于约束模型的角色与输出风格。\n- input_key_1：第一列输入字段名（默认 'input_key_1'）\n- input_key_2：第二列输入字段名（默认 'input_key_2'）\n- output_key：输出字段名（默认 'generated_content'）\n\n处理逻辑：\n1) 从 storage 中读取名为 'dataframe' 的 DataFrame；\n2) 对于每一行，若 input_key_1 与 input_key_2 均非空，则按模板：\n   system_prompt + input_key_1 + 值 + '\\n' + input_key_2 + 值\n   构造 LLM 输入；\n3) 批量调用 llm_serving.generate_from_input 生成文本；\n4) 将生成结果写入 DataFrame 的 output_key 列并保存。\n\n输出：\n- 返回写入了生成结果的新 DataFrame（由 storage 管理保存），\n- 返回 output_key 以便后续算子引用。\"; \"RandomDomainKnowledgeRowGenerator\":\"\"; \"Text2QAGenerator\":\"该算子用于为给定的文档片段生成种子QA对。\n\n输入参数：\n- input_key: 包含文档片段的字段名\n- prompt_key: 包含提示词的字段名\n- output_quesion_key: 包含生成问题的字段名\n- output_answer_key: 包含生成答案的字段名\n\"; \"Text2MultiHopQAGenerator\":\"('MultiHopQAGenerator 是多跳问答对生成处理器，支持从文本中自动生成需要多步推理的问题与答案。', '处理流程包括：文本预处理、信息抽取、问题生成与回答生成，支持自定义语言模型后端和参数。', '输出格式如下：', '输入：\\ntext: <原始上下文文本>', '输出：\\n{\\n  \"text\": <处理后的文本字符串>,\\n  \"qa_pairs\": [\\n    {\\n      \"question\": <字符串：生成的问题>,\\n      \"reasoning_steps\": [\\n        {\"step\": <推理过程的步骤 1>},\\n        {\"step\": <步骤 2>} ...\\n      ],\\n      \"answer\": <字符串：最终答案>,\\n      \"supporting_facts\": [<支持该答案的事实 1>, <事实 2>, ...],\\n      \"type\": <可选：问题类型，如“生物学”、“历史”等>\\n    },\\n    ...\\n  ],\\n  \"metadata\": {\\n    \"source\": <数据来源>,\\n    \"timestamp\": <时间戳字符串>,\\n    \"complexity\": <整数：问题复杂度标记>\\n  }\\n}')\"; \"EmbeddingGenerator\":\"EmbeddingGenerator算子用于从输入文本生成向量表示（embedding），通常用于语义检索、聚类或下游模型输入等任务。\n\n输入参数：\n- embedding_serving：Embedding服务对象，需实现LLMServingABC接口，用于生成文本的向量表示\n- input_key：输入文本字段名，默认为'text'\n- output_key：输出向量字段名，默认为'embeddings'\n\n输出参数：\n- 包含文本向量的DataFrame，每行对应一个输入文本的embedding\n- 返回输出字段名（如'embeddings'），可供后续算子引用\"; \"BenchDatasetEvaluator\":\"该算子用于对比预测答案与标准答案的匹配度，支持两种评估模式：\n\n1. 字符串匹配（match）：使用数学验证方法比较答案，适用于有明确答案的问题\n2. 语义匹配（semantic）：使用LLM评估答案的语义相似度，适用于开放性问题\n\n输入参数：\n- input_test_answer_key：预测答案字段名\n- input_gt_answer_key：标准答案字段名\n- input_question_key：问题字段名（语义匹配模式下必需）\n- compare_method：比较方法（match/semantic）\n\n输出参数：\n- answer_match_result：匹配结果（True/False）\n- 统计结果将保存到指定的eval_result_path路径\n\"; \"Text2QASampleEvaluator\":\"该算子用于为给的的文档片段生成种子QA对打分\n\n输入参数：\n- input_question_key: Field name containing the generated question\n- input_answer_key: Field name containing the generated answer\n- output_question_quality_key: Field name containing the question quality grade\n- output_question_quality_feedback_key: Field name containing the question quality feedback\n- output_answer_alignment_key: Field name containing the answer alignment grade\n- output_answer_alignment_feedback_key: Field name containing the answer alignment feedback\n- output_answer_verifiability_key: Field name containing the answer verifiability grade\n- output_downstream_value_key: Field name containing the downstream value grade\n- output_downstream_value_feedback_key: Field name containing the downstream value feedback\n\"; \"PromptedEvaluator\":\"PromptedEvaluator：使用 LLM 根据系统提示词对数据质量进行评分，并将评分写回 DataFrame（同时通过 storage 持久化）。模型应只输出分数（整数）。\n功能：对每行输入文本生成一个评分。\n输入参数：\n- llm_serving：LLM 服务对象，需实现 LLMServingABC 接口。\n- system_prompt：系统提示词（默认：'Please evaluate the quality of this data on a scale from 1 to 5.'）。\n- input_key：输入文本所在列名（默认：'raw_content'）。\n- output_key：评分结果写入的列名（默认：'eval'）。\n输出：\n- 返回输出列名（用于后续算子引用），评分结果已写回并保存。\"; \"PromptedFilter\":\"PromptedFilter 使用内置的 PromptedEvaluator 对输入数据进行数值化打分，并根据指定的分数区间（min_score 到 max_score，闭区间）筛选出符合条件的样本。默认情况下打分范围是 1–5，但用户可以通过 system_prompt 自定义其他评分规则。\n\n输入参数：\n- llm_serving：LLM 服务对象，需实现 LLMServingABC 接口\n- system_prompt：系统提示词，定义评估规范（可选，默认 'Please evaluate the quality of this data on a scale from 1 to 5.'）\n- input_key：待评估文本所在列名（默认 'raw_content'）\n- output_key：写回打分结果的列名（默认 'eval'，若已存在将被覆盖）\n- min_score：筛选的最小分（默认 5）\n- max_score：筛选的最大分（默认 5）\n\n输出参数：\n- 过滤后的 DataFrame（仅保留分数位于 [min_score, max_score] 的行）\n- 返回 output_key 以供后续算子引用\n\n备注：\n- 默认打分区间是 1–5，但可根据实际 prompt 改变。\"; \"KCenterGreedyFilter\":\"该算子用于从大量的文档片段中选取部分文档片段，用于后续生成种子QA对\n\n输入参数:\n- input_key: 包含文档片段的字段名\n- embedding_model_path: 嵌入模型路径\n- num_samples: 选取的文档片段数量\n- method: 选择方法，随机或k-center-greedy\n\n\"; \"GeneralFilter\":\"该算子支持通过多个自定义函数对 DataFrame 进行灵活过滤。\n\n每条过滤规则是一个函数（例如 lambda 表达式），接受一个 DataFrame 并返回一个布尔类型的 Series，用于指定保留哪些行。\n\n输入参数：\n- filter_rules：一个函数列表，每个函数形式为 lambda df: ...，需返回一个与 df 长度一致的布尔 Series。所有规则之间采用与（AND）关系组合。\n\n示例：\n  - lambda df: df['score'] > 0.5\n  - lambda df: df['label'].isin(['A', 'B'])\"; \"PromptedRefiner\":\"PromptedRefiner 根据给定的 system_prompt 对指定列的文本进行改写/润色/规范化，并将结果**就地写回**同一列（覆盖原内容）。其做法是对每一行拼接 `system_prompt + raw_content` 作为模型输入，批量生成改写结果。\n\n输入参数：\n- llm_serving：LLM 服务对象，需实现 LLMServingABC 接口\n- system_prompt：系统提示词，用于描述改写目标与风格（默认 'You are a helpful agent.'）\n- input_key：要改写的文本列名（默认 'raw_content'），改写后会覆盖该列\n\n输出参数：\n- 覆盖后的 DataFrame（同名列被改写后的文本）\n- 无返回值（结果已通过 DataFlowStorage 写出）\n\n备注：\n- 该算子**覆盖** input_key 列；若需保留原文，建议先拷贝到新列。\n- 期望每行在 input_key 列提供可用文本；空值将不会生成对应输入，如与行数不匹配可能导致赋值报错。\"; \"PandasOperator\":\"该算子支持通过多个自定义函数对 DataFrame 进行任意操作（如添加列、重命名、排序等）。\n\n每个函数（通常为 lambda 表达式）接受一个 DataFrame 并返回一个修改后的 DataFrame。\n\n输入参数：\n- process_fn：一个函数列表，每个函数形式为 lambda df: ...，必须返回一个 DataFrame。\n\n示例：\n  - lambda df: df.assign(score2=df['score'] * 2)\n  - lambda df: df.sort_values('score', ascending=False)\"\n============================\n\n[key rules]\n1. Follow Execution Order:\n  Data generation must occur before data extraction\n  Data extraction must occur before data validation\n  Correct order: Filter → Generate → Extract → Validate\n  Incorrect order: Filter → Extract → Generate ❌\n2 .Validate Data Availability:\n\n  Check sample data to confirm which fields already exist\n  If an operator requires field \"X\" but it's not present in the sample data, ensure a preceding operator creates it\n\n[Common Error Patterns to Avoid]\n❌ Incorrect Example: [\"FilterData\", \"ExtractAnswer\", \"GenerateAnswer\"]\nProblem: Attempting to extract the answer before it is generated\n\n✅ Correct Example: [\"FilterData\", \"GenerateAnswer\", \"ExtractAnswer\"]\nReason: Generate first, then extract\n\n❌ Incorrect Example: [\"ValidateAnswer\", \"GenerateAnswer\"]\nProblem: Validating an answer that does not exist yet\n\n✅ Correct Example: [\"GenerateAnswer\", \"ExtractAnswer\", \"ValidateAnswer\"]\nReason: Complete data flow\n\n\n[OUTPUT RULES]\n1. Please select suitable operator nodes for each type and return them in the following JSON format:\n{\n  \"ops\": [\"OperatorA\", \"OperatorB\", \"OperatorC\"],\n  \"reason\": \"State your reasoning here. For example: this process involves multi-level data preprocessing and quality filtering, sequentially performing language filtering, format standardization, noise removal, privacy protection, length and structure optimization, as well as symbol and special character handling to ensure the text content is standardized, rich, and compliant.\"\n}\n2 Only the names of the operators are needed.\n3. Please verify whether the selected operators and their order fully meet the requirements specified in 给我随意符合逻辑的5个算子，过滤，去重！.\n[Question]\nBased on the above rules, what pipeline should be recommended???\n",
+      "content": "\n[ROLE] You are a data governance workflow recommendation system.\nYou need to automatically select appropriate operator nodes and assemble a complete data processing pipeline based on contextual information.\n\n[INPUT]\nYou will receive the following information:\nThe requirements that the pipeline must meet:\n========\n给我随意符合逻辑的5个算子，过滤，去重！\n========\nSample data information:\n========\n[{'raw_content': 'Future work includes exploring low-resource languages and domain adaptation strategies.'}]\n========\nThe list of available operators for each data type:\n============================\n\"ColonEndFilter\":\"该算子用于检查文本是否以冒号结尾，常用于判断问题是否为不完整的提问。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n输出参数：\n- 过滤后的DataFrame，仅保留不以冒号结尾的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"SentenceNumberFilter\":\"该算子用于检查文本中的句子数量是否在指定范围内，使用正则表达式匹配句子结束符号(。！？.!?)进行分割。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_sentences：最小句子数量阈值，默认为1\n- max_sentences：最大句子数量阈值，默认为5\n输出参数：\n- 过滤后的DataFrame，仅保留句子数量在指定范围内的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"LineEndWithEllipsisFilter\":\"该算子用于检测并过滤以省略号(...)或(……)结尾的文本行，常用于识别不完整的表述。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- strip_whitespace：是否在检查前去除末尾空白字符，默认为True\n输出参数：\n- 过滤后的DataFrame，仅保留不以省略号结尾的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"ContentNullFilter\":\"该算子用于过滤空值、空字符串或仅包含空白字符的文本，确保输入数据的有效性。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- ignore_whitespace：是否将仅含空白字符的文本视为空值，默认为True\n输出参数：\n- 过滤后的DataFrame，仅保留非空且非空白的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"SymbolWordRatioFilter\":\"该算子用于检查文本中特定符号(#, ..., …)与单词数量的比率是否超过阈值，过滤符号使用过多的文本。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：符号与单词比率阈值，默认为0.3\n- symbols：要检查的符号列表，默认为['#', '...', '……']\n输出参数：\n- 过滤后的DataFrame，仅保留符号比率低于阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"AlphaWordsFilter\":\"该算子用于验证文本中字母单词的比率是否达到阈值，支持NLTK分词或简单空格分割两种模式。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：字母单词比率阈值，默认为0.5\n- use_nltk：是否使用NLTK进行分词，默认为True\n- nltk_tokenizer：NLTK分词器类型，默认为'word_tokenize'\n输出参数：\n- 过滤后的DataFrame，仅保留字母单词比率达到阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"HtmlEntityFilter\":\"该算子用于检测并过滤包含HTML实体（如&amp;、&lt;、&gt;等）的文本，确保内容不包含标记语言元素。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- patterns：HTML实体匹配模式列表，默认为包含常见实体的正则表达式\n- case_sensitive：是否区分大小写匹配，默认为False\n输出参数：\n- 过滤后的DataFrame，仅保留不包含HTML实体的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"IDCardFilter\":\"该算子用于检测并过滤包含身份证相关术语的文本，使用正则表达式匹配身份证号码模式以保护敏感信息。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- pattern：身份证号码匹配正则表达式，默认为包含18位和15位身份证的模式\n- threshold：匹配次数阈值，默认为1\n输出参数：\n- 过滤后的DataFrame，仅保留不包含身份证相关信息的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"NoPuncFilter\":\"该算子用于确保文本包含足够的标点符号，通过统计标点符号数量与文本长度的比率进行过滤。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_punc_ratio：最小标点符号比率阈值，默认为0.02\n- punc_set：标点符号集合，默认为'。，！？；：,.!?;:()'\n输出参数：\n- 过滤后的DataFrame，仅保留标点符号比率达到阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"SpecialCharacterFilter\":\"该算子用于移除包含特殊/unicode字符的文本，使用预定义模式检测非标准字符以确保文本规范性。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- patterns：特殊字符匹配模式列表，默认为包含各种unicode控制字符的正则表达式\n- allowed_chars：允许的字符集正则表达式，默认为基本中英文和常用标点\n输出参数：\n- 过滤后的DataFrame，仅保留不包含特殊字符的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"WatermarkFilter\":\"该算子用于检测并移除包含版权/水印内容的文本，使用指定关键词列表识别受保护内容。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- keywords：水印关键词列表，默认为['版权所有', '保留所有权利', 'watermark', 'copyright']\n- case_sensitive：是否区分大小写匹配，默认为False\n- threshold：匹配关键词数量阈值，默认为1\n输出参数：\n- 过滤后的DataFrame，仅保留不包含水印关键词的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"MeanWordLengthFilter\":\"该算子用于检查文本中单词的平均长度是否在指定范围内，通过字符总数除以单词数量计算平均值。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_length：最小平均单词长度，默认为2\n- max_length：最大平均单词长度，默认为10\n- word_splitter：单词分割方法，默认为空格分割\n输出参数：\n- 过滤后的DataFrame，仅保留平均单词长度在指定范围内的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"StopWordFilter\":\"该算子用于验证文本中停用词的比率是否低于阈值，使用NLTK分词器进行单词分割和停用词识别。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：停用词比率阈值，默认为0.3\n- language：NLTK停用词语言，默认为'english'\n- use_nltk_tokenizer：是否使用NLTK分词器，默认为True\n输出参数：\n- 过滤后的DataFrame，仅保留停用词比率低于阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"CurlyBracketFilter\":\"该算子用于检测文本中是否存在过多的花括号使用，通过花括号数量与文本长度的比率进行过滤。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：花括号比率阈值，默认为0.01\n- brackets：要检测的括号类型，默认为['{', '}']\n输出参数：\n- 过滤后的DataFrame，仅保留花括号比率低于阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"CapitalWordsFilter\":\"该算子用于检查文本中大写单词的比率是否超过阈值，支持可选的分词器进行单词识别。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：大写单词比率阈值，默认为0.5\n- use_tokenizer：是否使用分词器，默认为False\n- tokenizer：分词器对象，默认为None\n输出参数：\n- 过滤后的DataFrame，仅保留大写单词比率低于阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"LoremIpsumFilter\":\"该算子用于检测并过滤包含占位文本（如'lorem ipsum'）的文本，使用正则表达式模式匹配并结合阈值过滤。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：匹配次数阈值，默认为1\n- patterns：占位文本匹配模式列表，默认为包含'lorem ipsum'变体的正则表达式\n- case_sensitive：是否区分大小写匹配，默认为False\n输出参数：\n- 过滤后的DataFrame，仅保留不包含占位文本的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"UniqueWordsFilter\":\"该算子用于检查文本中唯一单词的比率是否达到阈值，通过集合操作计算唯一单词数量与总单词数量的比率。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_ratio：最小唯一单词比率阈值，默认为0.3\n- ignore_case：是否忽略大小写，默认为True\n- word_splitter：单词分割方法，默认为空格分割\n输出参数：\n- 过滤后的DataFrame，仅保留唯一单词比率达到阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"CharNumberFilter\":\"该算子用于验证文本在去除空白字符后的字符数量是否在指定阈值范围内。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_chars：最小字符数量阈值，默认为10\n- max_chars：最大字符数量阈值，默认为1000\n- strip_whitespace：是否去除空白字符后计算，默认为True\n输出参数：\n- 过滤后的DataFrame，仅保留字符数量在指定范围内的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"LineStartWithBulletpointFilter\":\"该算子用于检测并过滤以各种项目符号符号开头的文本行，使用Unicode字符匹配结合比率阈值进行过滤。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：项目符号行比率阈值，默认为0.5\n- bullet_chars：项目符号字符列表，默认为['•', '●', '○', '■', '□', '◆', '◇', '▶', '▷', '*', '-']\n- line_separator：行分隔符，默认为'\n'\n输出参数：\n- 过滤后的DataFrame，仅保留项目符号行比率低于阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"LineWithJavascriptFilter\":\"该算子用于识别并过滤包含'javascript'引用的文本，通过关键词匹配和阈值判断进行内容过滤。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：匹配次数阈值，默认为1\n- keywords：JavaScript相关关键词列表，默认为['javascript', 'js', '<script>', 'eval(', 'function(']\n- case_sensitive：是否区分大小写匹配，默认为False\n输出参数：\n- 过滤后的DataFrame，仅保留不包含JavaScript引用的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"LangkitSampleEvaluator\":\"使用Langkit工具包计算文本统计信息，帮助评估文本结构复杂性和可读性。提取多种语言特征，包括句子长度、词汇多样性、情感倾向等。\n\n输出参数：\n- LangkitNumSentencesScore: 句子数量\n- LangkitNumWordsScore: 单词数量\n- LangkitAvgWordLengthScore: 平均单词长度\n- LangkitFleschReadingEaseScore: 可读性评分（Flesch公式）\n- LangkitSentimentScore: 情感倾向（-1到1之间）\"; \"LangkitFilter\":\"基于LangkitScorer打分器的得分对数据进行过滤。使用Langkit工具包计算11种文本统计信息，帮助评估文本结构复杂性和可读性。\n输入参数：\n- min_scores：各指标的最小阈值字典，包含11个语言统计指标\n- max_scores：各指标的最大阈值字典，包含11个语言统计指标\n- metrics_to_keep：需要保留的评估指标列表\n输出参数：\n- 过滤后的DataFrame，仅保留所有指标都在指定范围内的文本\n- 返回包含各指标标签字段名的列表\"; \"LexicalDiversitySampleEvaluator\":\"使用MTLD（词汇多样性测量）和HDD（移动平均类型-标记比）方法计算文本词汇多样性。\n\n功能说明：\n- MTLD（词汇多样性测量）：通过计算维持特定TTR阈值所需的单词数量来评估词汇多样性\n- HDD（移动平均类型-标记比）：基于样本的词汇丰富度估计\n\n输入要求：文本长度需大于50个单词\n\n输出参数：\n- LexicalDiversityMTLDScore: MTLD多样性得分（值越高表示多样性越好）\n- LexicalDiversityHD-DScore: HDD多样性得分（值越高表示多样性越好）\"; \"LexicalDiversityFilter\":\"基于LexicalDiversityScorer打分器的得分对数据进行过滤。使用MTLD（移动平均类型-令牌比）和HDD（超几何分布多样性）两种方法计算词汇多样性，高分代表更丰富的词汇使用。\n输入参数：\n- min_scores：各指标的最小阈值字典，包含'mtld'和'hdd'\n- max_scores：各指标的最大阈值字典，包含'mtld'和'hdd'\n输出参数：\n- 过滤后的DataFrame，仅保留词汇多样性在指定范围内的文本\n- 返回包含各指标标签字段名的列表\"; \"NgramSampleEvaluator\":\"计算文本中n-gram的重复比例，评估文本冗余度。通过比较唯一n-gram数量与总n-gram数量的比值来衡量文本原创性。\n\n初始化参数：\n- ngrams: n-gram的长度，默认为5\n\n输出参数：\n- NgramScore: n-gram重复比例得分（0到1之间，得分越高表示重复比例越低）\"; \"NgramFilter\":\"基于NgramScorer打分器的得分对数据进行过滤。计算文本中n-gram的重复比例，得分越高表示重复比例越低，文本冗余度越小。\n输入参数：\n- min_score：最小n-gram得分阈值\n- max_score：最大n-gram得分阈值\n- ngrams：n-gram的n值\n输出参数：\n- 过滤后的DataFrame，仅保留n-gram得分在指定范围内的文本\n- 返回包含n-gram得分字段名的列表\"; \"PresidioSampleEvaluator\":\"使用Microsoft Presidio模型识别文本中的个人身份信息(PII)，返回检测到的PII实体数量。支持多种实体类型如姓名、邮箱、电话号码等，基于dslim/bert-base-NER模型实现。适用于评估文本的隐私安全风险。\n输入参数：\n- text: 待检测的文本字符串\n- lang: 语言类型，默认为'en'\n输出参数：\n- int: 检测到的PII实体数量\"; \"PresidioFilter\":\"基于PresidioScorer打分器的得分对数据进行过滤。使用Microsoft Presidio模型识别文本中的私人实体(PII)，返回PII信息个数。\n支持识别姓名、邮箱、电话号码、身份证号等多种敏感信息类型，可用于数据隐私保护和合规性检查。\n输入参数：\n- min_score：保留样本的最小PII数量阈值，默认为0\n- max_score：保留样本的最大PII数量阈值，默认为5\n- lang：文本语言，默认为'en'\n- device：模型运行设备，默认为'cuda'\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n输出参数：\n- 过滤后的DataFrame，仅保留PII数量在[min_score, max_score]范围内的样本\n- 返回包含输出字段名的列表，用于后续算子引用\"; \"BlocklistFilter\":\"该算子使用特定语言的阻止列表进行文本过滤，支持可选的分词器进行单词级匹配。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- language：语言代码，默认为'zh'\n- blocklist_dir：阻止列表文件目录，默认为'./blocklists/'\n- threshold：匹配次数阈值，默认为1\n- use_tokenizer：是否使用分词器，默认为True\n- tokenizer：分词器对象，默认为None\n输出参数：\n- 过滤后的DataFrame，仅保留不包含阻止列表关键词的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"HashDeduplicateFilter\":\"使用多种哈希函数对文本进行精确去重，支持md5、sha256或xxh3算法。通过计算文本的哈希值识别重复数据。\n\n初始化参数：\n- hash_func: 哈希函数名称，可选'md5'、'sha256'或'xxh3'，默认为'md5'\n\n运行参数：\n- input_keys: 用于计算哈希的多个字段列表（与input_key二选一）\n- input_key: 用于计算哈希的单个字段名（与input_keys二选一）\n- output_key: 去重标记字段名，默认为'minhash_deduplicated_label'\n\n输出说明：标记为1的数据表示首次出现，标记为0的数据表示重复数据\n算法特点：\n- md5: 128位哈希值，平衡速度和唯一性\n- sha256: 256位哈希值，更高安全性，速度较慢\n- xxh3: 128位哈希值，最快的哈希算法\"; \"LanguageFilter\":\"使用FastText语言识别模型过滤数据。下载并加载预训练的FastText语言识别模型，检查文本的语言是否在允许的语言列表中。\n输入参数：\n- allowed_languages：允许的语言标签列表\n- model_cache_dir：模型缓存目录路径\n输出参数：\n- 过滤后的DataFrame，仅保留语言在允许列表中的文本\n- 返回包含语言标签字段名的列表\"; \"LLMLanguageFilter\":\"使用大语言模型识别语言并过滤数据\"; \"MinHashDeduplicateFilter\":\"结合MinHash与LSH（局部敏感哈希）实现高效近似去重。将文本转换为MinHash签名，使用LSH快速查找相似文本，实现大规模数据集的近似去重。\n输入参数：\n- num_perm：生成MinHash签名的排列数\n- threshold：相似度阈值，超过此阈值判定为相似文本\n- use_n_gram：是否使用n-gram分词\n- ngram：n-gram的n值\n输出参数：\n- 去重后的DataFrame，仅保留唯一文本\n- 返回包含去重标签字段名的列表\"; \"NgramHashDeduplicateFilter\":\"结合n-gram技术与哈希算法识别相似文本，实现近似去重。将文本分割为多个n-gram片段，计算每个片段的哈希值，通过比较哈希集合的相似度来判断文本相似性。\n输入参数：\n- n_gram：将文本分割的片段数量\n- hash_func：哈希函数类型，支持'md5'、'sha256'和'xxh3'\n- diff_size：哈希集合差异阈值，小于此值判定为相似文本\n输出参数：\n- 去重后的DataFrame，仅保留唯一文本\n- 返回包含去重标签字段名的列表\"; \"PerspectiveSampleEvaluator\":\"使用Perspective API评估文本的毒性，返回毒性概率，得分越高表明文本毒性越高。\n输入参数：\n- serving：Perspective API服务对象\n- input_key：输入文本字段名\n- output_key：输出得分字段名，默认'PerspectiveScore'\n输出参数：\n- 包含毒性评估得分的DataFrame\"; \"PerspectiveFilter\":\"基于PerspectiveScorer打分器的得分对数据进行过滤使用Perspective API评估文本的毒性，返回毒性概率，得分越高表明文本毒性越高。\n输入参数：\n- min_score：最小毒性得分阈值\n- max_score：最大毒性得分阈值\n输出参数：\n- 过滤后的DataFrame，仅保留毒性得分在指定范围内的文本\n- 返回包含毒性得分字段名的列表\"; \"SemDeduplicateFilter\":\"基于BERT语义相似度识别语义重复文本，执行近似去重操作。通过计算文本嵌入向量间的余弦相似度，识别语义相似的文本并保留唯一样本。\n支持多字段组合作为去重依据，可有效去除内容相似但表述不同的重复数据，提高数据集多样性。\n输入参数：\n- eps：相似度阈值，值越小表示允许的相似度越低，默认为0.05（即余弦相似度大于0.95视为重复）\n- model_name：预训练模型名称，默认为'sentence-transformers/all-MiniLM-L6-v2'\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n- device：模型运行设备，默认为'cuda'\n- input_keys：多个输入字段名列表，与input_key二选一\n- input_key：单个输入字段名，与input_keys二选一\n- output_key：去重结果字段名，默认为'minhash_deduplicated_label'\n输出参数：\n- 过滤后的DataFrame，仅保留语义不重复的样本（标记为1的样本）\n- 返回包含去重结果字段名的列表，用于后续算子引用\"; \"SimHashDeduplicateFilter\":\"使用SimHash算法通过汉明距离识别相似文本，执行近似去重操作。将文本转换为固定长度的指纹，通过计算指纹间的汉明距离判断文本相似度。\n相比语义去重速度更快，适合大规模数据集的快速去重预处理，尤其适用于检测字符层面相似的文本。\n输入参数：\n- fingerprint_size：指纹长度，默认为64位\n- bound：相似度阈值，值越小表示允许的相似度越低，默认为0.1（即相似度大于0.9视为重复）\n- input_keys：多个输入字段名列表，与input_key二选一\n- input_key：单个输入字段名，与input_keys二选一\n- output_key：去重结果字段名，默认为'minhash_deduplicated_label'\n输出参数：\n- 过滤后的DataFrame，仅保留相似性低于阈值的唯一样本（标记为1的样本）\n- 返回包含去重结果字段名的列表，用于后续算子引用\"; \"WordNumberFilter\":\"该算子用于过滤单词数量不在指定范围内的文本，通过空格分割计算单词数量。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_words：最小单词数量阈值，默认为5\n- max_words：最大单词数量阈值，默认为100\n输出参数：\n- 过滤后的DataFrame，仅保留单词数量在指定范围内的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"HtmlEntityRefiner\":\"去除文本中的HTML实体，包括标准实体（如&nbsp;、&lt;）和各种变体形式（全角符号、中文分号等）。支持自定义需要移除的HTML实体列表。输入参数：\n- html_entities：需要移除的HTML实体列表，默认为包含常见实体的列表\n- input_key：输入文本字段名\n输出参数：\n- 包含移除HTML实体后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"HtmlUrlRemoverRefiner\":\"去除文本中的URL链接和HTML标签，净化文本内容。使用正则表达式匹配并移除各种形式的URL和HTML标签。输入参数：\n- input_key：输入文本字段名\n输出参数：\n- 包含净化后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"LowercaseRefiner\":\"将文本字段中的所有大写字符转换为小写，统一文本格式。对指定字段的文本内容进行全小写处理。输入参数：\n- input_key：输入文本字段名\n输出参数：\n- 包含小写转换后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"NERRefiner\":\"使用命名实体识别（NER）技术识别并屏蔽文本中的特定实体。使用spaCy的'en_core_web_sm'模型识别实体，并将其替换为对应的实体类型标签。输入参数：\n- input_key：输入文本字段名\n输出参数：\n- 包含实体屏蔽后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"PIIAnonymizeRefiner\":\"使用Presidio和BERT-NER模型识别并匿名化文本中的个人身份信息（PII）。支持多种PII类型的检测和匿名化处理。输入参数：\n- lang：语言代码，默认为'en'\n- device：运行设备，默认为'cuda'\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n- model_name：NER模型名称，默认为'dslim/bert-base-NER'\n- input_key：输入文本字段名\n输出参数：\n- 包含匿名化后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"ReferenceRemoverRefiner\":\"删除文本中未闭合的引用标签和引用链接，包括<ref>标签和{{cite}}模板的各种完整和不完整形式。净化文本中的引用标记。输入参数：\n- input_key：输入文本字段名\n输出参数：\n- 包含移除引用标记后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"RemoveContractionsRefiner\":\"该算子用于扩展文本中的英语缩写词，将缩写形式转换为完整形式（例如将\"can't\"扩展为\"cannot\"）。\n使用contractions库进行缩写词扩展，提高文本标准化程度。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含扩展缩写词后的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveEmojiRefiner\":\"该算子用于去除文本中的Unicode图像表情符号，包括表情符号、杂项符号、交通符号、旗帜等各类图像符号。\n通过正则表达式匹配Unicode表情符号范围，实现高效过滤。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除表情符号的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveEmoticonsRefiner\":\"该算子用于移除文本中的文本型表情符号，例如':-)'、':D'、':('等字符组合表情。\n基于预定义的表情符号字典进行匹配替换，支持多种常见文本表情模式。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除文本表情的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveExtraSpacesRefiner\":\"该算子用于移除文本中的多余空格，将连续的多个空格替换为单个空格，并去除文本前后的空白字符。\n通过字符串分割和连接实现空格标准化，提高文本格式一致性。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含标准化空格的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveImageRefsRefiner\":\"该算子用于去除文本中的图片引用格式，包括Markdown图片链接、图片编号、特殊符号组合等图像引用模式。\n通过多模式正则表达式匹配，识别并移除多种图片引用格式。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除图片引用的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveNumberRefiner\":\"该算子用于移除文本中的数字字符，包括0-9的阿拉伯数字。\n通过字符过滤实现数字移除，保留纯文本内容。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除数字的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemovePunctuationRefiner\":\"该算子用于移除文本中的标点符号，包括英文标点符号集合中的所有符号。\n使用string.punctuation定义的标点集合进行过滤，实现文本去标点处理。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除标点的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveRepetitionsPunctuationRefiner\":\"该算子用于移除文本中重复的标点符号，例如将\"!!!\"变为\"!\"，\",,\"变为\",\"。\n通过正则表达式匹配连续重复的标点符号，替换为单个符号。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含标准化标点的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveStopwordsRefiner\":\"该算子用于移除文本中的英语停用词（如\"the\"，\"is\"，\"in\"等无实际意义的高频词汇）。\n使用NLTK库的stopwords语料库进行停用词过滤，提高文本特征密度。\n输入参数：\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除停用词的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"SpellingCorrectionRefiner\":\"该算子用于通过SymSpell算法对文本中的拼写错误进行纠正，支持自定义编辑距离和词典路径。\n若本地词典不存在则自动下载，使用近似字符串匹配实现拼写纠错功能。\n输入参数：\n- max_edit_distance：最大编辑距离，默认为2\n- prefix_length：前缀长度，默认为7\n- dictionary_path：词典路径，默认为'frequency_dictionary_en_82_765.txt'\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含纠正拼写错误的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"StemmingLemmatizationRefiner\":\"该算子用于对文本进行词干提取或词形还原处理，将词语转换为其基本形式。\n支持两种处理方式：Porter词干提取(stemming)和WordNet词形还原(lemmatization)，可通过参数选择。\n输入参数：\n- method：处理方法，可选'stemming'或'lemmatization'，默认为'stemming'\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含词干/词形还原后的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"TextNormalizationRefiner\":\"该算子用于规范化文本中的日期格式和货币格式，统一为标准表示形式。\n日期格式统一转换为'YYYY-MM-DD'形式，货币格式转换为'金额 USD'形式，提高数据一致性。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含格式规范化的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"BertSampleEvaluator\":\"使用BERTScore评估生成文本与参考文本的相似度，基于上下文嵌入计算P/R/F1分数。\n输入参数：\n- lang：语言类型，默认为'en'\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n- input_key：生成文本字段名\n- reference_key：参考文本字段名\n- output_key：输出得分字段名，默认为'BertScore'\n输出参数：\n- 包含F1相似度得分的DataFrame\"; \"BleuSampleEvaluator\":\"计算BLEU分数评估生成文本与参考文本的n-gram重叠度，支持1-4元语法分析。\n输入参数：\n- n：最大n-gram长度，默认为4\n- eff：参考长度计算方式，可选'shortest'/'average'/'longest'，默认为'average'\n- special_reflen：特殊参考长度，默认为None\n- input_key：生成文本字段名\n- reference_key：参考文本字段名\n- output_key：输出得分字段名，默认为'BleuScore'\n输出参数：\n- 包含BLEU得分的DataFrame\"; \"CiderSampleEvaluator\":\"使用CIDEr指标评估生成文本与参考文本的相似度，基于TF-IDF加权的n-gram重叠度。\n输入参数：\n- n：最大n-gram长度，默认为4\n- sigma：高斯惩罚参数，默认为6.0\n- df_mode：文档频率模式，默认为'coco-val-df'\n- idf_path：IDF文件路径，默认为预训练COCO数据集IDF\n- input_key：生成文本字段名\n- reference_key：参考文本字段名\n- output_key：输出得分字段名，默认为'CiderScore'\n输出参数：\n- 包含CIDEr得分的DataFrame\"; \"Task2VecDatasetEvaluator\":\"使用Task2Vec方法评估数据集的多样性，通过计算样本嵌入的余弦距离矩阵来量化多样性。\n输入参数：\n- device：计算设备，默认为'cuda'\n- sample_nums：采样次数，默认为10\n- sample_size：每次采样样本数，默认为1\n- method：嵌入方法，可选'montecarlo'或'variational'，默认为'montecarlo'\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n- input_key：输入文本字段名\n输出参数：\n- Task2VecDiversityScore：多样性得分\n- ConfidenceInterval：置信区间\"; \"VendiDatasetEvaluator\":\"通过计算VendiScore来评估数据集的多样性，使用BERT和SimCSE模型生成嵌入并计算分数。\n输入参数：\n- device：计算设备，默认为'cuda'\n- input_key：输入文本字段名\n输出参数：\n- BERTVendiScore：基于BERT的多样性得分\n- SimCSEVendiScore：基于SimCSE的多样性得分\"\n============================\n\n[key rules]\n1. Follow Execution Order:\n  Data generation must occur before data extraction\n  Data extraction must occur before data validation\n  Correct order: Filter → Generate → Extract → Validate\n  Incorrect order: Filter → Extract → Generate ❌\n2 .Validate Data Availability:\n\n  Check sample data to confirm which fields already exist\n  If an operator requires field \"X\" but it's not present in the sample data, ensure a preceding operator creates it\n\n[Common Error Patterns to Avoid]\n❌ Incorrect Example: [\"FilterData\", \"ExtractAnswer\", \"GenerateAnswer\"]\nProblem: Attempting to extract the answer before it is generated\n\n✅ Correct Example: [\"FilterData\", \"GenerateAnswer\", \"ExtractAnswer\"]\nReason: Generate first, then extract\n\n❌ Incorrect Example: [\"ValidateAnswer\", \"GenerateAnswer\"]\nProblem: Validating an answer that does not exist yet\n\n✅ Correct Example: [\"GenerateAnswer\", \"ExtractAnswer\", \"ValidateAnswer\"]\nReason: Complete data flow\n\n\n[OUTPUT RULES]\n1. Please select suitable operator nodes for each type and return them in the following JSON format:\n{\n  \"ops\": [\"OperatorA\", \"OperatorB\", \"OperatorC\"],\n  \"reason\": \"State your reasoning here. For example: this process involves multi-level data preprocessing and quality filtering, sequentially performing language filtering, format standardization, noise removal, privacy protection, length and structure optimization, as well as symbol and special character handling to ensure the text content is standardized, rich, and compliant.\"\n}\n2 Only the names of the operators are needed.\n3. Please verify whether the selected operators and their order fully meet the requirements specified in 给我随意符合逻辑的5个算子，过滤，去重！.\n[Question]\nBased on the above rules, what pipeline should be recommended???\n",
       "additional_kwargs": {},
       "response_metadata": {},
       "type": "human",
       "name": null,
-      "id": "e1ce5668-fd5b-4615-ab7f-ff89eed5b552",
+      "id": "ed9345e5-d329-491a-9677-b7b82444ffb8",
       "example": false
     },
     {
-      "content": "```json\n{\n  \"ops\": [\"PromptedFilter\", \"GeneralFilter\", \"PromptedRefiner\", \"EmbeddingGenerator\", \"PandasOperator\"],\n  \"reason\": \"The pipeline involves filtering, refining, and generating embeddings for the data. The PromptedFilter is used to filter data based on quality scores. The GeneralFilter is applied for additional custom filtering rules. The PromptedRefiner refines the text content to ensure it is standardized. The EmbeddingGenerator creates vector representations of the text for further analysis. Finally, the PandasOperator is used for any additional data manipulation tasks, such as deduplication, ensuring the data is clean and ready for downstream tasks.\"\n}\n```",
+      "content": "```json\n{\n  \"ops\": [\n    \"ContentNullFilter\",\n    \"HashDeduplicateFilter\",\n    \"SentenceNumberFilter\",\n    \"SymbolWordRatioFilter\",\n    \"AlphaWordsFilter\"\n  ],\n  \"reason\": \"This pipeline is designed to ensure data quality and uniqueness by first filtering out null or empty content, then removing duplicate entries using hash-based deduplication. It further refines the data by filtering based on sentence count, symbol-to-word ratio, and ensuring a sufficient ratio of alphabetic words. This sequence ensures the text content is valid, unique, and meets structural and content quality standards.\"\n}\n```",
       "additional_kwargs": {
         "refusal": null
       },
       "response_metadata": {
         "token_usage": {
-          "completion_tokens": 142,
-          "prompt_tokens": 2964,
-          "total_tokens": 3106,
+          "completion_tokens": 129,
+          "prompt_tokens": 8825,
+          "total_tokens": 8954,
           "completion_tokens_details": {
             "accepted_prediction_tokens": 0,
             "audio_tokens": 0,
@@ -55,21 +55,21 @@
         },
         "model_name": "gpt-4o-2024-08-06",
         "system_fingerprint": "fp_4a331a0222",
-        "id": "chatcmpl-CV5VbenYmmYgsZXTAVFhchksLkyLq",
+        "id": "chatcmpl-CV7HvQpVIL2hJMxCPg112dj0E8apQ",
         "service_tier": null,
         "finish_reason": "stop",
         "logprobs": null
       },
       "type": "ai",
       "name": null,
-      "id": "run--829f3731-3d04-4100-b6e3-a02e3e95f53d-0",
+      "id": "run--dd22146f-87ac-40aa-8665-2133fcf3e5b4-0",
       "example": false,
       "tool_calls": [],
       "invalid_tool_calls": [],
       "usage_metadata": {
-        "input_tokens": 2964,
-        "output_tokens": 142,
-        "total_tokens": 3106,
+        "input_tokens": 8825,
+        "output_tokens": 129,
+        "total_tokens": 8954,
         "input_token_details": {
           "audio": 0,
           "cache_read": 0
@@ -86,10 +86,10 @@
       "pre_tool_results": {
         "sample": [
           {
-            "raw_content": "We evaluate the system on multiple benchmarks, including WMT and TED talks."
+            "raw_content": "Future work includes exploring low-resource languages and domain adaptation strategies."
           },
           {
-            "raw_content": "The model was trained using a combination of supervised and unsupervised learning techniques."
+            "raw_content": "Human evaluation confirms that our system produces more fluent and accurate translations."
           }
         ],
         "categories": [
@@ -112,31 +112,31 @@
       },
       "post_tools": [],
       "results": {
-        "category": "core_text"
+        "category": "general_text"
       }
     },
     "recommender": {
       "pre_tool_results": {
         "sample": [
           {
-            "raw_content": "The study investigates the impact of data quality on the performance of large language models."
+            "raw_content": "Future work includes exploring low-resource languages and domain adaptation strategies."
           }
         ],
         "target": "给我随意符合逻辑的5个算子，过滤，去重！",
-        "operator": "\"PromptedGenerator\":\"基于用户提供的提示词（prompt）生成数据。结合系统提示词和输入内容生成符合要求的输出文本。输入参数：\n- llm_serving：LLM服务对象，需实现LLMServingABC接口\n- system_prompt：系统提示词，定义模型行为，默认为'You are a helpful agent.'\n- input_key：输入内容字段名，默认为'raw_content'\n- output_key：输出生成内容字段名，默认为'generated_content'\n输出参数：\n- 包含生成内容的DataFrame\n- 返回输出字段名，用于后续算子引用\"; \"PairedPromptedGenerator\":\"PairedPromptedGenerator：基于两列配对输入（input_key_1 与 input_key_2）进行成对提示生成。\n算子会将 system_prompt 与每行的两列文本按固定模板拼接后，调用 LLM 服务批量生成结果，并将模型输出写回到 DataFrame 的指定列。\n\n输入参数：\n- llm_serving：LLM 服务对象（实现 LLMServingABC 接口）\n- system_prompt：系统提示词（默认 'You are a helpful agent.'）。该提示会放在每条样本前缀，  用于约束模型的角色与输出风格。\n- input_key_1：第一列输入字段名（默认 'input_key_1'）\n- input_key_2：第二列输入字段名（默认 'input_key_2'）\n- output_key：输出字段名（默认 'generated_content'）\n\n处理逻辑：\n1) 从 storage 中读取名为 'dataframe' 的 DataFrame；\n2) 对于每一行，若 input_key_1 与 input_key_2 均非空，则按模板：\n   system_prompt + input_key_1 + 值 + '\\n' + input_key_2 + 值\n   构造 LLM 输入；\n3) 批量调用 llm_serving.generate_from_input 生成文本；\n4) 将生成结果写入 DataFrame 的 output_key 列并保存。\n\n输出：\n- 返回写入了生成结果的新 DataFrame（由 storage 管理保存），\n- 返回 output_key 以便后续算子引用。\"; \"RandomDomainKnowledgeRowGenerator\":\"\"; \"Text2QAGenerator\":\"该算子用于为给定的文档片段生成种子QA对。\n\n输入参数：\n- input_key: 包含文档片段的字段名\n- prompt_key: 包含提示词的字段名\n- output_quesion_key: 包含生成问题的字段名\n- output_answer_key: 包含生成答案的字段名\n\"; \"Text2MultiHopQAGenerator\":\"('MultiHopQAGenerator 是多跳问答对生成处理器，支持从文本中自动生成需要多步推理的问题与答案。', '处理流程包括：文本预处理、信息抽取、问题生成与回答生成，支持自定义语言模型后端和参数。', '输出格式如下：', '输入：\\ntext: <原始上下文文本>', '输出：\\n{\\n  \"text\": <处理后的文本字符串>,\\n  \"qa_pairs\": [\\n    {\\n      \"question\": <字符串：生成的问题>,\\n      \"reasoning_steps\": [\\n        {\"step\": <推理过程的步骤 1>},\\n        {\"step\": <步骤 2>} ...\\n      ],\\n      \"answer\": <字符串：最终答案>,\\n      \"supporting_facts\": [<支持该答案的事实 1>, <事实 2>, ...],\\n      \"type\": <可选：问题类型，如“生物学”、“历史”等>\\n    },\\n    ...\\n  ],\\n  \"metadata\": {\\n    \"source\": <数据来源>,\\n    \"timestamp\": <时间戳字符串>,\\n    \"complexity\": <整数：问题复杂度标记>\\n  }\\n}')\"; \"EmbeddingGenerator\":\"EmbeddingGenerator算子用于从输入文本生成向量表示（embedding），通常用于语义检索、聚类或下游模型输入等任务。\n\n输入参数：\n- embedding_serving：Embedding服务对象，需实现LLMServingABC接口，用于生成文本的向量表示\n- input_key：输入文本字段名，默认为'text'\n- output_key：输出向量字段名，默认为'embeddings'\n\n输出参数：\n- 包含文本向量的DataFrame，每行对应一个输入文本的embedding\n- 返回输出字段名（如'embeddings'），可供后续算子引用\"; \"BenchDatasetEvaluator\":\"该算子用于对比预测答案与标准答案的匹配度，支持两种评估模式：\n\n1. 字符串匹配（match）：使用数学验证方法比较答案，适用于有明确答案的问题\n2. 语义匹配（semantic）：使用LLM评估答案的语义相似度，适用于开放性问题\n\n输入参数：\n- input_test_answer_key：预测答案字段名\n- input_gt_answer_key：标准答案字段名\n- input_question_key：问题字段名（语义匹配模式下必需）\n- compare_method：比较方法（match/semantic）\n\n输出参数：\n- answer_match_result：匹配结果（True/False）\n- 统计结果将保存到指定的eval_result_path路径\n\"; \"Text2QASampleEvaluator\":\"该算子用于为给的的文档片段生成种子QA对打分\n\n输入参数：\n- input_question_key: Field name containing the generated question\n- input_answer_key: Field name containing the generated answer\n- output_question_quality_key: Field name containing the question quality grade\n- output_question_quality_feedback_key: Field name containing the question quality feedback\n- output_answer_alignment_key: Field name containing the answer alignment grade\n- output_answer_alignment_feedback_key: Field name containing the answer alignment feedback\n- output_answer_verifiability_key: Field name containing the answer verifiability grade\n- output_downstream_value_key: Field name containing the downstream value grade\n- output_downstream_value_feedback_key: Field name containing the downstream value feedback\n\"; \"PromptedEvaluator\":\"PromptedEvaluator：使用 LLM 根据系统提示词对数据质量进行评分，并将评分写回 DataFrame（同时通过 storage 持久化）。模型应只输出分数（整数）。\n功能：对每行输入文本生成一个评分。\n输入参数：\n- llm_serving：LLM 服务对象，需实现 LLMServingABC 接口。\n- system_prompt：系统提示词（默认：'Please evaluate the quality of this data on a scale from 1 to 5.'）。\n- input_key：输入文本所在列名（默认：'raw_content'）。\n- output_key：评分结果写入的列名（默认：'eval'）。\n输出：\n- 返回输出列名（用于后续算子引用），评分结果已写回并保存。\"; \"PromptedFilter\":\"PromptedFilter 使用内置的 PromptedEvaluator 对输入数据进行数值化打分，并根据指定的分数区间（min_score 到 max_score，闭区间）筛选出符合条件的样本。默认情况下打分范围是 1–5，但用户可以通过 system_prompt 自定义其他评分规则。\n\n输入参数：\n- llm_serving：LLM 服务对象，需实现 LLMServingABC 接口\n- system_prompt：系统提示词，定义评估规范（可选，默认 'Please evaluate the quality of this data on a scale from 1 to 5.'）\n- input_key：待评估文本所在列名（默认 'raw_content'）\n- output_key：写回打分结果的列名（默认 'eval'，若已存在将被覆盖）\n- min_score：筛选的最小分（默认 5）\n- max_score：筛选的最大分（默认 5）\n\n输出参数：\n- 过滤后的 DataFrame（仅保留分数位于 [min_score, max_score] 的行）\n- 返回 output_key 以供后续算子引用\n\n备注：\n- 默认打分区间是 1–5，但可根据实际 prompt 改变。\"; \"KCenterGreedyFilter\":\"该算子用于从大量的文档片段中选取部分文档片段，用于后续生成种子QA对\n\n输入参数:\n- input_key: 包含文档片段的字段名\n- embedding_model_path: 嵌入模型路径\n- num_samples: 选取的文档片段数量\n- method: 选择方法，随机或k-center-greedy\n\n\"; \"GeneralFilter\":\"该算子支持通过多个自定义函数对 DataFrame 进行灵活过滤。\n\n每条过滤规则是一个函数（例如 lambda 表达式），接受一个 DataFrame 并返回一个布尔类型的 Series，用于指定保留哪些行。\n\n输入参数：\n- filter_rules：一个函数列表，每个函数形式为 lambda df: ...，需返回一个与 df 长度一致的布尔 Series。所有规则之间采用与（AND）关系组合。\n\n示例：\n  - lambda df: df['score'] > 0.5\n  - lambda df: df['label'].isin(['A', 'B'])\"; \"PromptedRefiner\":\"PromptedRefiner 根据给定的 system_prompt 对指定列的文本进行改写/润色/规范化，并将结果**就地写回**同一列（覆盖原内容）。其做法是对每一行拼接 `system_prompt + raw_content` 作为模型输入，批量生成改写结果。\n\n输入参数：\n- llm_serving：LLM 服务对象，需实现 LLMServingABC 接口\n- system_prompt：系统提示词，用于描述改写目标与风格（默认 'You are a helpful agent.'）\n- input_key：要改写的文本列名（默认 'raw_content'），改写后会覆盖该列\n\n输出参数：\n- 覆盖后的 DataFrame（同名列被改写后的文本）\n- 无返回值（结果已通过 DataFlowStorage 写出）\n\n备注：\n- 该算子**覆盖** input_key 列；若需保留原文，建议先拷贝到新列。\n- 期望每行在 input_key 列提供可用文本；空值将不会生成对应输入，如与行数不匹配可能导致赋值报错。\"; \"PandasOperator\":\"该算子支持通过多个自定义函数对 DataFrame 进行任意操作（如添加列、重命名、排序等）。\n\n每个函数（通常为 lambda 表达式）接受一个 DataFrame 并返回一个修改后的 DataFrame。\n\n输入参数：\n- process_fn：一个函数列表，每个函数形式为 lambda df: ...，必须返回一个 DataFrame。\n\n示例：\n  - lambda df: df.assign(score2=df['score'] * 2)\n  - lambda df: df.sort_values('score', ascending=False)\""
+        "operator": "\"ColonEndFilter\":\"该算子用于检查文本是否以冒号结尾，常用于判断问题是否为不完整的提问。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n输出参数：\n- 过滤后的DataFrame，仅保留不以冒号结尾的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"SentenceNumberFilter\":\"该算子用于检查文本中的句子数量是否在指定范围内，使用正则表达式匹配句子结束符号(。！？.!?)进行分割。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_sentences：最小句子数量阈值，默认为1\n- max_sentences：最大句子数量阈值，默认为5\n输出参数：\n- 过滤后的DataFrame，仅保留句子数量在指定范围内的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"LineEndWithEllipsisFilter\":\"该算子用于检测并过滤以省略号(...)或(……)结尾的文本行，常用于识别不完整的表述。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- strip_whitespace：是否在检查前去除末尾空白字符，默认为True\n输出参数：\n- 过滤后的DataFrame，仅保留不以省略号结尾的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"ContentNullFilter\":\"该算子用于过滤空值、空字符串或仅包含空白字符的文本，确保输入数据的有效性。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- ignore_whitespace：是否将仅含空白字符的文本视为空值，默认为True\n输出参数：\n- 过滤后的DataFrame，仅保留非空且非空白的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"SymbolWordRatioFilter\":\"该算子用于检查文本中特定符号(#, ..., …)与单词数量的比率是否超过阈值，过滤符号使用过多的文本。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：符号与单词比率阈值，默认为0.3\n- symbols：要检查的符号列表，默认为['#', '...', '……']\n输出参数：\n- 过滤后的DataFrame，仅保留符号比率低于阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"AlphaWordsFilter\":\"该算子用于验证文本中字母单词的比率是否达到阈值，支持NLTK分词或简单空格分割两种模式。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：字母单词比率阈值，默认为0.5\n- use_nltk：是否使用NLTK进行分词，默认为True\n- nltk_tokenizer：NLTK分词器类型，默认为'word_tokenize'\n输出参数：\n- 过滤后的DataFrame，仅保留字母单词比率达到阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"HtmlEntityFilter\":\"该算子用于检测并过滤包含HTML实体（如&amp;、&lt;、&gt;等）的文本，确保内容不包含标记语言元素。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- patterns：HTML实体匹配模式列表，默认为包含常见实体的正则表达式\n- case_sensitive：是否区分大小写匹配，默认为False\n输出参数：\n- 过滤后的DataFrame，仅保留不包含HTML实体的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"IDCardFilter\":\"该算子用于检测并过滤包含身份证相关术语的文本，使用正则表达式匹配身份证号码模式以保护敏感信息。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- pattern：身份证号码匹配正则表达式，默认为包含18位和15位身份证的模式\n- threshold：匹配次数阈值，默认为1\n输出参数：\n- 过滤后的DataFrame，仅保留不包含身份证相关信息的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"NoPuncFilter\":\"该算子用于确保文本包含足够的标点符号，通过统计标点符号数量与文本长度的比率进行过滤。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_punc_ratio：最小标点符号比率阈值，默认为0.02\n- punc_set：标点符号集合，默认为'。，！？；：,.!?;:()'\n输出参数：\n- 过滤后的DataFrame，仅保留标点符号比率达到阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"SpecialCharacterFilter\":\"该算子用于移除包含特殊/unicode字符的文本，使用预定义模式检测非标准字符以确保文本规范性。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- patterns：特殊字符匹配模式列表，默认为包含各种unicode控制字符的正则表达式\n- allowed_chars：允许的字符集正则表达式，默认为基本中英文和常用标点\n输出参数：\n- 过滤后的DataFrame，仅保留不包含特殊字符的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"WatermarkFilter\":\"该算子用于检测并移除包含版权/水印内容的文本，使用指定关键词列表识别受保护内容。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- keywords：水印关键词列表，默认为['版权所有', '保留所有权利', 'watermark', 'copyright']\n- case_sensitive：是否区分大小写匹配，默认为False\n- threshold：匹配关键词数量阈值，默认为1\n输出参数：\n- 过滤后的DataFrame，仅保留不包含水印关键词的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"MeanWordLengthFilter\":\"该算子用于检查文本中单词的平均长度是否在指定范围内，通过字符总数除以单词数量计算平均值。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_length：最小平均单词长度，默认为2\n- max_length：最大平均单词长度，默认为10\n- word_splitter：单词分割方法，默认为空格分割\n输出参数：\n- 过滤后的DataFrame，仅保留平均单词长度在指定范围内的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"StopWordFilter\":\"该算子用于验证文本中停用词的比率是否低于阈值，使用NLTK分词器进行单词分割和停用词识别。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：停用词比率阈值，默认为0.3\n- language：NLTK停用词语言，默认为'english'\n- use_nltk_tokenizer：是否使用NLTK分词器，默认为True\n输出参数：\n- 过滤后的DataFrame，仅保留停用词比率低于阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"CurlyBracketFilter\":\"该算子用于检测文本中是否存在过多的花括号使用，通过花括号数量与文本长度的比率进行过滤。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：花括号比率阈值，默认为0.01\n- brackets：要检测的括号类型，默认为['{', '}']\n输出参数：\n- 过滤后的DataFrame，仅保留花括号比率低于阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"CapitalWordsFilter\":\"该算子用于检查文本中大写单词的比率是否超过阈值，支持可选的分词器进行单词识别。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：大写单词比率阈值，默认为0.5\n- use_tokenizer：是否使用分词器，默认为False\n- tokenizer：分词器对象，默认为None\n输出参数：\n- 过滤后的DataFrame，仅保留大写单词比率低于阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"LoremIpsumFilter\":\"该算子用于检测并过滤包含占位文本（如'lorem ipsum'）的文本，使用正则表达式模式匹配并结合阈值过滤。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：匹配次数阈值，默认为1\n- patterns：占位文本匹配模式列表，默认为包含'lorem ipsum'变体的正则表达式\n- case_sensitive：是否区分大小写匹配，默认为False\n输出参数：\n- 过滤后的DataFrame，仅保留不包含占位文本的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"UniqueWordsFilter\":\"该算子用于检查文本中唯一单词的比率是否达到阈值，通过集合操作计算唯一单词数量与总单词数量的比率。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_ratio：最小唯一单词比率阈值，默认为0.3\n- ignore_case：是否忽略大小写，默认为True\n- word_splitter：单词分割方法，默认为空格分割\n输出参数：\n- 过滤后的DataFrame，仅保留唯一单词比率达到阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"CharNumberFilter\":\"该算子用于验证文本在去除空白字符后的字符数量是否在指定阈值范围内。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_chars：最小字符数量阈值，默认为10\n- max_chars：最大字符数量阈值，默认为1000\n- strip_whitespace：是否去除空白字符后计算，默认为True\n输出参数：\n- 过滤后的DataFrame，仅保留字符数量在指定范围内的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"LineStartWithBulletpointFilter\":\"该算子用于检测并过滤以各种项目符号符号开头的文本行，使用Unicode字符匹配结合比率阈值进行过滤。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：项目符号行比率阈值，默认为0.5\n- bullet_chars：项目符号字符列表，默认为['•', '●', '○', '■', '□', '◆', '◇', '▶', '▷', '*', '-']\n- line_separator：行分隔符，默认为'\n'\n输出参数：\n- 过滤后的DataFrame，仅保留项目符号行比率低于阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"LineWithJavascriptFilter\":\"该算子用于识别并过滤包含'javascript'引用的文本，通过关键词匹配和阈值判断进行内容过滤。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：匹配次数阈值，默认为1\n- keywords：JavaScript相关关键词列表，默认为['javascript', 'js', '<script>', 'eval(', 'function(']\n- case_sensitive：是否区分大小写匹配，默认为False\n输出参数：\n- 过滤后的DataFrame，仅保留不包含JavaScript引用的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"LangkitSampleEvaluator\":\"使用Langkit工具包计算文本统计信息，帮助评估文本结构复杂性和可读性。提取多种语言特征，包括句子长度、词汇多样性、情感倾向等。\n\n输出参数：\n- LangkitNumSentencesScore: 句子数量\n- LangkitNumWordsScore: 单词数量\n- LangkitAvgWordLengthScore: 平均单词长度\n- LangkitFleschReadingEaseScore: 可读性评分（Flesch公式）\n- LangkitSentimentScore: 情感倾向（-1到1之间）\"; \"LangkitFilter\":\"基于LangkitScorer打分器的得分对数据进行过滤。使用Langkit工具包计算11种文本统计信息，帮助评估文本结构复杂性和可读性。\n输入参数：\n- min_scores：各指标的最小阈值字典，包含11个语言统计指标\n- max_scores：各指标的最大阈值字典，包含11个语言统计指标\n- metrics_to_keep：需要保留的评估指标列表\n输出参数：\n- 过滤后的DataFrame，仅保留所有指标都在指定范围内的文本\n- 返回包含各指标标签字段名的列表\"; \"LexicalDiversitySampleEvaluator\":\"使用MTLD（词汇多样性测量）和HDD（移动平均类型-标记比）方法计算文本词汇多样性。\n\n功能说明：\n- MTLD（词汇多样性测量）：通过计算维持特定TTR阈值所需的单词数量来评估词汇多样性\n- HDD（移动平均类型-标记比）：基于样本的词汇丰富度估计\n\n输入要求：文本长度需大于50个单词\n\n输出参数：\n- LexicalDiversityMTLDScore: MTLD多样性得分（值越高表示多样性越好）\n- LexicalDiversityHD-DScore: HDD多样性得分（值越高表示多样性越好）\"; \"LexicalDiversityFilter\":\"基于LexicalDiversityScorer打分器的得分对数据进行过滤。使用MTLD（移动平均类型-令牌比）和HDD（超几何分布多样性）两种方法计算词汇多样性，高分代表更丰富的词汇使用。\n输入参数：\n- min_scores：各指标的最小阈值字典，包含'mtld'和'hdd'\n- max_scores：各指标的最大阈值字典，包含'mtld'和'hdd'\n输出参数：\n- 过滤后的DataFrame，仅保留词汇多样性在指定范围内的文本\n- 返回包含各指标标签字段名的列表\"; \"NgramSampleEvaluator\":\"计算文本中n-gram的重复比例，评估文本冗余度。通过比较唯一n-gram数量与总n-gram数量的比值来衡量文本原创性。\n\n初始化参数：\n- ngrams: n-gram的长度，默认为5\n\n输出参数：\n- NgramScore: n-gram重复比例得分（0到1之间，得分越高表示重复比例越低）\"; \"NgramFilter\":\"基于NgramScorer打分器的得分对数据进行过滤。计算文本中n-gram的重复比例，得分越高表示重复比例越低，文本冗余度越小。\n输入参数：\n- min_score：最小n-gram得分阈值\n- max_score：最大n-gram得分阈值\n- ngrams：n-gram的n值\n输出参数：\n- 过滤后的DataFrame，仅保留n-gram得分在指定范围内的文本\n- 返回包含n-gram得分字段名的列表\"; \"PresidioSampleEvaluator\":\"使用Microsoft Presidio模型识别文本中的个人身份信息(PII)，返回检测到的PII实体数量。支持多种实体类型如姓名、邮箱、电话号码等，基于dslim/bert-base-NER模型实现。适用于评估文本的隐私安全风险。\n输入参数：\n- text: 待检测的文本字符串\n- lang: 语言类型，默认为'en'\n输出参数：\n- int: 检测到的PII实体数量\"; \"PresidioFilter\":\"基于PresidioScorer打分器的得分对数据进行过滤。使用Microsoft Presidio模型识别文本中的私人实体(PII)，返回PII信息个数。\n支持识别姓名、邮箱、电话号码、身份证号等多种敏感信息类型，可用于数据隐私保护和合规性检查。\n输入参数：\n- min_score：保留样本的最小PII数量阈值，默认为0\n- max_score：保留样本的最大PII数量阈值，默认为5\n- lang：文本语言，默认为'en'\n- device：模型运行设备，默认为'cuda'\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n输出参数：\n- 过滤后的DataFrame，仅保留PII数量在[min_score, max_score]范围内的样本\n- 返回包含输出字段名的列表，用于后续算子引用\"; \"BlocklistFilter\":\"该算子使用特定语言的阻止列表进行文本过滤，支持可选的分词器进行单词级匹配。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- language：语言代码，默认为'zh'\n- blocklist_dir：阻止列表文件目录，默认为'./blocklists/'\n- threshold：匹配次数阈值，默认为1\n- use_tokenizer：是否使用分词器，默认为True\n- tokenizer：分词器对象，默认为None\n输出参数：\n- 过滤后的DataFrame，仅保留不包含阻止列表关键词的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"HashDeduplicateFilter\":\"使用多种哈希函数对文本进行精确去重，支持md5、sha256或xxh3算法。通过计算文本的哈希值识别重复数据。\n\n初始化参数：\n- hash_func: 哈希函数名称，可选'md5'、'sha256'或'xxh3'，默认为'md5'\n\n运行参数：\n- input_keys: 用于计算哈希的多个字段列表（与input_key二选一）\n- input_key: 用于计算哈希的单个字段名（与input_keys二选一）\n- output_key: 去重标记字段名，默认为'minhash_deduplicated_label'\n\n输出说明：标记为1的数据表示首次出现，标记为0的数据表示重复数据\n算法特点：\n- md5: 128位哈希值，平衡速度和唯一性\n- sha256: 256位哈希值，更高安全性，速度较慢\n- xxh3: 128位哈希值，最快的哈希算法\"; \"LanguageFilter\":\"使用FastText语言识别模型过滤数据。下载并加载预训练的FastText语言识别模型，检查文本的语言是否在允许的语言列表中。\n输入参数：\n- allowed_languages：允许的语言标签列表\n- model_cache_dir：模型缓存目录路径\n输出参数：\n- 过滤后的DataFrame，仅保留语言在允许列表中的文本\n- 返回包含语言标签字段名的列表\"; \"LLMLanguageFilter\":\"使用大语言模型识别语言并过滤数据\"; \"MinHashDeduplicateFilter\":\"结合MinHash与LSH（局部敏感哈希）实现高效近似去重。将文本转换为MinHash签名，使用LSH快速查找相似文本，实现大规模数据集的近似去重。\n输入参数：\n- num_perm：生成MinHash签名的排列数\n- threshold：相似度阈值，超过此阈值判定为相似文本\n- use_n_gram：是否使用n-gram分词\n- ngram：n-gram的n值\n输出参数：\n- 去重后的DataFrame，仅保留唯一文本\n- 返回包含去重标签字段名的列表\"; \"NgramHashDeduplicateFilter\":\"结合n-gram技术与哈希算法识别相似文本，实现近似去重。将文本分割为多个n-gram片段，计算每个片段的哈希值，通过比较哈希集合的相似度来判断文本相似性。\n输入参数：\n- n_gram：将文本分割的片段数量\n- hash_func：哈希函数类型，支持'md5'、'sha256'和'xxh3'\n- diff_size：哈希集合差异阈值，小于此值判定为相似文本\n输出参数：\n- 去重后的DataFrame，仅保留唯一文本\n- 返回包含去重标签字段名的列表\"; \"PerspectiveSampleEvaluator\":\"使用Perspective API评估文本的毒性，返回毒性概率，得分越高表明文本毒性越高。\n输入参数：\n- serving：Perspective API服务对象\n- input_key：输入文本字段名\n- output_key：输出得分字段名，默认'PerspectiveScore'\n输出参数：\n- 包含毒性评估得分的DataFrame\"; \"PerspectiveFilter\":\"基于PerspectiveScorer打分器的得分对数据进行过滤使用Perspective API评估文本的毒性，返回毒性概率，得分越高表明文本毒性越高。\n输入参数：\n- min_score：最小毒性得分阈值\n- max_score：最大毒性得分阈值\n输出参数：\n- 过滤后的DataFrame，仅保留毒性得分在指定范围内的文本\n- 返回包含毒性得分字段名的列表\"; \"SemDeduplicateFilter\":\"基于BERT语义相似度识别语义重复文本，执行近似去重操作。通过计算文本嵌入向量间的余弦相似度，识别语义相似的文本并保留唯一样本。\n支持多字段组合作为去重依据，可有效去除内容相似但表述不同的重复数据，提高数据集多样性。\n输入参数：\n- eps：相似度阈值，值越小表示允许的相似度越低，默认为0.05（即余弦相似度大于0.95视为重复）\n- model_name：预训练模型名称，默认为'sentence-transformers/all-MiniLM-L6-v2'\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n- device：模型运行设备，默认为'cuda'\n- input_keys：多个输入字段名列表，与input_key二选一\n- input_key：单个输入字段名，与input_keys二选一\n- output_key：去重结果字段名，默认为'minhash_deduplicated_label'\n输出参数：\n- 过滤后的DataFrame，仅保留语义不重复的样本（标记为1的样本）\n- 返回包含去重结果字段名的列表，用于后续算子引用\"; \"SimHashDeduplicateFilter\":\"使用SimHash算法通过汉明距离识别相似文本，执行近似去重操作。将文本转换为固定长度的指纹，通过计算指纹间的汉明距离判断文本相似度。\n相比语义去重速度更快，适合大规模数据集的快速去重预处理，尤其适用于检测字符层面相似的文本。\n输入参数：\n- fingerprint_size：指纹长度，默认为64位\n- bound：相似度阈值，值越小表示允许的相似度越低，默认为0.1（即相似度大于0.9视为重复）\n- input_keys：多个输入字段名列表，与input_key二选一\n- input_key：单个输入字段名，与input_keys二选一\n- output_key：去重结果字段名，默认为'minhash_deduplicated_label'\n输出参数：\n- 过滤后的DataFrame，仅保留相似性低于阈值的唯一样本（标记为1的样本）\n- 返回包含去重结果字段名的列表，用于后续算子引用\"; \"WordNumberFilter\":\"该算子用于过滤单词数量不在指定范围内的文本，通过空格分割计算单词数量。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_words：最小单词数量阈值，默认为5\n- max_words：最大单词数量阈值，默认为100\n输出参数：\n- 过滤后的DataFrame，仅保留单词数量在指定范围内的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"HtmlEntityRefiner\":\"去除文本中的HTML实体，包括标准实体（如&nbsp;、&lt;）和各种变体形式（全角符号、中文分号等）。支持自定义需要移除的HTML实体列表。输入参数：\n- html_entities：需要移除的HTML实体列表，默认为包含常见实体的列表\n- input_key：输入文本字段名\n输出参数：\n- 包含移除HTML实体后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"HtmlUrlRemoverRefiner\":\"去除文本中的URL链接和HTML标签，净化文本内容。使用正则表达式匹配并移除各种形式的URL和HTML标签。输入参数：\n- input_key：输入文本字段名\n输出参数：\n- 包含净化后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"LowercaseRefiner\":\"将文本字段中的所有大写字符转换为小写，统一文本格式。对指定字段的文本内容进行全小写处理。输入参数：\n- input_key：输入文本字段名\n输出参数：\n- 包含小写转换后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"NERRefiner\":\"使用命名实体识别（NER）技术识别并屏蔽文本中的特定实体。使用spaCy的'en_core_web_sm'模型识别实体，并将其替换为对应的实体类型标签。输入参数：\n- input_key：输入文本字段名\n输出参数：\n- 包含实体屏蔽后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"PIIAnonymizeRefiner\":\"使用Presidio和BERT-NER模型识别并匿名化文本中的个人身份信息（PII）。支持多种PII类型的检测和匿名化处理。输入参数：\n- lang：语言代码，默认为'en'\n- device：运行设备，默认为'cuda'\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n- model_name：NER模型名称，默认为'dslim/bert-base-NER'\n- input_key：输入文本字段名\n输出参数：\n- 包含匿名化后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"ReferenceRemoverRefiner\":\"删除文本中未闭合的引用标签和引用链接，包括<ref>标签和{{cite}}模板的各种完整和不完整形式。净化文本中的引用标记。输入参数：\n- input_key：输入文本字段名\n输出参数：\n- 包含移除引用标记后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"RemoveContractionsRefiner\":\"该算子用于扩展文本中的英语缩写词，将缩写形式转换为完整形式（例如将\"can't\"扩展为\"cannot\"）。\n使用contractions库进行缩写词扩展，提高文本标准化程度。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含扩展缩写词后的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveEmojiRefiner\":\"该算子用于去除文本中的Unicode图像表情符号，包括表情符号、杂项符号、交通符号、旗帜等各类图像符号。\n通过正则表达式匹配Unicode表情符号范围，实现高效过滤。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除表情符号的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveEmoticonsRefiner\":\"该算子用于移除文本中的文本型表情符号，例如':-)'、':D'、':('等字符组合表情。\n基于预定义的表情符号字典进行匹配替换，支持多种常见文本表情模式。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除文本表情的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveExtraSpacesRefiner\":\"该算子用于移除文本中的多余空格，将连续的多个空格替换为单个空格，并去除文本前后的空白字符。\n通过字符串分割和连接实现空格标准化，提高文本格式一致性。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含标准化空格的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveImageRefsRefiner\":\"该算子用于去除文本中的图片引用格式，包括Markdown图片链接、图片编号、特殊符号组合等图像引用模式。\n通过多模式正则表达式匹配，识别并移除多种图片引用格式。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除图片引用的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveNumberRefiner\":\"该算子用于移除文本中的数字字符，包括0-9的阿拉伯数字。\n通过字符过滤实现数字移除，保留纯文本内容。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除数字的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemovePunctuationRefiner\":\"该算子用于移除文本中的标点符号，包括英文标点符号集合中的所有符号。\n使用string.punctuation定义的标点集合进行过滤，实现文本去标点处理。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除标点的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveRepetitionsPunctuationRefiner\":\"该算子用于移除文本中重复的标点符号，例如将\"!!!\"变为\"!\"，\",,\"变为\",\"。\n通过正则表达式匹配连续重复的标点符号，替换为单个符号。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含标准化标点的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveStopwordsRefiner\":\"该算子用于移除文本中的英语停用词（如\"the\"，\"is\"，\"in\"等无实际意义的高频词汇）。\n使用NLTK库的stopwords语料库进行停用词过滤，提高文本特征密度。\n输入参数：\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除停用词的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"SpellingCorrectionRefiner\":\"该算子用于通过SymSpell算法对文本中的拼写错误进行纠正，支持自定义编辑距离和词典路径。\n若本地词典不存在则自动下载，使用近似字符串匹配实现拼写纠错功能。\n输入参数：\n- max_edit_distance：最大编辑距离，默认为2\n- prefix_length：前缀长度，默认为7\n- dictionary_path：词典路径，默认为'frequency_dictionary_en_82_765.txt'\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含纠正拼写错误的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"StemmingLemmatizationRefiner\":\"该算子用于对文本进行词干提取或词形还原处理，将词语转换为其基本形式。\n支持两种处理方式：Porter词干提取(stemming)和WordNet词形还原(lemmatization)，可通过参数选择。\n输入参数：\n- method：处理方法，可选'stemming'或'lemmatization'，默认为'stemming'\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含词干/词形还原后的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"TextNormalizationRefiner\":\"该算子用于规范化文本中的日期格式和货币格式，统一为标准表示形式。\n日期格式统一转换为'YYYY-MM-DD'形式，货币格式转换为'金额 USD'形式，提高数据一致性。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含格式规范化的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"BertSampleEvaluator\":\"使用BERTScore评估生成文本与参考文本的相似度，基于上下文嵌入计算P/R/F1分数。\n输入参数：\n- lang：语言类型，默认为'en'\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n- input_key：生成文本字段名\n- reference_key：参考文本字段名\n- output_key：输出得分字段名，默认为'BertScore'\n输出参数：\n- 包含F1相似度得分的DataFrame\"; \"BleuSampleEvaluator\":\"计算BLEU分数评估生成文本与参考文本的n-gram重叠度，支持1-4元语法分析。\n输入参数：\n- n：最大n-gram长度，默认为4\n- eff：参考长度计算方式，可选'shortest'/'average'/'longest'，默认为'average'\n- special_reflen：特殊参考长度，默认为None\n- input_key：生成文本字段名\n- reference_key：参考文本字段名\n- output_key：输出得分字段名，默认为'BleuScore'\n输出参数：\n- 包含BLEU得分的DataFrame\"; \"CiderSampleEvaluator\":\"使用CIDEr指标评估生成文本与参考文本的相似度，基于TF-IDF加权的n-gram重叠度。\n输入参数：\n- n：最大n-gram长度，默认为4\n- sigma：高斯惩罚参数，默认为6.0\n- df_mode：文档频率模式，默认为'coco-val-df'\n- idf_path：IDF文件路径，默认为预训练COCO数据集IDF\n- input_key：生成文本字段名\n- reference_key：参考文本字段名\n- output_key：输出得分字段名，默认为'CiderScore'\n输出参数：\n- 包含CIDEr得分的DataFrame\"; \"Task2VecDatasetEvaluator\":\"使用Task2Vec方法评估数据集的多样性，通过计算样本嵌入的余弦距离矩阵来量化多样性。\n输入参数：\n- device：计算设备，默认为'cuda'\n- sample_nums：采样次数，默认为10\n- sample_size：每次采样样本数，默认为1\n- method：嵌入方法，可选'montecarlo'或'variational'，默认为'montecarlo'\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n- input_key：输入文本字段名\n输出参数：\n- Task2VecDiversityScore：多样性得分\n- ConfidenceInterval：置信区间\"; \"VendiDatasetEvaluator\":\"通过计算VendiScore来评估数据集的多样性，使用BERT和SimCSE模型生成嵌入并计算分数。\n输入参数：\n- device：计算设备，默认为'cuda'\n- input_key：输入文本字段名\n输出参数：\n- BERTVendiScore：基于BERT的多样性得分\n- SimCSEVendiScore：基于SimCSE的多样性得分\""
       },
       "post_tools": [
         "combine_pipeline"
       ],
       "results": {
         "ops": [
-          "PromptedFilter",
-          "GeneralFilter",
-          "PromptedRefiner",
-          "EmbeddingGenerator",
-          "PandasOperator"
+          "ContentNullFilter",
+          "HashDeduplicateFilter",
+          "SentenceNumberFilter",
+          "SymbolWordRatioFilter",
+          "AlphaWordsFilter"
         ],
-        "reason": "The pipeline involves filtering, refining, and generating embeddings for the data. The PromptedFilter is used to filter data based on quality scores. The GeneralFilter is applied for additional custom filtering rules. The PromptedRefiner refines the text content to ensure it is standardized. The EmbeddingGenerator creates vector representations of the text for further analysis. Finally, the PandasOperator is used for any additional data manipulation tasks, such as deduplication, ensuring the data is clean and ready for downstream tasks."
+        "reason": "This pipeline is designed to ensure data quality and uniqueness by first filtering out null or empty content, then removing duplicate entries using hash-based deduplication. It further refines the data by filtering based on sentence count, symbol-to-word ratio, and ensuring a sufficient ratio of alphabetic words. This sequence ensures the text content is valid, unique, and meets structural and content quality standards."
       }
     },
     "pipeline_builder": {
@@ -155,75 +155,77 @@
         "nodes_info": [
           {
             "id": "node1",
-            "name": "PromptedFilter",
+            "name": "ContentNullFilter",
             "type": "filter",
             "config": {
-              "init": {
-                "llm_serving": "self.llm_serving",
-                "system_prompt": "Please evaluate the quality of this data on a scale from 1 to 5.",
-                "min_score": 1,
-                "max_score": 5
-              },
+              "init": {},
               "run": {
                 "storage": "self.storage.step()",
-                "input_key": "raw_content",
-                "output_key": "eval"
+                "input_key": null,
+                "output_key": "content_null_filter_label"
               }
             }
           },
           {
             "id": "node2",
-            "name": "GeneralFilter",
+            "name": "HashDeduplicateFilter",
             "type": "filter",
             "config": {
               "init": {
-                "filter_rules": null
+                "hash_func": "md5"
               },
               "run": {
-                "storage": "self.storage.step()"
+                "storage": "self.storage.step()",
+                "input_keys": null,
+                "input_key": null,
+                "output_key": "minhash_deduplicated_label"
               }
             }
           },
           {
             "id": "node3",
-            "name": "PromptedRefiner",
-            "type": "refine",
+            "name": "SentenceNumberFilter",
+            "type": "filter",
             "config": {
               "init": {
-                "llm_serving": "self.llm_serving",
-                "system_prompt": "You are a helpful agent."
+                "min_sentences": 3,
+                "max_sentences": 7500
               },
               "run": {
                 "storage": "self.storage.step()",
-                "input_key": "raw_content"
+                "input_key": null,
+                "output_key": "sentence_number_filter_label"
               }
             }
           },
           {
             "id": "node4",
-            "name": "EmbeddingGenerator",
-            "type": "generate",
+            "name": "SymbolWordRatioFilter",
+            "type": "filter",
             "config": {
               "init": {
-                "embedding_serving": null
+                "threshold": 0.4
               },
               "run": {
                 "storage": "self.storage.step()",
-                "input_key": "text",
-                "output_key": "embeddings"
+                "input_key": null,
+                "output_key": "symbol_word_ratio_filter_label"
               }
             }
           },
           {
             "id": "node5",
-            "name": "PandasOperator",
-            "type": "refine",
+            "name": "AlphaWordsFilter",
+            "type": "filter",
             "config": {
               "init": {
-                "process_fn": null
+                "threshold": null,
+                "use_tokenizer": null
               },
               "run": {
-                "storage": "self.storage.step()"
+                "storage": "self.storage.step()",
+                "input_key": null,
+                "output_key": "alpha_words_filter_label"
               }
             }
           }
@@ -234,32 +236,28 @@
         "nodes": [
           {
             "id": "node1",
-            "name": "PromptedFilter",
+            "name": "ContentNullFilter",
             "type": "filter",
             "config": {
-              "init": {
-                "llm_serving": "self.llm_serving",
-                "system_prompt": "Please evaluate the quality of this data on a scale from 1 to 5.",
-                "min_score": 1,
-                "max_score": 5
-              },
+              "init": {},
               "run": {
                 "storage": "self.storage.step()",
-                "input_key": "raw_content",
+                "input_key": "input1",
                 "output_key": "step1"
               }
             }
           },
           {
             "id": "node2",
-            "name": "GeneralFilter",
+            "name": "HashDeduplicateFilter",
             "type": "filter",
             "config": {
               "init": {
-                "filter_rules": null
+                "hash_func": "md5"
               },
               "run": {
                 "storage": "self.storage.step()",
+                "input_keys": null,
                 "input_key": "step1",
                 "output_key": "step2"
               }
@@ -267,12 +265,12 @@
           },
           {
             "id": "node3",
-            "name": "PromptedRefiner",
-            "type": "refine",
+            "name": "SentenceNumberFilter",
+            "type": "filter",
             "config": {
               "init": {
-                "llm_serving": "self.llm_serving",
-                "system_prompt": "You are a helpful agent."
+                "min_sentences": 3,
+                "max_sentences": 7500
               },
               "run": {
                 "storage": "self.storage.step()",
@@ -283,11 +281,11 @@
           },
           {
             "id": "node4",
-            "name": "EmbeddingGenerator",
-            "type": "generate",
+            "name": "SymbolWordRatioFilter",
+            "type": "filter",
             "config": {
               "init": {
-                "embedding_serving": null
+                "threshold": 0.4
               },
               "run": {
                 "storage": "self.storage.step()",
@@ -298,11 +296,12 @@
           },
           {
             "id": "node5",
-            "name": "PandasOperator",
-            "type": "refine",
+            "name": "AlphaWordsFilter",
+            "type": "filter",
             "config": {
               "init": {
-                "process_fn": null
+                "threshold": null,
+                "use_tokenizer": null
               },
               "run": {
                 "storage": "self.storage.step()",
@@ -320,11 +319,11 @@
     "pre_tool_results": {
       "sample": [
         {
-          "raw_content": "The study investigates the impact of data quality on the performance of large language models."
+          "raw_content": "Future work includes exploring low-resource languages and domain adaptation strategies."
         }
       ],
       "target": "给我随意符合逻辑的5个算子，过滤，去重！",
-      "operator": "\"PromptedGenerator\":\"基于用户提供的提示词（prompt）生成数据。结合系统提示词和输入内容生成符合要求的输出文本。输入参数：\n- llm_serving：LLM服务对象，需实现LLMServingABC接口\n- system_prompt：系统提示词，定义模型行为，默认为'You are a helpful agent.'\n- input_key：输入内容字段名，默认为'raw_content'\n- output_key：输出生成内容字段名，默认为'generated_content'\n输出参数：\n- 包含生成内容的DataFrame\n- 返回输出字段名，用于后续算子引用\"; \"PairedPromptedGenerator\":\"PairedPromptedGenerator：基于两列配对输入（input_key_1 与 input_key_2）进行成对提示生成。\n算子会将 system_prompt 与每行的两列文本按固定模板拼接后，调用 LLM 服务批量生成结果，并将模型输出写回到 DataFrame 的指定列。\n\n输入参数：\n- llm_serving：LLM 服务对象（实现 LLMServingABC 接口）\n- system_prompt：系统提示词（默认 'You are a helpful agent.'）。该提示会放在每条样本前缀，  用于约束模型的角色与输出风格。\n- input_key_1：第一列输入字段名（默认 'input_key_1'）\n- input_key_2：第二列输入字段名（默认 'input_key_2'）\n- output_key：输出字段名（默认 'generated_content'）\n\n处理逻辑：\n1) 从 storage 中读取名为 'dataframe' 的 DataFrame；\n2) 对于每一行，若 input_key_1 与 input_key_2 均非空，则按模板：\n   system_prompt + input_key_1 + 值 + '\\n' + input_key_2 + 值\n   构造 LLM 输入；\n3) 批量调用 llm_serving.generate_from_input 生成文本；\n4) 将生成结果写入 DataFrame 的 output_key 列并保存。\n\n输出：\n- 返回写入了生成结果的新 DataFrame（由 storage 管理保存），\n- 返回 output_key 以便后续算子引用。\"; \"RandomDomainKnowledgeRowGenerator\":\"\"; \"Text2QAGenerator\":\"该算子用于为给定的文档片段生成种子QA对。\n\n输入参数：\n- input_key: 包含文档片段的字段名\n- prompt_key: 包含提示词的字段名\n- output_quesion_key: 包含生成问题的字段名\n- output_answer_key: 包含生成答案的字段名\n\"; \"Text2MultiHopQAGenerator\":\"('MultiHopQAGenerator 是多跳问答对生成处理器，支持从文本中自动生成需要多步推理的问题与答案。', '处理流程包括：文本预处理、信息抽取、问题生成与回答生成，支持自定义语言模型后端和参数。', '输出格式如下：', '输入：\\ntext: <原始上下文文本>', '输出：\\n{\\n  \"text\": <处理后的文本字符串>,\\n  \"qa_pairs\": [\\n    {\\n      \"question\": <字符串：生成的问题>,\\n      \"reasoning_steps\": [\\n        {\"step\": <推理过程的步骤 1>},\\n        {\"step\": <步骤 2>} ...\\n      ],\\n      \"answer\": <字符串：最终答案>,\\n      \"supporting_facts\": [<支持该答案的事实 1>, <事实 2>, ...],\\n      \"type\": <可选：问题类型，如“生物学”、“历史”等>\\n    },\\n    ...\\n  ],\\n  \"metadata\": {\\n    \"source\": <数据来源>,\\n    \"timestamp\": <时间戳字符串>,\\n    \"complexity\": <整数：问题复杂度标记>\\n  }\\n}')\"; \"EmbeddingGenerator\":\"EmbeddingGenerator算子用于从输入文本生成向量表示（embedding），通常用于语义检索、聚类或下游模型输入等任务。\n\n输入参数：\n- embedding_serving：Embedding服务对象，需实现LLMServingABC接口，用于生成文本的向量表示\n- input_key：输入文本字段名，默认为'text'\n- output_key：输出向量字段名，默认为'embeddings'\n\n输出参数：\n- 包含文本向量的DataFrame，每行对应一个输入文本的embedding\n- 返回输出字段名（如'embeddings'），可供后续算子引用\"; \"BenchDatasetEvaluator\":\"该算子用于对比预测答案与标准答案的匹配度，支持两种评估模式：\n\n1. 字符串匹配（match）：使用数学验证方法比较答案，适用于有明确答案的问题\n2. 语义匹配（semantic）：使用LLM评估答案的语义相似度，适用于开放性问题\n\n输入参数：\n- input_test_answer_key：预测答案字段名\n- input_gt_answer_key：标准答案字段名\n- input_question_key：问题字段名（语义匹配模式下必需）\n- compare_method：比较方法（match/semantic）\n\n输出参数：\n- answer_match_result：匹配结果（True/False）\n- 统计结果将保存到指定的eval_result_path路径\n\"; \"Text2QASampleEvaluator\":\"该算子用于为给的的文档片段生成种子QA对打分\n\n输入参数：\n- input_question_key: Field name containing the generated question\n- input_answer_key: Field name containing the generated answer\n- output_question_quality_key: Field name containing the question quality grade\n- output_question_quality_feedback_key: Field name containing the question quality feedback\n- output_answer_alignment_key: Field name containing the answer alignment grade\n- output_answer_alignment_feedback_key: Field name containing the answer alignment feedback\n- output_answer_verifiability_key: Field name containing the answer verifiability grade\n- output_downstream_value_key: Field name containing the downstream value grade\n- output_downstream_value_feedback_key: Field name containing the downstream value feedback\n\"; \"PromptedEvaluator\":\"PromptedEvaluator：使用 LLM 根据系统提示词对数据质量进行评分，并将评分写回 DataFrame（同时通过 storage 持久化）。模型应只输出分数（整数）。\n功能：对每行输入文本生成一个评分。\n输入参数：\n- llm_serving：LLM 服务对象，需实现 LLMServingABC 接口。\n- system_prompt：系统提示词（默认：'Please evaluate the quality of this data on a scale from 1 to 5.'）。\n- input_key：输入文本所在列名（默认：'raw_content'）。\n- output_key：评分结果写入的列名（默认：'eval'）。\n输出：\n- 返回输出列名（用于后续算子引用），评分结果已写回并保存。\"; \"PromptedFilter\":\"PromptedFilter 使用内置的 PromptedEvaluator 对输入数据进行数值化打分，并根据指定的分数区间（min_score 到 max_score，闭区间）筛选出符合条件的样本。默认情况下打分范围是 1–5，但用户可以通过 system_prompt 自定义其他评分规则。\n\n输入参数：\n- llm_serving：LLM 服务对象，需实现 LLMServingABC 接口\n- system_prompt：系统提示词，定义评估规范（可选，默认 'Please evaluate the quality of this data on a scale from 1 to 5.'）\n- input_key：待评估文本所在列名（默认 'raw_content'）\n- output_key：写回打分结果的列名（默认 'eval'，若已存在将被覆盖）\n- min_score：筛选的最小分（默认 5）\n- max_score：筛选的最大分（默认 5）\n\n输出参数：\n- 过滤后的 DataFrame（仅保留分数位于 [min_score, max_score] 的行）\n- 返回 output_key 以供后续算子引用\n\n备注：\n- 默认打分区间是 1–5，但可根据实际 prompt 改变。\"; \"KCenterGreedyFilter\":\"该算子用于从大量的文档片段中选取部分文档片段，用于后续生成种子QA对\n\n输入参数:\n- input_key: 包含文档片段的字段名\n- embedding_model_path: 嵌入模型路径\n- num_samples: 选取的文档片段数量\n- method: 选择方法，随机或k-center-greedy\n\n\"; \"GeneralFilter\":\"该算子支持通过多个自定义函数对 DataFrame 进行灵活过滤。\n\n每条过滤规则是一个函数（例如 lambda 表达式），接受一个 DataFrame 并返回一个布尔类型的 Series，用于指定保留哪些行。\n\n输入参数：\n- filter_rules：一个函数列表，每个函数形式为 lambda df: ...，需返回一个与 df 长度一致的布尔 Series。所有规则之间采用与（AND）关系组合。\n\n示例：\n  - lambda df: df['score'] > 0.5\n  - lambda df: df['label'].isin(['A', 'B'])\"; \"PromptedRefiner\":\"PromptedRefiner 根据给定的 system_prompt 对指定列的文本进行改写/润色/规范化，并将结果**就地写回**同一列（覆盖原内容）。其做法是对每一行拼接 `system_prompt + raw_content` 作为模型输入，批量生成改写结果。\n\n输入参数：\n- llm_serving：LLM 服务对象，需实现 LLMServingABC 接口\n- system_prompt：系统提示词，用于描述改写目标与风格（默认 'You are a helpful agent.'）\n- input_key：要改写的文本列名（默认 'raw_content'），改写后会覆盖该列\n\n输出参数：\n- 覆盖后的 DataFrame（同名列被改写后的文本）\n- 无返回值（结果已通过 DataFlowStorage 写出）\n\n备注：\n- 该算子**覆盖** input_key 列；若需保留原文，建议先拷贝到新列。\n- 期望每行在 input_key 列提供可用文本；空值将不会生成对应输入，如与行数不匹配可能导致赋值报错。\"; \"PandasOperator\":\"该算子支持通过多个自定义函数对 DataFrame 进行任意操作（如添加列、重命名、排序等）。\n\n每个函数（通常为 lambda 表达式）接受一个 DataFrame 并返回一个修改后的 DataFrame。\n\n输入参数：\n- process_fn：一个函数列表，每个函数形式为 lambda df: ...，必须返回一个 DataFrame。\n\n示例：\n  - lambda df: df.assign(score2=df['score'] * 2)\n  - lambda df: df.sort_values('score', ascending=False)\""
+      "operator": "\"ColonEndFilter\":\"该算子用于检查文本是否以冒号结尾，常用于判断问题是否为不完整的提问。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n输出参数：\n- 过滤后的DataFrame，仅保留不以冒号结尾的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"SentenceNumberFilter\":\"该算子用于检查文本中的句子数量是否在指定范围内，使用正则表达式匹配句子结束符号(。！？.!?)进行分割。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_sentences：最小句子数量阈值，默认为1\n- max_sentences：最大句子数量阈值，默认为5\n输出参数：\n- 过滤后的DataFrame，仅保留句子数量在指定范围内的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"LineEndWithEllipsisFilter\":\"该算子用于检测并过滤以省略号(...)或(……)结尾的文本行，常用于识别不完整的表述。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- strip_whitespace：是否在检查前去除末尾空白字符，默认为True\n输出参数：\n- 过滤后的DataFrame，仅保留不以省略号结尾的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"ContentNullFilter\":\"该算子用于过滤空值、空字符串或仅包含空白字符的文本，确保输入数据的有效性。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- ignore_whitespace：是否将仅含空白字符的文本视为空值，默认为True\n输出参数：\n- 过滤后的DataFrame，仅保留非空且非空白的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"SymbolWordRatioFilter\":\"该算子用于检查文本中特定符号(#, ..., …)与单词数量的比率是否超过阈值，过滤符号使用过多的文本。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：符号与单词比率阈值，默认为0.3\n- symbols：要检查的符号列表，默认为['#', '...', '……']\n输出参数：\n- 过滤后的DataFrame，仅保留符号比率低于阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"AlphaWordsFilter\":\"该算子用于验证文本中字母单词的比率是否达到阈值，支持NLTK分词或简单空格分割两种模式。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：字母单词比率阈值，默认为0.5\n- use_nltk：是否使用NLTK进行分词，默认为True\n- nltk_tokenizer：NLTK分词器类型，默认为'word_tokenize'\n输出参数：\n- 过滤后的DataFrame，仅保留字母单词比率达到阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"HtmlEntityFilter\":\"该算子用于检测并过滤包含HTML实体（如&amp;、&lt;、&gt;等）的文本，确保内容不包含标记语言元素。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- patterns：HTML实体匹配模式列表，默认为包含常见实体的正则表达式\n- case_sensitive：是否区分大小写匹配，默认为False\n输出参数：\n- 过滤后的DataFrame，仅保留不包含HTML实体的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"IDCardFilter\":\"该算子用于检测并过滤包含身份证相关术语的文本，使用正则表达式匹配身份证号码模式以保护敏感信息。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- pattern：身份证号码匹配正则表达式，默认为包含18位和15位身份证的模式\n- threshold：匹配次数阈值，默认为1\n输出参数：\n- 过滤后的DataFrame，仅保留不包含身份证相关信息的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"NoPuncFilter\":\"该算子用于确保文本包含足够的标点符号，通过统计标点符号数量与文本长度的比率进行过滤。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_punc_ratio：最小标点符号比率阈值，默认为0.02\n- punc_set：标点符号集合，默认为'。，！？；：,.!?;:()'\n输出参数：\n- 过滤后的DataFrame，仅保留标点符号比率达到阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"SpecialCharacterFilter\":\"该算子用于移除包含特殊/unicode字符的文本，使用预定义模式检测非标准字符以确保文本规范性。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- patterns：特殊字符匹配模式列表，默认为包含各种unicode控制字符的正则表达式\n- allowed_chars：允许的字符集正则表达式，默认为基本中英文和常用标点\n输出参数：\n- 过滤后的DataFrame，仅保留不包含特殊字符的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"WatermarkFilter\":\"该算子用于检测并移除包含版权/水印内容的文本，使用指定关键词列表识别受保护内容。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- keywords：水印关键词列表，默认为['版权所有', '保留所有权利', 'watermark', 'copyright']\n- case_sensitive：是否区分大小写匹配，默认为False\n- threshold：匹配关键词数量阈值，默认为1\n输出参数：\n- 过滤后的DataFrame，仅保留不包含水印关键词的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"MeanWordLengthFilter\":\"该算子用于检查文本中单词的平均长度是否在指定范围内，通过字符总数除以单词数量计算平均值。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_length：最小平均单词长度，默认为2\n- max_length：最大平均单词长度，默认为10\n- word_splitter：单词分割方法，默认为空格分割\n输出参数：\n- 过滤后的DataFrame，仅保留平均单词长度在指定范围内的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"StopWordFilter\":\"该算子用于验证文本中停用词的比率是否低于阈值，使用NLTK分词器进行单词分割和停用词识别。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：停用词比率阈值，默认为0.3\n- language：NLTK停用词语言，默认为'english'\n- use_nltk_tokenizer：是否使用NLTK分词器，默认为True\n输出参数：\n- 过滤后的DataFrame，仅保留停用词比率低于阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"CurlyBracketFilter\":\"该算子用于检测文本中是否存在过多的花括号使用，通过花括号数量与文本长度的比率进行过滤。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：花括号比率阈值，默认为0.01\n- brackets：要检测的括号类型，默认为['{', '}']\n输出参数：\n- 过滤后的DataFrame，仅保留花括号比率低于阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"CapitalWordsFilter\":\"该算子用于检查文本中大写单词的比率是否超过阈值，支持可选的分词器进行单词识别。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：大写单词比率阈值，默认为0.5\n- use_tokenizer：是否使用分词器，默认为False\n- tokenizer：分词器对象，默认为None\n输出参数：\n- 过滤后的DataFrame，仅保留大写单词比率低于阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"LoremIpsumFilter\":\"该算子用于检测并过滤包含占位文本（如'lorem ipsum'）的文本，使用正则表达式模式匹配并结合阈值过滤。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：匹配次数阈值，默认为1\n- patterns：占位文本匹配模式列表，默认为包含'lorem ipsum'变体的正则表达式\n- case_sensitive：是否区分大小写匹配，默认为False\n输出参数：\n- 过滤后的DataFrame，仅保留不包含占位文本的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"UniqueWordsFilter\":\"该算子用于检查文本中唯一单词的比率是否达到阈值，通过集合操作计算唯一单词数量与总单词数量的比率。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_ratio：最小唯一单词比率阈值，默认为0.3\n- ignore_case：是否忽略大小写，默认为True\n- word_splitter：单词分割方法，默认为空格分割\n输出参数：\n- 过滤后的DataFrame，仅保留唯一单词比率达到阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"CharNumberFilter\":\"该算子用于验证文本在去除空白字符后的字符数量是否在指定阈值范围内。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_chars：最小字符数量阈值，默认为10\n- max_chars：最大字符数量阈值，默认为1000\n- strip_whitespace：是否去除空白字符后计算，默认为True\n输出参数：\n- 过滤后的DataFrame，仅保留字符数量在指定范围内的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"LineStartWithBulletpointFilter\":\"该算子用于检测并过滤以各种项目符号符号开头的文本行，使用Unicode字符匹配结合比率阈值进行过滤。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：项目符号行比率阈值，默认为0.5\n- bullet_chars：项目符号字符列表，默认为['•', '●', '○', '■', '□', '◆', '◇', '▶', '▷', '*', '-']\n- line_separator：行分隔符，默认为'\n'\n输出参数：\n- 过滤后的DataFrame，仅保留项目符号行比率低于阈值的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"LineWithJavascriptFilter\":\"该算子用于识别并过滤包含'javascript'引用的文本，通过关键词匹配和阈值判断进行内容过滤。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- threshold：匹配次数阈值，默认为1\n- keywords：JavaScript相关关键词列表，默认为['javascript', 'js', '<script>', 'eval(', 'function(']\n- case_sensitive：是否区分大小写匹配，默认为False\n输出参数：\n- 过滤后的DataFrame，仅保留不包含JavaScript引用的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"LangkitSampleEvaluator\":\"使用Langkit工具包计算文本统计信息，帮助评估文本结构复杂性和可读性。提取多种语言特征，包括句子长度、词汇多样性、情感倾向等。\n\n输出参数：\n- LangkitNumSentencesScore: 句子数量\n- LangkitNumWordsScore: 单词数量\n- LangkitAvgWordLengthScore: 平均单词长度\n- LangkitFleschReadingEaseScore: 可读性评分（Flesch公式）\n- LangkitSentimentScore: 情感倾向（-1到1之间）\"; \"LangkitFilter\":\"基于LangkitScorer打分器的得分对数据进行过滤。使用Langkit工具包计算11种文本统计信息，帮助评估文本结构复杂性和可读性。\n输入参数：\n- min_scores：各指标的最小阈值字典，包含11个语言统计指标\n- max_scores：各指标的最大阈值字典，包含11个语言统计指标\n- metrics_to_keep：需要保留的评估指标列表\n输出参数：\n- 过滤后的DataFrame，仅保留所有指标都在指定范围内的文本\n- 返回包含各指标标签字段名的列表\"; \"LexicalDiversitySampleEvaluator\":\"使用MTLD（词汇多样性测量）和HDD（移动平均类型-标记比）方法计算文本词汇多样性。\n\n功能说明：\n- MTLD（词汇多样性测量）：通过计算维持特定TTR阈值所需的单词数量来评估词汇多样性\n- HDD（移动平均类型-标记比）：基于样本的词汇丰富度估计\n\n输入要求：文本长度需大于50个单词\n\n输出参数：\n- LexicalDiversityMTLDScore: MTLD多样性得分（值越高表示多样性越好）\n- LexicalDiversityHD-DScore: HDD多样性得分（值越高表示多样性越好）\"; \"LexicalDiversityFilter\":\"基于LexicalDiversityScorer打分器的得分对数据进行过滤。使用MTLD（移动平均类型-令牌比）和HDD（超几何分布多样性）两种方法计算词汇多样性，高分代表更丰富的词汇使用。\n输入参数：\n- min_scores：各指标的最小阈值字典，包含'mtld'和'hdd'\n- max_scores：各指标的最大阈值字典，包含'mtld'和'hdd'\n输出参数：\n- 过滤后的DataFrame，仅保留词汇多样性在指定范围内的文本\n- 返回包含各指标标签字段名的列表\"; \"NgramSampleEvaluator\":\"计算文本中n-gram的重复比例，评估文本冗余度。通过比较唯一n-gram数量与总n-gram数量的比值来衡量文本原创性。\n\n初始化参数：\n- ngrams: n-gram的长度，默认为5\n\n输出参数：\n- NgramScore: n-gram重复比例得分（0到1之间，得分越高表示重复比例越低）\"; \"NgramFilter\":\"基于NgramScorer打分器的得分对数据进行过滤。计算文本中n-gram的重复比例，得分越高表示重复比例越低，文本冗余度越小。\n输入参数：\n- min_score：最小n-gram得分阈值\n- max_score：最大n-gram得分阈值\n- ngrams：n-gram的n值\n输出参数：\n- 过滤后的DataFrame，仅保留n-gram得分在指定范围内的文本\n- 返回包含n-gram得分字段名的列表\"; \"PresidioSampleEvaluator\":\"使用Microsoft Presidio模型识别文本中的个人身份信息(PII)，返回检测到的PII实体数量。支持多种实体类型如姓名、邮箱、电话号码等，基于dslim/bert-base-NER模型实现。适用于评估文本的隐私安全风险。\n输入参数：\n- text: 待检测的文本字符串\n- lang: 语言类型，默认为'en'\n输出参数：\n- int: 检测到的PII实体数量\"; \"PresidioFilter\":\"基于PresidioScorer打分器的得分对数据进行过滤。使用Microsoft Presidio模型识别文本中的私人实体(PII)，返回PII信息个数。\n支持识别姓名、邮箱、电话号码、身份证号等多种敏感信息类型，可用于数据隐私保护和合规性检查。\n输入参数：\n- min_score：保留样本的最小PII数量阈值，默认为0\n- max_score：保留样本的最大PII数量阈值，默认为5\n- lang：文本语言，默认为'en'\n- device：模型运行设备，默认为'cuda'\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n输出参数：\n- 过滤后的DataFrame，仅保留PII数量在[min_score, max_score]范围内的样本\n- 返回包含输出字段名的列表，用于后续算子引用\"; \"BlocklistFilter\":\"该算子使用特定语言的阻止列表进行文本过滤，支持可选的分词器进行单词级匹配。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- language：语言代码，默认为'zh'\n- blocklist_dir：阻止列表文件目录，默认为'./blocklists/'\n- threshold：匹配次数阈值，默认为1\n- use_tokenizer：是否使用分词器，默认为True\n- tokenizer：分词器对象，默认为None\n输出参数：\n- 过滤后的DataFrame，仅保留不包含阻止列表关键词的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"HashDeduplicateFilter\":\"使用多种哈希函数对文本进行精确去重，支持md5、sha256或xxh3算法。通过计算文本的哈希值识别重复数据。\n\n初始化参数：\n- hash_func: 哈希函数名称，可选'md5'、'sha256'或'xxh3'，默认为'md5'\n\n运行参数：\n- input_keys: 用于计算哈希的多个字段列表（与input_key二选一）\n- input_key: 用于计算哈希的单个字段名（与input_keys二选一）\n- output_key: 去重标记字段名，默认为'minhash_deduplicated_label'\n\n输出说明：标记为1的数据表示首次出现，标记为0的数据表示重复数据\n算法特点：\n- md5: 128位哈希值，平衡速度和唯一性\n- sha256: 256位哈希值，更高安全性，速度较慢\n- xxh3: 128位哈希值，最快的哈希算法\"; \"LanguageFilter\":\"使用FastText语言识别模型过滤数据。下载并加载预训练的FastText语言识别模型，检查文本的语言是否在允许的语言列表中。\n输入参数：\n- allowed_languages：允许的语言标签列表\n- model_cache_dir：模型缓存目录路径\n输出参数：\n- 过滤后的DataFrame，仅保留语言在允许列表中的文本\n- 返回包含语言标签字段名的列表\"; \"LLMLanguageFilter\":\"使用大语言模型识别语言并过滤数据\"; \"MinHashDeduplicateFilter\":\"结合MinHash与LSH（局部敏感哈希）实现高效近似去重。将文本转换为MinHash签名，使用LSH快速查找相似文本，实现大规模数据集的近似去重。\n输入参数：\n- num_perm：生成MinHash签名的排列数\n- threshold：相似度阈值，超过此阈值判定为相似文本\n- use_n_gram：是否使用n-gram分词\n- ngram：n-gram的n值\n输出参数：\n- 去重后的DataFrame，仅保留唯一文本\n- 返回包含去重标签字段名的列表\"; \"NgramHashDeduplicateFilter\":\"结合n-gram技术与哈希算法识别相似文本，实现近似去重。将文本分割为多个n-gram片段，计算每个片段的哈希值，通过比较哈希集合的相似度来判断文本相似性。\n输入参数：\n- n_gram：将文本分割的片段数量\n- hash_func：哈希函数类型，支持'md5'、'sha256'和'xxh3'\n- diff_size：哈希集合差异阈值，小于此值判定为相似文本\n输出参数：\n- 去重后的DataFrame，仅保留唯一文本\n- 返回包含去重标签字段名的列表\"; \"PerspectiveSampleEvaluator\":\"使用Perspective API评估文本的毒性，返回毒性概率，得分越高表明文本毒性越高。\n输入参数：\n- serving：Perspective API服务对象\n- input_key：输入文本字段名\n- output_key：输出得分字段名，默认'PerspectiveScore'\n输出参数：\n- 包含毒性评估得分的DataFrame\"; \"PerspectiveFilter\":\"基于PerspectiveScorer打分器的得分对数据进行过滤使用Perspective API评估文本的毒性，返回毒性概率，得分越高表明文本毒性越高。\n输入参数：\n- min_score：最小毒性得分阈值\n- max_score：最大毒性得分阈值\n输出参数：\n- 过滤后的DataFrame，仅保留毒性得分在指定范围内的文本\n- 返回包含毒性得分字段名的列表\"; \"SemDeduplicateFilter\":\"基于BERT语义相似度识别语义重复文本，执行近似去重操作。通过计算文本嵌入向量间的余弦相似度，识别语义相似的文本并保留唯一样本。\n支持多字段组合作为去重依据，可有效去除内容相似但表述不同的重复数据，提高数据集多样性。\n输入参数：\n- eps：相似度阈值，值越小表示允许的相似度越低，默认为0.05（即余弦相似度大于0.95视为重复）\n- model_name：预训练模型名称，默认为'sentence-transformers/all-MiniLM-L6-v2'\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n- device：模型运行设备，默认为'cuda'\n- input_keys：多个输入字段名列表，与input_key二选一\n- input_key：单个输入字段名，与input_keys二选一\n- output_key：去重结果字段名，默认为'minhash_deduplicated_label'\n输出参数：\n- 过滤后的DataFrame，仅保留语义不重复的样本（标记为1的样本）\n- 返回包含去重结果字段名的列表，用于后续算子引用\"; \"SimHashDeduplicateFilter\":\"使用SimHash算法通过汉明距离识别相似文本，执行近似去重操作。将文本转换为固定长度的指纹，通过计算指纹间的汉明距离判断文本相似度。\n相比语义去重速度更快，适合大规模数据集的快速去重预处理，尤其适用于检测字符层面相似的文本。\n输入参数：\n- fingerprint_size：指纹长度，默认为64位\n- bound：相似度阈值，值越小表示允许的相似度越低，默认为0.1（即相似度大于0.9视为重复）\n- input_keys：多个输入字段名列表，与input_key二选一\n- input_key：单个输入字段名，与input_keys二选一\n- output_key：去重结果字段名，默认为'minhash_deduplicated_label'\n输出参数：\n- 过滤后的DataFrame，仅保留相似性低于阈值的唯一样本（标记为1的样本）\n- 返回包含去重结果字段名的列表，用于后续算子引用\"; \"WordNumberFilter\":\"该算子用于过滤单词数量不在指定范围内的文本，通过空格分割计算单词数量。\n输入参数：\n- input_key：输入文本字段名，默认为'text'\n- min_words：最小单词数量阈值，默认为5\n- max_words：最大单词数量阈值，默认为100\n输出参数：\n- 过滤后的DataFrame，仅保留单词数量在指定范围内的文本行\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"HtmlEntityRefiner\":\"去除文本中的HTML实体，包括标准实体（如&nbsp;、&lt;）和各种变体形式（全角符号、中文分号等）。支持自定义需要移除的HTML实体列表。输入参数：\n- html_entities：需要移除的HTML实体列表，默认为包含常见实体的列表\n- input_key：输入文本字段名\n输出参数：\n- 包含移除HTML实体后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"HtmlUrlRemoverRefiner\":\"去除文本中的URL链接和HTML标签，净化文本内容。使用正则表达式匹配并移除各种形式的URL和HTML标签。输入参数：\n- input_key：输入文本字段名\n输出参数：\n- 包含净化后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"LowercaseRefiner\":\"将文本字段中的所有大写字符转换为小写，统一文本格式。对指定字段的文本内容进行全小写处理。输入参数：\n- input_key：输入文本字段名\n输出参数：\n- 包含小写转换后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"NERRefiner\":\"使用命名实体识别（NER）技术识别并屏蔽文本中的特定实体。使用spaCy的'en_core_web_sm'模型识别实体，并将其替换为对应的实体类型标签。输入参数：\n- input_key：输入文本字段名\n输出参数：\n- 包含实体屏蔽后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"PIIAnonymizeRefiner\":\"使用Presidio和BERT-NER模型识别并匿名化文本中的个人身份信息（PII）。支持多种PII类型的检测和匿名化处理。输入参数：\n- lang：语言代码，默认为'en'\n- device：运行设备，默认为'cuda'\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n- model_name：NER模型名称，默认为'dslim/bert-base-NER'\n- input_key：输入文本字段名\n输出参数：\n- 包含匿名化后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"ReferenceRemoverRefiner\":\"删除文本中未闭合的引用标签和引用链接，包括<ref>标签和{{cite}}模板的各种完整和不完整形式。净化文本中的引用标记。输入参数：\n- input_key：输入文本字段名\n输出参数：\n- 包含移除引用标记后文本的DataFrame\n- 返回输入字段名，用于后续算子引用\"; \"RemoveContractionsRefiner\":\"该算子用于扩展文本中的英语缩写词，将缩写形式转换为完整形式（例如将\"can't\"扩展为\"cannot\"）。\n使用contractions库进行缩写词扩展，提高文本标准化程度。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含扩展缩写词后的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveEmojiRefiner\":\"该算子用于去除文本中的Unicode图像表情符号，包括表情符号、杂项符号、交通符号、旗帜等各类图像符号。\n通过正则表达式匹配Unicode表情符号范围，实现高效过滤。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除表情符号的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveEmoticonsRefiner\":\"该算子用于移除文本中的文本型表情符号，例如':-)'、':D'、':('等字符组合表情。\n基于预定义的表情符号字典进行匹配替换，支持多种常见文本表情模式。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除文本表情的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveExtraSpacesRefiner\":\"该算子用于移除文本中的多余空格，将连续的多个空格替换为单个空格，并去除文本前后的空白字符。\n通过字符串分割和连接实现空格标准化，提高文本格式一致性。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含标准化空格的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveImageRefsRefiner\":\"该算子用于去除文本中的图片引用格式，包括Markdown图片链接、图片编号、特殊符号组合等图像引用模式。\n通过多模式正则表达式匹配，识别并移除多种图片引用格式。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除图片引用的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveNumberRefiner\":\"该算子用于移除文本中的数字字符，包括0-9的阿拉伯数字。\n通过字符过滤实现数字移除，保留纯文本内容。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除数字的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemovePunctuationRefiner\":\"该算子用于移除文本中的标点符号，包括英文标点符号集合中的所有符号。\n使用string.punctuation定义的标点集合进行过滤，实现文本去标点处理。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除标点的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveRepetitionsPunctuationRefiner\":\"该算子用于移除文本中重复的标点符号，例如将\"!!!\"变为\"!\"，\",,\"变为\",\"。\n通过正则表达式匹配连续重复的标点符号，替换为单个符号。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含标准化标点的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"RemoveStopwordsRefiner\":\"该算子用于移除文本中的英语停用词（如\"the\"，\"is\"，\"in\"等无实际意义的高频词汇）。\n使用NLTK库的stopwords语料库进行停用词过滤，提高文本特征密度。\n输入参数：\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含去除停用词的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"SpellingCorrectionRefiner\":\"该算子用于通过SymSpell算法对文本中的拼写错误进行纠正，支持自定义编辑距离和词典路径。\n若本地词典不存在则自动下载，使用近似字符串匹配实现拼写纠错功能。\n输入参数：\n- max_edit_distance：最大编辑距离，默认为2\n- prefix_length：前缀长度，默认为7\n- dictionary_path：词典路径，默认为'frequency_dictionary_en_82_765.txt'\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含纠正拼写错误的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"StemmingLemmatizationRefiner\":\"该算子用于对文本进行词干提取或词形还原处理，将词语转换为其基本形式。\n支持两种处理方式：Porter词干提取(stemming)和WordNet词形还原(lemmatization)，可通过参数选择。\n输入参数：\n- method：处理方法，可选'stemming'或'lemmatization'，默认为'stemming'\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含词干/词形还原后的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"TextNormalizationRefiner\":\"该算子用于规范化文本中的日期格式和货币格式，统一为标准表示形式。\n日期格式统一转换为'YYYY-MM-DD'形式，货币格式转换为'金额 USD'形式，提高数据一致性。\n输入参数：\n- 无初始化参数\n运行参数：\n- input_key：输入文本字段名\n输出参数：\n- 处理后的DataFrame，包含格式规范化的文本\n- 返回包含输入字段名的列表，用于后续算子引用\"; \"BertSampleEvaluator\":\"使用BERTScore评估生成文本与参考文本的相似度，基于上下文嵌入计算P/R/F1分数。\n输入参数：\n- lang：语言类型，默认为'en'\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n- input_key：生成文本字段名\n- reference_key：参考文本字段名\n- output_key：输出得分字段名，默认为'BertScore'\n输出参数：\n- 包含F1相似度得分的DataFrame\"; \"BleuSampleEvaluator\":\"计算BLEU分数评估生成文本与参考文本的n-gram重叠度，支持1-4元语法分析。\n输入参数：\n- n：最大n-gram长度，默认为4\n- eff：参考长度计算方式，可选'shortest'/'average'/'longest'，默认为'average'\n- special_reflen：特殊参考长度，默认为None\n- input_key：生成文本字段名\n- reference_key：参考文本字段名\n- output_key：输出得分字段名，默认为'BleuScore'\n输出参数：\n- 包含BLEU得分的DataFrame\"; \"CiderSampleEvaluator\":\"使用CIDEr指标评估生成文本与参考文本的相似度，基于TF-IDF加权的n-gram重叠度。\n输入参数：\n- n：最大n-gram长度，默认为4\n- sigma：高斯惩罚参数，默认为6.0\n- df_mode：文档频率模式，默认为'coco-val-df'\n- idf_path：IDF文件路径，默认为预训练COCO数据集IDF\n- input_key：生成文本字段名\n- reference_key：参考文本字段名\n- output_key：输出得分字段名，默认为'CiderScore'\n输出参数：\n- 包含CIDEr得分的DataFrame\"; \"Task2VecDatasetEvaluator\":\"使用Task2Vec方法评估数据集的多样性，通过计算样本嵌入的余弦距离矩阵来量化多样性。\n输入参数：\n- device：计算设备，默认为'cuda'\n- sample_nums：采样次数，默认为10\n- sample_size：每次采样样本数，默认为1\n- method：嵌入方法，可选'montecarlo'或'variational'，默认为'montecarlo'\n- model_cache_dir：模型缓存目录，默认为'./dataflow_cache'\n- input_key：输入文本字段名\n输出参数：\n- Task2VecDiversityScore：多样性得分\n- ConfidenceInterval：置信区间\"; \"VendiDatasetEvaluator\":\"通过计算VendiScore来评估数据集的多样性，使用BERT和SimCSE模型生成嵌入并计算分数。\n输入参数：\n- device：计算设备，默认为'cuda'\n- input_key：输入文本字段名\n输出参数：\n- BERTVendiScore：基于BERT的多样性得分\n- SimCSEVendiScore：基于SimCSE的多样性得分\""
     },
     "recommender_instance": {
       "tool_manager": {
@@ -347,7 +346,7 @@
             {
               "name": "combine_pipeline",
               "description": "Combine pipeline post tool for recommender",
-              "args_schema": "{'__module__': 'dataflow_agent.workflow.wf_pipeline_recommend_extract_json', '__annotations__': {'oplist': 'list'}, 'model_config': {}, '__class_vars__': set(), '__private_attributes__': {}, '__weakref__': <attribute '__weakref__' of 'GetOpInput' objects>, '__doc__': None, '__abstractmethods__': frozenset(), '_abc_impl': <_abc._abc_data object at 0x7f72f3e84a00>, '__pydantic_custom_init__': False, '__pydantic_post_init__': None, '__pydantic_setattr_handlers__': {}, '__pydantic_decorators__': DecoratorInfos(validators={}, field_validators={}, root_validators={}, field_serializers={}, model_serializers={}, model_validators={}, computed_fields={}), '__pydantic_generic_metadata__': {'origin': None, 'args': (), 'parameters': ()}, '__pydantic_complete__': True, '__pydantic_parent_namespace__': {'builder': <pydantic._internal._model_construction._PydanticWeakRef object at 0x7f72f0f02050>, 'cls_get_sample': <pydantic._internal._model_construction._PydanticWeakRef object at 0x7f72f0f02080>, 'cls_get_categories': <pydantic._internal._model_construction._PydanticWeakRef object at 0x7f72f0f020b0>, 'rec_get_sample': <pydantic._internal._model_construction._PydanticWeakRef object at 0x7f72f0f02110>, 'rec_get_target': <pydantic._internal._model_construction._PydanticWeakRef object at 0x7f72f0f02140>, 'rec_get_operator': <pydantic._internal._model_construction._PydanticWeakRef object at 0x7f72f0f022c0>}, '__pydantic_fields__': {'oplist': FieldInfo(annotation=list, required=True, description=\"list['xxx']的算子列表\")}, '__pydantic_computed_fields__': {}, '__pydantic_core_schema__': {'type': 'model', 'cls': <class 'dataflow_agent.workflow.wf_pipeline_recommend_extract_json.create_pipeline_graph.<locals>.GetOpInput'>, 'schema': {'type': 'model-fields', 'fields': {'oplist': {'type': 'model-field', 'schema': {'type': 'list', 'items_schema': {'type': 'any'}}, 'metadata': {'pydantic_js_updates': {'description': \"list['xxx']的算子列表\"}}}}, 'model_name': 'GetOpInput', 'computed_fields': []}, 'custom_init': False, 'root_model': False, 'config': {'title': 'GetOpInput'}, 'ref': 'dataflow_agent.workflow.wf_pipeline_recommend_extract_json.create_pipeline_graph.<locals>.GetOpInput:94299104189360', 'metadata': {'pydantic_js_functions': [<bound method BaseModel.__get_pydantic_json_schema__ of <class 'dataflow_agent.workflow.wf_pipeline_recommend_extract_json.create_pipeline_graph.<locals>.GetOpInput'>>]}}, '__pydantic_validator__': SchemaValidator(title=\"GetOpInput\", validator=Model(\n    ModelValidator {\n        revalidate: Never,\n        validator: ModelFields(\n            ModelFieldsValidator {\n                fields: [\n                    Field {\n                        name: \"oplist\",\n                        lookup_key_collection: LookupKeyCollection {\n                            by_name: Simple(\n                                LookupPath {\n                                    first_item: PathItemString {\n                                        key: \"oplist\",\n                                        py_key: Py(\n                                            0x00007f72f0f12b30,\n                                        ),\n                                    },\n                                    rest: [],\n                                },\n                            ),\n                            by_alias: None,\n                            by_alias_then_name: None,\n                        },\n                        name_py: Py(\n                            0x00007f72f3e84e70,\n                        ),\n                        validator: List(\n                            ListValidator {\n                                strict: false,\n                                item_validator: None,\n                                min_length: None,\n                                max_length: None,\n                                name: OnceLock(\n                                    <uninit>,\n                                ),\n                                fail_fast: false,\n                            },\n                        ),\n                        frozen: false,\n                    },\n                ],\n                model_name: \"GetOpInput\",\n                extra_behavior: Ignore,\n                extras_validator: None,\n                extras_keys_validator: None,\n                strict: false,\n                from_attributes: false,\n                loc_by_alias: true,\n                validate_by_alias: None,\n                validate_by_name: None,\n            },\n        ),\n        class: Py(\n            0x000055c3b89b9bb0,\n        ),\n        generic_origin: None,\n        post_init: None,\n        frozen: false,\n        custom_init: false,\n        root_model: false,\n        undefined: Py(\n            0x00007f7304d93460,\n        ),\n        name: \"GetOpInput\",\n    },\n), definitions=[], cache_strings=True), '__pydantic_serializer__': SchemaSerializer(serializer=Model(\n    ModelSerializer {\n        class: Py(\n            0x000055c3b89b9bb0,\n        ),\n        serializer: Fields(\n            GeneralFieldsSerializer {\n                fields: {\n                    \"oplist\": SerField {\n                        key_py: Py(\n                            0x00007f72f3e84e70,\n                        ),\n                        alias: None,\n                        alias_py: None,\n                        serializer: Some(\n                            List(\n                                ListSerializer {\n                                    item_serializer: Any(\n                                        AnySerializer,\n                                    ),\n                                    filter: SchemaFilter {\n                                        include: None,\n                                        exclude: None,\n                                    },\n                                    name: \"list[any]\",\n                                },\n                            ),\n                        ),\n                        required: true,\n                        serialize_by_alias: None,\n                        serialization_exclude_if: None,\n                    },\n                },\n                computed_fields: Some(\n                    ComputedFields(\n                        [],\n                    ),\n                ),\n                mode: SimpleDict,\n                extra_serializer: None,\n                filter: SchemaFilter {\n                    include: None,\n                    exclude: None,\n                },\n                required_fields: 1,\n            },\n        ),\n        has_extra: false,\n        root_model: false,\n        name: \"GetOpInput\",\n    },\n), definitions=[]), '__signature__': <pydantic._internal._utils.LazyClassAttribute object at 0x7f72f0f02710>}",
+              "args_schema": "{'__module__': 'dataflow_agent.workflow.wf_pipeline_recommend_extract_json', '__annotations__': {'oplist': 'list'}, 'model_config': {}, '__class_vars__': set(), '__private_attributes__': {}, '__weakref__': <attribute '__weakref__' of 'GetOpInput' objects>, '__doc__': None, '__abstractmethods__': frozenset(), '_abc_impl': <_abc._abc_data object at 0x7fdd01809a00>, '__pydantic_custom_init__': False, '__pydantic_post_init__': None, '__pydantic_setattr_handlers__': {}, '__pydantic_decorators__': DecoratorInfos(validators={}, field_validators={}, root_validators={}, field_serializers={}, model_serializers={}, model_validators={}, computed_fields={}), '__pydantic_generic_metadata__': {'origin': None, 'args': (), 'parameters': ()}, '__pydantic_complete__': True, '__pydantic_parent_namespace__': {'builder': <pydantic._internal._model_construction._PydanticWeakRef object at 0x7fdcef274370>, 'cls_get_sample': <pydantic._internal._model_construction._PydanticWeakRef object at 0x7fdcef2743d0>, 'cls_get_categories': <pydantic._internal._model_construction._PydanticWeakRef object at 0x7fdcef2743a0>, 'rec_get_sample': <pydantic._internal._model_construction._PydanticWeakRef object at 0x7fdcef274430>, 'rec_get_target': <pydantic._internal._model_construction._PydanticWeakRef object at 0x7fdcef274490>, 'rec_get_operator': <pydantic._internal._model_construction._PydanticWeakRef object at 0x7fdcef2744f0>}, '__pydantic_fields__': {'oplist': FieldInfo(annotation=list, required=True, description=\"list['xxx']的算子列表\")}, '__pydantic_computed_fields__': {}, '__pydantic_core_schema__': {'type': 'model', 'cls': <class 'dataflow_agent.workflow.wf_pipeline_recommend_extract_json.create_pipeline_graph.<locals>.GetOpInput'>, 'schema': {'type': 'model-fields', 'fields': {'oplist': {'type': 'model-field', 'schema': {'type': 'list', 'items_schema': {'type': 'any'}}, 'metadata': {'pydantic_js_updates': {'description': \"list['xxx']的算子列表\"}}}}, 'model_name': 'GetOpInput', 'computed_fields': []}, 'custom_init': False, 'root_model': False, 'config': {'title': 'GetOpInput'}, 'ref': 'dataflow_agent.workflow.wf_pipeline_recommend_extract_json.create_pipeline_graph.<locals>.GetOpInput:94442297374816', 'metadata': {'pydantic_js_functions': [<bound method BaseModel.__get_pydantic_json_schema__ of <class 'dataflow_agent.workflow.wf_pipeline_recommend_extract_json.create_pipeline_graph.<locals>.GetOpInput'>>]}}, '__pydantic_validator__': SchemaValidator(title=\"GetOpInput\", validator=Model(\n    ModelValidator {\n        revalidate: Never,\n        validator: ModelFields(\n            ModelFieldsValidator {\n                fields: [\n                    Field {\n                        name: \"oplist\",\n                        lookup_key_collection: LookupKeyCollection {\n                            by_name: Simple(\n                                LookupPath {\n                                    first_item: PathItemString {\n                                        key: \"oplist\",\n                                        py_key: Py(\n                                            0x00007fdcef2383b0,\n                                        ),\n                                    },\n                                    rest: [],\n                                },\n                            ),\n                            by_alias: None,\n                            by_alias_then_name: None,\n                        },\n                        name_py: Py(\n                            0x00007fdd0180bdb0,\n                        ),\n                        validator: List(\n                            ListValidator {\n                                strict: false,\n                                item_validator: None,\n                                min_length: None,\n                                max_length: None,\n                                name: OnceLock(\n                                    <uninit>,\n                                ),\n                                fail_fast: false,\n                            },\n                        ),\n                        frozen: false,\n                    },\n                ],\n                model_name: \"GetOpInput\",\n                extra_behavior: Ignore,\n                extras_validator: None,\n                extras_keys_validator: None,\n                strict: false,\n                from_attributes: false,\n                loc_by_alias: true,\n                validate_by_alias: None,\n                validate_by_name: None,\n            },\n        ),\n        class: Py(\n            0x000055e50f963860,\n        ),\n        generic_origin: None,\n        post_init: None,\n        frozen: false,\n        custom_init: false,\n        root_model: false,\n        undefined: Py(\n            0x00007fdd02f7b460,\n        ),\n        name: \"GetOpInput\",\n    },\n), definitions=[], cache_strings=True), '__pydantic_serializer__': SchemaSerializer(serializer=Model(\n    ModelSerializer {\n        class: Py(\n            0x000055e50f963860,\n        ),\n        serializer: Fields(\n            GeneralFieldsSerializer {\n                fields: {\n                    \"oplist\": SerField {\n                        key_py: Py(\n                            0x00007fdd0180bdb0,\n                        ),\n                        alias: None,\n                        alias_py: None,\n                        serializer: Some(\n                            List(\n                                ListSerializer {\n                                    item_serializer: Any(\n                                        AnySerializer,\n                                    ),\n                                    filter: SchemaFilter {\n                                        include: None,\n                                        exclude: None,\n                                    },\n                                    name: \"list[any]\",\n                                },\n                            ),\n                        ),\n                        required: true,\n                        serialize_by_alias: None,\n                        serialization_exclude_if: None,\n                    },\n                },\n                computed_fields: Some(\n                    ComputedFields(\n                        [],\n                    ),\n                ),\n                mode: SimpleDict,\n                extra_serializer: None,\n                filter: SchemaFilter {\n                    include: None,\n                    exclude: None,\n                },\n                required_fields: 1,\n            },\n        ),\n        has_extra: false,\n        root_model: false,\n        name: \"GetOpInput\",\n    },\n), definitions=[]), '__signature__': <pydantic._internal._utils.LazyClassAttribute object at 0x7fdcef274790>}",
               "return_direct": false,
               "verbose": false,
               "callbacks": null,
@@ -374,80 +373,82 @@
     },
     "debug_sample_file": "/tmp/translation_sample_10.jsonl",
     "origin_file_path": "/mnt/DataFlow/lz/proj/DataFlow/dataflow/example/GeneralTextPipeline/translation.jsonl",
-    "pipeline_code": "\"\"\"\nAuto-generated by pipeline_assembler\n\"\"\"\nfrom dataflow.pipeline import PipelineABC\nfrom dataflow.utils.storage import FileStorage\nfrom dataflow.serving import APILLMServing_request, LocalModelLLMServing_vllm\n\nfrom dataflow.operators.core_text import EmbeddingGenerator, GeneralFilter, PandasOperator, PromptedFilter, PromptedRefiner\n\n\n\nclass RecommendPipeline(PipelineABC):\n    def __init__(self):\n        super().__init__()\n        # -------- FileStorage --------\n        self.storage = FileStorage(\n            first_entry_file_name=\"/tmp/translation_sample_10.jsonl\",\n            cache_path=\"/mnt/DataFlow/lz/proj/DataFlow-Agent/cache_dir\",\n            file_name_prefix=\"dataflow_cache_step\",\n            cache_type=\"jsonl\",\n        )\n        # -------- LLM Serving (Remote) --------\n        self.llm_serving = APILLMServing_request(\n            api_url=\"http://123.129.219.111:3000/v1/chat/completions\",\n            key_name_of_api_key=\"DF_API_KEY\",\n            model_name=\"gpt-4o\",\n            max_workers=100,\n        )\n\n        self.prompted_filter = PromptedFilter(llm_serving=self.llm_serving, system_prompt='Please evaluate the quality of this data on a scale from 1 to 5.', min_score=1, max_score=5)\n        self.general_filter = GeneralFilter(filter_rules=None)\n        self.prompted_refiner = PromptedRefiner(llm_serving=self.llm_serving, system_prompt='You are a helpful agent.')\n        self.embedding_generator = EmbeddingGenerator(embedding_serving=None)\n        self.pandas_operator = PandasOperator(process_fn=None)\n\n    def forward(self):\n        self.prompted_filter.run(\n            storage=self.storage.step(), input_key='raw_content', output_key='eval'\n        )\n        self.general_filter.run(\n            storage=self.storage.step()\n        )\n        self.prompted_refiner.run(\n            storage=self.storage.step(), input_key='raw_content'\n        )\n        self.embedding_generator.run(\n            storage=self.storage.step(), input_key='text', output_key='embeddings'\n        )\n        self.pandas_operator.run(\n            storage=self.storage.step()\n        )\n\nif __name__ == \"__main__\":\n    pipeline = RecommendPipeline()\n    pipeline.compile()\n    pipeline.forward()\n",
+    "pipeline_code": "\"\"\"\nAuto-generated by pipeline_assembler\n\"\"\"\nfrom dataflow.pipeline import PipelineABC\nfrom dataflow.utils.storage import FileStorage\nfrom dataflow.serving import APILLMServing_request, LocalModelLLMServing_vllm\n\nfrom dataflow.operators.general_text import AlphaWordsFilter, ContentNullFilter, HashDeduplicateFilter, SentenceNumberFilter, SymbolWordRatioFilter\n\n\n\nclass RecommendPipeline(PipelineABC):\n    def __init__(self):\n        super().__init__()\n        # -------- FileStorage --------\n        self.storage = FileStorage(\n            first_entry_file_name=\"/tmp/translation_sample_10.jsonl\",\n            cache_path=\"/mnt/DataFlow/lz/proj/DataFlow-Agent/cache_dir\",\n            file_name_prefix=\"dataflow_cache_step\",\n            cache_type=\"jsonl\",\n        )\n        # -------- LLM Serving (Remote) --------\n        self.llm_serving = APILLMServing_request(\n            api_url=\"http://123.129.219.111:3000/v1/chat/completions\",\n            key_name_of_api_key=\"DF_API_KEY\",\n            model_name=\"gpt-4o\",\n            max_workers=100,\n        )\n\n        self.content_null_filter = ContentNullFilter()\n        self.hash_deduplicate_filter = HashDeduplicateFilter(hash_func='md5')\n        self.sentence_number_filter = SentenceNumberFilter(min_sentences=3, max_sentences=7500)\n        self.symbol_word_ratio_filter = SymbolWordRatioFilter(threshold=0.4)\n        self.alpha_words_filter = AlphaWordsFilter(threshold=None, use_tokenizer=None)\n\n    def forward(self):\n        self.content_null_filter.run(\n            storage=self.storage.step(), input_key=None, output_key='content_null_filter_label'\n        )\n        self.hash_deduplicate_filter.run(\n            storage=self.storage.step(), input_keys=None, input_key=None, output_key='minhash_deduplicated_label'\n        )\n        self.sentence_number_filter.run(\n            storage=self.storage.step(), input_key=None, output_key='sentence_number_filter_label'\n        )\n        self.symbol_word_ratio_filter.run(\n            storage=self.storage.step(), input_key=None, output_key='symbol_word_ratio_filter_label'\n        )\n        self.alpha_words_filter.run(\n            storage=self.storage.step(), input_key=None, output_key='alpha_words_filter_label'\n        )\n\nif __name__ == \"__main__\":\n    pipeline = RecommendPipeline()\n    pipeline.compile()\n    pipeline.forward()\n",
     "structure_code": {
       "nodes": [
         {
           "id": "node1",
-          "name": "PromptedFilter",
+          "name": "ContentNullFilter",
           "type": "filter",
           "config": {
-            "init": {
-              "llm_serving": "self.llm_serving",
-              "system_prompt": "Please evaluate the quality of this data on a scale from 1 to 5.",
-              "min_score": 1,
-              "max_score": 5
-            },
+            "init": {},
             "run": {
               "storage": "self.storage.step()",
-              "input_key": "raw_content",
-              "output_key": "eval"
+              "input_key": null,
+              "output_key": "content_null_filter_label"
             }
           }
         },
         {
           "id": "node2",
-          "name": "GeneralFilter",
+          "name": "HashDeduplicateFilter",
           "type": "filter",
           "config": {
             "init": {
-              "filter_rules": null
+              "hash_func": "md5"
             },
             "run": {
-              "storage": "self.storage.step()"
+              "storage": "self.storage.step()",
+              "input_keys": null,
+              "input_key": null,
+              "output_key": "minhash_deduplicated_label"
             }
           }
         },
         {
           "id": "node3",
-          "name": "PromptedRefiner",
-          "type": "refine",
+          "name": "SentenceNumberFilter",
+          "type": "filter",
           "config": {
             "init": {
-              "llm_serving": "self.llm_serving",
-              "system_prompt": "You are a helpful agent."
+              "min_sentences": 3,
+              "max_sentences": 7500
             },
             "run": {
               "storage": "self.storage.step()",
-              "input_key": "raw_content"
+              "input_key": null,
+              "output_key": "sentence_number_filter_label"
             }
           }
         },
         {
           "id": "node4",
-          "name": "EmbeddingGenerator",
-          "type": "generate",
+          "name": "SymbolWordRatioFilter",
+          "type": "filter",
           "config": {
             "init": {
-              "embedding_serving": null
+              "threshold": 0.4
             },
             "run": {
               "storage": "self.storage.step()",
-              "input_key": "text",
-              "output_key": "embeddings"
+              "input_key": null,
+              "output_key": "symbol_word_ratio_filter_label"
             }
           }
         },
         {
           "id": "node5",
-          "name": "PandasOperator",
-          "type": "refine",
+          "name": "AlphaWordsFilter",
+          "type": "filter",
           "config": {
             "init": {
-              "process_fn": null
+              "threshold": null,
+              "use_tokenizer": null
             },
             "run": {
-              "storage": "self.storage.step()"
+              "storage": "self.storage.step()",
+              "input_key": null,
+              "output_key": "alpha_words_filter_label"
             }
           }
         }
@@ -456,14 +457,14 @@
     }
   },
   "category": {
-    "category": "core_text"
+    "category": "general_text"
   },
   "recommendation": [
-    "PromptedFilter",
-    "GeneralFilter",
-    "PromptedRefiner",
-    "EmbeddingGenerator",
-    "PandasOperator"
+    "ContentNullFilter",
+    "HashDeduplicateFilter",
+    "SentenceNumberFilter",
+    "SymbolWordRatioFilter",
+    "AlphaWordsFilter"
   ],
   "matched_ops": [],
   "debug_mode": true,
@@ -471,75 +472,77 @@
     "nodes": [
       {
         "id": "node1",
-        "name": "PromptedFilter",
+        "name": "ContentNullFilter",
         "type": "filter",
         "config": {
-          "init": {
-            "llm_serving": "self.llm_serving",
-            "system_prompt": "Please evaluate the quality of this data on a scale from 1 to 5.",
-            "min_score": 1,
-            "max_score": 5
-          },
+          "init": {},
           "run": {
             "storage": "self.storage.step()",
-            "input_key": "raw_content",
-            "output_key": "eval"
+            "input_key": null,
+            "output_key": "content_null_filter_label"
           }
         }
       },
       {
         "id": "node2",
-        "name": "GeneralFilter",
+        "name": "HashDeduplicateFilter",
         "type": "filter",
         "config": {
           "init": {
-            "filter_rules": null
+            "hash_func": "md5"
           },
           "run": {
-            "storage": "self.storage.step()"
+            "storage": "self.storage.step()",
+            "input_keys": null,
+            "input_key": null,
+            "output_key": "minhash_deduplicated_label"
           }
         }
       },
       {
         "id": "node3",
-        "name": "PromptedRefiner",
-        "type": "refine",
+        "name": "SentenceNumberFilter",
+        "type": "filter",
         "config": {
           "init": {
-            "llm_serving": "self.llm_serving",
-            "system_prompt": "You are a helpful agent."
+            "min_sentences": 3,
+            "max_sentences": 7500
           },
           "run": {
             "storage": "self.storage.step()",
-            "input_key": "raw_content"
+            "input_key": null,
+            "output_key": "sentence_number_filter_label"
           }
         }
       },
       {
         "id": "node4",
-        "name": "EmbeddingGenerator",
-        "type": "generate",
+        "name": "SymbolWordRatioFilter",
+        "type": "filter",
         "config": {
           "init": {
-            "embedding_serving": null
+            "threshold": 0.4
           },
           "run": {
             "storage": "self.storage.step()",
-            "input_key": "text",
-            "output_key": "embeddings"
+            "input_key": null,
+            "output_key": "symbol_word_ratio_filter_label"
           }
         }
       },
       {
         "id": "node5",
-        "name": "PandasOperator",
-        "type": "refine",
+        "name": "AlphaWordsFilter",
+        "type": "filter",
         "config": {
           "init": {
-            "process_fn": null
+            "threshold": null,
+            "use_tokenizer": null
           },
           "run": {
-            "storage": "self.storage.step()"
+            "storage": "self.storage.step()",
+            "input_key": null,
+            "output_key": "alpha_words_filter_label"
           }
         }
       }
