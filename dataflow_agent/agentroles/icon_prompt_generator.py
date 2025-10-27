@@ -7,16 +7,17 @@ from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
 from langchain_core.tools import Tool
 
 from dataflow_agent.promptstemplates.prompt_template import PromptsTemplateGenerator
-from dataflow_agent.state import DFState
+from dataflow_agent.state import MainState
 from dataflow_agent.utils import robust_parse_json
 from dataflow_agent.toolkits.tool_manager import ToolManager
 from dataflow_agent.logger import get_logger
+from dataflow_agent.workflow.registry import register
 
 log = get_logger(__name__)
 
 from .base_agent import BaseAgent
 
-
+@register("icon_prompt_generator")
 class IconPromptGenerator(BaseAgent):
     """图标提示词生成器 - 根据用户关键词生成text2img prompt"""
     
@@ -40,7 +41,7 @@ class IconPromptGenerator(BaseAgent):
         """图标提示词生成器特有的提示词参数"""
         return {
             'user_keywords': pre_tool_results.get('keywords', ''),
-            'style_preferences': pre_tool_results.get('style', 'modern, minimalist'),
+            'style_preferences': pre_tool_results.get('style', 'kartoon, minimalist'),
         }
     
     def get_default_pre_tool_results(self) -> Dict[str, Any]:
@@ -50,21 +51,21 @@ class IconPromptGenerator(BaseAgent):
             'style': 'modern, minimalist'
         }
     
-    def update_state_result(self, state: DFState, result: Dict[str, Any], pre_tool_results: Dict[str, Any]):
+    def update_state_result(self, state: MainState, result: Dict[str, Any], pre_tool_results: Dict[str, Any]):
         """自定义状态更新 - 保存生成的prompt"""
         state.icon_prompt = result.get('prompt', result) if isinstance(result, dict) else result
         super().update_state_result(state, result, pre_tool_results)
 
 
 async def icon_prompt_generation(
-    state: DFState, 
+    state: MainState, 
     model_name: Optional[str] = None,
     tool_manager: Optional[ToolManager] = None,
     temperature: float = 0.7,
     max_tokens: int = 512,
     use_agent: bool = False,
     **kwargs,
-) -> DFState:
+) -> MainState:
     """生成图标提示词的入口函数"""
     generator = IconPromptGenerator(
         tool_manager=tool_manager,

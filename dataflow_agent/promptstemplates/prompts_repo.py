@@ -1156,3 +1156,19 @@ You are an expert in data processing pipeline node extraction.
 
 
 """
+
+
+# --------------------------------------------------------------------------- #
+# 15. icon_prompt_generator                                                           #
+# --------------------------------------------------------------------------- #
+
+class IconPromptGenerator:
+  system_prompt_for_icon_prompt_generation = """
+You are an expert in generating concise icon description prompts.
+"""      
+  task_prompt_for_icon_prompt_generation = """
+
+
+
+
+"""
