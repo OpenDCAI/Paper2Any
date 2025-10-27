@@ -2,13 +2,18 @@
 from typing import Callable, Dict
 
 class RuntimeRegistry:
-    """运行时保存 {name: factory} 的一个简单字典包装"""
     _workflows: Dict[str, Callable] = {}
 
     @classmethod
     def register(cls, name: str, factory: Callable):
+        # 同一个对象重复登记 → 忽略
         if name in cls._workflows:
-            raise ValueError(f"Workflow {name} already registered")
+            if cls._workflows[name] is factory: 
+                return
+            raise ValueError(
+                f"Workflow '{name}' already registered by "
+                f"{cls._workflows[name]} (now trying {factory})"
+            )
         cls._workflows[name] = factory
 
     @classmethod
