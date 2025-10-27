@@ -256,7 +256,7 @@ def post_process_combine_pipeline_result(results: Dict) -> str:
 
 
 # =================================================================== 算子RAG部分代码：
-import os, httpx, numpy as np, faiss
+import os, httpx, numpy as np
 from typing import List
 
 def _call_openai_embedding_api(
@@ -275,6 +275,7 @@ def _call_openai_embedding_api(
     返回:
         shape=(len(texts), dim) 的 np.ndarray(float32)，已做 L2 归一化
     """
+    import faiss
     if api_key is None:
         api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:

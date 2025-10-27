@@ -5,13 +5,6 @@ from typing import Any, Dict
 from dataflow.cli_funcs.paths import DataFlowPath
 BASE_DIR = DataFlowPath.get_dataflow_dir()
 DATAFLOW_DIR = BASE_DIR.parent
-STATICS_DIR = DataFlowPath.get_dataflow_statics_dir()
-
-
-current_file = Path(__file__).resolve()
-PROJDIR = current_file.parent.parent
-
-
 from typing_extensions import TypedDict, Annotated
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
@@ -47,10 +40,6 @@ class DFRequest:
     # ⑧ 是否使用本地模型而非远程 OpenAI
     use_local_model: bool = False
     local_model_path: str = ""                   # 指向 .gguf / .bin / huggingface checkpoint
-    
-    # cache_dir 
-    cache_dir: str = f"{PROJDIR}/cache_dir"
-    
 
 
 @dataclass
@@ -61,37 +50,21 @@ class DFState:
     category: Dict[str, Any] = field(default_factory=dict)
     recommendation: Dict[str, Any] = field(default_factory=dict)
     temp_data: Dict[str, Any] = field(default_factory=dict) # 供 Agent 之间传递临时数据，不伴随整个生命周期，可以随时clear；
-    # 匹配阶段产出的候选算子名单（用于 writer 上下文注入与后续复用）
-    matched_ops: list[str] = field(default_factory=list)
-    debug_mode: bool = False
-    # 当前流水线的结构JSON（包含nodes与edges），供精修/修改流程读取与写回
-    pipeline_structure_code: Dict[str, Any] = field(default_factory=dict)
-    
+    debug_mode: bool = True
     execution_result: Dict[str, Any] = field(default_factory=dict)
     code_debug_result: Dict[str, Any] = field(default_factory=dict)
-    # structure_code : Dict[str, Any] = field(default_factory=dict)
     def get(self, key, default=None):
         return getattr(self, key, default)
     def __setitem__(self, key, value):
         setattr(self, key, value)
 
-
 @dataclass
-class DataCollectionRequest:
-    language: str = "English"
-    chat_api_url: str = "http://123.129.219.111:3000/v1"
-    api_key: str = os.getenv("DF_API_KEY", "test")
-    model: str = "gpt-4o"
-    target: str = ""
-    download_dir: str = os.path.join(STATICS_DIR, "data_collection")
-    dataset_size_category: str = '1K<n<10K'
-    dataset_num_limit: int = 5
-    category: str = "PT"
-
-@dataclass
-class DataCollectionState:
-    request: DataCollectionRequest
-    keywords: list[str] = field(default_factory=list)
-    datasets: Dict[str, list] = field(default_factory=dict)
-    downloads: Dict[str, list] = field(default_factory=dict)
-    sources: Dict[str, Dict] = field(default_factory=dict)
+class GraphState(DFState):
+    # Added field
+    input_text: str = 'alt text'
+    graph_width: int = 3
+    graph_height: int = 1
+    color_pallete: str = 'default color pallete'
+    illustration_style: str = 'default illustration style'
+    text_outline: Dict[str, Any] = field(default_factory=dict)
+    visual_outline: Dict[str, Any] = field(default_factory=dict)

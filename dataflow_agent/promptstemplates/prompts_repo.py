@@ -99,31 +99,6 @@ The list of available operators for each data type:
 {operator}
 ============================
 
-[key rules]
-1. Follow Execution Order:
-  Data generation must occur before data extraction
-  Data extraction must occur before data validation
-  Correct order: Filter → Generate → Extract → Validate
-  Incorrect order: Filter → Extract → Generate ❌
-2 .Validate Data Availability:
-
-  Check sample data to confirm which fields already exist
-  If an operator requires field "X" but it's not present in the sample data, ensure a preceding operator creates it
-
-[Common Error Patterns to Avoid]
-❌ Incorrect Example: ["FilterData", "ExtractAnswer", "GenerateAnswer"]
-Problem: Attempting to extract the answer before it is generated
-
-✅ Correct Example: ["FilterData", "GenerateAnswer", "ExtractAnswer"]
-Reason: Generate first, then extract
-
-❌ Incorrect Example: ["ValidateAnswer", "GenerateAnswer"]
-Problem: Validating an answer that does not exist yet
-
-✅ Correct Example: ["GenerateAnswer", "ExtractAnswer", "ValidateAnswer"]
-Reason: Complete data flow
-
-
 [OUTPUT RULES]
 1. Please select suitable operator nodes for each type and return them in the following JSON format:
 {{
@@ -133,7 +108,7 @@ Reason: Complete data flow
 2 Only the names of the operators are needed.
 3. Please verify whether the selected operators and their order fully meet the requirements specified in {target}.
 [Question]
-Based on the above rules, what pipeline should be recommended???
+返回的管线是什么？？
 """
 
 # --------------------------------------------------------------------------- #
@@ -282,241 +257,6 @@ Current user request:
  "purpose": "According to the conversation history, the user does not need a deduplication operator, hopes to generate pseudo-answers, and wants to keep the number of operators at 3."
 }}
 """
-
-# --------------------------------------------------------------------------- #
-# 6. Pipeline Refine                                            #
-# --------------------------------------------------------------------------- #
-class PipelineRefinePrompts:
-    # 步骤1：目标与现状分析
-    system_prompt_for_refine_target_analyzer = """
-    You are an intent analysis robot. You need to analyze the specified intent from the conversation.
-"""
-    task_prompt_for_refine_target_analyzer = """
-[ROLE] 
-You are an intent analysis robot. You need to identify the user's explicit intent from the conversation
-and analyze the user's data processing pipeline refinement requirements based on the conversation content and current pipeline content.
-
-[TASK] 
-1. 识别用户需要进行的操作：操作集为： add|remove|replace, 用户需求可能是操作集中的一种或多种
-2. Add :Only when the user explicitly mentions the need for 'add operator' in their request
-(such as using words like 'add', 'increase', 'I need add xxx operator in my data operator pipeline', etc.),
-add 操作包括多种情况, 例如在pipeline的开头/结尾新增节点，或在两个节点之间插入节点等
-3. Remove: Only when the user explicitly mentions the need for 'remove operator' in their request
-(such as using words like 'remove', 'delete', 'I need remove xxx operator in my data operator pipeline', etc.),
-remove 操作包括多种情况, 例如删除pipeline中的某个节点或多个节点, 需要将被删除节点的前后节点连接起来
-4. Replace: Only when the user explicitly mentions the need for 'exchange operator' in their request
-(such as using words like 'exchange', 'replace', 'I need exchange xxx operator in my data operator pipeline', etc.),
-exchange 操作包括多种情况, 例如将pipeline中的某个节点替换为另一个节点, 或交换现有pipeline中两个节点的位置
-5. 你需要根据用户需求和当前pipeline内容, 结合上述操作集, 生成一个规范的意图JSON对象.
-
-[INPUT]
-User target: {purpose}
-Current pipeline content: {pipeline_code}
-Pipeline nodes summary: {pipeline_nodes_summary}
-
-[OUTPUT]
-1. You should output the refine needed based on the user target and current pipeline content as a JSON, including:
-need_add: true|false
-add_reasons: "Reasons for adding an operator"
-
-need_remove: true|false
-remove_reasons: "Reasons for removing an operator"
-
-need_replace: true|false
-replace_reasons: "Reasons for replacing an operator"
-
-needed_operators_desc:describe in detail the operators needed for each operation based on user's purpose.
-
-
-[OUTPUT RULES]
-1. Only reply in the specified JSON format.
-2. Do not output anything except JSON.
-
-[EXAMPLE]
-{{
-"need_add": true,
-"add_reasons": "The user explicitly requested to add an operator and an data augmentation opearator, and the current pipeline lacks a data cleaning step.",
-"need_remove": false,
-"need_replace": true,
-"replace_reasons": "The user wants to replace the current data validation operator with a data translation operator.",
-"needed_operators_desc": {
-    "add_1": User need a data cleaning operator to ensure data quality before further processing.
-    "add_2": User need add a data augmentaion operator.
-    "replace": User want to replace the data validation operator with a data translation operator, so the User need a data translation operator.
-}
-}}
-"""
-
-    # 步骤2：修改计划
-    system_prompt_for_refine_planner = """
-You are a data processing pipeline modification planner. Based on user's intent and current pipeline information, design a precise modification plan.
-"""
-
-    task_prompt_for_refine_planner = """
-[TASK]
-1.你需要充分理解用户的intent和当前pipeline内容, 结合用户的意图和当前pipeline content, 设计一个精准的修改计划, pipeline为json格式.
-2.你给出的修改计划需要包括：操作类型(操作类型必须属于操作集）、操作对象、操作位置等关键信息, 以便后续步骤进行具体的JSON修改.
-3.操作集为: add|remove|replace, 用户需求可能是操作集中的一种或多种, 可能涉及一个或多个节点; add 操作包括多种情况, 例如在pipeline的开头/结尾新增节点，或在两个节点之间插入节点等；
-remove 操作包括多种情况, 例如删除pipeline中的某个节点或多个节点, 需要将被删除节点的前后节点连接起来;
-replace 操作包括多种情况, 例如将pipeline中的某个节点替换为另一个节点, 或交换现有pipeline中两个节点的位置;
-
-[INPUT]
-Intent: {intent}  #这里的intent是上一步骤1的json格式输出结果
-Current pipeline content: {pipeline_code}
-Pipeline nodes summary: {pipeline_nodes_summary}
-matched_op: {matched_op}  
-# matched_op的格式为：{
-    "add_1": op_name (such as "data_cleaner")
-    "add_2": "data_augmenter",
-    "replace": "data_translator"
-}
-
-[OUTPUT RULES]
-1. Only reply in the specified JSON format.
-2. Do not output anything except JSON.
-
-[EXAMPLE]
-{{
-"modification_plan": [
-    {{
-        "operation": "add",
-        "operator_name": "data_cleaner",  # 新增节点名称
-        "position": {{"before": "node_1"}}  # 在节点node_1之前添加
-    }},
-    {{
-        "operation": "remove",
-        "operator_id": "node_3"  # 删除节点node_3
-    }},
-    {{
-        "operation": "replace",
-        "old_operator_id": "node_5",  # 将节点node_5替换为新的节点
-        "new_operator_name": "data_translator",
-]
-}}
-
-"""
-
-    # 步骤3：JSON 直接修改（LLM产出完整JSON）
-    system_prompt_for_json_pipeline_refiner = """
-You are a JSON data processing pipeline refiner. Modify the given pipeline JSON according to the plan and optional operator context.
-"""
-    task_prompt_for_json_pipeline_refiner = """
-
-[TASK]
-1.你需要先充分理解当前的pipeline content的格式和内容，和Modification plan.
-2.你需要仔细阅读并理解每一个子操作对应的算子的code，分析算子中的一些config参数及其含义, 因为修改JSON pipeline时需要写入对应算子的config参数.
-3.在修改pipeline content时，需要严格遵守JSON格式规范，保持历史数据结构一致性，禁止任何形式的注释或解释性文字.
-4.你在修改pipeline content时, 需要特别注意图结构的正确性, 例如节点之间的连接关系, 确保修改后的pipeline是一个有效的有向无环图(DAG).增加算子节点或移除算子节点时，需要考虑其前后节点的连接关系.
-5.在生成的pipeline content中，绝对不能存在孤立节点或断开的子图, 必须确保所有节点都正确连接, 并且整个图结构保持连贯和完整.
-
-
-[INPUT]
-Current pipeline JSON: {pipeline_json}
-Modification plan: {modification_plan}
-Operator context (op_context can be a list or dict keyed by step_id): {op_context}
-Output the UPDATED pipeline JSON ONLY.
-"""
-
-# ---------------- Overrides: Harmonize prompts for multi-suboperation RAG and param names ---------------- #
-# 1) Target analyzer: produce sub-operations list with step_id, compatible with downstream RAG per step
-PipelineRefinePrompts.system_prompt_for_refine_target_analyzer = """
-You are a pipeline intent analyzer. Based on the user target and current pipeline summary, extract a normalized intent JSON. Only output JSON.
-"""
-PipelineRefinePrompts.task_prompt_for_refine_target_analyzer = """
-[ROLE]
-Analyze the user's intent and the current pipeline. Decide whether add/remove/replace is needed and decompose into sub-operations.
-
-[INPUT]
-User target: {purpose}
-Pipeline nodes summary: {pipeline_nodes_summary}
-Current pipeline content: {pipeline_code}
-
-[OUTPUT]
-Return ONLY a JSON object with fields:
-{
-  "need_add": true|false,
-  "add_reasons": "...",
-  "need_remove": true|false,
-  "remove_reasons": "...",
-  "need_replace": true|false,
-  "replace_reasons": "...",
-  "needed_operators_desc": [
-    {
-      "step_id": "add_1|remove_1|replace_1|...",
-      "action": "add|remove|replace",
-      "desc": "Describe what the operator should do or which node to act on.",
-      "position_hint": {"between": ["nodeA","nodeB"], "before": "nodeX", "after": "nodeY", "start": true, "end": true, "target": "nodeZ"}
-    }
-  ]
-}
-
-[RULES]
-- step_id 必须唯一，用于后续逐步RAG与计划对齐。
-- Only JSON. Do not output anything else.
-"""
-
-# 2) Planner: consume intent (with needed_operators_desc) and produce modification_plan aligning step_id
-PipelineRefinePrompts.system_prompt_for_refine_planner = """
-You are a pipeline modification planner. Design a precise modification_plan from the intent and current pipeline summary. Only output JSON.
-"""
-PipelineRefinePrompts.task_prompt_for_refine_planner = """
-[TASK]
-Using the intent.needed_operators_desc (each with step_id/action/desc/position_hint) and the current pipeline nodes summary, generate a normalized modification_plan.
-If operator contexts are provided (per step_id), leverage them to decide precise node type, ports (input_key/output_key), and initial config.
-
-[INPUT]
-Intent: {intent}
-Pipeline nodes summary: {pipeline_nodes_summary}
-Operator context (optional): {op_context}
-
-[OUTPUT]
-Return ONLY a JSON object with field:
-{
-  "modification_plan": [
-    {
-      "step_id": "same as intent",
-      "op": "add|remove|replace|insert_between|insert_before|insert_after|insert_at_start|insert_at_end",
-      "position": {"a": "nodeX", "b": "nodeY", "target": "nodeZ", "before": "nodeA", "after": "nodeB", "start": false, "end": false},
-      "new_node": {"name": "optional", "type": "optional", "config": {"run": {"input_key": "...", "output_key": "..."}, "init": {}}}
-    }
-  ]
-}
-
-[RULES]
-- 保持 step_id 与 intent 对齐，便于后续使用逐步RAG匹配到的算子上下文。
-- 位置说明必须明确（between/before/after/start/end/target 选其一或组合），以确保可执行。
-- Only JSON.
-"""
-
-# 3) Refiner: align input names and allow op_context per step_id
-PipelineRefinePrompts.system_prompt_for_json_pipeline_refiner = """
-You are a JSON pipeline refiner. Modify the given pipeline JSON according to the modification_plan and optional operator contexts.
-Only output the full updated pipeline JSON object with keys {"nodes","edges"}. No comments.
-Rules:
-- For remove: delete the node and its edges; then connect all predecessors to all successors to keep connectivity (DAG, no cycles).
-- For insert_between(a,b): replace edge a→b with a→new and new→b.
-- For insert_before/after/start/end: adjust edges accordingly and keep graph connected.
-- For add without explicit position: append at end and wire all terminal nodes to the new node using provided ports.
-- Edge fields: {"source","target","source_port","target_port"}.
-- Node fields: {"id","name","type","config":{"run":{...},"init":{...}}}.
- - Always apply ALL steps in modification_plan sequentially. Do not skip steps.
- - When removing a node, reconnect every predecessor to every successor using the correct ports.
- - Ensure newly created node ids are unique.
-"""
-PipelineRefinePrompts.task_prompt_for_json_pipeline_refiner = """
-[TASK]
-1. 理解当前 pipeline_json 与 modification_plan。
-2. 如 op_context 提供了针对某个 step_id 的 operator 代码/端口/配置提示，请据此填写新节点的 type、config.run(input_key/output_key) 与必要的 init。
-3. 严格保持 JSON 结构、DAG 连通性与有向无环属性，禁止输出注释或解释性文字。
-
-[INPUT]
-Current pipeline JSON: {pipeline_json}
-Modification plan: {modification_plan}
-Operator context (op_context can be a list or a dict keyed by step_id): {op_context}
-
-Output the UPDATED pipeline JSON ONLY.
-"""
-
 
 # --------------------------------------------------------------------------- #
 # 6. 执行推荐流水线                                                             #
@@ -763,308 +503,6 @@ You are a Python code expert.
 """
     task_prompt_for_code_rewriting = """"
     [INPUT]
-
-The input consists of:
-1. Pipeline code (read-only):
-{pipeline_code}
-2. Error trace / shell output:
-{error_trace}
-
-3. Debug analysis and suggestions from the previous step:
-{debug_reason}
-
-4. Sample data [For the first operator in 'run', the key (for example, is one of the keys in the sampled data), you need to determine it yourself]:
-{data_sample}
-
-5. Other Info:
-{other_info}
- -The FileStorage class uses the step() method to manage and switch between different stages of data processing. Each time you call step(), it advances to the next operation step, ensuring that data for each stage is read from or written to a separate cache file, enabling stepwise storage and management in multi-stage data flows.
-
-[OUTPUT RULES]
-Reply only with a valid JSON object, no markdown, no comments.
-
-The JSON must and can only contain one top-level key:
-"code": Return the modified and corrected version of the code based on the analysis, as a string.
-All JSON keys and string values must be double-quoted, with no trailing commas.
-If you are unsure about any value, use an empty string.
-Double-check that your response is a valid JSON. Do not output anything else.
-    
-    """
-
-# --------------------------------------------------------------------------- #
-# 12. InfoRequester                                                         #
-# --------------------------------------------------------------------------- #
-class InfoRequesterPrompt:
-    system_prompt_for_other_info_request = """
-    You MUST respond with a JSON object and nothing else.
-    You are a senior Python debugging assistant.
-"""
-
-    task_prompt_for_context_collection = """
-[TASK]
-Analyze the pipeline code and error trace to decide **which modules’ source
-code you must inspect**.
-
-[INPUT]
-1. Pipeline code (read-only):
-{pipeline_code}
-
-2. Error trace:
-{error_trace}
-
-[WORKFLOW – STRICT]
-Step 1  Analyse the error and list the modules you need.
-Step 2  Call the function tool **fetch_other_info**
-        with       module_list=[ "...", ... ]        ← REQUIRED
-Step 3  Wait for the tool result (the code), then write your summary.
-
-[EXAMPLES]
-• Storage problem → {{"module_list": ["dataflow.utils.storage"]}}
-• Multiple files   → {{"module_list": ["pkg.a", "pkg.b"]}}
-
-
-请问，如果要解决上述错误还需要哪些额外信息？？
-[OUTPUT PROTOCOL]
-Phase A (before you have the code):
-    Respond ONLY with the tool call, e.g.
-    {{
-      "name": "fetch_other_info",
-      xxx
-    }}
-
-
-Phase B (after the tool has returned the code):
-    Respond ONLY with a JSON object, no markdown, no extra text:
-    {{
-      "other_info": "Concise yet complete summary of the inspected code"
-    }}
-
-"""
-
-
-
-# --------------------------------------------------------------------------- #
-# 11. Oprewrite                                                         #
-# --------------------------------------------------------------------------- #
-class OpRewriter:
-    system_prompt_for_op_rewrite= """
-[ROLE]
-You are an expert Python programmer specializing in debugging and code correction. Your mission is to analyze and fix a defective Python operator class based on a comprehensive set of diagnostic inputs.
-
-[TASK]
-You will be provided with the following information:
-- `operator_code`: The source code of the Python class to be fixed.
-- `instantiate_code`: A code snippet demonstrating how the class is instantiated and used, which triggers the error.
-- `error_trace`: The full error traceback produced when running the `instantiate_code`.
-- `debug_reason`: A preliminary analysis of the root cause of the error.
-- `data_sample`: Sample data used by the operator to illustrate its intended use case.
-- `target`: A clear description of the operator's desired functionality.
-
-Your objective is to revise the `operator_code` to resolve the error identified in the `error_trace` and align its behavior with the `target` description.
-
-[RULES]
-Follow these critical principles:
-1.  Minimal Changes: Modify the code as little as possible. Focus only on the necessary fixes to make it functional and correct. Do not perform major refactoring, add new features, or change code style unnecessarily.
-2.  Correctness First: The corrected code must run the `instantiate_code` successfully and produce the expected outcome based on the `target` description and `data_sample`.
-3.  Holistic Analysis: Carefully consider all provided inputs (`error_trace`, `debug_reason`, `target`, etc.) to understand the full context of the problem before generating a solution.
-4.  Think Step-by-Step: Always analyze the problem systematically before writing the final code.
-"""
-
-    task_prompt_for_op_rewrite = """
-[INPUT]
-- Operator Code: {operator_code}
-- Instantiation Code: {instantiate_code}
-- Error Trace : {error_trace}
-- Debug Reason: {debug_reason}
-- Sample Data: {data_sample}
-- Target Description: {target}
-
-[TASK]
-Based on the context provided, your task is to fix the `operator_code` and return only the corrected version.
-
-[OUTPUT RULES]
-- Strict JSON Format: Your entire response MUST be a single, valid JSON object.
-- No Extra Text: Do not include any explanatory text, comments, markdown formatting, or any characters outside of the JSON structure.
-- Required Structure: The JSON object must contain exactly one key: `"code"`.
-- Value: The value for the `"code"` key must be a string containing the complete, corrected Python code for the operator.
-
-Example of the required output format:
-```json
-{
-  "code": "class FixedOperator:\n    # ... corrected code here ...\n"
-}
-"""
-
-
-
-
-
-
-# --------------------------------------------------------------------------- #
-# 12. LLM 注入 Serving                                                         #
-# --------------------------------------------------------------------------- #
-class AppendLLMServing:
-    system_prompt_for_llm_append_serving = """
-You are a Python code refactoring assistant for DataFlow operators.
-Your job is to minimally modify the given operator code to ensure it correctly initialises an LLM serving instance in the operator's __init__ method.
-Do not change class names, method signatures, or business logic.
-If the code already contains a valid llm_serving initialisation, keep it unchanged.
-"""
-
-    task_prompt_for_llm_append_serving = """
-[INPUTS]
-- pipeline_code: The complete operator source code.
-- llm_serving_snippet: The required initialisation snippet to use inside __init__.
-- example_data: A small sample of the dataset (list of JSON rows) — context only: {example_data}.
-- available_keys: List of available columns — context only: {available_keys}.
-- target: The operator's intended purpose: {target}.
- 
-
-[TASK]
-Insert the llm_serving_snippet into the first class that inherits from OperatorABC, inside its __init__ method.
-If imports are missing, add: from dataflow.serving import APILLMServing_request.
-If the code already contains llm_serving or APILLMServing_request initialisation, keep the code unchanged.
-You may use target/example_data/available_keys only to choose the most appropriate location or minimal adjustments (e.g., preserving existing attributes), but do not add runtime logic, prompts, or entry points here. This step focuses solely on correct llm_serving initialisation.
-
-
-[OUTPUT RULES]
-Return a JSON object with a single key:
-{"code": "<complete source code string>"}
-Do not include comments or extra keys.
-Do not add any __main__ entry.
-"""
-
-# --------------------------------------------------------------------------- #
-# 13. LLM 生成实例化入口                                                        #
-# --------------------------------------------------------------------------- #
-class InstantiateOperator:
-    system_prompt_for_llm_instantiate = """
-    [ROLE]
-    You are a data operator code integration assistant.
-
-    [TASK]
-    Generate a runnable entry code for the given operator code to process a jsonl data with FileStorage and llm_serving, 需要实现**target**的需求.
-"""
-
-    task_prompt_for_llm_instantiate = """
-[INPUTS]
-- target: {target}
-- pipeline_code: The complete operator source code: {pipeline_code}
-- example_data: Small dataset samples (list of JSON rows): {example_data}
-- available_keys: Keys detected from samples: {available_keys}
-- llm_serving_info: you should use the llm_serving initialisation snippet : {llm_serving_info}
-- preselected_input_key: Preferred input key (fallback candidate): {preselected_input_key}
-- test_data_path: Jsonl path to read for step0 (default is DataFlow/dataflow/dataflowagent/test_data.jsonl): {test_data_path}
-
-[TASK]
-Produce complete, runnable Python code that:
-1) Instantiates FileStorage with:
-   storage = FileStorage(first_entry_file_name=test_data_path, cache_path="./cache_local", file_name_prefix="dataflow_cache_step", cache_type="jsonl")
-   Then call storage = storage.step() before reading/writing.
-   Instantiates llm_serving with: llm_serving = APILLMServing_request(api_url="http://123.129.219.111:3000/v1/chat/completions", key_name_of_api_key="DF_API_KEY", model_name="gpt-4o")
-
-2) Parses example_data/available_keys and selects input_key strictly from available_keys. Prefer preselected_input_key if it exists in available_keys. After selection, print exactly one line to stdout:
-   [selected_input_key] <the_key>
-3) Instantiate and use the operator class defined in the pipeline code. Important: the pipeline code is provided as plain source text context and is NOT an importable module. Do NOT write imports like "from pipeline_code import ..." and do NOT rely on OPERATOR_REGISTRY.get(...) to fetch it. Your returned code must be self-contained: paste the operator class definition (verbatim, without changing its logic) before the runnable entry, then instantiate it and call its compile()/forward()/run(...) as appropriate.
-4) Uses llm_serving already present in the operator if available. If missing imports to use remote serving, add: from dataflow.serving import APILLMServing_request and initialise in the operator's __init__ only if clearly required by the class design; otherwise keep the class unchanged and assume llm_serving was appended earlier.
-5) Reads the input with dataframe = storage.read('dataframe'), writes the output back via storage.write(...). Ensure it runs end-to-end on the given samples and fulfils the target.
-6) After obtaining model outputs, print the first two results to stdout for debugging with the exact prefix on separate lines:
-   [preview_output] <result_0>
-   [preview_output] <result_1>
-
-[STRICT CONSTRAINTS]
-- Do NOT redefine or replace existing operator classes in pipeline code.
-  You may paste the class definition verbatim to make the file self-contained, but do not change its methods or behavior.
-- Use exact import for FileStorage: from dataflow.utils.storage import FileStorage.
-- If you import serving, use: from dataflow.serving import APILLMServing_request.
-- Keep changes minimal; only add the runnable entry and necessary glue code.
-- Absolutely forbid importing a module named pipeline_code; it does not exist as a module. Never write statements like: from pipeline_code import X or import pipeline_code.
-- Do not call OPERATOR_REGISTRY.get(...) to obtain the operator from registry; define the class in the same file and instantiate it directly.
-
-[OUTPUT RULES]
-Return only a JSON object with a single key:
-{"code": "<complete runnable source code>"}
-No comments, no extra keys, no extra prints except:
-- one line: [selected_input_key] <the_key>
-- up to two lines: [preview_output] <result>
-"""
-
-# --------------------------------------------------------------------------- #
-# X. 语法检查（Operator 生成后的代码审查）                                      #
-# --------------------------------------------------------------------------- #
-class GrammarCheck:
-    system_prompt_for_grammar_check = """
-[ROLE]
-你是资深的 Python 代码语法与结构审查专家。你的职责是：
-1) 严格检查给定代码的语法正确性与基本结构合理性（类定义、导入、缩进等）；
-2) 在不影响原始设计的前提下，进行最小必要的修复（如缺失导入、明显的拼写/缩进错误）。
-
-[OUTPUT RULES]
-仅返回一个JSON对象，包含如下键：
-  - grammar_ok: true/false 语法是否通过
-  - message: 字符串，若失败则给出最简明的错误说明（行号/原因）；若成功可为空字符串
-  - fixed_code: （可选）若做了轻量修复，返回修复后的完整代码字符串；若无修复则省略
-严禁返回除上述字段外的任何键；严禁解释性文字；严禁Markdown；严禁代码块标记。
-"""
-
-    task_prompt_for_grammar_check = """
-[INPUTS]
-- pipeline_code:
-{pipeline_code}
-
-- data sample:
-{sample_data}
-
-- available_keys:
-{available_keys}
-
-- target:
-{target}
-
-[TASK]
-请对 pipeline_code 进行语法与结构审查，并在必要时进行最小修复。
-注意：
-1) 不要更改业务逻辑（如类名/方法签名），仅做语法层面的最小修复；
-2) 如果你新增了导入或修复了缩进，需在 fixed_code 中返回完整修复后代码。
-
-[OUTPUT]
-只返回如下JSON：
-{"grammar_ok": true, "message": "", "fixed_code": ""}
-若 grammar_ok 为 false，则 message 必须简洁说明问题（例如："IndentationError at line 42"）。
-"""
-
-# --------------------------------------------------------------------------- #
-# 13. data collection                                                         #
-# --------------------------------------------------------------------------- #
-class DataCollector:
-    system_prompt_for_data_collection = """
-You are an expert in user intent recognition.
-"""
-    task_prompt_for_data_collection = """"
-Please return one or several comma-separated noun keywords related to the input, without any explanations. Each key word should represent a simplified single word domain name. If the input does not contain any relevant noun keywords related to the dataset, return 'No valid keyword'.
-
-[Example]
-Input1:我想要数学和物理相关的数据
-Output1: math, physics
-
-Input2:收集金融和医疗相关的数据
-Output2: finance, medicine
-
-User request: 
-{user_query}
-
-Keywords:
-"""
-
-# --------------------------------------------------------------------------- #
-# 13. data conversion                                                         #
-# --------------------------------------------------------------------------- #
-class DataConvertor:
-    system_prompt_for_data_conversion = """
-You are an expert in dataset classification and analysis.
-"""
-    task_prompt_for_code_rewriting = """"
-    [INPUT]
 The input consists of:
 1. Pipeline code (read-only):
 {pipeline_code}
@@ -1085,74 +523,152 @@ Double-check that your response is a valid JSON. Do not output anything else.
     
     """
 
-
-
-
-# --------------------------------------------------------------------------- #
-# 14. NodesExporter                                                           #
-# --------------------------------------------------------------------------- #
-class NodesExporter:
-  system_prompt_for_nodes_export = """
-You are an expert in data processing pipeline node extraction.
-"""       
-  task_prompt_for_nodes_export = """"
-我有一个 JSON 格式的 pipeline，只包含 "nodes" 数组。每个节点（node）有 "id" 和 "config" 字段，"config" 里包含 "run" 参数（如 input_key、output_key）。
-
-请帮我自动修改每个节点的 input_key 和 output_key，使得这些节点从上到下（按 nodes 数组顺序）能前后相连，也就是说，每个节点的 output_key 会被下一个节点的 input_key 用到，形成一条完整的数据流管道。第一个节点的 input_key 可以固定为 "input1"，最后一个节点的 output_key 可以固定为 "output_final"。
-
-最终要求是让所有节点的 input_key/output_key 自动对应起来，形成一条 pipeline。
-
-下面是原始 JSON（只有 nodes，没有 edges）：
-{nodes_info}
-
-[输出规则]
-1. 第一个node的“input_key”默认是 raw_content；
-2. 只回复 JSON 格式，禁止任何解释性文字。
-3. 输出的 JSON 结构与输入完全相同，只修改 input_key 和 output_key。
-4. 中间节点的 output_key 和下一个节点的 input_key 保持一致，可以依次命名为 "step1"、"step2"、"step3" 等。
-5. 所有节点的 "run" 字段不是都包含 "input_key" 和 "output_key"，不能自己新增！！。
-6. 只回复 JSON 格式，禁止任何解释性文字，必须有一个nodes的key！！
-7. 输出的 JSON 结构与输入完全相同，只修改 input_key 和 output_key。
-
-返回内容参考：
-
-{
-  "nodes": 
-  [
-    {
-      "id": "node1",
-      "name": "PromptedFilter",
-      "type": "filter",
-      "config": {
-        "init": {
-          "llm_serving": "self.llm_serving",
-          "system_prompt": "Please evaluate the quality of this data on a scale from 1 to 5.",
-          "min_score": 1,
-          "max_score": 5
-        },
-        "run": {
-          "storage": "self.storage.step()",
-          "input_key": "raw_content",
-          "output_key": "eval"
-        }
-      }
-    },
-    {
-      "id": "node2",
-      "name": "PromptedRefiner",
-      "type": "refine",
-      "config": {
-        "init": {
-          "llm_serving": "self.llm_serving",
-          "system_prompt": "You are a helpful agent."
-        },
-        "run": {
-          "storage": "self.storage.step()",
-          "input_key": "eval"
-        }
-      }
-    }]
-}
-
-
+class TextOutlineGeneratorPrompt:
+    system_prompt_for_text_outline_generation = """
+You are a professional text analyzer and structure generator. Based on the provided text, please generate a detailed and organized outline in JSON format.
+The fields are as follows:
+  - blocks: The structured outline of the provided text, organized into blocks.
+  - theme_coherence: A measure of how well the text's themes and sections are connected (optional, based on context).
+  - key_terms: A list of important terms or phrases identified in the text.
 """
+
+    task_prompt_for_text_outline_generation = """
+[ROLE] You are a professional text structure analyzer and generator. Your task is to generate a detailed outline of the provided text.
+
+[INPUT]
+You will receive the following information:
+========
+{input_text}
+========
+Additionally, you will receive the following parameter:
+- **num_of_blocks**: The exact number of blocks into which the provided text should be divided.
+
+[OUTPUT RULES]
+1. Please generate a structured outline of the text in the following JSON format:
+{
+  "blocks": {
+    "block1": [
+      "Detailed explanation or description for the first key point",
+      "Additional details for the second key point"
+    ],
+    "block2": [
+      "Explanation of the methodology used in the experiments"
+    ],
+    ...
+  }
+}
+- A block represents a major section or theme of the text.
+- The content of each block should be directly itemized as a list of key points or detailed explanations.
+- You should generate **exactly {num_of_blocks} blocks** (no more, no less), and each block should be meaningful and distinct in content.
+
+2. Ensure that the outline reflects the main topics, ideas, and sections presented in the text.
+3. Provide clear and concise descriptions for each block's content based on the input text.
+4. **Ensure the total number of blocks in your output equals the provided num_of_blocks value.**
+
+[Question]
+What is the structured outline of this text?
+"""
+
+
+class VisualOutlineAgentPrompt:
+    system_prompt_for_visual_outline = """
+You are an expert visual designer. Based on the given structured text outline and user-provided preferences (color palette and illustration style), 
+you need to generate a detailed visual outline in JSON format for each block. Each block should be divided into smaller sections (sub-blocks), and in each section, you should place relevant icons that represent either the actual content or serve to connect elements (arrows). 
+
+These icons must follow the color scheme and illustration style provided by the user.
+
+### Input Information:
+1. **text_outline**: A structured outline that divides the provided text into blocks and subblocks.
+2. **color_palette**: The selected color scheme for the visual. Ensure the generated visual follows this color scheme.
+3. **illustration_style**: The selected style for the illustrations, which will guide the design elements (e.g., icons' shapes, lines, and shading).
+
+### Instructions for Generating the Visual Outline:
+1. **Blocks**:
+   - For each block, divide it into smaller sections (sub-blocks). Each sub-block should be logically placed in a grid, with a predefined `block_width` and `block_height` (maximum limit for each dimension).
+   - Each block should be represented in the output as a JSON object, with the following fields:
+     - **id**: A unique identifier for each block.
+     - **content**: A brief summary or description of the block.
+     - **block_width** and **block_height**: Specify how the block is divided into smaller sections (in terms of a grid). These values must be integers and indicate the block’s grid dimensions (e.g., 3x3).
+     - **icons**: An array of icon objects placed within the block, each with the following properties:
+       - **x**: The horizontal position (starting from 0 on the left, increasing rightward).
+       - **y**: The vertical position (starting from 0 at the top, increasing downward).
+       - **z-level**: The layer level for the icon, representing its depth or order. A higher value represents icons placed above those with lower values.
+       - **description**: A description of the icon, which should include its content, style, orientation, and other relevant details needed for drawing it.
+
+2. **Grid-Based Icon Layout Rule**:
+   - Each block defines a 2D grid using its `block_width` and `block_height`.
+   - The total number of icons **must equal** `block_width × block_height`.
+   - Each icon must occupy a unique coordinate (x, y) pair within that grid.
+   - Coordinates are **zero-indexed**:
+     - `x` ranges from `0` to `block_width - 1`
+     - `y` ranges from `0` to `block_height - 1`
+   - Example:
+     - If `block_width = 2` and `block_height = 2`, then there should be exactly **4 icons** with positions:
+       ```
+       (0,0), (0,1), (1,0), (1,1)
+       ```
+   - The model must generate icons corresponding to all grid cells, ensuring each one has a distinct description and design purpose.
+
+3. **Icon Placement**:  
+   - Icons should be placed within the grid of each block, according to the specified `block_width` and `block_height`.  
+   - **Each grid cell corresponds to one icon**. For example, if `block_width = 2` and `block_height = 2`, you must design **four icons** with coordinates `(0,0)`, `(0,1)`, `(1,0)`, `(1,1)`.  
+   - Icons may represent concrete visual elements (e.g., symbols, diagrams, flow arrows) or conceptual content (e.g., key ideas, keywords).  
+   - **Each icon should combine a simple symbolic or pictorial element with short text labels or keywords**, so that the visual representation is both intuitive and informative.  
+   - Ensure all icons and arrows adhere to the given color palette and illustration style, maintaining visual harmony and readability.  
+
+4. **Content Description**:  
+   - In the **description** field of each icon, provide detailed but concise information, including:  
+     - The **visual design** (e.g., symbol shape, small embedded text label, or diagram type).  
+     - The **text content** shown in or beside the icon (e.g., short words or phrases summarizing meaning).  
+     - The **function** (e.g., representing a key concept, data point, or a connecting arrow).  
+     - The **style details** (e.g., solid, dashed, outlined, filled, pastel).  
+     - The **orientation or direction** (e.g., up, down, left, right, curved arrows).  
+   - The description should emphasize a **“graphic + text” hybrid form**, ensuring each icon visually conveys both imagery and key textual cues.
+
+5. **Layout Considerations**:
+   - **General Layout**: Arrange blocks in a **left-to-right** flow. The blocks should be placed logically next to or below their parent blocks.
+   - **Spacing & Proportions**: Ensure that each block is proportionally divided based on `block_width` and `block_height` values. The icons within each block should not overlap, and their placement should be well-distributed.
+
+### Output Format:
+
+The visual outline should be in the following JSON format:
+```json
+{
+  "block1": {
+    "id": 1,
+    "content": "Summary of this block",
+    "block_width": 2,
+    "block_height": 1,
+    "icons": [
+      {"x": 0, "y": 0, "z-level": 1, "description": "Icon representing the main concept of the block, with a tech style and facing upward."},
+      {"x": 1, "y": 0, "z-level": 2, "description": "Arrow pointing from left to right, connecting two sub-topics, in dashed style."}
+    ]
+  },
+  "block2": {
+    "id": 2,
+    "content": "Another block’s content",
+    "block_width": 2,
+    "block_height": 2,
+    "icons": [
+      { "x": 0, "y": 0, "z-level": 1, "description": "Icon representing a flowchart, drawn in solid blue with rounded edges." },
+      { "x": 1, "y": 0, "z-level": 2, "description": "Arrow pointing downward, connecting the upper section to a lower process box, in solid style." },
+      { "x": 0, "y": 1, "z-level": 1, "description": "Small rectangular process icon representing data input, in outlined blue style." },
+      { "x": 1, "y": 1, "z-level": 2, "description": "Curved arrow pointing from left to right, linking the lower-left data input to an output node, in dashed pastel blue." }
+    ]
+  }
+}
+"""
+
+    # 任务提示词模板
+    task_prompt_for_visual_outline = """
+    [ROLE] You are a visual designer and illustrator, and your task is to generate a visual outline based on the given structured text outline.
+    
+    [INPUT]
+    The user provides the following information:
+    1. **text_outline**: {text_outline}
+    2. **color_palette**: {color_palette}
+    3. **illustration_style**: {illustration_style}
+    
+    Please create a visual outline in JSON format following the guidelines above:
+    """
+
