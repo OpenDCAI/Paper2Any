@@ -11,7 +11,7 @@
 
 from __future__ import annotations
 import json
-from dataflow_agent.state import DFState
+from dataflow_agent.state import MainState
 from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register   # <- 核心装饰器
 
@@ -21,7 +21,7 @@ def create_{{ wf_name_snake }}_graph() -> GenericGraphBuilder:  # noqa: N802
     """
     Workflow factory: dfa run --wf {{ wf_name }}
     """
-    builder = GenericGraphBuilder(state_model=DFState,
+    builder = GenericGraphBuilder(state_model=MainState,
                                   entry_point="{{ entry }}")  # 自行修改入口
 
     # ----------------------------------------------------------------------
@@ -29,7 +29,7 @@ def create_{{ wf_name_snake }}_graph() -> GenericGraphBuilder:  # noqa: N802
     # ----------------------------------------------------------------------
     # 例:
     # @builder.pre_tool("purpose", "step1")
-    # def _purpose(state: DFState):
+    # def _purpose(state: MainState):
     #     return "这里放入字符串 / 数值 / 列表 / 字典等供 prompt 使用"
 
     # @builder.post_tool('','')
@@ -39,7 +39,7 @@ def create_{{ wf_name_snake }}_graph() -> GenericGraphBuilder:  # noqa: N802
     # ==============================================================
     # NODES
     # ==============================================================
-    async def step1(state: DFState) -> DFState:
+    async def step1(state: MainState) -> MainState:
         """
         示例节点 1
         """
@@ -47,7 +47,7 @@ def create_{{ wf_name_snake }}_graph() -> GenericGraphBuilder:  # noqa: N802
         state.agent_results["step1"] = {"msg": "hello step1"}
         return state
 
-    async def step2(state: DFState) -> DFState:
+    async def step2(state: MainState) -> MainState:
         """
         示例节点 2
         """

@@ -1167,8 +1167,16 @@ class IconPromptGenerator:
 You are an expert in generating concise icon description prompts.
 """      
   task_prompt_for_icon_prompt_generation = """
+你是一位专业的图标提示词生成专家。
 
+请根据以下关键词：{user_keywords}，结合以下风格偏好：{style_preferences}，生成适合用于 AI 绘图模型的图标描述提示词。
 
+要求输出简明、具体、可用于生成图标，风格信息需明确体现，适合用作小尺寸应用图标,背景需要时纯色。
 
-
+请直接输出提示词内容：
+1.必须是json格式内容
+2.不需要任何额外的输出！
+{
+  "icon_prompt": "生成的图标描述提示词"
+}
 """

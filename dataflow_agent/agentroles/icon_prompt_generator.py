@@ -48,7 +48,7 @@ class IconPromptGenerator(BaseAgent):
         """图标提示词生成器的默认前置工具结果"""
         return {
             'keywords': '',
-            'style': 'modern, minimalist'
+            'style': 'kartoon, minimalist'
         }
     
     def update_state_result(self, state: MainState, result: Dict[str, Any], pre_tool_results: Dict[str, Any]):
