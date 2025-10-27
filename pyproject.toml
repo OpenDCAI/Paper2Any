@@ -41,3 +41,6 @@ dev = [
 where = ["."]
 include = ["dataflow_agent*"]
 exclude = ["tests*"]
+
+[project.scripts]
+dfa = "dataflow_agent.cli:cli"

@@ -120,3 +120,6 @@ class DataCollectionState(MainState):
     datasets: Dict[str, list] = field(default_factory=dict)
     downloads: Dict[str, list] = field(default_factory=dict)
     sources: Dict[str, Dict] = field(default_factory=dict)
+
+
+# Iconagent相关 State 和 Request 定义

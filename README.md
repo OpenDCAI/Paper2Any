@@ -18,6 +18,86 @@
 | 包 | `dataflow_agent/` | 见下表 | Python 主包，所有业务代码。 |
 
 
+
+# DFA 命令行工具使用指南
+
+## 简介
+
+`dfa` 是 DataFlow-Agent 项目的脚手架工具，用于快速生成 Workflow 和 Agent 模板代码。
+
+## 安装
+
+```bash
+# 开发模式安装
+pip install -e .
+```
+
+## 使用方法
+
+### 创建 Workflow
+
+```bash
+dfa create --wf_name <workflow名称>
+```
+
+**示例：**
+```bash
+dfa create --wf_name my_refine
+```
+
+**生成位置：** `dataflow_agent/workflow/my_refine.py`
+
+**生成内容：**
+- 基于 StateGraph 的 workflow 框架
+- 预置的节点定义和路由逻辑
+- 标准的构建和运行方法
+
+---
+
+### 创建 Agent
+
+```bash
+dfa create --agent_name <agent名称>
+```
+
+**示例：**
+```bash
+dfa create --agent_name iconagent
+```
+
+**生成位置：** `dataflow_agent/agentroles/iconagent.py`
+
+**生成内容：**
+- 带 `@register` 装饰器的 Agent 类
+- 自动继承自 `BaseAgent`
+- prompt 参数构造方法占位
+- 状态更新方法占位
+- 工厂方法和辅助函数
+
+---
+
+## 注意事项
+
+1. **互斥参数**：`--wf_name` 和 `--agent_name` 只能选择其一
+2. **命名规范**：工具会自动处理 snake_case 和 CamelCase 转换
+3. **防止覆盖**：如果目标文件已存在，会跳过生成并提示
+4. **唯一性**：确保每个 agent 的注册名称在项目中唯一
+
+---
+
+## 后续步骤
+
+生成模板后，需要手动补充：
+
+**Workflow：**
+- 实现具体的节点逻辑
+- 配置路由条件
+
+**Agent：**
+- 指定 prompt 模板名称
+- 实现 `get_task_prompt_params` 方法
+- 实现 `update_state_result` 方法
+
 ## Agent 注册与调用机制
 
 ### `agentroles/` 注册流程
