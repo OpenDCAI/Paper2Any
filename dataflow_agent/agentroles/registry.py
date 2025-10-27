@@ -3,14 +3,18 @@ from typing import Dict, Type
 from importlib import import_module
 
 from dataflow_agent.agentroles.base_agent import BaseAgent
-
 class AgentRegistry:
     _agents: Dict[str, Type["BaseAgent"]] = {}
 
     @classmethod
     def register(cls, name: str, agent_cls: Type["BaseAgent"]):
         if name in cls._agents:
-            raise ValueError(f"Agent '{name}' already registered")
+            if cls._agents[name] is agent_cls: 
+                return
+            raise ValueError(
+                f"Agent '{name}' already registered by "
+                f"{cls._agents[name]} (now trying {agent_cls})"
+            )
         cls._agents[name] = agent_cls
 
     @classmethod
