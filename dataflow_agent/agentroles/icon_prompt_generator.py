@@ -53,7 +53,7 @@ class IconPromptGenerator(BaseAgent):
     
     def update_state_result(self, state: MainState, result: Dict[str, Any], pre_tool_results: Dict[str, Any]):
         """自定义状态更新 - 保存生成的prompt"""
-        state.icon_prompt = result.get('prompt', result) if isinstance(result, dict) else result
+        state.icon_prompt = result.get('icon_prompt', result) if isinstance(result, dict) else result
         super().update_state_result(state, result, pre_tool_results)
 
 

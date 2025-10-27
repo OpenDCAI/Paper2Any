@@ -66,7 +66,6 @@ def create_icongen_graph() -> GenericGraphBuilder:  # noqa: N802
         return state
 
     # async def icon_prompt_generator_node(state: MainState) -> MainState:
-
     #     return state
 
 

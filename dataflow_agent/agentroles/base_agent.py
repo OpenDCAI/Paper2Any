@@ -9,7 +9,7 @@ from langchain_core.tools import Tool
 from pydantic import BaseModel, Field
 
 from dataflow_agent.promptstemplates.prompt_template import PromptsTemplateGenerator
-from dataflow_agent.state import DFState
+from dataflow_agent.state import MainState
 from dataflow_agent.utils import robust_parse_json
 from dataflow_agent.toolkits.tool_manager import ToolManager
 from dataflow_agent.logger import get_logger
@@ -113,7 +113,7 @@ class BaseAgent(ABC):
         """
         try:
             parsed = robust_parse_json(content)
-            log.info(f'content是什么？？{content}')
+            # log.info(f'content是什么？？{content}')
             log.info(f"{self.role_name} 结果解析成功")
             return parsed
         except ValueError as e:
@@ -166,12 +166,12 @@ class BaseAgent(ABC):
         
         return params
 
-    def extract_tool_result(self, state: DFState) -> Dict[str, Any]:
+    def extract_tool_result(self, state: MainState) -> Dict[str, Any]:
         """从状态中提取工具调用的结果 - 子类可重写自定义结果提取逻辑"""
         agent_result = state.agent_results.get(self.role_name, {})
         return agent_result.get('results', {})
 
-    async def _execute_as_tool(self, state: DFState, **tool_kwargs) -> Dict[str, Any]:
+    async def _execute_as_tool(self, state: MainState, **tool_kwargs) -> Dict[str, Any]:
         """作为工具执行的内部方法"""
         try:
             log.info(f"[Agent-as-Tool] 调用 {self.role_name}，参数: {tool_kwargs}")
@@ -197,7 +197,7 @@ class BaseAgent(ABC):
                 "status": "failed"
             }
 
-    def as_tool(self, state: DFState) -> Tool:
+    def as_tool(self, state: MainState) -> Tool:
         """将 agent 包装成可被调用的工具"""
         
         async def agent_tool_func(**kwargs) -> Dict[str, Any]:
@@ -286,7 +286,7 @@ class BaseAgent(ABC):
         
         return len(errors) == 0, errors
     
-    async def process_react_mode(self, state: DFState, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
+    async def process_react_mode(self, state: MainState, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
         """
         ReAct模式处理 - 循环调用LLM直到验证通过
         
@@ -372,7 +372,7 @@ class BaseAgent(ABC):
     
     # ==================== 原有方法 ====================
     
-    async def execute_pre_tools(self, state: DFState) -> Dict[str, Any]:
+    async def execute_pre_tools(self, state: MainState) -> Dict[str, Any]:
         """执行前置工具"""
         log.info(f"开始执行 {self.role_name} 的前置工具...")
         
@@ -392,7 +392,7 @@ class BaseAgent(ABC):
         return results
     
     def build_messages(self, 
-                      state: DFState, 
+                      state: MainState, 
                       pre_tool_results: Dict[str, Any]) -> List[BaseMessage]:
         """构建消息列表"""
         log.info("构建提示词消息...")
@@ -413,7 +413,7 @@ class BaseAgent(ABC):
         log.info("提示词消息构建完成")
         return messages
     
-    def create_llm(self, state: DFState, bind_post_tools: bool = False) -> ChatOpenAI:
+    def create_llm(self, state: MainState, bind_post_tools: bool = False) -> ChatOpenAI:
         """创建LLM实例"""
         actual_model = self.model_name or state.request.model
         log.info(f"创建LLM实例，模型: {actual_model}")
@@ -444,7 +444,7 @@ class BaseAgent(ABC):
                 seen.add(t.name)
         return uniq
     
-    async def process_simple_mode(self, state: DFState, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
+    async def process_simple_mode(self, state: MainState, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
         """简单模式处理"""
         log.info(f"执行 {self.role_name} 简单模式...")
         
@@ -462,7 +462,7 @@ class BaseAgent(ABC):
         
         return self.parse_result(answer_text)
     
-    async def process_with_llm_for_graph(self, messages: List[BaseMessage], state: DFState) -> BaseMessage:
+    async def process_with_llm_for_graph(self, messages: List[BaseMessage], state: MainState) -> BaseMessage:
         llm = self.create_llm(state, bind_post_tools=True)
         try:
             response = await llm.ainvoke(messages)
@@ -477,7 +477,7 @@ class BaseAgent(ABC):
         """检查消息是否包含工具调用"""
         return hasattr(message, 'tool_calls') and bool(getattr(message, 'tool_calls', None))
     
-    def update_state_result(self, state: DFState, result: Dict[str, Any], pre_tool_results: Dict[str, Any]):
+    def update_state_result(self, state: MainState, result: Dict[str, Any], pre_tool_results: Dict[str, Any]):
         """
         更新状态结果 - 子类可重写以自定义状态更新逻辑
         
@@ -494,7 +494,7 @@ class BaseAgent(ABC):
             "results": result
         }
     
-    async def execute(self, state: DFState, use_agent: bool = False, **kwargs) -> DFState:
+    async def execute(self, state: MainState, use_agent: bool = False, **kwargs) -> MainState:
         """
         统一执行入口
         
@@ -547,7 +547,7 @@ class BaseAgent(ABC):
             
         return state
     
-    def create_assistant_node_func(self, state: DFState, pre_tool_results: Dict[str, Any]):
+    def create_assistant_node_func(self, state: MainState, pre_tool_results: Dict[str, Any]):
         async def assistant_node(graph_state):
             messages = graph_state.get("messages", [])
             if not messages:

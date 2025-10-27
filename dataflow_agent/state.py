@@ -33,6 +33,12 @@ class MainRequest:
     # ④ 需求描述
     target: str = ""
 
+    def get(self, key, default=None):
+        return getattr(self, key, default)
+    
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
+
 
 # ==================== 最基础的 State（所有State的祖先）====================
 @dataclass
