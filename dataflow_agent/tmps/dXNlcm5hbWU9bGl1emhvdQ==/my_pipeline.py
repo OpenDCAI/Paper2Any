@@ -5,7 +5,7 @@ from dataflow.pipeline import PipelineABC
 from dataflow.utils.storage import FileStorage
 from dataflow.serving import APILLMServing_request, LocalModelLLMServing_vllm
 
-from dataflow.operators.code import CodeDocumentQualityFilter, CodeDocumentQualitySampleEvaluator, CodeLengthSampleEvaluator, CodeLengthSampleFilter, CodeTextCompositionSampleEvaluator
+from dataflow.operators.core_text import EmbeddingGenerator, GeneralFilter, PandasOperator, PromptedFilter, PromptedRefiner
 
 
 
@@ -27,27 +27,27 @@ class RecommendPipeline(PipelineABC):
             max_workers=100,
         )
 
-        self.code_document_quality_sample_evaluator = CodeDocumentQualitySampleEvaluator(thresholds=None)
-        self.code_document_quality_filter = CodeDocumentQualityFilter(min_score=1.0, max_score=1.0, thresholds=None)
-        self.code_length_sample_evaluator = CodeLengthSampleEvaluator()
-        self.code_length_sample_filter = CodeLengthSampleFilter(min_score=1.0, max_score=1.0)
-        self.code_text_composition_sample_evaluator = CodeTextCompositionSampleEvaluator()
+        self.prompted_filter = PromptedFilter(llm_serving=self.llm_serving, system_prompt='Please evaluate the quality of this data on a scale from 1 to 5.', min_score=1, max_score=5)
+        self.general_filter = GeneralFilter(filter_rules=None)
+        self.prompted_refiner = PromptedRefiner(llm_serving=self.llm_serving, system_prompt='You are a helpful agent.')
+        self.embedding_generator = EmbeddingGenerator(embedding_serving=None)
+        self.pandas_operator = PandasOperator(process_fn=None)
 
     def forward(self):
-        self.code_document_quality_sample_evaluator.run(
-            storage=self.storage.step(), input_key=None
+        self.prompted_filter.run(
+            storage=self.storage.step(), input_key='raw_content', output_key='eval'
         )
-        self.code_document_quality_filter.run(
-            storage=self.storage.step(), input_key=None, output_key='doc_quality_filter_label'
+        self.general_filter.run(
+            storage=self.storage.step()
         )
-        self.code_length_sample_evaluator.run(
-            storage=self.storage.step(), input_key=None
+        self.prompted_refiner.run(
+            storage=self.storage.step(), input_key='raw_content'
         )
-        self.code_length_sample_filter.run(
-            storage=self.storage.step(), input_key=None, output_key='length_filter_label'
+        self.embedding_generator.run(
+            storage=self.storage.step(), input_key='text', output_key='embeddings'
         )
-        self.code_text_composition_sample_evaluator.run(
-            storage=self.storage.step(), input_key=None
+        self.pandas_operator.run(
+            storage=self.storage.step()
         )
 
 if __name__ == "__main__":

@@ -2,27 +2,14 @@
   "nodes": [
     {
       "id": "node1",
-      "name": "CodeDocumentQualitySampleEvaluator",
-      "type": "eval",
-      "config": {
-        "init": {
-          "thresholds": null
-        },
-        "run": {
-          "storage": "self.storage.step()",
-          "input_key": "raw_content"
-        }
-      }
-    },
-    {
-      "id": "node2",
-      "name": "CodeDocumentQualityFilter",
+      "name": "PromptedFilter",
       "type": "filter",
       "config": {
         "init": {
-          "min_score": 1.0,
-          "max_score": 1.0,
-          "thresholds": null
+          "llm_serving": "self.llm_serving",
+          "system_prompt": "Please evaluate the quality of this data on a scale from 1 to 5.",
+          "min_score": 1,
+          "max_score": 5
         },
         "run": {
           "storage": "self.storage.step()",
@@ -32,25 +19,12 @@
       }
     },
     {
-      "id": "node3",
-      "name": "CodeLengthSampleEvaluator",
-      "type": "eval",
-      "config": {
-        "init": {},
-        "run": {
-          "storage": "self.storage.step()",
-          "input_key": "step1"
-        }
-      }
-    },
-    {
-      "id": "node4",
-      "name": "CodeLengthSampleFilter",
+      "id": "node2",
+      "name": "GeneralFilter",
       "type": "filter",
       "config": {
         "init": {
-          "min_score": 1.0,
-          "max_score": 1.0
+          "filter_rules": null
         },
         "run": {
           "storage": "self.storage.step()",
@@ -60,19 +34,59 @@
       }
     },
     {
-      "id": "node5",
-      "name": "CodeTextCompositionSampleEvaluator",
-      "type": "eval",
+      "id": "node3",
+      "name": "PromptedRefiner",
+      "type": "refine",
       "config": {
-        "init": {},
+        "init": {
+          "llm_serving": "self.llm_serving",
+          "system_prompt": "You are a helpful agent."
+        },
         "run": {
           "storage": "self.storage.step()",
-          "input_key": "step2"
+          "input_key": "step2",
+          "output_key": "step3"
+        }
+      }
+    },
+    {
+      "id": "node4",
+      "name": "EmbeddingGenerator",
+      "type": "generate",
+      "config": {
+        "init": {
+          "embedding_serving": null
+        },
+        "run": {
+          "storage": "self.storage.step()",
+          "input_key": "step3",
+          "output_key": "step4"
+        }
+      }
+    },
+    {
+      "id": "node5",
+      "name": "PandasOperator",
+      "type": "refine",
+      "config": {
+        "init": {
+          "process_fn": null
+        },
+        "run": {
+          "storage": "self.storage.step()",
+          "input_key": "step4",
+          "output_key": "output_final"
         }
       }
     }
   ],
   "edges": [
+    {
+      "source": "node1",
+      "target": "node2",
+      "source_port": "output_key",
+      "target_port": "input_key"
+    },
     {
       "source": "node2",
       "target": "node3",
@@ -80,7 +94,7 @@
       "target_port": "input_key"
     },
     {
-      "source": "node2",
+      "source": "node3",
       "target": "node4",
       "source_port": "output_key",
       "target_port": "input_key"
