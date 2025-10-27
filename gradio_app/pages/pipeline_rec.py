@@ -1,7 +1,7 @@
 import gradio as gr
 from ..utils.wf_pipeine_rec import run_pipeline_workflow
 
-def create_pipeline_page():
+def create_pipeline_rec():
     """子页面：Pipeline 生成"""
     
     with gr.Blocks() as page:
