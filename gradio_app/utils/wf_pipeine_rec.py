@@ -15,6 +15,9 @@ async def run_pipeline_workflow(
     chat_api_url: str = "http://123.129.219.111:3000/v1/",
     api_key: str = os.getenv("DF_API_KEY", "")
 ) -> dict:
+    if api_key:
+        os.environ["DF_API_KEY"] = api_key
+        
     """封装 workflow，返回执行结果（包含 agent_results）"""
     # 1. 获取项目根目录
     PROJECT_ROOT: Path = get_project_root()
@@ -51,7 +54,7 @@ async def run_pipeline_workflow(
     return {
         "success": True,
         "python_file": req.python_file_path,
-        "execution_result": final_state,
+        "execution_result": final_state.get('debug_history', {}),
         "agent_results":   final_state.get("agent_results", {}),
         "state": final_state
     }

@@ -58,7 +58,7 @@ def create_pipeline_rec():
             with open(result["python_file"], "r") as f:
                 code = f.read()
 
-            log = result["execution_result"].get("stdout", "执行完成")
+            log = result["execution_result"]
             agent_results = result.get("agent_results", {})        
             return code, log, agent_results                        
 
