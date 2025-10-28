@@ -9,11 +9,11 @@ BACKUP_COUNT = 5
 
 # ANSI 颜色码
 COLOR_MAP = {
-    "DEBUG": "\033[36m",    # 青色
-    "INFO": "\033[32m",     # 绿色
-    "WARNING": "\033[33m",  # 黄色
-    "ERROR": "\033[31m",    # 红色
-    "CRITICAL": "\033[41m\033[37m", # 红底白字
+    "DEBUG": "\033[46m\033[30m",    # 青色底黑字
+    "INFO": "\033[32m",              # 绿色
+    "WARNING": "\033[43m\033[30m",   # 黄色底黑字
+    "ERROR": "\033[31m",             # 红色
+    "CRITICAL": "\033[41m\033[37m",  # 红底白字
     "RESET": "\033[0m",
 }
 
@@ -26,7 +26,7 @@ FIELD_COLORS = {
 
 class ColorFormatter(logging.Formatter):
     """
-    支持不同字段高亮显示的 Formatter，仅限控制台输出。
+    支持不同字段高亮显示的 Formatter,仅限控制台输出。
     """
     def format(self, record):
         level_name = record.levelname
