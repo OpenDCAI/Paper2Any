@@ -1,7 +1,10 @@
 from json import JSONDecodeError, JSONDecoder
 import re
 from typing import Any, Dict
+from pathlib import Path
 
+def get_project_root() -> Path:
+    return Path(__file__).resolve().parent.parent
 
 def robust_parse_json(s: str) -> dict:
     """

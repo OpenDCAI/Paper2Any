@@ -6,13 +6,13 @@ import textwrap
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from dataflow import get_logger
+from dataflow_agent.logger import get_logger
 from dataflow_agent.agentroles.base_agent import BaseAgent
 from dataflow_agent.state import DFState
 from dataflow_agent.toolkits.tool_manager import ToolManager
 from dataflow_agent.agentroles.pipelinebuilder import _run_py
 
-log = get_logger()
+log = get_logger(__name__)
 
 
 def _ensure_py_file(code: str, file_name: str | None = None) -> Path:

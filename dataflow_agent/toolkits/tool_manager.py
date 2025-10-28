@@ -3,9 +3,12 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict, List, Optional, Callable, Set
 from langchain_core.tools import Tool
-from dataflow import get_logger
+from dataflow_agent.logger import get_logger
 
-log = get_logger()
+# from dataflow_agent.agentroles.base_agent import BaseAgent
+# from dataflow_agent.state import DFState
+
+log = get_logger(__name__)
 
 class ToolManager:
     """工具管理器 - 支持不同角色的工具管理"""
@@ -74,6 +77,38 @@ class ToolManager:
         roles = set(self.role_pre_tools.keys())
         roles.update(self.role_post_tools.keys())
         return roles
+    
+    # ==================== Agent-as-Tool 支持 ====================
+
+    def register_agent_as_tool(self, agent, state, role: Optional[str] = None):
+        """
+        将 agent 注册为后置工具
+        
+        Args:
+            agent: BaseAgent 实例
+            state: DFState 实例
+            role: 要注册到哪个角色的后置工具，None 表示全局工具
+        """
+        tool = agent.as_tool(state)
+        self.register_post_tool(tool, role)
+        log.info(f"Agent '{agent.role_name}' 注册为工具 '{tool.name}' (角色: {role or 'global'})")
+        return tool
+
+    def register_multiple_agents_as_tools(self, agents: List, state, role: Optional[str] = None):
+        """
+        批量注册多个 agent 作为后置工具
+        
+        Args:
+            agents: BaseAgent 实例列表
+            state: DFState 实例
+            role: 目标角色
+        """
+        tools = []
+        for agent in agents:
+            tool = self.register_agent_as_tool(agent, state, role)
+            tools.append(tool)
+        log.info(f"批量注册了 {len(tools)} 个 agent 作为工具")
+        return tools
 
 _tool_manager_instance = None
 

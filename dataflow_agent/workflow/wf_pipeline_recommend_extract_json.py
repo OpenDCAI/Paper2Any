@@ -15,22 +15,26 @@ from dataflow_agent.toolkits.optool.op_tools import (
     get_operator_content_str,
     post_process_combine_pipeline_result,
 )
-from dataflow_agent.toolkits.pipetool.pipe_tools import parse_pipeline_file
+# from dataflow_agent.toolkits.pipetool.pipe_tools import parse_pipeline_file
+import dataflow_agent.toolkits.pipetool.pipe_tools as pt
 from dataflow_agent.agentroles.classifier import create_classifier
 from dataflow_agent.agentroles.recommender import create_recommender
 from dataflow_agent.agentroles.pipelinebuilder import create_pipeline_builder
 from dataflow_agent.agentroles.debugger import create_code_debugger
 from dataflow_agent.agentroles.rewriter import create_rewriter
 from dataflow_agent.agentroles.inforequester import create_info_requester
+from dataflow_agent.agentroles.exporter import create_exporter
 
+
+from dataflow_agent.toolkits.tool_manager import get_tool_manager
 from langchain.tools import tool
 from langgraph.graph import StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
-from dataflow import get_logger
+from dataflow_agent.logger import get_logger
 MAX_DEBUG_ROUNDS = 3
-log = get_logger()
+log = get_logger(__name__)
 
 # ======================================================================
 # create_pipeline_graph
@@ -82,7 +86,7 @@ def create_pipeline_graph() -> GenericGraphBuilder:
 
     @builder.pre_tool("error_trace", "code_debugger")
     def get_error_trace_for_debug(state: DFState):
-        return state.execution_result.get("stderr", "") or state.execution_result.get("traceback", "")
+        return state.execution_result.get("stderr", "") or state.execution_result.get("s't'dou't", "")
 
     @builder.pre_tool("pipeline_code", "rewriter")
     def get_pipeline_code_for_rewrite(state: DFState):
@@ -90,7 +94,7 @@ def create_pipeline_graph() -> GenericGraphBuilder:
 
     @builder.pre_tool("error_trace", "rewriter")
     def get_error_trace_for_rewrite(state: DFState):
-        return state.execution_result.get("stderr", "") or state.execution_result.get("traceback", "")
+        return state.execution_result.get("stderr", "") or state.execution_result.get("stdout", "")
 
     @builder.pre_tool("debug_reason", "rewriter")
     def get_debug_reason(state: DFState):
@@ -112,7 +116,7 @@ def create_pipeline_graph() -> GenericGraphBuilder:
     @builder.pre_tool("error_trace", "info_requester")
     def ir_error_trace(state: DFState):
         return state.execution_result.get("stderr", "") \
-            or state.execution_result.get("traceback", "")
+            or state.execution_result.get("stdout", "")
     
     class ModuleListInput(BaseModel):
         module_list: list = Field(
@@ -124,6 +128,11 @@ def create_pipeline_graph() -> GenericGraphBuilder:
         """Return source code for requested modules"""
         log.error(f'fetch_other_info：{module_list}')
         return get_otherinfo_code(module_list)
+
+    @builder.pre_tool('nodes_info', "exporter")
+    def get_nodes_info(s: DFState):
+        return s.temp_data.get("structure_code", {}).get("nodes", [])
+    
 
     # ------------------------------------------------------------------
     # Ⅱ. 节点实现
@@ -196,19 +205,36 @@ def create_pipeline_graph() -> GenericGraphBuilder:
     async def builder_node(s: DFState) -> DFState:
         builder_agent = create_pipeline_builder()
         skip = bool(s.temp_data.get("rewritten", False))
-        log.warning(f"[builder_node] skip_assemble = {skip}")
+        log.warning(f"[builder_node] skip_assemble = {skip}, rewritten = {s.temp_data.get('rewritten', False)}")
         return await builder_agent.execute(
             s,
             skip_assemble=skip,
             file_path= s.request.python_file_path,
-            assembler_kwargs={"file_path": s.request.json_file, "chat_api_url": s.request.chat_api_url},
+            assembler_kwargs={"file_path": s.request.json_file, "chat_api_url": s.request.chat_api_url, "cache_dir": s.request.cache_dir},
         )
 
     async def debugger_node(s: DFState) -> DFState:
-        from dataflow_agent.toolkits.tool_manager import get_tool_manager
+        """
+        • 运行代码调试器  
+        • 把本轮 execution_result 和 code_debug_result 一起写入 debug_history  
+        • 自增轮次 round/debug_round
+        """
+
+        round_id = s.temp_data.get("round", 0)
+        log.info(f"[debugger_node] 当前是第 {round_id} 轮调试，准备调试…")
 
         debugger = create_code_debugger(tool_manager=get_tool_manager())
-        return await debugger.execute(s, use_agent=True)
+        s = await debugger.execute(s, use_agent=True)   # <-- 得到最新 execution_result & code_debug_result
+
+        # -------- 保存历史 --------
+        s.debug_history[round_id] = {
+            "execution_result": dict(s.execution_result),
+            "code_debug_result": dict(s.code_debug_result),
+        }
+
+        # s.temp_data["round"] = round_id + 1
+        # s.debug_round = round_id + 1         
+        return s
 
     async def rewriter_node(s: DFState) -> DFState:
         from dataflow_agent.toolkits.tool_manager import get_tool_manager
@@ -217,7 +243,6 @@ def create_pipeline_graph() -> GenericGraphBuilder:
         return await rewriter.execute(s, use_agent=True)
 
     def after_rewrite_node(s: DFState) -> DFState:
-        from dataflow_agent.toolkits.tool_manager import get_tool_manager
 
         rewriter = create_rewriter(tool_manager=get_tool_manager(), model_name="o3")
         return rewriter.after_rewrite(s)
@@ -241,15 +266,29 @@ def create_pipeline_graph() -> GenericGraphBuilder:
         py_path = s.temp_data.get("pipeline_file_path") or s.request.python_file_path
         if not py_path:
             raise RuntimeError("exporter_node: 找不到 pipeline 源文件")
-
-        graph: Dict[str, Any] = parse_pipeline_file(py_path)
+        
+        graph = pt.parse_pipeline_file(py_path)
         s.temp_data["structure_code"] = graph
         s.pipeline_structure_code = graph
 
+        exporter = create_exporter(
+            tool_manager=get_tool_manager(),    
+            react_mode=True, 
+            react_max_retries=3
+        )
+        s = await exporter.execute(s)
         out_path = pathlib.Path(py_path).with_suffix(".json")
-        out_path.write_text(json.dumps(graph, indent=2, ensure_ascii=False), encoding="utf-8")
+        if s.request.need_debug == False:
+            # 不需要调试模式，使用 nodes_info 自动生成边
+            print(s.nodes_info)
+            graph = pt.build_edges_from_nodes(s.nodes_info, out_path)
+        else:
+            # 需要调试模式，解析 Python 文件
+            out_path.write_text(json.dumps(graph, indent=2, ensure_ascii=False), encoding="utf-8")
         log.info(f"[exporter] structure saved -> {out_path}")
         return s
+
+
     # ------------------------------------------------------------------
     # Ⅲ. 条件函数
     # ------------------------------------------------------------------
@@ -300,3 +339,10 @@ def create_pipeline_graph() -> GenericGraphBuilder:
 
     builder.add_nodes(nodes).add_edges(edges).add_conditional_edges({"builder": builder_condition})
     return builder
+
+# 暴露出去
+from dataflow_agent.workflow.registry import register
+
+@register("pipelinerecommend")
+def factory():
+    return create_pipeline_graph()

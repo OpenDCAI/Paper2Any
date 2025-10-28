@@ -15,10 +15,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from dataflow import get_logger
+from dataflow_agent.logger import get_logger
 from dataflow.utils.registry import OPERATOR_REGISTRY
 
-log = get_logger()
+log = get_logger(__name__)
 
 EXTRA_IMPORTS: set[str] = set()  
 
@@ -921,6 +921,82 @@ def parse_pipeline_file(file_path: str | Path) -> Dict[str, Any]:
     edges = build_edges(produced_ports, var2id)
     return {"nodes": nodes, "edges": edges}
 
+def build_edges_from_nodes(
+    nodes: List[Dict[str, Any]] | Dict[str, Any],
+    save_path: str | Path
+) -> Dict[str, Any]:
+    """
+    根据 nodes 自动生成 edges，并保存完整的 pipeline graph 到 save_path
+
+    Args:
+        nodes: 节点信息，支持两种格式：
+               - List[Dict]: 直接的节点列表
+               - Dict: 包含 "nodes" 键的字典，如 {"nodes": [...]}
+        save_path: 输出 json 文件路径
+
+    Returns:
+        完整的 graph dict: {"nodes": ..., "edges": ...}
+    
+    Raises:
+        ValueError: 当输入格式不正确时
+    """
+    
+    # 统一处理输入格式，提取节点列表
+    if isinstance(nodes, dict):
+        if "nodes" in nodes:
+            nodes_list = nodes["nodes"]
+        else:
+            raise ValueError("当 nodes 为字典时，必须包含 'nodes' 键")
+    elif isinstance(nodes, list):
+        nodes_list = nodes
+    else:
+        raise ValueError(f"nodes 必须是 list 或 dict 类型，当前类型: {type(nodes)}")
+    
+    # 验证节点列表不为空
+    if not nodes_list:
+        log.warning("[build_edges_from_nodes] 节点列表为空")
+        graph = {"nodes": [], "edges": []}
+        save_path = Path(save_path)
+        save_path.write_text(json.dumps(graph, indent=2, ensure_ascii=False), encoding="utf-8")
+        return graph
+
+    # 1. 收集所有 output_key 到 (node_id, port_name) 的映射
+    produced_outputs = {}  # output_key_value -> (node_id, port_name)
+    for node in nodes_list:
+        if not isinstance(node, dict) or "id" not in node:
+            log.warning(f"[build_edges_from_nodes] 跳过无效节点: {node}")
+            continue
+            
+        run_cfg = node.get("config", {}).get("run", {})
+        for key, value in run_cfg.items():
+            if isinstance(key, str) and key.startswith("output") and isinstance(value, str):
+                produced_outputs[value] = (node["id"], key)
+
+    # 2. 遍历节点，查找 input_key 引用的 output_key，生成边
+    edges = []
+    for node in nodes_list:
+        if not isinstance(node, dict) or "id" not in node:
+            continue
+            
+        run_cfg = node.get("config", {}).get("run", {})
+        for key, value in run_cfg.items():
+            if isinstance(key, str) and key.startswith("input") and isinstance(value, str):
+                if value in produced_outputs:
+                    src_id, src_port = produced_outputs[value]
+                    edges.append({
+                        "source": src_id,
+                        "target": node["id"],
+                        "source_port": src_port,
+                        "target_port": key
+                    })
+
+    # 3. 保存并返回
+    graph = {"nodes": nodes_list, "edges": edges}
+    save_path = Path(save_path)
+    save_path.write_text(json.dumps(graph, indent=2, ensure_ascii=False), encoding="utf-8")
+    
+    log.info(f"[build_edges_from_nodes] 生成 {len(nodes_list)} 个节点，{len(edges)} 条边")
+    return graph
 
 # ----------------------------------------------------- #
 # CLI 方便快速测试（免参数版）

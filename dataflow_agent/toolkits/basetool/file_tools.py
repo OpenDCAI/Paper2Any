@@ -18,7 +18,7 @@ import yaml
 import subprocess
 from collections import defaultdict, deque
 from dataflow.utils.storage import FileStorage
-from dataflow import get_logger
+from dataflow_agent.logger import get_logger
 logger = get_logger()
 from dataflow.cli_funcs.paths import DataFlowPath
 from dataflow_agent.storage.storage_service import SampleFileStorage

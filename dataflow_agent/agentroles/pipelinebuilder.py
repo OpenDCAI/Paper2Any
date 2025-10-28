@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from dataflow import get_logger
+from dataflow_agent.logger import get_logger
 from dataflow_agent.agentroles.base_agent import BaseAgent
 from dataflow_agent.state import DFState
 from dataflow_agent.toolkits.tool_manager import ToolManager
@@ -34,7 +34,7 @@ from dataflow_agent.toolkits.pipetool.pipe_tools import (
     write_pipeline_file,
 )
 
-log = get_logger()
+log = get_logger(__name__)
 
 # ---------------------------------------------------------------------- #
 #                              工具函数                                   #
@@ -306,13 +306,22 @@ class DataPipelineBuilder(BaseAgent):
                 if not file_path_obj.is_file():
                     raise FileNotFoundError(f"待执行文件不存在: {file_path_obj}")
 
-            # ---------------- ③ 真执行 -----------------------
-            exec_result = await _run_py(Path(file_path))
-            state.execution_result = exec_result
-            log.info(f"[pipeline_builder] run success={exec_result['success']}")
+            # -------------- ③ 真执行 -----------------------
+            if state.request.need_debug:
+                log.info("[pipeline_builder] 开始 Debug 执行")
+                exec_result = await _run_py(Path(file_path))
+                state.execution_result = exec_result
+                log.info(f"[pipeline_builder] run success={exec_result['success']}")
+            else:
+                log.info("[pipeline_builder] 跳过执行，仅生成代码文件")
+                state.execution_result = {
+                    "success": None,
+                    "skipped": True,
+                    "file_path": file_path,
+                }
 
             # 若调试成功，关闭 debug 开关，以便后续跑全量数据
-            if getattr(state, "debug_mode", False) and exec_result["success"]:
+            if getattr(state, "debug_mode", False) and state.execution_result.get("success"):
                 state.debug_mode = False
                 log.info("[pipeline_builder] debug run passed, state.debug_mode -> False")
 

@@ -26,9 +26,9 @@ from langgraph.graph import StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
-from dataflow import get_logger
+from dataflow_agent.logger import get_logger
 MAX_DEBUG_ROUNDS = 3
-log = get_logger()
+log = get_logger(__name__)
 
 def create_pipeline_graph() -> GenericGraphBuilder:
     # ★ 1. 图入口改成 classifier
@@ -198,7 +198,7 @@ def create_pipeline_graph() -> GenericGraphBuilder:
             skip_assemble=skip,
             # file_path=s.temp_data.get("pipeline_file_path"),
             file_path= s.request.python_file_path,
-            assembler_kwargs={"file_path": s.request.json_file, "chat_api_url": s.request.chat_api_url},
+            assembler_kwargs={"file_path": s.request.json_file, "chat_api_url": s.request.chat_api_url, "cache_dir": s.request.cache_dir},
         )
 
     async def debugger_node(s: DFState) -> DFState:

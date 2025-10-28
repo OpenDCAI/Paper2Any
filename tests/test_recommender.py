@@ -27,9 +27,9 @@ except ModuleNotFoundError:
     from langgraph.prebuilt import ToolNode,tools_condition
 from dataflow.cli_funcs.paths import DataFlowPath
 from langchain.tools import tool
-from dataflow import get_logger
+from dataflow_agent.logger import get_logger
 
-log = get_logger()
+log = get_logger(__name__)
 BASE_DIR = DataFlowPath.get_dataflow_dir()
 DATAFLOW_DIR = BASE_DIR.parent
 

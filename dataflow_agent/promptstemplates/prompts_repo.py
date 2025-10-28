@@ -1084,3 +1084,99 @@ If you are unsure about any value, use an empty string.
 Double-check that your response is a valid JSON. Do not output anything else.
     
     """
+
+
+
+
+# --------------------------------------------------------------------------- #
+# 14. NodesExporter                                                           #
+# --------------------------------------------------------------------------- #
+class NodesExporter:
+  system_prompt_for_nodes_export = """
+You are an expert in data processing pipeline node extraction.
+"""       
+  task_prompt_for_nodes_export = """"
+我有一个 JSON 格式的 pipeline，只包含 "nodes" 数组。每个节点（node）有 "id" 和 "config" 字段，"config" 里包含 "run" 参数（如 input_key、output_key）。
+
+请帮我自动修改每个节点的 input_key 和 output_key，使得这些节点从上到下（按 nodes 数组顺序）能前后相连，也就是说，每个节点的 output_key 会被下一个节点的 input_key 用到，形成一条完整的数据流管道。第一个节点的 input_key 可以固定为 "input1"，最后一个节点的 output_key 可以固定为 "output_final"。
+
+最终要求是让所有节点的 input_key/output_key 自动对应起来，形成一条 pipeline。
+
+下面是原始 JSON（只有 nodes，没有 edges）：
+{nodes_info}
+
+[输出规则]
+1. 第一个node的“input_key”默认是 raw_content；
+2. 只回复 JSON 格式，禁止任何解释性文字。
+3. 输出的 JSON 结构与输入完全相同，只修改 input_key 和 output_key。
+4. 中间节点的 output_key 和下一个节点的 input_key 保持一致，可以依次命名为 "step1"、"step2"、"step3" 等。
+5. 所有节点的 "run" 字段不是都包含 "input_key" 和 "output_key"，不能自己新增！！。
+6. 只回复 JSON 格式，禁止任何解释性文字，必须有一个nodes的key！！
+7. 输出的 JSON 结构与输入完全相同，只修改 input_key 和 output_key。
+
+返回内容参考：
+
+{
+  "nodes": 
+  [
+    {
+      "id": "node1",
+      "name": "PromptedFilter",
+      "type": "filter",
+      "config": {
+        "init": {
+          "llm_serving": "self.llm_serving",
+          "system_prompt": "Please evaluate the quality of this data on a scale from 1 to 5.",
+          "min_score": 1,
+          "max_score": 5
+        },
+        "run": {
+          "storage": "self.storage.step()",
+          "input_key": "raw_content",
+          "output_key": "eval"
+        }
+      }
+    },
+    {
+      "id": "node2",
+      "name": "PromptedRefiner",
+      "type": "refine",
+      "config": {
+        "init": {
+          "llm_serving": "self.llm_serving",
+          "system_prompt": "You are a helpful agent."
+        },
+        "run": {
+          "storage": "self.storage.step()",
+          "input_key": "eval"
+        }
+      }
+    }]
+}
+
+
+"""
+
+
+# --------------------------------------------------------------------------- #
+# 15. icon_prompt_generator                                                           #
+# --------------------------------------------------------------------------- #
+
+class IconPromptGenerator:
+  system_prompt_for_icon_prompt_generation = """
+You are an expert in generating concise icon description prompts.
+"""      
+  task_prompt_for_icon_prompt_generation = """
+你是一位专业的图标提示词生成专家。
+
+请根据以下关键词：{user_keywords}，结合以下风格偏好：{style_preferences}，生成适合用于 AI 绘图模型的图标描述提示词。
+
+要求输出简明、具体、可用于生成图标，风格信息需明确体现，适合用作小尺寸应用图标,背景需要时纯色。
+
+请直接输出提示词内容：
+1.必须是json格式内容
+2.不需要任何额外的输出！
+{
+  "icon_prompt": "生成的图标描述提示词"
+}
+"""
