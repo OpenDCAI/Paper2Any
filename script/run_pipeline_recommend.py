@@ -9,7 +9,6 @@ from typing import Any
 
 from IPython.display import Image, display
 
-from dataflow.cli_funcs.paths import DataFlowPath
 from dataflow_agent.state import DFRequest, DFState
 from dataflow_agent.workflow.wf_pipeline_recommend_extract_json import (
     create_pipeline_graph,
@@ -53,7 +52,6 @@ async def main() -> None:
     SESSION_DIR.mkdir(parents=True, exist_ok=True)
 
     # -------- 构造请求 DFRequest -------- #
-    DATAFLOW_DIR = DataFlowPath.get_dataflow_dir().parent
     python_file_path = SESSION_DIR / "my_pipeline.py"
 
     req = DFRequest(
@@ -62,7 +60,7 @@ async def main() -> None:
         api_key=os.getenv("DF_API_KEY", "sk-dummy"),
         model="gpt-4o",
         json_file=f"{PROJECT_ROOT}/tests/test.jsonl",
-        target="给我随意符合逻辑的5个算子！",
+        target="给我逻辑的5个算子！需要能用到LLMServing！",
         python_file_path=str(python_file_path),  # pipeline 的输出脚本路径
         need_debug= True,  # 是否需要 Debug
         max_debug_rounds= 3,

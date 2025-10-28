@@ -21,6 +21,8 @@ from dataflow_agent.agentroles.oprewriter import create_rewriter
 from dataflow_agent.agentroles.append_llm_serving import create_llm_append_serving
 from dataflow_agent.agentroles.instantiator import create_llm_instantiator
 
+from dataflow_agent.utils import get_project_root
+PROJDIR = get_project_root()
 
 def create_operator_write_graph() -> GenericGraphBuilder:
     """Build the operator write workflow graph.
@@ -107,7 +109,7 @@ def create_operator_write_graph() -> GenericGraphBuilder:
         try:
             # 使用有效数据路径，避免取不到样例
             from types import SimpleNamespace as _SN
-            default_test_file = f"{DataFlowPath.get_dataflow_agent_dir()}/test_data.jsonl"
+            default_test_file = f"{PROJDIR}/tests/test.jsonl"
             eff_path = getattr(state.request, "json_file", "") or default_test_file
             stats = local_tool_for_sample(_SN(json_file=eff_path), sample_size=2)
             return stats.get("samples", []) if isinstance(stats, dict) else []
@@ -124,7 +126,7 @@ def create_operator_write_graph() -> GenericGraphBuilder:
                 if dbg_keys:
                     return dbg_keys
             from types import SimpleNamespace as _SN
-            default_test_file = f"{DataFlowPath.get_dataflow_agent_dir()}/test_data.jsonl"
+            default_test_file = f"{PROJDIR}/tests/test.jsonl"
             eff_path = getattr(state.request, "json_file", "") or default_test_file
             stats = local_tool_for_sample(_SN(json_file=eff_path), sample_size=2)
             return stats.get("available_keys", []) if isinstance(stats, dict) else []
@@ -140,7 +142,7 @@ def create_operator_write_graph() -> GenericGraphBuilder:
     def rw_get_preselected_key(state: DFState):
         try:
             from types import SimpleNamespace as _SN
-            default_test_file = f"{DataFlowPath.get_dataflow_agent_dir()}/test_data.jsonl"
+            default_test_file = f"{PROJDIR}/tests/test.jsonl"
             eff_path = getattr(state.request, "json_file", "") or default_test_file
             stats = local_tool_for_sample(_SN(json_file=eff_path), sample_size=2)
             samples = stats.get("samples", []) if isinstance(stats, dict) else []
@@ -183,7 +185,7 @@ def create_operator_write_graph() -> GenericGraphBuilder:
     def pre_llm_append_example(state: DFState):
         try:
             from types import SimpleNamespace as _SN
-            default_test_file = f"{DataFlowPath.get_dataflow_agent_dir()}/test_data.jsonl"
+            default_test_file = f"{PROJDIR}/tests/test.jsonl"
             eff_path = getattr(state.request, "json_file", "") or default_test_file
             stats = local_tool_for_sample(_SN(json_file=eff_path), sample_size=2)
             return stats.get("samples", []) if isinstance(stats, dict) else []
@@ -194,7 +196,7 @@ def create_operator_write_graph() -> GenericGraphBuilder:
     def pre_llm_append_keys(state: DFState):
         try:
             from types import SimpleNamespace as _SN
-            default_test_file = f"{DataFlowPath.get_dataflow_agent_dir()}/test_data.jsonl"
+            default_test_file = f"{PROJDIR}/tests/test.jsonl"
             eff_path = getattr(state.request, "json_file", "") or default_test_file
             stats = local_tool_for_sample(_SN(json_file=eff_path), sample_size=2)
             return stats.get("available_keys", []) if isinstance(stats, dict) else []
@@ -218,7 +220,7 @@ def create_operator_write_graph() -> GenericGraphBuilder:
     def pre_inst_example(state: DFState):
         try:
             from types import SimpleNamespace as _SN
-            default_test_file = f"{DataFlowPath.get_dataflow_agent_dir()}/test_data.jsonl"
+            default_test_file = f"{PROJDIR}/tests/test.jsonl"
             eff_path = getattr(state.request, "json_file", "") or default_test_file
             stats = local_tool_for_sample(_SN(json_file=eff_path), sample_size=2)
             return stats.get("samples", []) if isinstance(stats, dict) else []
@@ -229,7 +231,7 @@ def create_operator_write_graph() -> GenericGraphBuilder:
     def pre_inst_keys(state: DFState):
         try:
             from types import SimpleNamespace as _SN
-            default_test_file = f"{DataFlowPath.get_dataflow_agent_dir()}/test_data.jsonl"
+            default_test_file = f"{PROJDIR}/tests/test.jsonl"
             eff_path = getattr(state.request, "json_file", "") or default_test_file
             stats = local_tool_for_sample(_SN(json_file=eff_path), sample_size=2)
             return stats.get("available_keys", []) if isinstance(stats, dict) else []
@@ -240,7 +242,7 @@ def create_operator_write_graph() -> GenericGraphBuilder:
     def pre_inst_preselected_key(state: DFState):
         try:
             from types import SimpleNamespace as _SN
-            default_test_file = f"{DataFlowPath.get_dataflow_agent_dir()}/test_data.jsonl"
+            default_test_file = f"{PROJDIR}/tests/test.jsonl"
             eff_path = getattr(state.request, "json_file", "") or default_test_file
             stats = local_tool_for_sample(_SN(json_file=eff_path), sample_size=2)
             samples = stats.get("samples", []) if isinstance(stats, dict) else []
@@ -265,7 +267,7 @@ def create_operator_write_graph() -> GenericGraphBuilder:
     @builder.pre_tool("test_data_path", "llm_instantiate")
     def pre_inst_test_path(state: DFState):
         try:
-            default_test_file = f"{DataFlowPath.get_dataflow_agent_dir()}/test_data.jsonl"
+            default_test_file = f"{PROJDIR}/tests/test.jsonl"
             return getattr(state.request, 'json_file', '') or default_test_file
         except Exception:
             return ""
@@ -381,7 +383,7 @@ def create_operator_write_graph() -> GenericGraphBuilder:
             try:
                 from types import SimpleNamespace as _SN
                 from dataflow_agent.toolkits.basetool.file_tools import local_tool_for_sample as _lts
-                default_test_file = f"{DataFlowPath.get_dataflow_agent_dir()}/test_data.jsonl"
+                default_test_file = f"{PROJDIR}/tests/test.jsonl"
                 eff_path = getattr(s2.request, "json_file", "") or default_test_file
                 stats = _lts(_SN(json_file=eff_path), sample_size=2)
                 scanned_keys = stats.get("available_keys", []) if isinstance(stats, dict) else []
