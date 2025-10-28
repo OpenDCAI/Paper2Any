@@ -32,9 +32,12 @@ from langgraph.graph import StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
+from dataflow_agent.utils import get_project_root
 from dataflow_agent.logger import get_logger
 MAX_DEBUG_ROUNDS = 3
 log = get_logger(__name__)
+
+PROJDIR = get_project_root()
 
 # ======================================================================
 # create_pipeline_graph
@@ -86,7 +89,7 @@ def create_pipeline_graph() -> GenericGraphBuilder:
 
     @builder.pre_tool("error_trace", "code_debugger")
     def get_error_trace_for_debug(state: DFState):
-        return state.execution_result.get("stderr", "") or state.execution_result.get("traceback", "")
+        return state.execution_result.get("stderr", "") or state.execution_result.get("s't'dou't", "")
 
     @builder.pre_tool("pipeline_code", "rewriter")
     def get_pipeline_code_for_rewrite(state: DFState):
@@ -94,7 +97,7 @@ def create_pipeline_graph() -> GenericGraphBuilder:
 
     @builder.pre_tool("error_trace", "rewriter")
     def get_error_trace_for_rewrite(state: DFState):
-        return state.execution_result.get("stderr", "") or state.execution_result.get("traceback", "")
+        return state.execution_result.get("stderr", "") or state.execution_result.get("stdout", "")
 
     @builder.pre_tool("debug_reason", "rewriter")
     def get_debug_reason(state: DFState):
@@ -116,7 +119,7 @@ def create_pipeline_graph() -> GenericGraphBuilder:
     @builder.pre_tool("error_trace", "info_requester")
     def ir_error_trace(state: DFState):
         return state.execution_result.get("stderr", "") \
-            or state.execution_result.get("traceback", "")
+            or state.execution_result.get("stdout", "")
     
     class ModuleListInput(BaseModel):
         module_list: list = Field(
@@ -199,7 +202,12 @@ def create_pipeline_graph() -> GenericGraphBuilder:
         ops_list = rec_val.get("ops", []) if isinstance(rec_val, dict) else rec_val
         if not ops_list:
             raise ValueError("Recommender 没有返回有效算子列表")
+        from dataflow_agent.toolkits.optool.op_tools import get_operators_by_rag
+        ops_list = get_operators_by_rag(search_queries=ops_list, top_k=1, faiss_index_path=f"{PROJDIR}/dataflow_agent/resources/faiss_cache/all_ops.index")
+        ops_list = [item for sub in ops_list for item in sub]
+        log.warning(f"[recommender_node + RAG ] 推荐算子列表：{ops_list}")
         s["recommendation"] = ops_list
+        s.agent_results['recommender']['results']['ops'] = ops_list
         return s
 
     async def builder_node(s: DFState) -> DFState:
@@ -239,12 +247,12 @@ def create_pipeline_graph() -> GenericGraphBuilder:
     async def rewriter_node(s: DFState) -> DFState:
         from dataflow_agent.toolkits.tool_manager import get_tool_manager
 
-        rewriter = create_rewriter(tool_manager=get_tool_manager(), model_name="o3")
+        rewriter = create_rewriter(tool_manager=get_tool_manager(), model_name="gpt-4o")
         return await rewriter.execute(s, use_agent=True)
 
     def after_rewrite_node(s: DFState) -> DFState:
 
-        rewriter = create_rewriter(tool_manager=get_tool_manager(), model_name="o3")
+        rewriter = create_rewriter(tool_manager=get_tool_manager(), model_name="gpt-4o")
         return rewriter.after_rewrite(s)
     
     async def info_requester_node(s: DFState) -> DFState:

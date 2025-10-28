@@ -347,7 +347,6 @@ class DataPipelineBuilder(BaseAgent):
                 "stdout": "",
                 "return_code": -1,
             }
-            
         self.update_state_result(state, state.execution_result, locals().get("pre_tool_results", {}))  # type: ignore[arg-type]
         return state
 
