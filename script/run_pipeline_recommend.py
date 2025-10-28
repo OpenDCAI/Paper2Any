@@ -9,7 +9,6 @@ from typing import Any
 
 from IPython.display import Image, display
 
-from dataflow.cli_funcs.paths import DataFlowPath
 from dataflow_agent.state import DFRequest, DFState
 from dataflow_agent.workflow.wf_pipeline_recommend_extract_json import (
     create_pipeline_graph,
@@ -53,7 +52,6 @@ async def main() -> None:
     SESSION_DIR.mkdir(parents=True, exist_ok=True)
 
     # -------- 构造请求 DFRequest -------- #
-    DATAFLOW_DIR = DataFlowPath.get_dataflow_dir().parent
     python_file_path = SESSION_DIR / "my_pipeline.py"
 
     req = DFRequest(
