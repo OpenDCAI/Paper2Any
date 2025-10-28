@@ -61,13 +61,13 @@ async def main() -> None:
         chat_api_url="http://123.129.219.111:3000/v1/",
         api_key=os.getenv("DF_API_KEY", "sk-dummy"),
         model="gpt-4o",
-        json_file=f"{DATAFLOW_DIR}/dataflow/example/GeneralTextPipeline/translation.jsonl",
-        target="给我随意符合逻辑的3个算子！",
+        json_file=f"{PROJECT_ROOT}/tests/test.jsonl",
+        target="给我随意符合逻辑的5个算子！",
         python_file_path=str(python_file_path),  # pipeline 的输出脚本路径
         need_debug= True,  # 是否需要 Debug
         max_debug_rounds= 3,
         session_id=session_id,
-        # cache_dir="dataflow-agent-kupasi/cache_dir"
+        cache_dir="dataflow_cache"
     )
 
     # -------- 初始化 DFState -------- #
