@@ -239,12 +239,12 @@ def create_pipeline_graph() -> GenericGraphBuilder:
     async def rewriter_node(s: DFState) -> DFState:
         from dataflow_agent.toolkits.tool_manager import get_tool_manager
 
-        rewriter = create_rewriter(tool_manager=get_tool_manager(), model_name="o3")
+        rewriter = create_rewriter(tool_manager=get_tool_manager(), model_name="gpt-4o")
         return await rewriter.execute(s, use_agent=True)
 
     def after_rewrite_node(s: DFState) -> DFState:
 
-        rewriter = create_rewriter(tool_manager=get_tool_manager(), model_name="o3")
+        rewriter = create_rewriter(tool_manager=get_tool_manager(), model_name="gpt-4o")
         return rewriter.after_rewrite(s)
     
     async def info_requester_node(s: DFState) -> DFState:
