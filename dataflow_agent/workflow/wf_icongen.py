@@ -27,6 +27,7 @@ from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 
 from dataflow_agent.toolkits.imtool.req_img import generate_and_save_image_async
+from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove
 
 log = get_logger(__name__)
 
@@ -81,6 +82,15 @@ def create_icongen_graph() -> GenericGraphBuilder:  # noqa: N802
         )
         state.agent_results["gen_img"] = {"base64": b64}
         return state
+    async def bg_remove_node(state: MainState) -> MainState:
+        from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove
+        output_path = local_tool_for_bg_remove({
+            "image_path": "./icon.png",
+            "model_path": None,
+            "output_dir": "./"
+        })
+        state.agent_results["bg_removed"] = {"path": output_path}
+        return state
 
 
     # ==============================================================
@@ -89,6 +99,7 @@ def create_icongen_graph() -> GenericGraphBuilder:  # noqa: N802
     nodes = {
         "icon_prompt_generator": icon_prompt_generator_node,
         "gen_img": gen_img_node,
+        "bg_remove": bg_remove_node,
         '_end_': lambda state: state,  # 终止节点
     }
 
@@ -97,7 +108,8 @@ def create_icongen_graph() -> GenericGraphBuilder:  # noqa: N802
     # ------------------------------------------------------------------
     edges = [
         ("icon_prompt_generator", "gen_img"),
-        ("gen_img", "_end_"),
+        ("gen_img", "bg_remove"),
+        ("bg_remove", "_end_"),
     ]
 
     builder.add_nodes(nodes).add_edges(edges)

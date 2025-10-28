@@ -22,7 +22,7 @@ CURRENT_DIR = Path(__file__).resolve().parent
 MODELS_DIR = CURRENT_DIR / "models" / "RMBG-2.0" / "onnx"
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
-DEFAULT_OUTPUT_DIR = CURRENT_DIR / "bg_removed"
+DEFAULT_OUTPUT_DIR = CURRENT_DIR
 DEFAULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # 使用 RMBG-2.0 的主模型
@@ -81,7 +81,7 @@ class BriaRMBG2Remover:
         out = out.filter(ImageFilter.SMOOTH_MORE)
 
         name = Path(image_path).stem
-        output_path = self.output_dir / f"{name}_rmbg2_removed.png"
+        output_path = self.output_dir / f"{name}_bg_removed.png"
         out.save(output_path)
         print(f"抠图完成: {output_path}")
         return str(output_path)
