@@ -1,0 +1,43 @@
+{
+  "_num_labels": 9,
+  "architectures": [
+    "BertForTokenClassification"
+  ],
+  "attention_probs_dropout_prob": 0.1,
+  "hidden_act": "gelu",
+  "hidden_dropout_prob": 0.1,
+  "hidden_size": 768,
+  "id2label": {
+    "0": "O",
+    "1": "B-MISC",
+    "2": "I-MISC",
+    "3": "B-PER",
+    "4": "I-PER",
+    "5": "B-ORG",
+    "6": "I-ORG",
+    "7": "B-LOC",
+    "8": "I-LOC"
+  },
+  "initializer_range": 0.02,
+  "intermediate_size": 3072,
+  "label2id": {
+    "B-LOC": 7,
+    "B-MISC": 1,
+    "B-ORG": 5,
+    "B-PER": 3,
+    "I-LOC": 8,
+    "I-MISC": 2,
+    "I-ORG": 6,
+    "I-PER": 4,
+    "O": 0
+  },
+  "layer_norm_eps": 1e-12,
+  "max_position_embeddings": 512,
+  "model_type": "bert",
+  "num_attention_heads": 12,
+  "num_hidden_layers": 12,
+  "output_past": true,
+  "pad_token_id": 0,
+  "type_vocab_size": 2,
+  "vocab_size": 28996
+}

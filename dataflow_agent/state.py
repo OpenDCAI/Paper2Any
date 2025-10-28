@@ -98,6 +98,7 @@ class DFState(MainState):
     pipeline_structure_code: Dict[str, Any] = field(default_factory=dict)
     execution_result: Dict[str, Any] = field(default_factory=dict)
     code_debug_result: Dict[str, Any] = field(default_factory=dict)
+    debug_history: Dict[Any, Dict[str, Any]] = field(default_factory=dict)
 
 
 # ==================== 数据采集 Request ====================

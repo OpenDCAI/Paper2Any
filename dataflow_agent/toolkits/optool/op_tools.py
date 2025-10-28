@@ -275,9 +275,9 @@ def _call_openai_embedding_api(
 ) -> np.ndarray:
     """调用OpenAI API获取文本向量"""
     if api_key is None:
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = os.getenv("DF_API_KEY")
     if not api_key:
-        raise RuntimeError("必须提供 OpenAI API-Key，可通过参数或环境变量 OPENAI_API_KEY")
+        raise RuntimeError("必须提供 OpenAI API-Key，可通过参数或环境变量 DF_API_KEY")
 
     headers = {
         "Authorization": f"Bearer {api_key}",
