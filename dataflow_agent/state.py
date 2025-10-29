@@ -3,12 +3,11 @@ import os
 from pathlib import Path
 from typing import Any, Dict
 from dataflow.cli_funcs.paths import DataFlowPath
+current_file = Path(__file__).resolve()
 
 BASE_DIR = DataFlowPath.get_dataflow_dir()
 DATAFLOW_DIR = BASE_DIR.parent
 STATICS_DIR = DataFlowPath.get_dataflow_statics_dir()
-
-current_file = Path(__file__).resolve()
 PROJDIR = current_file.parent.parent
 
 from typing_extensions import TypedDict, Annotated

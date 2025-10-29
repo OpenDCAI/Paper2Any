@@ -26,17 +26,20 @@ def cli():
 @click.option("--wf_name",      help="要创建的 workflow 名称")
 @click.option("--agent_name",   help="要创建的 agent 名称")
 @click.option("--gradio_name",  help="要创建的 gradio page 名称")
+@click.option("--prompt_name",  help="要创建的 prompt template 名称")
 def create_artifact(wf_name: str | None,
                     agent_name: str | None,
-                    gradio_name: str | None):
+                    gradio_name: str | None,
+                    prompt_name: str | None):
     """
     dfa create --wf_name xxx
     dfa create --agent_name yyy
     dfa create --gradio_name zzz
+    dfa create --prompt_name zzz
     """
-    opts = [bool(wf_name), bool(agent_name), bool(gradio_name)]
+    opts = [bool(wf_name), bool(agent_name), bool(gradio_name), bool(prompt_name)]
     if sum(opts) != 1:
-        click.echo("❌ --wf_name / --agent_name / --gradio_name 必须且只能选一个", err=True)
+        click.echo(" --wf_name / --agent_name / --gradio_name / --prompt_name 必须且只能选一个", err=True)
         raise SystemExit(1)
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -87,7 +90,7 @@ def create_artifact(wf_name: str | None,
     # ------------------------------------------------------------------
     # 3. Gradio Page
     # ------------------------------------------------------------------
-    else:
+    elif gradio_name:
         page_snake   = to_snake(gradio_name)
         project_root = Path(__file__).parent.parent
         dest         = project_root / "gradio_app" / "pages" / f"page_{page_snake}.py"
@@ -99,6 +102,21 @@ def create_artifact(wf_name: str | None,
         )
         _generate_file(dest, tpl_path, ctx, "gradio page")
 
+    # ------------------------------------------------------------------
+    # 4. Prompt Template
+    # ------------------------------------------------------------------
+    else:
+        prompt_snake = to_snake(prompt_name)
+        dest         = Path(__file__).parent / "promptstemplates" / "resources" / f"pt_{prompt_snake}_repo.py"
+        tpl_path     = TEMPLATE_DIR / "prompt_repo.py.jinja"
+        ctx          = dict(
+            prompt_name=prompt_name,
+            prompt_name_snake=prompt_snake,
+            prompt_name_camel=to_camel(prompt_name),
+            timestamp=timestamp,
+        )
+        _generate_file(dest, tpl_path, ctx, "prompt template")
+
 
 # ---------- helper ----------
 def _generate_file(dest: Path, tpl_path: Path, context: dict, file_type: str):
@@ -108,11 +126,11 @@ def _generate_file(dest: Path, tpl_path: Path, context: dict, file_type: str):
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     if dest.exists():
-        click.echo(f"⚠️  {dest} 已存在，跳过生成")
+        click.echo(f"  {dest} 已存在，跳过生成")
         return
 
     if not tpl_path.exists():
-        click.echo(f"❌ 模板不存在: {tpl_path}", err=True)
+        click.echo(f" 模板不存在: {tpl_path}", err=True)
         raise SystemExit(1)
 
     rendered = Template(tpl_path.read_text(encoding="utf-8")).render(**context)
@@ -123,7 +141,7 @@ def _generate_file(dest: Path, tpl_path: Path, context: dict, file_type: str):
     except ValueError:
         rel_path = dest
 
-    click.echo(f"✅ 已生成 {file_type}: {rel_path}")
+    click.echo(f" 已生成 {file_type}: {rel_path}")
 
 
 if __name__ == "__main__":

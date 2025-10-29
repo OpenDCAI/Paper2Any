@@ -11,7 +11,9 @@ from typing import Optional
 
 from dataflow_agent.state import DFRequest, DFState
 from dataflow_agent.workflow.wf_pipeline_write import create_operator_write_graph
+from dataflow_agent.utils import get_project_root
 
+PROJDIR = get_project_root()
 
 def parse_args():
     p = argparse.ArgumentParser(description="Run operator flow: match -> write -> (optional debug loop)")
@@ -48,7 +50,7 @@ async def main():
         need_debug=bool(args.need_debug),
         max_debug_rounds=int(args.max_debug_rounds),
         # 默认使用 dataflowagent 下的 10 条测试数据
-        json_file=(args.json_file or f"{DataFlowPath.get_dataflow_dir()}/dataflowagent/test_data.jsonl"),
+        json_file=(args.json_file or f"{PROJDIR}/tests/test.jsonl"),
     )
     state = DFState(request=req, messages=[])
     if args.output:
