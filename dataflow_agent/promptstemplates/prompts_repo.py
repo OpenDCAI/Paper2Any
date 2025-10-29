@@ -761,7 +761,7 @@ class CodeRewriter:
     system_prompt_for_code_rewriting = """
 You are a Python code expert.
 """
-    task_prompt_for_code_rewriting = """"
+    task_prompt_for_code_pipe_rewriting = """
     [INPUT]
 
 The input consists of:

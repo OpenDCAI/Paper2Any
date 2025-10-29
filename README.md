@@ -66,7 +66,7 @@ def create_hello_world():
     return page
 ```
 
-命名小贴士  
+**命名小贴士**：
 如果文件叫 `model_hub.py` ⇒ 函数得叫 `create_model_hub()`；  
 如果叫 `chat.py` ⇒ 函数叫 `create_chat()`。
 
@@ -115,7 +115,56 @@ dfa create --gradio_name <test>
 pip install -e .
 ```
 
-## 使用方法
+
+---
+
+## 创建 Prompt Repo
+
+### 使用方法
+
+```bash
+dfa create --prompt_name <repo名称>
+```
+
+**示例：**
+```bash
+dfa create --prompt_name knowledge_base
+```
+
+**生成位置：**  
+`dataflow_agent/promptstemplates/resources/pt_knowledge_base_repo.py`
+
+**生成内容：**
+- 仅包含一个空的类，类名自动驼峰化（如 `KnowledgeBase`），用于后续扩展。
+- 内含示例 task prompt 和 system prompt 字符串，支持自定义添加。
+
+**模板内容示例：**
+
+```jinja
+"""
+Prompt Templates for {{ prompt_name }}
+Generated at: {{ timestamp }}
+"""
+
+# --------------------------------------------------------------------------- #
+# {{ prompt_name_camel }} - {{ prompt_name }} 相关提示词
+# --------------------------------------------------------------------------- #
+class {{ prompt_name_camel }}:
+    """
+    {{ prompt_name }} 任务的提示词模板
+    """
+
+    task_prompt_example = """
+Your task description here.
+Input: {input_data}
+"""
+
+    system_prompt_example = """
+You are an AI assistant for {{ prompt_name }} tasks.
+"""
+```
+
+---
 
 ### 创建 Workflow
 
@@ -390,4 +439,9 @@ def create_my_workflow_graph():
 - 新增功能后补充单元测试与文档
 - 工具函数优先放在 `utils.py`，避免创建过多小文件
 
+
+## 新增额外的内容
+
+- dataflow_agent/agentroles/base_agent.py: `store_outputs`：将数据对象保存为二进制文件，并返回文件路径。
+- 
 ---

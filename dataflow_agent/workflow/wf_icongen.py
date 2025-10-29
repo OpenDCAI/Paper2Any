@@ -15,7 +15,7 @@ import json
 import os
 from dataflow_agent.state import MainState
 from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
-from dataflow_agent.workflow.registry import register   # <- 核心装饰器
+from dataflow_agent.workflow.registry import register
 from dataflow_agent.agentroles import get_agent_cls, create_agent
 
 from dataflow_agent.toolkits.tool_manager import get_tool_manager
