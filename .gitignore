@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+dataflow_agent/tmps/
+dataflow_agent/dataflow_cache
+
 # Distribution / packaging
 .Python
 build/

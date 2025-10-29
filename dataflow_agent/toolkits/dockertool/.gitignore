@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# Artifacts and logs
+artifacts/*.tar
+artifacts/run_logs/*
+
+# Local image tarballs
+myorg_dataflow_py_*.tar
+
