@@ -245,6 +245,36 @@ def get_operator_content_str(data_type: str) -> str:
 
     return "; ".join(lines)
 
+def get_operator_source_by_name(operator_name: str) -> str:
+    """
+    根据算子名称获取算子的源码。
+    参数:
+        operator_name: 算子名称（注册在 OPERATOR_REGISTRY 中）
+    返回:
+        源码字符串或错误提示信息
+    """
+    try:
+        # 初始化 OPERATOR_REGISTRY（如果需要）
+        if hasattr(OPERATOR_REGISTRY, "_init_loaders"):
+            OPERATOR_REGISTRY._init_loaders()
+        if hasattr(OPERATOR_REGISTRY, "_get_all"):
+            OPERATOR_REGISTRY._get_all()
+        
+        # 遍历注册的算子，找到匹配的名称
+        for name, cls in OPERATOR_REGISTRY:
+            if name == operator_name:
+                # 获取源码
+                try:
+                    source_code = inspect.getsource(cls)
+                    return source_code
+                except Exception as e:
+                    return f"# 无法获取源码: {e}"
+        
+        # 如果未找到对应的算子名称
+        return f"# 未找到算子 '{operator_name}'，请检查名称是否正确。"
+    
+    except Exception as e:
+        return f"# 获取算子源码时发生错误: {e}"
 
 def post_process_combine_pipeline_result(results: Dict) -> str:
 
