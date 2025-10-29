@@ -22,6 +22,14 @@ log = get_logger(__name__)
 
 EXTRA_IMPORTS: set[str] = set()  
 
+# "pipeline_assembler",        # 核心入口：返回 {"pipe_code": ...}
+# "build_pipeline_code",       # 主体：组装 pipeline 代码
+# "choose_prompt_template_by_llm", # LLM智能选择 prompt 模板
+# "render_operator_blocks",    # 生成 operator 初始化与调用代码
+# "group_imports",             # 汇总依赖导入
+# "extract_op_params",         # 提取 operator 参数
+# "choose_prompt_template",    # prompt_template 兜底选择
+
 def call_llm_for_selection(
     system_prompt: str,
     user_message: str,
