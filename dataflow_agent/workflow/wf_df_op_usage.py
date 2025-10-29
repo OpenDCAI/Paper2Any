@@ -20,6 +20,7 @@ import os
 # 导入 pipeline 组装工具
 from dataflow_agent.toolkits.pipetool.pipe_tools import (
     build_pipeline_code,
+    build_pipeline_code_with_run_params
 )
 
 log = get_logger(__name__)
@@ -41,10 +42,10 @@ def create_df_op_usage_graph() -> GenericGraphBuilder:
         """
         log.info("[df_op_usage] Generating pipeline code...")
         
-        op_names = state.matched_ops if state.matched_ops else []
+        op_names = state.opname_and_params if state.opname_and_params else []
         
         if not op_names:
-            log.warning("[df_op_usage] No operators found in state.matched_ops")
+            log.warning("[df_op_usage] No operators found in state.opname_and_params")
             state.agent_results["generate_pipeline"] = {
                 "status": "error",
                 "error": "No operators to generate pipeline"
@@ -61,11 +62,15 @@ def create_df_op_usage_graph() -> GenericGraphBuilder:
         
         # 生成代码
         try:
-            pipeline_code = build_pipeline_code(
-                op_names=op_names,
+            pipeline_code = build_pipeline_code_with_run_params(
+                # op_names=op_names,
+                opname_and_params=op_names,
                 state=state,
                 **kwargs
             )
+            state.temp_data["code"] = pipeline_code
+            state.temp_data["output_file"] = f"{state.request.cache_dir}/dataflow_cache_step_step{len(op_names)}.jsonl"
+            log.critical(f'output_file_jsonl_file: {state.temp_data["output_file"]}')
             
             # 保存到指定目录
             output_dir = Path(state.request.cache_dir) / "generated_pipelines"
@@ -130,7 +135,7 @@ def create_df_op_usage_graph() -> GenericGraphBuilder:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=env,
-                cwd=str(Path(pipeline_file).parent)  # 在文件所在目录执行
+                cwd=str(Path(pipeline_file).parent)
             )
             
             stdout, stderr = await process.communicate()

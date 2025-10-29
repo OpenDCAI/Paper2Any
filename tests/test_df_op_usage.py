@@ -47,25 +47,16 @@ async def run_df_op_usage_pipeline() -> DFState:
         use_local_model=False,
         need_debug=False,
     )
-    
     # 2) 初始化状态，设置要测试的 operators
     state = DFState(
         request=req,
         messages=[],
         matched_ops=[first_op],
     )
-
     # 3) 通过注册中心执行工作流
-    print("\n" + "="*60)
     print("开始执行 df_op_usage workflow...")
-    print("="*60)
-    
     final_state: DFState = await run_workflow("df_op_usage", state)
-    
-    print("\n" + "="*60)
     print("df_op_usage workflow 执行完成")
-    print("="*60)
-    
     return final_state
 
 
