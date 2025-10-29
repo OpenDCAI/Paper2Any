@@ -1,3 +1,16 @@
+# DataFlow-Agent 前端启动说明
+
+本说明文档将指导你如何启动 **DataFlow-Agent** 的前端界面。
+
+---
+### 1. 启动命令
+
+请在终端执行如下命令启动前端：
+
+```bash
+python DataFlow-Agent/gradio_app/app.py
+```
+
 # DataFlow-Agent 目录结构说明
 
 下面对本仓库的核心目录 / 文件做简要中文说明，帮助新同事快速了解各模块用途及放置内容。  
