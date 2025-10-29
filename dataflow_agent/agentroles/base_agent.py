@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
+import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Callable, Tuple
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage, AIMessage
@@ -12,7 +14,10 @@ from dataflow_agent.promptstemplates.prompt_template import PromptsTemplateGener
 from dataflow_agent.state import MainState
 from dataflow_agent.utils import robust_parse_json
 from dataflow_agent.toolkits.tool_manager import ToolManager
+import pickle
 from dataflow_agent.logger import get_logger
+from dataflow_agent.utils import get_project_root
+PROJDIR = get_project_root()
 
 log = get_logger(__name__)
 
@@ -371,6 +376,22 @@ class BaseAgent(ABC):
         return "\n".join(feedback_parts)
     
     # ==================== 原有方法 ============================================================================================================================================
+
+    def store_outputs(self, data, file_name: str = None) -> str:
+        """保存输出结果到文件"""
+        out_dir = f"{PROJDIR}/outputs/{self.role_name.lower()}"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        
+        if not file_name:
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            file_name = f"{ts}.pkl"
+        
+        file_path = out_dir / file_name
+        
+        with open(file_path, "wb") as f:
+            pickle.dump(data, f)
+        log.info(f"已保存->: {file_path}")
+        return str(file_path)
     
     async def execute_pre_tools(self, state: MainState) -> Dict[str, Any]:
         """执行前置工具"""
