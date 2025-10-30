@@ -171,7 +171,7 @@ async def run_df_op_usage_pipeline(
 
 
 # -------------------- Gradio 页面 --------------------
-def create_page_testopuse():
+def create_op_assemble_line():
     with gr.Blocks(title="DataFlow-Agent UI") as page:
         gr.Markdown("## 🧩 DataFlow Operator Selector & Pipeline Runner")
 
