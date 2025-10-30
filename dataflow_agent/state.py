@@ -1,14 +1,13 @@
 from dataclasses import dataclass, field
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 from dataflow.cli_funcs.paths import DataFlowPath
+current_file = Path(__file__).resolve()
 
 BASE_DIR = DataFlowPath.get_dataflow_dir()
 DATAFLOW_DIR = BASE_DIR.parent
 STATICS_DIR = DataFlowPath.get_dataflow_statics_dir()
-
-current_file = Path(__file__).resolve()
 PROJDIR = current_file.parent.parent
 
 from typing_extensions import TypedDict, Annotated
@@ -99,6 +98,7 @@ class DFState(MainState):
     execution_result: Dict[str, Any] = field(default_factory=dict)
     code_debug_result: Dict[str, Any] = field(default_factory=dict)
     debug_history: Dict[Any, Dict[str, Any]] = field(default_factory=dict)
+    opname_and_params: List[Dict[str, Dict[str, Any]]] = field(default_factory=list)
 
 
 # ==================== 数据采集 Request ====================

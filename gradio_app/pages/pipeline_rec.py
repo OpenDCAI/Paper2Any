@@ -1,5 +1,8 @@
 import gradio as gr
 from ..utils.wf_pipeine_rec import run_pipeline_workflow
+from dataflow_agent.logger import get_logger
+from dataflow_agent.utils import get_project_root
+
 
 def create_pipeline_rec():
     """子页面：Pipeline 生成（带 Agent 结果展示）"""
@@ -16,7 +19,7 @@ def create_pipeline_rec():
                 )
                 json_file = gr.Textbox(
                     label="输入 JSONL 文件路径",
-                    value="/mnt/DataFlow/lz/proj/DataFlow-Agent/tests/test.jsonl"
+                    value=f"{get_project_root()}/tests/test.jsonl"
                 )
                 session_id = gr.Textbox(
                     label="Session ID",

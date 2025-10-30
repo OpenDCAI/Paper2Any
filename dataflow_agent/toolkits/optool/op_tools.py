@@ -16,9 +16,8 @@ import yaml
 import subprocess
 from collections import defaultdict, deque
 from dataflow.utils.storage import FileStorage
-from dataflow_agent.logger import get_logger
-logger = get_logger()
-from dataflow.cli_funcs.paths import DataFlowPath
+# from dataflow_agent.logger import get_logger
+# logger = get_logger()
 from dataflow_agent.storage.storage_service import SampleFileStorage
 from dataflow_agent.state import DFState,DFRequest
 
@@ -242,9 +241,38 @@ def get_operator_content_str(data_type: str) -> str:
         f'"{item.get("name", "")}":"{item.get("description", "")}"'
         for item in raw_items
     ]
+    return "\n".join(lines)
 
-    return "; ".join(lines)
-
+def get_operator_source_by_name(operator_name: str) -> str:
+    """
+    根据算子名称获取算子的源码。
+    参数:
+        operator_name: 算子名称（注册在 OPERATOR_REGISTRY 中）
+    返回:
+        源码字符串或错误提示信息
+    """
+    try:
+        # 初始化 OPERATOR_REGISTRY（如果需要）
+        if hasattr(OPERATOR_REGISTRY, "_init_loaders"):
+            OPERATOR_REGISTRY._init_loaders()
+        if hasattr(OPERATOR_REGISTRY, "_get_all"):
+            OPERATOR_REGISTRY._get_all()
+        
+        # 遍历注册的算子，找到匹配的名称
+        for name, cls in OPERATOR_REGISTRY:
+            if name == operator_name:
+                # 获取源码
+                try:
+                    source_code = inspect.getsource(cls)
+                    return source_code
+                except Exception as e:
+                    return f"# 无法获取源码: {e}"
+        
+        # 如果未找到对应的算子名称
+        return f"# 未找到算子 '{operator_name}'，请检查名称是否正确。"
+    
+    except Exception as e:
+        return f"# 获取算子源码时发生错误: {e}"
 
 def post_process_combine_pipeline_result(results: Dict) -> str:
 
@@ -252,7 +280,7 @@ def post_process_combine_pipeline_result(results: Dict) -> str:
 
 
 # if __name__ == "__main__":
-#     print(get_operator_content("text2sql"))
+#     log.info(get_operator_content("text2sql"))
 
 
 # =================================================================== 算子RAG部分代码：
@@ -353,13 +381,13 @@ class RAGOperatorSearch:
         if self.category:
             # 指定类别
             ops = all_ops.get(self.category, [])
-            print(f"✓ 加载类别 '{self.category}' 的算子: {len(ops)} 个")
+            log.info(f"✓ 加载类别 '{self.category}' 的算子: {len(ops)} 个")
         else:
             # 读取全部类别
             ops = []
             for cat, op_list in all_ops.items():
                 ops.extend(op_list)
-            print(f"✓ 加载全部算子: {len(ops)} 个")
+            log.info(f"✓ 加载全部算子: {len(ops)} 个")
         
         return ops
     
@@ -369,15 +397,15 @@ class RAGOperatorSearch:
         if self.faiss_index_path and os.path.exists(self.faiss_index_path):
             meta_path = self.faiss_index_path + ".meta"
             if os.path.exists(meta_path):
-                print(f"✓ 从 {self.faiss_index_path} 加载已有索引...")
+                log.info(f"✓ 从 {self.faiss_index_path} 加载已有索引...")
                 self.index = faiss.read_index(self.faiss_index_path)
                 with open(meta_path, "rb") as f:
                     self.ops_list = pickle.load(f)
-                print(f"✓ 索引加载成功，包含 {len(self.ops_list)} 个算子")
+                log.info(f"✓ 索引加载成功，包含 {len(self.ops_list)} 个算子")
                 return
         
         # 重新构建索引
-        print("⚙ 开始构建新的向量索引...")
+        log.info("⚙ 开始构建新的向量索引...")
         self.ops_list = self._load_operators()
         
         if not self.ops_list:
@@ -387,7 +415,7 @@ class RAGOperatorSearch:
         texts = [f"{op['name']} {op.get('description', '')}" for op in self.ops_list]
         
         # 调用API获取向量
-        print(f"⚙ 正在获取 {len(texts)} 个算子的 embedding...")
+        log.info(f"⚙ 正在获取 {len(texts)} 个算子的 embedding...")
         embeddings = _call_openai_embedding_api(
             texts,
             model_name=self.model_name,
@@ -399,17 +427,17 @@ class RAGOperatorSearch:
         dim = embeddings.shape[1]
         self.index = faiss.IndexFlatIP(dim)
         self.index.add(embeddings)
-        print(f"✓ 索引构建完成，维度: {dim}")
+        log.info(f"✓ 索引构建完成，维度: {dim}")
         
         # 保存索引（如果指定了路径）
         if self.faiss_index_path:
             # 确保目录存在
             os.makedirs(os.path.dirname(self.faiss_index_path) or ".", exist_ok=True)
-            print(f"⚙ 保存索引到 {self.faiss_index_path}...")
+            log.info(f"⚙ 保存索引到 {self.faiss_index_path}...")
             faiss.write_index(self.index, self.faiss_index_path)
             with open(self.faiss_index_path + ".meta", "wb") as f:
                 pickle.dump(self.ops_list, f)
-            print("✓ 索引保存成功")
+            log.info("✓ 索引保存成功")
     
     def search(
         self,
@@ -448,7 +476,7 @@ class RAGOperatorSearch:
         for i, indices in enumerate(I):
             matched_ops = [self.ops_list[idx]["name"] for idx in indices]
             results.append(matched_ops)
-            print(f"Query {i+1}: '{queries[i][:50]}...' -> {matched_ops}")
+            log.info(f"Query {i+1}: '{queries[i][:50]}...' -> {matched_ops}")
         
         # 如果是单查询，返回单个列表
         return results[0] if is_single else results
@@ -533,27 +561,27 @@ def local_tool_for_get_match_operator_code(pre_task_result):
             blocks.append(f"# --- Failed to get the source code of {op_name}: {e} ---")
     
     elapsed = time.time() - start_time
-    print(f"[local_tool_for_get_match_operator_code] Time used: {elapsed:.4f} seconds")
+    log.info(f"[local_tool_for_get_match_operator_code] Time used: {elapsed:.4f} seconds")
     return "\n\n".join(blocks)
 
 
 if __name__ == "__main__":
     # ============ 示例1: 单个查询 + 指定category + 持久化索引 ============
-    print("\n" + "="*70)
-    print("示例1: 单个查询 + 指定category + 持久化索引")
-    print("="*70)
+    log.info("\n" + "="*70)
+    log.info("示例1: 单个查询 + 指定category + 持久化索引")
+    log.info("="*70)
     result1 = get_operators_by_rag(
         search_queries="将自然语言转换为SQL查询语句",
         category="text2sql",
         top_k=3,
         faiss_index_path="./faiss_cache/text2sql.index"  # 第一次生成，后续复用
     )
-    print(f"\n返回结果: {result1}\n")
+    log.info(f"\n返回结果: {result1}\n")
     
     # ============ 示例2: 批量查询 + 读取全部category ============
-    print("\n" + "="*70)
-    print("示例2: 批量查询 + 读取全部category")
-    print("="*70)
+    log.info("\n" + "="*70)
+    log.info("示例2: 批量查询 + 读取全部category")
+    log.info("="*70)
     queries = [
         "数据清洗和预处理",
         "文本分类任务",
@@ -565,27 +593,27 @@ if __name__ == "__main__":
         top_k=2,
         faiss_index_path="./faiss_cache/all_ops.index"
     )
-    print(f"\n返回结果: {result2}\n")
+    log.info(f"\n返回结果: {result2}\n")
     
     # ============ 示例3: 不持久化，每次重新生成 ============
-    print("\n" + "="*70)
-    print("示例3: 不持久化索引，每次重新生成")
-    print("="*70)
+    log.info("\n" + "="*70)
+    log.info("示例3: 不持久化索引，每次重新生成")
+    log.info("="*70)
     result3 = get_operators_by_rag(
         search_queries=["数据可视化", "模型训练"],
         category="text2sql",
         top_k=3,
         faiss_index_path=None  # 不指定路径，不持久化
     )
-    print(f"\n返回结果: {result3}\n")
+    log.info(f"\n返回结果: {result3}\n")
     
     # ============ 示例4: 自定义top_k ============
-    print("\n" + "="*70)
-    print("示例4: 自定义top_k=5")
-    print("="*70)
+    log.info("\n" + "="*70)
+    log.info("示例4: 自定义top_k=5")
+    log.info("="*70)
     result4 = get_operators_by_rag(
         search_queries="数据库查询",
         top_k=5,
         faiss_index_path="./faiss_cache/all_ops.index"
     )
-    print(f"\n返回结果: {result4}\n")
+    log.info(f"\n返回结果: {result4}\n")

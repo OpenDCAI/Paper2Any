@@ -761,7 +761,7 @@ class CodeRewriter:
     system_prompt_for_code_rewriting = """
 You are a Python code expert.
 """
-    task_prompt_for_code_rewriting = """"
+    task_prompt_for_code_pipe_rewriting = """
     [INPUT]
 
 The input consists of:
@@ -781,9 +781,9 @@ The input consists of:
  -The FileStorage class uses the step() method to manage and switch between different stages of data processing. Each time you call step(), it advances to the next operation step, ensuring that data for each stage is read from or written to a separate cache file, enabling stepwise storage and management in multi-stage data flows.
 
 [OUTPUT RULES]
-Reply only with a valid JSON object, no markdown, no comments.
-
-The JSON must and can only contain one top-level key:
+1.Reply only with a valid JSON object, no markdown, no comments.
+2.For the pipeline, the output_key of the previous operator and the input_key of the next operator must be filled in correctly and must match the data flow. Modify them logically as needed；
+3.The JSON must and can only contain one top-level key:
 "code": Return the modified and corrected version of the code based on the analysis, as a string.
 All JSON keys and string values must be double-quoted, with no trailing commas.
 If you are unsure about any value, use an empty string.

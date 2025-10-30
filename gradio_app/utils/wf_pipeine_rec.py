@@ -37,7 +37,7 @@ async def run_pipeline_workflow(
         model="gpt-4o",
         json_file=json_file,
         target=target,
-        python_file_path=str(python_file_path),  # 4. 传字符串路径
+        python_file_path=str(python_file_path),
         need_debug=need_debug,
         session_id=session_id,
     )

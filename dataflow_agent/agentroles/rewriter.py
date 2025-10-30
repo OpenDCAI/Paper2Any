@@ -23,7 +23,7 @@ class Rewriter(BaseAgent):
 
     @property
     def task_prompt_template_name(self) -> str:
-        return "task_prompt_for_code_rewriting"
+        return "task_prompt_for_code_pipe_rewriting"
 
     # ---------------- Prompt 参数 --------------------
     def get_task_prompt_params(self, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
