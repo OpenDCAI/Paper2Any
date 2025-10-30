@@ -17,11 +17,7 @@ from dataflow_agent.workflow.registry import register
 from dataflow_agent.logger import get_logger
 import os
 
-# 导入 pipeline 组装工具
-from dataflow_agent.toolkits.pipetool.pipe_tools import (
-    build_pipeline_code,
-    build_pipeline_code_with_run_params
-)
+from dataflow_agent.toolkits.pipetool.pipe_tools import build_pipeline_code_with_full_params
 
 log = get_logger(__name__)
 
@@ -38,13 +34,13 @@ def create_df_op_usage_graph() -> GenericGraphBuilder:
     
     async def generate_pipeline(state: DFState) -> DFState:
         """
-        根据 state.matched_ops 生成 pipeline 代码
+        根据 state.opname_and_params 生成 pipeline 代码
         """
         log.info("[df_op_usage] Generating pipeline code...")
         
-        op_names = state.opname_and_params if state.opname_and_params else []
+        opname_and_params = state.opname_and_params if state.opname_and_params else []
         
-        if not op_names:
+        if not opname_and_params:
             log.warning("[df_op_usage] No operators found in state.opname_and_params")
             state.agent_results["generate_pipeline"] = {
                 "status": "error",
@@ -59,18 +55,17 @@ def create_df_op_usage_graph() -> GenericGraphBuilder:
             "model_name": state.request.model or "gpt-4o",
             "file_path": state.request.json_file or "",
         }
-        
+        log.critical(opname_and_params)
         # 生成代码
         try:
-            pipeline_code = build_pipeline_code_with_run_params(
-                # op_names=op_names,
-                opname_and_params=op_names,
-                state=state,
+            pipeline_code = build_pipeline_code_with_full_params(
+                opname_and_params=opname_and_params,
                 **kwargs
             )
+            
             state.temp_data["code"] = pipeline_code
-            state.temp_data["output_file"] = f"{state.request.cache_dir}/dataflow_cache_step_step{len(op_names)}.jsonl"
-            log.critical(f'output_file_jsonl_file: {state.temp_data["output_file"]}')
+            state.temp_data["output_file"] = f"{state.request.cache_dir}/dataflow_cache_step_step{len(opname_and_params)}.jsonl"
+            log.info(f'output_file: {state.temp_data["output_file"]}')
             
             # 保存到指定目录
             output_dir = Path(state.request.cache_dir) / "generated_pipelines"
@@ -86,13 +81,13 @@ def create_df_op_usage_graph() -> GenericGraphBuilder:
             state.pipeline_structure_code = {
                 "code": pipeline_code,
                 "file_path": str(output_file),
-                "op_names": op_names
+                "op_count": len(opname_and_params)
             }
             
             state.agent_results["generate_pipeline"] = {
                 "status": "success",
                 "pipeline_file": str(output_file),
-                "op_names": op_names,
+                "op_count": len(opname_and_params),
                 "code_length": len(pipeline_code)
             }
             
