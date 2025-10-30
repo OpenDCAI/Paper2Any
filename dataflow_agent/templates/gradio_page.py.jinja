@@ -1,11 +1,63 @@
 """
 Auto-generated on {{ timestamp }}
+本文件由自动化模板生成。你可以在此基础上自定义 Gradio UI 组件与数据流执行函数。
 """
+
+from dataflow_agent.state import DFRequest, DFState
+from dataflow_agent.workflow import run_workflow
+from dataflow_agent.logger import get_logger
+
+log = get_logger(__name__)
 
 import gradio as gr
 
+# ------------------- Gradio 页面组件定义 -------------------
 def create_{{ page_name_snake }}() -> gr.Blocks:
+    """
+    创建 {{ page_name }} 页面。
+
+    Returns:
+        gr.Blocks: Gradio 多组件页面对象。
+    """
     with gr.Blocks() as page:
         gr.Markdown("## {{ page_name }} (auto-generated)")
         gr.Markdown("> 在这里添加你的组件 …")
+        # TODO: 添加更多 Gradio 组件，比如输入框、按钮、数据展示等
     return page
+
+# ------------------- 数据流工作流执行函数模板 -------------------
+async def run_xxx_pipeline(
+    # TODO: 添加必要的参数，例如  json_file, chat_api_url, apikey , 需要符合你的State和Request等
+):
+    """
+    执行 DataFlow Operator Usage 工作流。
+
+    参数说明:
+        json_file (str): 输入数据文件路径（jsonl 格式）。
+        chat_api_url (str): Chat API 的访问地址。
+        apikey (str): OpenAI 或自定义大模型接口的 API Key。
+        model (str, 可选): 使用的模型名称，默认为 'gpt-4o'。
+        
+    返回值:
+        DFState: 工作流的最终状态对象，包含产出数据与日志信息。
+    """
+    # TODO: 你可以在这里构造 DFRequest、DFState，并调用 run_workflow
+    # 示例:
+    # req = DFRequest(
+    #     language=language,
+    #     model=model,
+    #     target="测试 pipeline 生成和执行",
+    #     json_file=json_file,
+    #     cache_dir=cache_dir,
+    #     session_id=session_id,
+    #     chat_api_url=chat_api_url,
+    #     apikey=apikey,
+    # )
+    # state = DFState(
+    #     request=req,
+    #     messages=[],
+    #     matched_ops=matched_ops_with_params,
+    # )
+    # final_state = await run_workflow("wf_xxx", state)
+    # return final_state
+    pass  # 请补充实现
