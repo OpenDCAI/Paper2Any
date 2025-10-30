@@ -1,0 +1,27 @@
+site_name: Dataflow Agent Docs
+site_url: ""
+theme:
+  name: material
+  language: zh
+  features:
+    - navigation.tabs
+    - content.code.annotate
+nav:
+  - 主页: index.md
+  - 快速开始: quickstart.md
+  - 安装: installation.md
+  - 教程:
+      - 示例教程: tutorials/tutorial_first.md
+  - 指南:
+      - 架构设计: guides/architecture.md
+  - FAQ: faq.md
+  - 贡献指南: contributing.md
+  - 更新日志: changelog.md
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: ⚓︎
+  - pymdownx.superfences
+  - pymdownx.highlight
+plugins:
+  - search

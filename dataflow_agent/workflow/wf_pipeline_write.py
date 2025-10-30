@@ -21,6 +21,7 @@ from dataflow_agent.agentroles.append_llm_serving import create_llm_append_servi
 from dataflow_agent.agentroles.instantiator import create_llm_instantiator
 from dataflow_agent.utils import get_project_root
 
+from dataflow_agent.utils import get_project_root
 PROJDIR = get_project_root()
 
 def create_operator_write_graph() -> GenericGraphBuilder:

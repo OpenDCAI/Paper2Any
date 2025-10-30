@@ -60,7 +60,7 @@ async def main() -> None:
         api_key=os.getenv("DF_API_KEY", "sk-dummy"),
         model="gpt-4o",
         json_file=f"{PROJECT_ROOT}/tests/test.jsonl",
-        target="给我随意符合逻辑的5个算子！",
+        target="给我逻辑的5个算子！需要能用到LLMServing！",
         python_file_path=str(python_file_path),  # pipeline 的输出脚本路径
         need_debug= False,  # 是否需要 Debug
         max_debug_rounds= 3,

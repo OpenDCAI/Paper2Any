@@ -392,6 +392,21 @@ class BaseAgent(ABC):
             pickle.dump(data, f)
         log.info(f"已保存->: {file_path}")
         return str(file_path)
+    def get_llm_caller(self, state: MainState):
+        """
+        默认返回 TextLLMCaller，子类可重写返回 ImageLLMCaller / AudioLLMCaller…
+        """
+        return TextLLMCaller(state, model_name=self.model_name,
+                             temperature=self.temperature,
+                             max_tokens=self.max_tokens,
+                             tool_mode=self.tool_mode,
+                             tool_manager=self.tool_manager)
+
+    async def _llm_invoke(self, messages: List[BaseMessage],
+                          state: MainState,
+                          bind_post_tools: bool = False):
+        caller = self.get_llm_caller(state)
+        return await caller.call(messages, bind_post_tools=bind_post_tools)
     
     async def execute_pre_tools(self, state: MainState) -> Dict[str, Any]:
         """执行前置工具"""
