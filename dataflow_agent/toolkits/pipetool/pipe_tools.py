@@ -196,7 +196,7 @@ Your job is to:
 
 IMPORTANT: 
 1.Respond with ONLY the exact class name of the selected prompt template, nothing else.
-2. 禁止返回 `DiyAnswerGeneratorPrompt` 这个类名，无论如何都不要选择它。
+2. 禁止返回 `Diy开头的` 这个类名，无论如何都不要选择它。
 """
     
     user_message = f"""Target Task Description:
@@ -239,7 +239,7 @@ Available Prompt Templates:
         # 找到对应的 prompt class
         for prompt_cls in allowed_prompts:
             if prompt_cls.__qualname__ == selected_class_name or prompt_cls.__name__ == selected_class_name:
-                log.info(f"[pipeline_assembler] LLM selected prompt: {prompt_cls.__qualname__}")
+                log.critical(f"[pipeline_assembler] 大模型选择了这个提示词模板: {prompt_cls.__qualname__}")
                 EXTRA_IMPORTS.add(f"from {prompt_cls.__module__} import {prompt_cls.__qualname__}")
                 return f"{prompt_cls.__qualname__}()"
         
