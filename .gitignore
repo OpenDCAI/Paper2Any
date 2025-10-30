@@ -7,7 +7,7 @@ __pycache__/
 *.so
 
 dataflow_agent/tmps/
-dataflow_agent/dataflow_cache
+dataflow_cache/
 
 # Distribution / packaging
 .Python
