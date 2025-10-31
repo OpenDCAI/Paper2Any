@@ -22,6 +22,14 @@ log = get_logger(__name__)
 
 EXTRA_IMPORTS: set[str] = set()  
 
+# "pipeline_assembler",        # 核心入口：返回 {"pipe_code": ...}
+# "build_pipeline_code",       # 主体：组装 pipeline 代码
+# "choose_prompt_template_by_llm", # LLM智能选择 prompt 模板
+# "render_operator_blocks",    # 生成 operator 初始化与调用代码
+# "group_imports",             # 汇总依赖导入
+# "extract_op_params",         # 提取 operator 参数
+# "choose_prompt_template",    # prompt_template 兜底选择
+
 def call_llm_for_selection(
     system_prompt: str,
     user_message: str,
@@ -186,7 +194,10 @@ Your job is to:
 2. Review all available prompt templates (including their documentation and example prompts)
 3. Select the MOST suitable prompt template
 
-IMPORTANT: Respond with ONLY the exact class name of the selected prompt template, nothing else."""
+IMPORTANT: 
+1.Respond with ONLY the exact class name of the selected prompt template, nothing else.
+2. 禁止返回 `Diy开头的` 这个类名，无论如何都不要选择它。
+"""
     
     user_message = f"""Target Task Description:
 {target}
@@ -228,7 +239,7 @@ Available Prompt Templates:
         # 找到对应的 prompt class
         for prompt_cls in allowed_prompts:
             if prompt_cls.__qualname__ == selected_class_name or prompt_cls.__name__ == selected_class_name:
-                log.info(f"[pipeline_assembler] LLM selected prompt: {prompt_cls.__qualname__}")
+                log.critical(f"[pipeline_assembler] 大模型选择了这个提示词模板: {prompt_cls.__qualname__}")
                 EXTRA_IMPORTS.add(f"from {prompt_cls.__module__} import {prompt_cls.__qualname__}")
                 return f"{prompt_cls.__qualname__}()"
         
@@ -507,6 +518,525 @@ def write_pipeline_file(
     log.info(f"[pipeline_assembler] code written to {target_path}")
 
     return target_path
+
+# =========================================================渲染 op 的 全部函数==================================================
+# def snake_case(name: str) -> str:
+#     """CamelCase -> snake_case"""
+#     s1 = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
+#     s2 = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1)
+#     return s2.replace("__", "_").lower()
+
+
+# def try_import(module_path: str) -> bool:
+#     """尝试导入模块"""
+#     try:
+#         importlib.import_module(module_path)
+#         return True
+#     except Exception as e:
+#         log.warning(f"import {module_path} failed: {e}")
+#         return False
+
+
+# def _normalize_module(mod: str) -> str:
+#     """dataflow.operators.xxx.yyy.zzz -> dataflow.operators.xxx"""
+#     prefix = "dataflow.operators."
+#     if mod.startswith(prefix):
+#         subpkg = mod[len(prefix):].split(".", 1)[0]
+#         return f"{prefix}{subpkg}"
+#     return mod
+
+
+def group_import_for_full_params(op_names: List[str]) -> tuple:
+    """收集所有算子的导入语句"""
+    imports = []
+    op_classes: Dict[str, type] = {}
+    module2names: Dict[str, List[str]] = defaultdict(list)
+
+    for name in op_names:
+        cls = OPERATOR_REGISTRY.get(name)
+        if cls is None:
+            raise KeyError(f"Operator <{name}> not in OPERATOR_REGISTRY")
+        op_classes[name] = cls
+
+        mod_raw = cls.__module__
+        mod = _normalize_module(mod_raw)
+
+        if try_import(mod):
+            module2names[mod].append(cls.__name__)
+
+    for m in sorted(module2names.keys()):
+        uniq_names = sorted(set(module2names[m]))
+        imports.append(f"from {m} import {', '.join(uniq_names)}")
+
+    # 追加额外的 import
+    # imports.extend(sorted(EXTRA_IMPORTS))
+    return imports, op_classes
+
+def render_operator_blocks_with_full_params(
+    opname_and_params: List[Dict[str, Any]], 
+    op_classes: Dict[str, type]
+) -> tuple:
+    """
+    渲染算子初始化和调用代码（完整支持 init + run 参数）
+    
+    Args:
+        opname_and_params: [
+            {
+                "op_name": "OperatorA",
+                "init_params": {"llm_serving": "...", "prompt_template": "..."},
+                "run_params": {"param1": "value1"}
+            },
+            ...
+        ]
+    
+    Returns:
+        (init_code_block, forward_code_block)
+    """
+    import inspect
+    
+    init_lines = []
+    forward_lines = []
+
+    for item in opname_and_params:
+        name = item["op_name"]
+        custom_init_params = item.get("init_params", {})
+        custom_run_params = item.get("run_params", {})
+        
+        cls = op_classes[name]
+        var_name = snake_case(cls.__name__)
+
+        # 检查 run 方法是否有 storage 参数
+        run_has_storage = False
+        if hasattr(cls, "run"):
+            try:
+                run_sig = inspect.signature(cls.run)
+                run_has_storage = "storage" in run_sig.parameters
+            except:
+                pass
+
+        # -------- 渲染 __init__ 参数 --------
+        init_args = []
+        for k, v in custom_init_params.items():
+            if k == "llm_serving":
+                init_args.append(f"{k}=self.llm_serving")
+            elif k == "prompt_template":
+                # 用户已经选择了具体的 prompt 类
+                if v and v != "None":
+                    # v 格式：module.ClassName
+                    parts = v.rsplit(".", 1)
+                    if len(parts) == 2:
+                        module, classname = parts
+                        EXTRA_IMPORTS.add(f"from {module} import {classname}")
+                        init_args.append(f"{k}={classname}()")
+                    else:
+                        init_args.append(f"{k}={v}")
+                else:
+                    init_args.append(f"{k}=None")
+            else:
+                # 其他参数直接使用
+                if isinstance(v, str):
+                    init_args.append(f"{k}={repr(v)}")
+                else:
+                    init_args.append(f"{k}={v}")
+        init_args.insert(0, 'llm_serving=self.llm_serving') #前端没传这个，直接塞进来；
+        init_line = f"self.{var_name} = {cls.__name__}({', '.join(init_args)})"
+        init_lines.append(init_line)
+
+        # -------- 渲染 run() 调用参数 --------
+        run_args = []
+        if run_has_storage:
+            run_args.append("storage=self.storage.step()")
+        
+        for k, v in custom_run_params.items():
+            if isinstance(v, str):
+                run_args.append(f"{k}={repr(v)}")
+            else:
+                run_args.append(f"{k}={v}")
+
+        if run_args:
+            separator = ',\n            '
+            call = (
+                f"self.{var_name}.run(\n"
+                f"            {separator.join(run_args)}\n"
+                f"        )"
+            )
+        else:
+            call = f"self.{var_name}.run()"
+        forward_lines.append(call)
+
+    return "\n        ".join(init_lines), "\n        ".join(forward_lines)
+
+
+def build_pipeline_code_with_full_params(
+    opname_and_params: List[Dict[str, Any]],
+    *,
+    cache_dir: str = "./cache_local",
+    llm_local: bool = False,
+    local_model_path: str = "",
+    chat_api_url: str = "",
+    model_name: str = "gpt-4o",
+    file_path: str = "",
+) -> str:
+    """构建完整的 pipeline 代码（支持 init + run 参数）"""
+    
+    # 清空之前的额外导入
+    EXTRA_IMPORTS.clear()
+    
+    # 1) 提取所有算子名称
+    op_names = [item["op_name"] for item in opname_and_params]
+    
+    # 2) 判断 cache_type
+    file_suffix = Path(file_path).suffix.lower() if file_path else ""
+    cache_type = {
+        ".jsonl": "jsonl",
+        ".json": "json",
+        ".csv": "csv"
+    }.get(file_suffix, "jsonl")
+
+    # 3) 收集导入
+    import_lines, op_classes = group_import_for_full_params(op_names)
+    import_section = "\n".join(import_lines)
+
+    # 4) 渲染算子代码
+    ops_init_block, forward_block = render_operator_blocks_with_full_params(
+        opname_and_params, op_classes
+    )
+
+    # 汇总所有导入语句，去重排序
+    all_imports = import_lines + sorted(EXTRA_IMPORTS)
+    import_section = "\n".join(dict.fromkeys(all_imports)) 
+
+    # 5) LLM Serving
+    if llm_local:
+        llm_block = f'''
+        # -------- LLM Serving (Local) --------
+        self.llm_serving = LocalModelLLMServing_vllm(
+            hf_model_name_or_path="{local_model_path}",
+            vllm_tensor_parallel_size=1,
+            vllm_max_tokens=8192,
+            hf_local_dir="local",
+            model_name="{model_name}",
+        )'''
+    else:
+        llm_block = f'''
+        # -------- LLM Serving (Remote) --------
+        self.llm_serving = APILLMServing_request(
+            api_url="{chat_api_url}chat/completions",
+            key_name_of_api_key="DF_API_KEY",
+            model_name="{model_name}",
+            max_workers=100,
+        )'''
+
+    # 6) 模板
+    template = '''"""
+Auto-generated Pipeline (supports init + run params)
+"""
+from dataflow.pipeline import PipelineABC
+from dataflow.utils.storage import FileStorage
+from dataflow.serving import APILLMServing_request, LocalModelLLMServing_vllm
+
+{import_section}
+
+class RecommendPipeline(PipelineABC):
+    def __init__(self):
+        super().__init__()
+        # -------- FileStorage --------
+        self.storage = FileStorage(
+            first_entry_file_name="{file_path}",
+            cache_path="{cache_dir}",
+            file_name_prefix="dataflow_cache_step",
+            cache_type="{cache_type}",
+        )
+{llm_block}
+
+        # -------- Operators --------
+        {ops_init_block}
+
+    def forward(self):
+        {forward_block}
+
+if __name__ == "__main__":
+    pipeline = RecommendPipeline()
+    pipeline.compile()
+    pipeline.forward()
+'''
+
+    code = template.format(
+        file_path=file_path,
+        import_section=import_section,
+        cache_dir=cache_dir,
+        cache_type=cache_type, 
+        llm_block=llm_block,
+        ops_init_block=ops_init_block,
+        forward_block=forward_block,
+    )
+    
+    return code
+
+
+
+# =========================================================只渲染run函数，其余不管：==================================================
+def render_operator_blocks_with_params(
+    opname_and_params: List[Dict[str, Any]], 
+    op_classes: Dict[str, type], 
+    state: DFState
+) -> Tuple[str, str]:
+    """
+    渲染算子初始化和调用代码，支持自定义 run 函数参数
+    
+    Args:
+        opname_and_params: 算子名称和参数列表，格式: [{"op_name": "xxx", "params": {...}}, ...]
+        op_classes: 算子类字典
+        state: DFState 对象
+    
+    Returns:
+        (初始化代码块, forward调用代码块)
+    """
+    init_lines: List[str] = []
+    forward_lines: List[str] = []
+
+    for item in opname_and_params:
+        name = item["op_name"]
+        custom_params = item.get("params", {})  # 获取自定义的 run 参数
+        
+        cls = op_classes[name]
+        var_name = snake_case(cls.__name__)
+
+        init_kwargs, run_kwargs, run_has_storage = extract_op_params(cls)
+
+        # -------- 渲染 __init__ 参数 --------
+        rendered_init_args: List[str] = []
+        for k, v in init_kwargs:
+            if k == "llm_serving":
+                rendered_init_args.append(f"{k}=self.llm_serving")
+            elif k == "prompt_template":
+                p_t = choose_prompt_template_by_llm(name, state)
+                rendered_init_args.append(f'{k}={p_t}')
+            else:
+                rendered_init_args.append(f"{k}={v}")
+
+        init_line = f"self.{var_name} = {cls.__name__}(" + ", ".join(rendered_init_args) + ")"
+        init_lines.append(init_line)
+
+        # -------- 渲染 run() 调用参数 --------
+        run_args: List[str] = []
+        
+        # 第一个参数 storage 保持不变
+        if run_has_storage:
+            run_args.append("storage=self.storage.step()")
+        
+        # 处理其他参数：优先使用自定义参数，否则使用默认值
+        for k, default_v in run_kwargs:
+            if k in custom_params:
+                # 使用自定义参数值，需要正确格式化
+                actual_value = custom_params[k]
+                if isinstance(actual_value, str):
+                    formatted_value = repr(actual_value)
+                elif isinstance(actual_value, (int, float, bool, type(None))):
+                    formatted_value = repr(actual_value)
+                elif isinstance(actual_value, (list, dict)):
+                    formatted_value = repr(actual_value)
+                else:
+                    # 其他类型尝试转字符串
+                    formatted_value = repr(actual_value)
+                run_args.append(f"{k}={formatted_value}")
+            else:
+                # 使用默认值
+                run_args.append(f"{k}={default_v}")
+
+        # 构建完整的 run 调用
+        if run_args:
+            call = (
+                f"self.{var_name}.run(\n"
+                f"    " + ",\n    ".join(run_args) + "\n"
+                f")"
+            )
+        else:
+            call = f"self.{var_name}.run()"
+        forward_lines.append(call)
+
+    return "\n".join(init_lines), "\n".join(forward_lines)
+
+
+def build_pipeline_code_with_run_params(
+    opname_and_params: List[Dict[str, Any]],
+    state: DFState,
+    *,
+    cache_dir: str = "./cache_local",
+    llm_local: bool = False,
+    local_model_path: str = "",
+    chat_api_url: str = "",
+    model_name: str = "gpt-4o",
+    file_path: str = "",
+) -> str:
+    """
+    构建 pipeline 代码，支持为每个算子指定 run 函数的实际参数
+    
+    Args:
+        opname_and_params: 算子名称和参数列表
+            格式: [
+                {"op_name": "OperatorA", "params": {"param1": "value1", "param2": 123}},
+                {"op_name": "OperatorB", "params": {"param_x": True}},
+                ...
+            ]
+            其中 params 是该算子 run 函数的参数（不包括 storage）
+        state: DFState 对象
+        cache_dir: 缓存目录
+        llm_local: 是否使用本地 LLM
+        local_model_path: 本地模型路径
+        chat_api_url: API URL
+        model_name: 模型名称
+        file_path: 输入文件路径
+    
+    Returns:
+        生成的 pipeline 代码字符串
+    """
+    # 1) 提取所有算子名称
+    op_names = [item["op_name"] for item in opname_and_params]
+    
+    # 2) 根据 file_path 后缀判断 cache_type
+    file_suffix = Path(file_path).suffix.lower() if file_path else ""
+    if file_suffix == ".jsonl":
+        cache_type = "jsonl"
+    elif file_suffix == ".json":
+        cache_type = "json"
+    elif file_suffix == ".csv":
+        cache_type = "csv"  
+    else:
+        cache_type = "jsonl" 
+        log.warning(f"[pipeline_assembler] Unknown file suffix '{file_suffix}', defaulting to 'jsonl'")
+
+    # 3) 收集导入与类
+    import_lines, stub_blocks, op_classes = group_imports(op_names)
+
+    # 4) 渲染 operator 代码片段（使用自定义参数版本）
+    ops_init_block_raw, forward_block_raw = render_operator_blocks_with_params(
+        opname_and_params, op_classes, state
+    )
+
+    import_lines.extend(sorted(EXTRA_IMPORTS))
+    
+    import_section = "\n".join(import_lines)
+    stub_section = "\n\n".join(stub_blocks)
+
+    # 5) LLM-Serving 片段（无缩进，统一在模板中缩进）
+    if llm_local:
+        llm_block_raw = f"""
+# -------- LLM Serving (Local) --------
+self.llm_serving = LocalModelLLMServing_vllm(
+    hf_model_name_or_path="{local_model_path}",
+    vllm_tensor_parallel_size=1,
+    vllm_max_tokens=8192,
+    hf_local_dir="local",
+    model_name="{model_name}",
+)
+"""
+    else:
+        llm_block_raw = f"""
+# -------- LLM Serving (Remote) --------
+self.llm_serving = APILLMServing_request(
+    api_url="{chat_api_url}chat/completions",
+    key_name_of_api_key="DF_API_KEY",
+    model_name="{model_name}",
+    max_workers=100,
+)
+"""
+
+    # 6) 统一缩进
+    llm_block = indent_block(llm_block_raw, 8)
+    ops_init_block = indent_block(ops_init_block_raw, 8)
+    forward_block = indent_block(forward_block_raw, 8)
+
+    # 7) 模板
+    template = '''"""
+Auto-generated by pipeline_assembler (with custom run params)
+"""
+from dataflow.pipeline import PipelineABC
+from dataflow.utils.storage import FileStorage
+from dataflow.serving import APILLMServing_request, LocalModelLLMServing_vllm
+
+{import_section}
+
+{stub_section}
+
+class RecommendPipeline(PipelineABC):
+    def __init__(self):
+        super().__init__()
+        # -------- FileStorage --------
+        self.storage = FileStorage(
+            first_entry_file_name="{file_path}",
+            cache_path="{cache_dir}",
+            file_name_prefix="dataflow_cache_step",
+            cache_type="{cache_type}",
+        )
+{llm_block}
+
+{ops_init_block}
+
+    def forward(self):
+{forward_block}
+
+if __name__ == "__main__":
+    pipeline = RecommendPipeline()
+    pipeline.compile()
+    pipeline.forward()
+'''
+
+    # 8) 格式化并返回
+    code = template.format(
+        file_path=file_path,
+        import_section=import_section,
+        stub_section=stub_section,
+        cache_dir=cache_dir,
+        cache_type=cache_type, 
+        llm_block=llm_block,
+        ops_init_block=ops_init_block,
+        forward_block=forward_block,
+    )
+    return code
+
+
+def pipeline_assembler_with_params(
+    opname_and_params: List[Dict[str, Any]], 
+    state: DFState,
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    Pipeline 组装器（支持自定义 run 参数版本）
+    
+    Args:
+        opname_and_params: 算子名称和参数列表
+            格式: [{"op_name": "xxx", "params": {...}}, ...]
+        state: DFState 对象
+        **kwargs: 其他参数传递给 build_pipeline_code_with_run_params
+    
+    Returns:
+        包含生成代码的字典 {"pipe_code": ...}
+    """
+    code = build_pipeline_code_with_run_params(opname_and_params, state, **kwargs)
+    return {"pipe_code": code}
+
+
+async def apipeline_assembler_with_params(
+    opname_and_params: List[Dict[str, Any]], 
+    state: DFState,
+    **kwargs
+) -> Dict[str, Any]:
+    """异步版本"""
+    return pipeline_assembler_with_params(opname_and_params, state, **kwargs)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

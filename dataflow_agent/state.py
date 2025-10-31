@@ -1,14 +1,13 @@
 from dataclasses import dataclass, field
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 from dataflow.cli_funcs.paths import DataFlowPath
+current_file = Path(__file__).resolve()
 
 BASE_DIR = DataFlowPath.get_dataflow_dir()
 DATAFLOW_DIR = BASE_DIR.parent
 STATICS_DIR = DataFlowPath.get_dataflow_statics_dir()
-
-current_file = Path(__file__).resolve()
 PROJDIR = current_file.parent.parent
 
 from typing_extensions import TypedDict, Annotated
@@ -98,6 +97,8 @@ class DFState(MainState):
     pipeline_structure_code: Dict[str, Any] = field(default_factory=dict)
     execution_result: Dict[str, Any] = field(default_factory=dict)
     code_debug_result: Dict[str, Any] = field(default_factory=dict)
+    debug_history: Dict[Any, Dict[str, Any]] = field(default_factory=dict)
+    opname_and_params: List[Dict[str, Dict[str, Any]]] = field(default_factory=list)
 
 
 # ==================== 数据采集 Request ====================
@@ -143,3 +144,58 @@ class IconGenState(MainState):
     # 下面是 icongen 自己的产物 / 临时数据
     icon_prompt: str = ""                                 # 生成的图标提示词
     img_save_path: str = ""                              # 生成的图标保存路径
+
+    
+# ==================== Web 爬取/研究 Request ====================
+@dataclass
+class WebCrawlRequest(MainRequest):
+    """Web 爬取任务的 Request，继承自 MainRequest"""
+    # 初始需求与下载目录
+    initial_request: str = ""
+    download_dir: str = os.path.join(STATICS_DIR, "web_crawl")
+
+    # 爬取/研究配置
+    search_engine: str = "tavily"     # 'tavily' | 'duckduckgo' | 'jina'
+    use_jina_reader: bool = False
+    enable_rag: bool = True
+
+
+# ==================== Web 爬取/研究 State ====================
+@dataclass
+class WebCrawlState(MainState):
+    """管理网络爬取与研究过程的状态"""
+    # 重写 request 类型为 WebCrawlRequest
+    request: WebCrawlRequest = field(default_factory=WebCrawlRequest)
+
+    # 直通字段（为兼容调用方直接从 state 访问这些配置项）
+    initial_request: str = ""
+    download_dir: str = os.path.join(STATICS_DIR, "web_crawl")
+    search_engine: str = "tavily"
+    use_jina_reader: bool = False
+    enable_rag: bool = True
+    rag_manager: Any = None
+
+    # 研究/爬取过程中的临时与产出数据
+    sub_tasks: list[Dict[str, Any]] = field(default_factory=list)
+    completed_sub_tasks: list[Dict[str, Any]] = field(default_factory=list)
+    research_summary: Dict[str, Any] = field(default_factory=dict)
+    search_results_text: str = ""
+    filtered_urls: list[str] = field(default_factory=list)
+    crawled_data: list[Dict[str, Any]] = field(default_factory=list)
+    visited_urls: set[str] = field(default_factory=set)
+    url_queue: list[str] = field(default_factory=list)
+    is_finished: bool = False
+    supervisor_feedback: str = "Process has not started."
+    # 控制参数
+    max_crawl_cycles_per_task: int = 5
+    max_crawl_cycles_for_research: int = 15
+    current_cycle: int = 0
+    download_successful_for_current_task: bool = False
+
+    def reset_for_new_task(self):
+        self.search_results_text = ""
+        self.filtered_urls = []
+        self.visited_urls = set()
+        self.url_queue = []
+        self.current_cycle = 0
+        self.download_successful_for_current_task = False

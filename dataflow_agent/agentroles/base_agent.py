@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
+import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Callable, Tuple
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage, AIMessage
@@ -12,7 +14,10 @@ from dataflow_agent.promptstemplates.prompt_template import PromptsTemplateGener
 from dataflow_agent.state import MainState
 from dataflow_agent.utils import robust_parse_json
 from dataflow_agent.toolkits.tool_manager import ToolManager
+import pickle
 from dataflow_agent.logger import get_logger
+from dataflow_agent.utils import get_project_root
+PROJDIR = get_project_root()
 
 log = get_logger(__name__)
 
@@ -371,6 +376,37 @@ class BaseAgent(ABC):
         return "\n".join(feedback_parts)
     
     # ==================== 原有方法 ============================================================================================================================================
+
+    def store_outputs(self, data, file_name: str = None) -> str:
+        """保存输出结果到文件"""
+        out_dir = f"{PROJDIR}/outputs/{self.role_name.lower()}"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        
+        if not file_name:
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            file_name = f"{ts}.pkl"
+        
+        file_path = out_dir / file_name
+        
+        with open(file_path, "wb") as f:
+            pickle.dump(data, f)
+        log.info(f"已保存->: {file_path}")
+        return str(file_path)
+    def get_llm_caller(self, state: MainState):
+        """
+        默认返回 TextLLMCaller，子类可重写返回 ImageLLMCaller / AudioLLMCaller…
+        """
+        return TextLLMCaller(state, model_name=self.model_name,
+                             temperature=self.temperature,
+                             max_tokens=self.max_tokens,
+                             tool_mode=self.tool_mode,
+                             tool_manager=self.tool_manager)
+
+    async def _llm_invoke(self, messages: List[BaseMessage],
+                          state: MainState,
+                          bind_post_tools: bool = False):
+        caller = self.get_llm_caller(state)
+        return await caller.call(messages, bind_post_tools=bind_post_tools)
     
     async def execute_pre_tools(self, state: MainState) -> Dict[str, Any]:
         """执行前置工具"""
@@ -403,7 +439,7 @@ class BaseAgent(ABC):
         task_params = self.get_task_prompt_params(pre_tool_results)
         task_prompt = ptg.render(self.task_prompt_template_name, **task_params)
         # log.info(f"系统提示词: {sys_prompt}")
-        log.info(f"任务提示词: {task_prompt}")
+        log.debug(f"任务提示词: {task_prompt}")
         
         messages = [
             SystemMessage(content=sys_prompt),

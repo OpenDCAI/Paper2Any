@@ -761,7 +761,7 @@ class CodeRewriter:
     system_prompt_for_code_rewriting = """
 You are a Python code expert.
 """
-    task_prompt_for_code_rewriting = """"
+    task_prompt_for_code_pipe_rewriting = """
     [INPUT]
 
 The input consists of:
@@ -781,9 +781,9 @@ The input consists of:
  -The FileStorage class uses the step() method to manage and switch between different stages of data processing. Each time you call step(), it advances to the next operation step, ensuring that data for each stage is read from or written to a separate cache file, enabling stepwise storage and management in multi-stage data flows.
 
 [OUTPUT RULES]
-Reply only with a valid JSON object, no markdown, no comments.
-
-The JSON must and can only contain one top-level key:
+1.Reply only with a valid JSON object, no markdown, no comments.
+2.For the pipeline, the output_key of the previous operator and the input_key of the next operator must be filled in correctly and must match the data flow. Modify them logically as needed；
+3.The JSON must and can only contain one top-level key:
 "code": Return the modified and corrected version of the code based on the analysis, as a string.
 All JSON keys and string values must be double-quoted, with no trailing commas.
 If you are unsure about any value, use an empty string.
@@ -1063,29 +1063,246 @@ class DataConvertor:
     system_prompt_for_data_conversion = """
 You are an expert in dataset classification and analysis.
 """
-    task_prompt_for_code_rewriting = """"
-    [INPUT]
-The input consists of:
-1. Pipeline code (read-only):
-{pipeline_code}
-2. Error trace / shell output:
-{error_trace}
-3. Debug analysis and suggestions from the previous step:
-{debug_reason}
-4. Sample data (if available):
-{data_sample}
+    task_prompt_for_data_conversion_pt = """
+You are given a dataset from HuggingFace. Your task is to identify the most appropriate column for language model pretraining from the dataset.
+
+[User Requirements]
+
+User's original request: {user_target}
+
+[Dataset Information]
+
+Dataset Columns: {column_names}
+
+Sample Data: {first_row}
+
+[Instruction]
+
+1. **Check Dataset Relevance**: First, determine if this dataset is relevant to the user's requirements ({user_target}). If the dataset content does not match the user's domain or intent, you should return null.
+
+2. **Identify Text Column**: If the dataset is relevant, pretraining data typically consists of coherent text paragraphs with meaningful content. Choose the column that contains textual content suitable for pretraining.
+
 [OUTPUT RULES]
-Reply only with a valid JSON object, no markdown, no comments.
 
-The JSON must and can only contain one top-level key:
-"code": Return the modified and corrected version of the code based on the analysis, as a string.
-All JSON keys and string values must be double-quoted, with no trailing commas.
-If you are unsure about any value, use an empty string.
-Double-check that your response is a valid JSON. Do not output anything else.
+If the dataset is relevant AND contains a column with meaningful textual content that could be used for pretraining, return the following JSON object in ```json block and replace "column_name" with the actual column name:
+{
+    "text": "column_name"
+}
+
+If the dataset is NOT relevant to user requirements OR no such column is present, return the following JSON object in ```json block:
+{
+    "text": null
+}
+"""
+    task_prompt_for_data_conversion_sft = """
+You are given a dataset from HuggingFace. Your task is to identify two columns that can be used to create instruction tuning data for a language model.
+
+[User Requirements]
+
+User's original request: {user_target}
+
+[Dataset Information]
+
+Dataset Columns: {column_names}
+
+Sample Data: {first_row}
+
+[Instruction]
+
+1. **Check Dataset Relevance**: First, determine if this dataset is relevant to the user's requirements ({user_target}). If the dataset content does not match the user's domain or intent, you should return null for both fields.
+
+2. **Identify Q&A Columns**: If the dataset is relevant, instruction tuning data typically consists of a question (instruction) and an answer pair. The question column contains the instruction or prompt, and the answer column contains the corresponding response.
+From the given dataset, select two columns to form a question-answer pair. Ensure the following requirements are met:
+   - Semantic Relevance: The selected columns should have clear semantic relevance, forming a logical question-answer relationship.
+   - Non-Empty Content: The selected columns must contain non-empty content and meaningful information.
+   - Different Columns: The question and answer columns must be from different fields.
+
+[OUTPUT RULES]
+
+If the dataset is relevant AND such columns exist, return the following JSON object in ```json block and replace "column_name" with the actual column name:
+{
+    "question": "column_name",
+    "answer": "column_name"
+}
+If the dataset is NOT relevant to user requirements OR no such columns are found in the dataset, return the following JSON object in ```json block:
+{
+    "question": null,
+    "answer": null
+}
+"""
+    system_prompt_for_file_discovery = """
+You are an expert data engineer. Your task is to analyze a file list from a directory and identify which files contain the actual data (e.g., text, tables, instructions).
+"""
+    task_prompt_for_file_discovery = """
+Here is a complete list of files found in a directory:
+
+{file_list}
+
+Your task is to identify all files that contain the core dataset, excluding configuration files, code, or documentation.
+
+RULES:
+1. DATA FILES: Files ending in `.csv`, `.jsonl`, `.json`, `.parquet`, `.txt`, `.arrow` are almost always data files.
+2. COMPRESSED FILES: Compressed files like `.zip`, `.gz`, `.tar.gz`, `.bz2` are considered data files, as they contain the raw data.
+3. IGNORE: Ignore configuration files (e.g., `config.json`, `dataset_info.json`, `LICENSE`, `.gitignore`, `README.md`, `.py`, `.yaml`).
+4. EXCEPTION: If a `.md` or `.txt` file seems to be the *only* plausible data source (e.g., in a simple text dataset), then include it.
+
+Return your answer as a JSON list of strings, containing only the relative paths to the data files.
+
+Example format:
+```json
+[
+  "data/train.csv",
+  "data/test.csv.gz",
+  "archive.zip"
+]
+```
+"""
+
+# --------------------------------------------------------------------------- #
+# WebAgent 相关 Prompts                                                       #
+# --------------------------------------------------------------------------- #
+class WebAgentPrompts:
+    """WebAgent 系统的所有 Prompt 模板"""
     
-    """
+    # 下载方法决策器
+    system_prompt_for_download_method_decision = """
+你是一个智能下载策略决策器。根据用户的目标和搜索关键词，你需要决定使用哪种下载方法：
+1. "huggingface" - 适用于学术数据集、机器学习数据集、NLP数据集等。
+2. "web_crawl" - 适用于需要从网站爬取数据、下载文件、或搜索特定资源的情况。
 
+返回JSON格式：
+{
+    "method": "huggingface" 或 "web_crawl",
+    "reasoning": "选择此方法的原因",
+    "keywords_for_hf": ["如果选择huggingface，提供适合HF搜索的关键词"],
+    "fallback_method": "如果主方法失败，备用的方法"
+}
+"""
+    
+    task_prompt_for_download_method_decision = """用户目标: {objective}
+搜索关键词: {keywords}
+请根据以上信息决定最佳的下载方法。"""
+    
+    # HuggingFace 决策器
+    system_prompt_for_huggingface_decision = """
+你是一个HuggingFace数据集专家。你的任务是分析一个JSON格式的搜索结果列表，并根据用户的目标，选择一个最合适下载的数据集ID。
 
+决策标准:
+1.  **相关性**: 数据集的标题(title)和描述(description)必须与用户目标(objective)高度相关。
+2.  **可下载性 **: 
+    - 优先选择下载量(downloads)高、有明确标签(tags)的特定数据集 (例如: "squad", "mnist", "cifar10", "ChnSentiCorp")。
+3.  **流行度**: 在相关性相似的情况下，选择 `downloads` 数量最高的数据集。
+
+你的输出必须是一个JSON对象:
+{
+    "selected_dataset_id": "best/dataset-id", // 字符串, 或 null
+    "reasoning": "你为什么选择这个ID，以及为什么它可能是可下载的。"
+}
+
+}`
+"""
+    
+    task_prompt_for_huggingface_decision = """
+用户目标: "{objective}"
+
+搜索结果:
+```json
+{search_results}
+```
+
+请根据上述标准选择最佳的数据集ID。
+"""
+    
+    # 任务分解器
+    system_prompt_for_task_decomposer = """
+你是一个专业的AI项目规划师。你的任务是将用户的复杂请求分解成一个清晰、分步执行的JSON计划。
+
+**任务规划要求**：
+1. **必须生成2个任务**：
+   - 第1个任务：type = 'research'，用于调研和收集相关信息
+   - 第2个任务：type = 'download'，用于下载数据集（作为兜底方案）
+2. research 任务会尽可能多地访问网站，收集信息。
+3. research 任务完成后，如果发现了具体的数据集，系统会自动生成新的 download 任务，并替换掉第2个通用 download 任务。
+4. 如果 research 没有发现具体目标，第2个 download 任务会作为兜底执行。
+
+计划由一个`sub_tasks`列表组成。每个子任务必须包含:
+1. `type`: 任务类型，'research' 或 'download'。
+2. `objective`: 对该子任务目标的清晰、简洁的描述。
+3. `search_keywords`: 根据 objective 提炼出的、最适合直接输入给搜索引擎的简短关键词。
+
+示例输出格式:
+{
+    "sub_tasks": [
+        {
+            "type": "research",
+            "objective": "调研和收集关于XX的相关数据集信息",
+            "search_keywords": "XX dataset machine learning"
+        },
+        {
+            "type": "download",
+            "objective": "下载XX相关的数据集",
+            "search_keywords": "XX dataset download"
+        }
+    ]
+}
+"""
+    
+    task_prompt_for_task_decomposer = """请为以下用户请求创建一个子任务计划: '{request}'"""
+    
+    # 总结与规划 Agent
+    system_prompt_for_summary_agent = """
+你是一个高级AI分析师和任务规划师。你的职责是从提供的网页文本片段中，根据用户的研究目标，提取关键实体（如数据集名称），并为每一个实体创建一个新的、具体的下载子任务。
+
+注意：提供给你的文本是经过RAG语义检索筛选的最相关内容（如果启用了RAG），每个片段都标注了来源URL和相关度分数。
+
+你的输出必须是一个JSON对象，其中包含：
+1. `new_sub_tasks`: 列表，每个子任务字典必须包含 `type` (固定为 "download"), `objective`, 和 `search_keywords`。
+2. `summary`: 字符串，简要总结你从文本中发现的关键信息。
+
+如果找不到任何相关实体，请返回一个空的 `new_sub_tasks` 列表，但仍要提供 summary。
+"""
+    
+    task_prompt_for_summary_agent = """研究目标: '{objective}'
+
+请分析以下文本片段，并为发现的每个关键实体生成具体的下载子任务:
+
+{context}"""
+    
+    # URL 筛选器
+    system_prompt_for_url_filter = """你是一个网页筛选专家。根据用户请求和分析标准，从下面给出的搜索引擎结果文本中，提取出最有可能包含有用信息或可下载数据集的URL。
+
+要求：{url_count_instruction}，优先选择权威网站、官方文档、数据集平台等。
+
+返回一个包含'selected_urls'列表的JSON对象。"""
+    
+    task_prompt_for_url_filter = """用户请求: '{request}'
+
+请从以下搜索结果文本中提取URL:
+---
+{search_results}
+---"""
+    
+    # 网页阅读器
+    system_prompt_for_webpage_reader = """
+You are a highly focused web analysis agent.here's two kinds of tasks, research or download. Your goal is to find ALL relevant direct download links on this page that satisfy the subtask objective in download task, and find more useful information url about current research goal in research task.
+Your action MUST be one of the following:
+1. 'download': If you find one or more suitable download links. Required keys: `urls` (a list of download URLs), `description`.
+2. 'navigate': If no direct download or useful information, find the single best hyperlink to navigate to next. Required keys: `url` (a single navigation URL), `description`.
+3. 'dead_end': If no links are promising. Required keys: `description`.
+Your output MUST be a JSON object.
+"""
+    
+    task_prompt_for_webpage_reader = """Your Current Subtask Objective: '{objective}'
+
+Analyze the following webpage text and hyperlinks to decide on the best action. If current goal is downloading datasets, prioritize finding all relevant direct download links.
+
+Discovered Hyperlinks (absolute URLs):
+{urls_block}
+
+Visible text content:
+```text
+{text_content}
+```"""
 
 
 # --------------------------------------------------------------------------- #
@@ -1106,13 +1323,14 @@ You are an expert in data processing pipeline node extraction.
 {nodes_info}
 
 [输出规则]
-1. 第一个node的“input_key”默认是 raw_content；
-2. 只回复 JSON 格式，禁止任何解释性文字。
-3. 输出的 JSON 结构与输入完全相同，只修改 input_key 和 output_key。
-4. 中间节点的 output_key 和下一个节点的 input_key 保持一致，可以依次命名为 "step1"、"step2"、"step3" 等。
-5. 所有节点的 "run" 字段不是都包含 "input_key" 和 "output_key"，不能自己新增！！。
-6. 只回复 JSON 格式，禁止任何解释性文字，必须有一个nodes的key！！
-7. 输出的 JSON 结构与输入完全相同，只修改 input_key 和 output_key。
+1. 第一个节点的 `input_key` 固定为 "raw_content"。
+2. 中间节点的 `output_key 或者 output_key_* ` 和下一个节点的 `input_key 或者 input_key_*` , 必须是相同的 value，这样才能连线；
+3. 最后一个节点的 `output_key_*` 固定为 "output_final"。
+4. 如果某些节点的 `run` 字段未包含 `input_key` 或 `output_key`，则跳过这些字段，不要自己增改；
+5. 输出的 JSON 需保持与输入完全一致，除了 `input_key_*` 和 `output_key_*` 的值，其余字段（包括字段顺序、嵌套结构等）不作任何修改。
+6. 输出的 JSON 结构必须包含一个 `nodes` 的 key，且保持原始结构，只修改 `input_key` 和 `output_key`。
+
+[必须遵守: 只返回json内容，不要有其余任何的说明文字！！！解释！！注释！！！只需要json！！！]
 
 返回内容参考：
 
@@ -1133,7 +1351,7 @@ You are an expert in data processing pipeline node extraction.
         "run": {
           "storage": "self.storage.step()",
           "input_key": "raw_content",
-          "output_key": "eval"
+          "output_key": "eval"  * 算子1的输出value
         }
       }
     },
@@ -1148,7 +1366,8 @@ You are an expert in data processing pipeline node extraction.
         },
         "run": {
           "storage": "self.storage.step()",
-          "input_key": "eval"
+          "input_key": "eval",   * 算子1的输出value，这里作为算子2的输出
+          "output_question_key": "refined_question",
         }
       }
     }]
@@ -1156,6 +1375,7 @@ You are an expert in data processing pipeline node extraction.
 
 
 """
+
 
 
 # --------------------------------------------------------------------------- #

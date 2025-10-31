@@ -2,6 +2,8 @@
 import httpx
 import base64
 import re
+from dataflow_agent.logger import get_logger
+log = get_logger(__name__)
 
 async def call_gemini_image_generation_async(api_url, api_key, model, prompt, timeout=120):
     url = f"{api_url}/chat/completions"
@@ -22,8 +24,8 @@ async def call_gemini_image_generation_async(api_url, api_key, model, prompt, ti
     }
     
     # 打印请求信息用于调试
-    print(f"请求 URL: {url}")
-    print(f"请求 payload: {payload}")
+    log.info(f"请求 URL: {url}")
+    log.info(f"请求 payload: {payload}")
     
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(timeout),
@@ -31,14 +33,14 @@ async def call_gemini_image_generation_async(api_url, api_key, model, prompt, ti
     ) as client:
         try:
             resp = await client.post(url, headers=headers, json=payload)
-            print(f"响应状态码: {resp.status_code}")
-            print(f"响应内容: {resp.text[:500]}")  # 打印前500字符
+            log.info(f"响应状态码: {resp.status_code}")
+            log.info(f"响应内容: {resp.text[:500]}")  # 打印前500字符
             resp.raise_for_status()
             data = resp.json()
             return data["choices"][0]["message"]["content"]
         except httpx.HTTPStatusError as e:
-            print(f"HTTP Error: {e}")
-            print(f"Response: {e.response.text}")
+            log.error(f"HTTP Error: {e}")
+            log.error(f"Response: {e.response.text}")
             raise
 
 def extract_base64(s: str) -> str:

@@ -20,12 +20,10 @@ from collections import defaultdict, deque
 from dataflow.utils.storage import FileStorage
 from dataflow_agent.logger import get_logger
 logger = get_logger()
-from dataflow.cli_funcs.paths import DataFlowPath
 from dataflow_agent.storage.storage_service import SampleFileStorage
 from dataflow_agent.state import DFState,DFRequest
 import re
 
-parent_dir = f"{DataFlowPath.get_dataflow_agent_dir()}/toolkits"
 MAX_JSONL_LINES = 50
 DATA_DIR = Path("./data/knowledgebase")  # Local data storage directory
 

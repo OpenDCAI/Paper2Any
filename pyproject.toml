@@ -6,12 +6,12 @@ build-backend = "setuptools.build_meta"
 name = "dataflow-agent"        # pip install dataflow-agent
 version = "0.1.0"
 description = "LLM agent component for DataFlow."
-authors = [{ name = "Your team", email = "xxx@company.com" }]
+authors = [{ name = "Zhou Liu", email = "liuzhoul82@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.9"
 
 dependencies = [
-    "dataflow-core>=0.5.0",      # 原框架
+    "dataflow-core>=0.5.0",    
     "openai>=1.0.0",
     "langgraph==0.6.7",
     "langgraph-checkpoint==2.1.1",

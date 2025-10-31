@@ -15,7 +15,9 @@ import json
 import os
 from dataflow_agent.state import MainState
 from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
-from dataflow_agent.workflow.registry import register   # <- 核心装饰器
+
+
+from dataflow_agent.workflow.registry import register
 from dataflow_agent.agentroles import get_agent_cls, create_agent
 
 from dataflow_agent.toolkits.tool_manager import get_tool_manager
@@ -66,6 +68,7 @@ def create_icongen_graph() -> GenericGraphBuilder:  # noqa: N802
         """
         图标提示词生成器节点
         """
+        from dataflow_agent.agentroles import create_agent  # 延迟导入以避免循环依赖
         icon_prompt_generator = create_agent("icon_prompt_generator", tool_manager=get_tool_manager())
         state = await icon_prompt_generator.execute(state, use_agent=False)
         return state

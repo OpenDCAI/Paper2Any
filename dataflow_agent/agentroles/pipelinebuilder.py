@@ -73,7 +73,7 @@ def _ensure_py_file(code: str, file_name: str | None = None) -> Path:
     else:
         target = Path(tempfile.gettempdir()) / f"recommend_pipeline_{uuid.uuid4().hex}.py"
     target.write_text(textwrap.dedent(code), encoding="utf-8")
-    log.warning(f"[pipeline_builder] pipeline code written to {target}")
+    log.warning(f"[pipeline_builder] pipeline code 正在被写入： {target}")
     return target
 
 def _create_debug_sample(src_file: str | Path, sample_lines: int = 10) -> Path:
@@ -308,7 +308,7 @@ class DataPipelineBuilder(BaseAgent):
 
             # -------------- ③ 真执行 -----------------------
             if state.request.need_debug:
-                log.info("[pipeline_builder] 开始 Debug 执行")
+                log.critical("[pipeline_builder] 开始 Debug 执行，need_debug=True")
                 exec_result = await _run_py(Path(file_path))
                 state.execution_result = exec_result
                 log.info(f"[pipeline_builder] run success={exec_result['success']}")
@@ -347,7 +347,6 @@ class DataPipelineBuilder(BaseAgent):
                 "stdout": "",
                 "return_code": -1,
             }
-            
         self.update_state_result(state, state.execution_result, locals().get("pre_tool_results", {}))  # type: ignore[arg-type]
         return state
 
