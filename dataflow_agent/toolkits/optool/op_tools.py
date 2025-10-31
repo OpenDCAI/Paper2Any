@@ -567,16 +567,16 @@ def local_tool_for_get_match_operator_code(pre_task_result):
 
 if __name__ == "__main__":
     # ============ 示例1: 单个查询 + 指定category + 持久化索引 ============
-    log.info("\n" + "="*70)
-    log.info("示例1: 单个查询 + 指定category + 持久化索引")
-    log.info("="*70)
-    result1 = get_operators_by_rag(
-        search_queries="将自然语言转换为SQL查询语句",
-        category="text2sql",
-        top_k=3,
-        faiss_index_path="./faiss_cache/text2sql.index"  # 第一次生成，后续复用
-    )
-    log.info(f"\n返回结果: {result1}\n")
+    # log.info("\n" + "="*70)
+    # log.info("示例1: 单个查询 + 指定category + 持久化索引")
+    # log.info("="*70)
+    # result1 = get_operators_by_rag(
+    #     search_queries="将自然语言转换为SQL查询语句",
+    #     category="text2sql",
+    #     top_k=3,
+    #     faiss_index_path="./faiss_cache/text2sql.index"  # 第一次生成，后续复用
+    # )
+    # log.info(f"\n返回结果: {result1}\n")
     
     # ============ 示例2: 批量查询 + 读取全部category ============
     log.info("\n" + "="*70)
@@ -590,30 +590,30 @@ if __name__ == "__main__":
     result2 = get_operators_by_rag(
         search_queries=queries,
         category=None,  # 不指定category，读取全部
-        top_k=2,
-        faiss_index_path="./faiss_cache/all_ops.index"
+        top_k=4,
+        faiss_index_path="/mnt/DataFlow/lz/proj/DataFlow-Agent/dataflow_agent/resources/faiss_cache/all_ops.index"
     )
     log.info(f"\n返回结果: {result2}\n")
     
     # ============ 示例3: 不持久化，每次重新生成 ============
-    log.info("\n" + "="*70)
-    log.info("示例3: 不持久化索引，每次重新生成")
-    log.info("="*70)
-    result3 = get_operators_by_rag(
-        search_queries=["数据可视化", "模型训练"],
-        category="text2sql",
-        top_k=3,
-        faiss_index_path=None  # 不指定路径，不持久化
-    )
-    log.info(f"\n返回结果: {result3}\n")
+    # log.info("\n" + "="*70)
+    # log.info("示例3: 不持久化索引，每次重新生成")
+    # log.info("="*70)
+    # result3 = get_operators_by_rag(
+    #     search_queries=["数据可视化", "模型训练"],
+    #     category="text2sql",
+    #     top_k=3,
+    #     faiss_index_path=None  # 不指定路径，不持久化
+    # )
+    # log.info(f"\n返回结果: {result3}\n")
     
     # ============ 示例4: 自定义top_k ============
-    log.info("\n" + "="*70)
-    log.info("示例4: 自定义top_k=5")
-    log.info("="*70)
-    result4 = get_operators_by_rag(
-        search_queries="数据库查询",
-        top_k=5,
-        faiss_index_path="./faiss_cache/all_ops.index"
-    )
-    log.info(f"\n返回结果: {result4}\n")
+    # log.info("\n" + "="*70)
+    # log.info("示例4: 自定义top_k=5")
+    # log.info("="*70)
+    # result4 = get_operators_by_rag(
+    #     search_queries="数据库查询",
+    #     top_k=5,
+    #     faiss_index_path="./faiss_cache/all_ops.index"
+    # )
+    # log.info(f"\n返回结果: {result4}\n")

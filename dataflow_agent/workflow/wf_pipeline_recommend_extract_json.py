@@ -203,7 +203,9 @@ def create_pipeline_graph() -> GenericGraphBuilder:
         if not ops_list:
             raise ValueError("Recommender 没有返回有效算子列表")
         from dataflow_agent.toolkits.optool.op_tools import get_operators_by_rag
+        # 这里得改，参考库帕斯的写法；
         ops_list = get_operators_by_rag(search_queries=ops_list, top_k=1, faiss_index_path=f"{PROJDIR}/dataflow_agent/resources/faiss_cache/all_ops.index")
+
         ops_list = [item for sub in ops_list for item in sub]
         log.warning(f"[recommender_node + RAG ] 推荐算子列表：{ops_list}")
         s["recommendation"] = ops_list
