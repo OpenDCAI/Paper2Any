@@ -7772,13 +7772,8 @@
             "kind": "POSITIONAL_OR_KEYWORD"
           },
           {
-            "name": "model",
-            "default": "o4-mini",
-            "kind": "POSITIONAL_OR_KEYWORD"
-          },
-          {
-            "name": "subject",
-            "default": "math",
+            "name": "interleaved",
+            "default": true,
             "kind": "POSITIONAL_OR_KEYWORD"
           }
         ],
@@ -7790,6 +7785,11 @@
           },
           {
             "name": "input_layout_path",
+            "default": null,
+            "kind": "POSITIONAL_OR_KEYWORD"
+          },
+          {
+            "name": "input_subject",
             "default": null,
             "kind": "POSITIONAL_OR_KEYWORD"
           },
@@ -7839,21 +7839,6 @@
       "parameter": {
         "init": [
           {
-            "name": "layout_json",
-            "default": null,
-            "kind": "POSITIONAL_OR_KEYWORD"
-          },
-          {
-            "name": "pdf_image_dir",
-            "default": null,
-            "kind": "POSITIONAL_OR_KEYWORD"
-          },
-          {
-            "name": "output_image_dir",
-            "default": null,
-            "kind": "POSITIONAL_OR_KEYWORD"
-          },
-          {
             "name": "layout_prefix",
             "default": "doclay_page_",
             "kind": "POSITIONAL_OR_KEYWORD"
@@ -7867,6 +7852,21 @@
         "run": [
           {
             "name": "storage",
+            "default": null,
+            "kind": "POSITIONAL_OR_KEYWORD"
+          },
+          {
+            "name": "input_layout_json",
+            "default": null,
+            "kind": "POSITIONAL_OR_KEYWORD"
+          },
+          {
+            "name": "input_pdf_image_dir",
+            "default": null,
+            "kind": "POSITIONAL_OR_KEYWORD"
+          },
+          {
+            "name": "output_image_dir",
             "default": null,
             "kind": "POSITIONAL_OR_KEYWORD"
           },
@@ -15703,13 +15703,8 @@
             "kind": "POSITIONAL_OR_KEYWORD"
           },
           {
-            "name": "model",
-            "default": "o4-mini",
-            "kind": "POSITIONAL_OR_KEYWORD"
-          },
-          {
-            "name": "subject",
-            "default": "math",
+            "name": "interleaved",
+            "default": true,
             "kind": "POSITIONAL_OR_KEYWORD"
           }
         ],
@@ -15721,6 +15716,11 @@
           },
           {
             "name": "input_layout_path",
+            "default": null,
+            "kind": "POSITIONAL_OR_KEYWORD"
+          },
+          {
+            "name": "input_subject",
             "default": null,
             "kind": "POSITIONAL_OR_KEYWORD"
           },
@@ -15770,21 +15770,6 @@
       "parameter": {
         "init": [
           {
-            "name": "layout_json",
-            "default": null,
-            "kind": "POSITIONAL_OR_KEYWORD"
-          },
-          {
-            "name": "pdf_image_dir",
-            "default": null,
-            "kind": "POSITIONAL_OR_KEYWORD"
-          },
-          {
-            "name": "output_image_dir",
-            "default": null,
-            "kind": "POSITIONAL_OR_KEYWORD"
-          },
-          {
             "name": "layout_prefix",
             "default": "doclay_page_",
             "kind": "POSITIONAL_OR_KEYWORD"
@@ -15798,6 +15783,21 @@
         "run": [
           {
             "name": "storage",
+            "default": null,
+            "kind": "POSITIONAL_OR_KEYWORD"
+          },
+          {
+            "name": "input_layout_json",
+            "default": null,
+            "kind": "POSITIONAL_OR_KEYWORD"
+          },
+          {
+            "name": "input_pdf_image_dir",
+            "default": null,
+            "kind": "POSITIONAL_OR_KEYWORD"
+          },
+          {
+            "name": "output_image_dir",
             "default": null,
             "kind": "POSITIONAL_OR_KEYWORD"
           },
