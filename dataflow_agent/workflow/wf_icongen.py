@@ -28,7 +28,7 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 
-from dataflow_agent.toolkits.imtool.req_img import generate_and_save_image_async
+from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
 from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove
 
 log = get_logger(__name__)
@@ -76,7 +76,7 @@ def create_icongen_graph() -> GenericGraphBuilder:  # noqa: N802
     # async def icon_prompt_generator_node(state: MainState) -> MainState:
     #     return state
     async def gen_img_node(state: MainState) -> MainState:
-        b64 = await generate_and_save_image_async(
+        b64 = await generate_or_edit_and_save_image_async(
             prompt=state.agent_results["icon_prompt_generator"]["results"]["icon_prompt"],
             save_path="./icon.png",
             api_url=state.request.chat_api_url,
