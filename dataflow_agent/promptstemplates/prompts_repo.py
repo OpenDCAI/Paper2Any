@@ -747,7 +747,8 @@ Always think step-by-step before you answer.
 [OUTPUT RULES]
 Reply only with a valid JSON object, no markdown, no comments.
 1 The JSON must and can only contain one top-level key:
-"reason": In natural language, explain in detail the root cause of the error and provide specific, actionable suggestions for how to fix it. Your answer should include both error analysis and a concrete solution, with sufficient detail and reasoning.
+”reason“: In natural language, explain in detail the root cause of the error and provide specific, actionable suggestions for a fix. Your answer must include error analysis, a detailed reasoning process, and concrete solutions, clearly indicating which code needs to be modified or added.
+
 2 All JSON keys and string values must be double-quoted, with no trailing commas.
 3 If you are unsure about any value, use an empty string.
 4 Double-check that your response is a valid JSON. Do not output anything else.
@@ -784,7 +785,8 @@ The input consists of:
 1.Reply only with a valid JSON object, no markdown, no comments.
 2.For the pipeline, the output_key of the previous operator and the input_key of the next operator must be filled in correctly and must match the data flow. Modify them logically as needed；
 3.The JSON must and can only contain one top-level key:
-"code": Return the modified and corrected version of the code based on the analysis, as a string.
+{"code": Return the modified and corrected version of the code based on the analysis, as a string.}
+4.请根据Debug analysis and suggestions修改代码；
 All JSON keys and string values must be double-quoted, with no trailing commas.
 If you are unsure about any value, use an empty string.
 Double-check that your response is a valid JSON. Do not output anything else.
@@ -1312,7 +1314,7 @@ class NodesExporter:
   system_prompt_for_nodes_export = """
 You are an expert in data processing pipeline node extraction.
 """       
-  task_prompt_for_nodes_export = """"
+  task_prompt_for_nodes_export = """
 我有一个 JSON 格式的 pipeline，只包含 "nodes" 数组。每个节点（node）有 "id" 和 "config" 字段，"config" 里包含 "run" 参数（如 input_key、output_key）。
 
 请帮我自动修改每个节点的 input_key 和 output_key，使得这些节点从上到下（按 nodes 数组顺序）能前后相连，也就是说，每个节点的 output_key 会被下一个节点的 input_key 用到，形成一条完整的数据流管道。第一个节点的 input_key 可以固定为 "input1"，最后一个节点的 output_key 可以固定为 "output_final"。

@@ -118,7 +118,7 @@ class BaseAgent(ABC):
         """
         try:
             parsed = robust_parse_json(content)
-            # log.info(f'content是什么？？{content}')
+            # log.info(f'parsed是什么？？{parsed}')
             log.info(f"{self.role_name} 结果解析成功")
             return parsed
         except ValueError as e:
@@ -439,7 +439,7 @@ class BaseAgent(ABC):
         task_params = self.get_task_prompt_params(pre_tool_results)
         task_prompt = ptg.render(self.task_prompt_template_name, **task_params)
         # log.info(f"系统提示词: {sys_prompt}")
-        log.debug(f"任务提示词: {task_prompt}")
+        log.info(f"任务提示词: {task_prompt}")
         
         messages = [
             SystemMessage(content=sys_prompt),

@@ -1,65 +1,82 @@
+import ast
 from json import JSONDecodeError, JSONDecoder
 import json
 import re
-from typing import Any, Dict
+from typing import Any, Dict, Union, List
 from pathlib import Path
 
 def get_project_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
-def robust_parse_json(s: str) -> dict:
+def robust_parse_json(
+        s: str,
+        merge_dicts: bool = False,          # 想合并时显式打开
+        strip_double_braces: bool = False   # 可选：把 {{ }} → { }
+) -> Union[Dict[str, Any], List[Any]]:
     """
-    Robustly parse one or more JSON objects from a string.
-    Merges multiple dicts if multiple JSON objects are found.
-    """
-    clean = _strip_json_comments(s)
+    既能解析普通 JSON，也能从混杂文本中提取多个对象。
     
-    # 1. 先尝试直接解析整个字符串（最常见情况）
+    - 支持 // 和 /* */ 注释、尾逗号
+    - 自动去除 Markdown 代码块 ```json … ```、三引号 ''' … '''
+    - 默认返回 dict / list 的原始结构
+    - 若提取到多个独立对象，可用 merge_dicts=True 合并
+    """
+
+    # ---------- 预处理 ----------
+    # 1) 去掉 ```xxx 代码围栏
+    s = re.sub(r'```[\w]*\s*', '', s)      # 开始围栏
+    s = re.sub(r'```', '', s)              # 结束围栏
+    # 2) 去掉成对的三引号 ''' 或 """
+    s = re.sub(r"^'''|'''$|^\"\"\"|\"\"\"$", '', s.strip())
+    # 3) 可选：{{ }} → { }
+    if strip_double_braces:
+        s = s.replace('{{', '{').replace('}}', '}')
+    # 4) 去注释 + 尾逗号
+    s = _strip_json_comments(s)
+
+    # ---------- 步骤 1：整体解析 ----------
     try:
-        result = json.loads(clean)
-        if isinstance(result, dict):
-            return result
+        return json.loads(s)              
     except JSONDecodeError:
-        pass
-    
-    # 2. 失败后再尝试提取多个独立的 JSON 对象
-    decoder = JSONDecoder()
-    idx = 0
-    dicts = []
-    length = len(clean)
-    
-    while True:
-        idx = clean.find('{', idx)
-        if idx < 0 or idx >= length:
-            break
-        try:
-            obj, end = decoder.raw_decode(clean, idx)
-            if isinstance(obj, dict):
-                dicts.append(obj)
-                idx = end  # 跳到这个对象结束的位置
-        except JSONDecodeError:
-            idx += 1
-    
-    if not dicts:
-        raise ValueError("No JSON object extracted from the input")
-    
-    if len(dicts) == 1:
-        return dicts[0]
-    
-    # 3. 只在真正有多个独立对象时才合并
-    merged: Dict[str, Any] = {}
-    for d in dicts:
-        merged.update(d)
-    return merged
+        pass                              
+
+    # ---------- 步骤 2：提取多个对象 ----------
+    objs: List[Any] = _extract_json_objects(s)
+    if not objs:
+        raise ValueError("No valid JSON found.")
+
+    # 单个对象
+    if len(objs) == 1:
+        return objs[0]
+
+    # 多对象：根据参数决定
+    if merge_dicts and all(isinstance(o, dict) for o in objs):
+        merged: Dict[str, Any] = {}
+        for o in objs:
+            merged.update(o)
+        return merged
+    return objs
 
 def _strip_json_comments(s: str) -> str:
-        """
-        Remove block and line comments, and trailing commas from JSON-like strings.
-        """
-        # /*  ...  */
-        s = re.sub(r'/\*.*?\*/', '', s, flags=re.DOTALL)
-        # // ...   （仅限行首或前面只有空白）
-        s = re.sub(r'^\s*//.*$', '', s, flags=re.MULTILINE)
-        # 尾逗号  ,}
-        s = re.sub(r',\s*([}\]])', r'\1', s)
-        return s
+    # s = re.sub(r'/\*.*?\*/', '', s, flags=re.S)          # 块注释
+    # s = re.sub(r'//.*?$',    '', s, flags=re.M)          # 行注释
+    s = re.sub(r',\s*([}\]])', r'\1', s)                 # 尾逗号
+    return s
+
+def _extract_json_objects(s: str) -> List[Any]:
+    dec = JSONDecoder()
+    idx, n = 0, len(s)
+    objs = []
+    while idx < n:
+        # 找下一个 { 或 [
+        m = re.search(r'[{\[]', s[idx:])
+        if not m:
+            break
+        idx += m.start()
+        try:
+            obj, end = dec.raw_decode(s, idx)
+            objs.append(obj)
+            idx = end
+        except JSONDecodeError:
+            idx += 1
+    return objs
