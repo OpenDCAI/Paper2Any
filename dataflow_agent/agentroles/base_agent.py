@@ -663,20 +663,20 @@ class BaseAgent(ABC):
         Vision-LLM 专用执行流程
         与文本链路完全解耦，不碰原有 llm / process_simple_mode 等函数
         """
-        # 1. 前置工具（如果你的图片场景也想用就保留；不需要可去掉）
+        # 1. 前置工具
         pre_tool_results = await self.execute_pre_tools(state)
 
         # 2. 构建消息（若是图像生成/编辑仅用 prompt 就行，
         #    若是图像理解可和文本一样）——示例给两种典型写法:
         mode = self.vlm_config.get("mode", "understanding")
 
-        if mode in {"generation", "edit"}:
-            # 只需要最后一条 prompt
-            messages = [
-                HumanMessage(content=self.build_generation_prompt(pre_tool_results))
-            ]
-        else:
-            messages = self.build_messages(state, pre_tool_results)
+        # if mode in {"generation", "edit"}:
+        #     # 只需要最后一条 prompt
+        #     messages = [
+        #         HumanMessage(content=self.build_generation_prompt(pre_tool_results))
+        #     ]
+        # else:
+        messages = self.build_messages(state, pre_tool_results)
 
         # 3. 调用 VisionLLMCaller
         from dataflow_agent.llm_callers import VisionLLMCaller
@@ -689,20 +689,19 @@ class BaseAgent(ABC):
             tool_mode=self.tool_mode,
             tool_manager=self.tool_manager,
         )
-        response = await vlm_caller.call(messages, bind_post_tools=False)
+        response = await vlm_caller.call(messages)
 
-        # 4. 解析（想解析就解析，不想解析直接返回）
+        # 4. 解析
         parsed = self.parse_result(response.content)
 
         # 5. 如有附加信息（例如图像路径 / base64），一起返回
         if hasattr(response, "additional_kwargs"):
             parsed.update(response.additional_kwargs)
         return parsed
-
+# 这个暂时用不到
     def build_generation_prompt(self, pre_tool_results: Dict[str, Any]) -> str:
         """示例：把工具结果拼进 prompt"""
         return (
-            # f"{pre_tool_results.get('summary', '')}\n"
             f"{self.vlm_config.get('prompt', '')}"
         )
     

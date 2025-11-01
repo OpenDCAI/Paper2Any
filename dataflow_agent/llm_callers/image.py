@@ -36,48 +36,89 @@ class VisionLLMCaller(BaseLLMCaller):
             return await self._call_image_output(messages)
         else:
             return await self._call_image_understanding(messages)
-    
+        
     async def _call_image_understanding(self, messages: List[BaseMessage]) -> AIMessage:
         """图像理解模式 - 输入图像，输出文本"""
-        # 这个还有bug！！！
 
+        ROLE_MAP = {
+            "human": "user",
+            "ai": "assistant",
+            "system": "system",
+            "tool": "tool",
+        }
 
-        import httpx
-        
-        # 构建包含图像的消息
-        processed_messages = []
+        processed_messages: List[Dict[str, Any]] = []
         for msg in messages:
-            if hasattr(msg, 'content') and isinstance(msg.content, str):
-                processed_messages.append({
-                    "role": msg.type if hasattr(msg, 'type') else "user",
-                    "content": msg.content
-                })
-        
-        # 如果配置了输入图像，添加到最后一条消息
-        if "input_image" in self.vlm_config:
+            lc_role = getattr(msg, "type", "human")     # human / ai / system / tool
+            role     = ROLE_MAP.get(lc_role, "user")    # 兜底用 "user"
+
+            processed_messages.append({
+                "role": role,
+                "content": msg.content                  # str 或 multimodal list 都行
+            })
+
+        # --------  如有 input_image，把图贴到最后一条 user 消息里 --------
+        if "input_image" in self.vlm_config and processed_messages:
             b64, fmt = self._encode_image(self.vlm_config["input_image"])
-            
-            # 修改最后一条用户消息为多模态格式
             last_msg = processed_messages[-1]
             if last_msg["role"] == "user":
                 last_msg["content"] = [
-                    {"type": "text", "text": last_msg["content"]},
-                    {"type": "image_url", 
-                     "image_url": {"url": f"data:image/{fmt};base64,{b64}"}}
+                    {"type": "text",  "text": last_msg["content"]},
+                    {"type": "image_url",
+                    "image_url": {"url": f"data:image/{fmt};base64,{b64}"}}
                 ]
-        
-        # 调用API
+
         payload = {
             "model": self.model_name,
             "messages": processed_messages,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
         }
-        
         response_data = await self._post_chat_completions(payload)
         content = response_data["choices"][0]["message"]["content"]
-        
         return AIMessage(content=content)
+    
+    # async def _call_image_understanding(self, messages: List[BaseMessage]) -> AIMessage:
+    #     """图像理解模式 - 输入图像，输出文本"""
+    #     # 这个还有bug！！！
+
+
+    #     import httpx
+        
+    #     # 构建包含图像的消息
+    #     processed_messages = []
+    #     for msg in messages:
+    #         if hasattr(msg, 'content') and isinstance(msg.content, str):
+    #             processed_messages.append({
+    #                 "role": msg.type if hasattr(msg, 'type') else "user",
+    #                 "content": msg.content
+    #             })
+        
+    #     # 如果配置了输入图像，添加到最后一条消息
+    #     if "input_image" in self.vlm_config:
+    #         b64, fmt = self._encode_image(self.vlm_config["input_image"])
+            
+    #         # 修改最后一条用户消息为多模态格式
+    #         last_msg = processed_messages[-1]
+    #         if last_msg["role"] == "user":
+    #             last_msg["content"] = [
+    #                 {"type": "text", "text": last_msg["content"]},
+    #                 {"type": "image_url", 
+    #                  "image_url": {"url": f"data:image/{fmt};base64,{b64}"}}
+    #             ]
+        
+    #     # 调用API
+    #     payload = {
+    #         "model": self.model_name,
+    #         "messages": processed_messages,
+    #         "temperature": self.temperature,
+    #         "max_tokens": self.max_tokens,
+    #     }
+        
+    #     response_data = await self._post_chat_completions(payload)
+    #     content = response_data["choices"][0]["message"]["content"]
+        
+    #     return AIMessage(content=content)
     
     async def _call_image_output(self, messages: List[BaseMessage]) -> AIMessage:
         """图像生成/编辑模式 - 输出图像"""
