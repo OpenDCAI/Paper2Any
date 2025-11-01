@@ -594,7 +594,7 @@ class BaseAgent(ABC):
             "post_tools": [t.name for t in self.get_post_tools()],
             "results": result
         }
-    
+# =================================================================================execute 部分！ 核心！！！=================================================================================
     async def execute(self, state: MainState, use_agent: bool = False, **kwargs) -> MainState:
         """
         统一执行入口
@@ -611,12 +611,12 @@ class BaseAgent(ABC):
 
         if getattr(self, "use_vlm", False):
             # 直接走多模态链路
+            log.critical(f'[base agent]: 走多模态路径 ')
             result = await self._execute_vlm(state, **kwargs)
             # 和简单/React 逻辑保持一致，更新到 state
             self.update_state_result(state, result, {})
             log.info(f"{self.role_name} 多模态执行完成")
             return state
-        
         try:
             # 1. 执行前置工具
             pre_tool_results = await self.execute_pre_tools(state)

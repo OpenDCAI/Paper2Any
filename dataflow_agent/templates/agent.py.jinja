@@ -49,7 +49,14 @@ class {{ agent_name_camel }}(BaseAgent):
 
     # ---------- Prompt 参数 ----------
     def get_task_prompt_params(self, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
-        """根据前置工具结果构造 prompt 参数"""
+        """根据前置工具结果构造 prompt 参数
+        提示词中的占位符：
+        return {
+            'text2img_prompt': pre_tool_results.get('prompt', ''),
+            'image_size': pre_tool_results.get('size', '512x512'),
+            'num_images': pre_tool_results.get('num_images', 1),
+        }
+        """
         # TODO: 按需补充
         return {}
 
@@ -76,23 +83,79 @@ async def {{ agent_name_snake }}(
     model_name: Optional[str] = None,
     tool_manager: Optional[ToolManager] = None,
     temperature: float = 0.0,
-    max_tokens: int = 512,
+    max_tokens: int = 4096,
+    tool_mode: str = "auto",
+    react_mode: bool = False,
+    react_max_retries: int = 3,
+    parser_type: str = "json",
+    parser_config: Optional[Dict[str, Any]] = None,
+    use_vlm: bool = False,
+    vlm_config: Optional[Dict[str, Any]] = None,
     use_agent: bool = False,
     **kwargs,
 ) -> MainState:
-    """{{ agent_name }} 的异步入口"""
+    """{{ agent_name }} 的异步入口
+    
+    Args:
+        state: 主状态对象
+        model_name: 模型名称，如 "gpt-4"
+        tool_manager: 工具管理器实例
+        temperature: 采样温度，控制随机性 (0.0-1.0)
+        max_tokens: 最大生成token数
+        tool_mode: 工具调用模式 ("auto", "none", "required")
+        react_mode: 是否启用ReAct推理模式
+        react_max_retries: ReAct模式下最大重试次数
+        parser_type: 解析器类型 ("json", "xml", "text")，这个允许你在提示词中定义LLM不同的返回，xml还是json，还是直出；
+        parser_config: 解析器配置字典（如XML的root_tag）
+        use_vlm: 是否使用视觉语言模型，使用了视觉模型，其余的参数失效；
+        vlm_config: VLM配置字典
+        use_agent: 是否使用agent模式
+        **kwargs: 其他传递给execute的参数
+        
+    Returns:
+        更新后的MainState对象
+    """
     agent = {{ agent_name_camel }}(
         tool_manager=tool_manager,
         model_name=model_name,
         temperature=temperature,
         max_tokens=max_tokens,
+        tool_mode=tool_mode,
+        react_mode=react_mode,
+        react_max_retries=react_max_retries,
+        parser_type=parser_type,
+        parser_config=parser_config,
+        use_vlm=use_vlm,
+        vlm_config=vlm_config,
     )
     return await agent.execute(state, use_agent=use_agent, **kwargs)
 
 
 def create_{{ agent_name_snake }}(
     tool_manager: Optional[ToolManager] = None,
+    model_name: Optional[str] = None,
+    temperature: float = 0.0,
+    max_tokens: int = 4096,
+    tool_mode: str = "auto",
+    react_mode: bool = False,
+    react_max_retries: int = 3,
+    parser_type: str = "json",
+    parser_config: Optional[Dict[str, Any]] = None,
+    use_vlm: bool = False,
+    vlm_config: Optional[Dict[str, Any]] = None,
     **kwargs,
 ) -> {{ agent_name_camel }}:
-    """获取 {{ agent_name }} 实例"""
-    return {{ agent_name_camel }}.create(tool_manager=tool_manager, **kwargs)
+    return {{ agent_name_camel }}.create(
+        tool_manager=tool_manager,
+        model_name=model_name,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        tool_mode=tool_mode,
+        react_mode=react_mode,
+        react_max_retries=react_max_retries,
+        parser_type=parser_type,
+        parser_config=parser_config,
+        use_vlm=use_vlm,
+        vlm_config=vlm_config,
+        **kwargs,
+    )
