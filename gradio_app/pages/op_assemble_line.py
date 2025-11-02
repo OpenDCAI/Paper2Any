@@ -6,6 +6,7 @@ Gradio UI – DataFlow Operator Pipeline Runner
 import json
 import inspect
 import copy
+import os
 import uuid
 import html
 from collections import defaultdict
@@ -711,6 +712,7 @@ async def run_df_op_usage_pipeline(
     cache_dir: str = f"{get_project_root()}/dataflow_cache",
     session_id: str = "test_session_001",
 ):
+    os.environ.setdefault('DF_API_KEY',api_key)
     req = DFRequest(
         language=language,
         model=model,
