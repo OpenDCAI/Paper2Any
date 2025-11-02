@@ -53,6 +53,13 @@ python gradio_app/app.py
 
 访问 `http://127.0.0.1:7860` 即可使用。
 
+<div align="center">
+  <img src="static/imag_piperec.png" width="260"/>
+  <img src="static/image_opwrite.png" width="260"/>
+  <img src="static/image.png" width="260"/>
+</div>
+
+
 <!-- ### 基础使用示例
 
 ```python

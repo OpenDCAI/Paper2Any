@@ -4,6 +4,13 @@ import os, argparse, socket, importlib, sys
 from pathlib import Path
 import gradio as gr
 
+
+# 标签显示名称映射,如果需要自定义页面名称
+TAB_NAME_MAP = {
+    "operator_write": "Operator Write",
+}
+
+
 def load_pages() -> dict[str, gr.Blocks]:
     pages = {}
     pages_dir = Path(__file__).parent / "pages"
@@ -39,11 +46,6 @@ def load_pages() -> dict[str, gr.Blocks]:
     return pages
 
 pages = load_pages()
-
-# 标签显示名称映射
-TAB_NAME_MAP = {
-    "operator_write": "Operator Write",
-}
 
 with gr.Blocks(title="DataFlow Agent Platform") as app:
     gr.Markdown("# 🌊 DataFlow Agent 多功能平台")

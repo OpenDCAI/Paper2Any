@@ -3,10 +3,9 @@ from ..utils.wf_pipeine_rec import run_pipeline_workflow
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
 
-
 def create_pipeline_rec():
     """子页面：Pipeline 生成（带 Agent 结果展示）"""
-    with gr.Blocks() as page:
+    with gr.Blocks(theme=gr.themes.Default()) as page:
         gr.Markdown("# 🚀 DataFlow Pipeline Generator")
 
         with gr.Row():
@@ -34,7 +33,20 @@ def create_pipeline_rec():
                     value="",  # 或者默认从环境变量读取
                     type="password"
                 )
+                # 新增模型名称输入框
+                model_name = gr.Textbox(
+                    label="模型名称",
+                    placeholder="如：gpt-4, qwen-max, llama3, etc.",
+                    value=""  # 可设置默认模型名
+                )
                 debug_mode = gr.Checkbox(label="启用调试模式", value=False)
+                # 新增调试模式次数下拉框，默认隐藏
+                debug_times = gr.Dropdown(
+                    label="调试模式执行次数",
+                    choices=[1, 2, 3, 5, 10],
+                    value=1,
+                    visible=False
+                )
                 submit_btn = gr.Button("生成 Pipeline", variant="primary")
 
             # 右侧：输出区（3 个页签）
@@ -46,15 +58,37 @@ def create_pipeline_rec():
                 with gr.Tab("Agent Results"):
                     agent_results_json = gr.JSON(label="Agent Results")
 
+        # ---------------------- 事件绑定：调试模式显示下拉 ----------------------
+        def toggle_debug_times(is_debug):
+            # 返回 update 控制可见性
+            return gr.update(visible=is_debug)
+
+        debug_mode.change(
+            toggle_debug_times,
+            inputs=debug_mode,
+            outputs=debug_times
+        )
+
         # ----------------------  后端回调  ----------------------
-        async def generate_pipeline(target_text, json_path, session_id_val, chat_api_url_val, api_key_val, debug):
+        async def generate_pipeline(
+            target_text, 
+            json_path, 
+            session_id_val, 
+            chat_api_url_val, 
+            api_key_val, 
+            model_name_val, 
+            debug,
+            max_debug_rounds
+        ):
             result = await run_pipeline_workflow(
                 target=target_text,
                 json_file=json_path,
                 need_debug=debug,
                 session_id=session_id_val,
                 chat_api_url=chat_api_url_val,
-                api_key=api_key_val
+                api_key=api_key_val,
+                model_name=model_name_val,
+                max_debug_rounds=max_debug_rounds if debug else 2  
             )
 
             # 读取生成的 Python 文件
@@ -67,7 +101,7 @@ def create_pipeline_rec():
 
         submit_btn.click(
             generate_pipeline,
-            inputs=[target, json_file, session_id, chat_api_url, api_key, debug_mode],
+            inputs=[target, json_file, session_id, chat_api_url, api_key, model_name, debug_mode, debug_times],
             outputs=[output_code, output_log, agent_results_json]   
         )
 

@@ -32,6 +32,14 @@ dev = [
     "black",
     "ruff",
 ]
+paper=[
+
+]
+data=[
+    "pandas",
+    "numpy"
+]
+
 
 [tool.setuptools.package-dir]
 # 告诉 setuptools 源码包目录
