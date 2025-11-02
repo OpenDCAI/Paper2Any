@@ -14,6 +14,7 @@ nav:
       - 示例教程: tutorials/tutorial_first.md
   - 指南:
       - 架构设计: guides/architecture.md
+      - 算子编写: guides/operator_write.md
   - FAQ: faq.md
   - 贡献指南: contributing.md
   - 更新日志: changelog.md
