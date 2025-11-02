@@ -750,6 +750,12 @@ def create_op_assemble_line():
                 scale=3,
             )
             apikey_tb = gr.Textbox(label="API Key", type="password", scale=2)
+            # 新增模型名称输入框
+            model_name_tb = gr.Textbox(
+                label="模型名称",
+                value="gpt-4o",
+                scale=2,
+            )
             jsonl_path_tb = gr.Textbox(
                 label="输入 JSONL 文件路径",
                 placeholder="/path/to/input.jsonl",
@@ -995,7 +1001,7 @@ def create_op_assemble_line():
         )
 
         # --- 运行 pipeline ---
-        async def _run_pipeline(pl, jsonl_path, chat_api_url, apikey):
+        async def _run_pipeline(pl, jsonl_path, chat_api_url, apikey, model_name):
             if not pl:
                 gr.Warning("Pipeline 为空，请先添加算子")
                 return "", None, ""
@@ -1019,6 +1025,7 @@ def create_op_assemble_line():
                     json_file=jsonl_path,
                     chat_api_url=chat_api_url,
                     api_key=apikey,
+                    model= model_name
                 )
             except Exception as e:
                 import traceback
@@ -1043,7 +1050,7 @@ def create_op_assemble_line():
 
         run_btn.click(
             _run_pipeline,
-            inputs=[pipeline_state, jsonl_path_tb, chat_api_url_tb, apikey_tb],
+            inputs=[pipeline_state, jsonl_path_tb, chat_api_url_tb, apikey_tb, model_name_tb],
             outputs=[code_out, result_out, out_file_tb],
         )
 
