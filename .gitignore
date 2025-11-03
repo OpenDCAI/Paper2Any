@@ -8,6 +8,7 @@ __pycache__/
 
 dataflow_agent/tmps/
 dataflow_cache/
+.dfavenv
 
 # Distribution / packaging
 .Python
