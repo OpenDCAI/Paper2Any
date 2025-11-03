@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![DataFlow-Agent Logo](static/LogoDataFlow_Agentlogo_image_1.png)
+<!-- ![DataFlow-Agent Logo](static/LogoDataFlow_Agentlogo_image_1.png) -->
 
 **智能化数据流处理框架 · 模块化 Agent 编排系统**
 
