@@ -39,6 +39,7 @@ class DataExporter(BaseAgent):
         """数据导出器特有的提示词参数"""
         return {
             'nodes_info': pre_tool_results.get('nodes_info', '[]'),
+            'sample': pre_tool_results.get('sample','')
             # 'export_fields': pre_tool_results.get('export_fields', '[]'),
         }
     

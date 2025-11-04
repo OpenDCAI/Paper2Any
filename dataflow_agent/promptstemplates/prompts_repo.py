@@ -1314,7 +1314,7 @@ class NodesExporter:
   system_prompt_for_nodes_export = """
 You are an expert in data processing pipeline node extraction.
 """       
-  task_prompt_for_nodes_export = """
+  task_prompt_for_nodes_export = """"
 我有一个 JSON 格式的 pipeline，只包含 "nodes" 数组。每个节点（node）有 "id" 和 "config" 字段，"config" 里包含 "run" 参数（如 input_key、output_key）。
 
 请帮我自动修改每个节点的 input_key 和 output_key，使得这些节点从上到下（按 nodes 数组顺序）能前后相连，也就是说，每个节点的 output_key 会被下一个节点的 input_key 用到，形成一条完整的数据流管道。第一个节点的 input_key 可以固定为 "input1"，最后一个节点的 output_key 可以固定为 "output_final"。
@@ -1325,7 +1325,7 @@ You are an expert in data processing pipeline node extraction.
 {nodes_info}
 
 [输出规则]
-1. 第一个节点的 `input_key` 固定为 "raw_content"。
+1. 第一个 node1 节点的 `input_key` 需要参考 需要参考样例数据的key是什么： {sample}。
 2. 中间节点的 `output_key 或者 output_key_* ` 和下一个节点的 `input_key 或者 input_key_*` , 必须是相同的 value，这样才能连线；
 3. 最后一个节点的 `output_key_*` 固定为 "output_final"。
 4. 如果某些节点的 `run` 字段未包含 `input_key` 或 `output_key`，则跳过这些字段，不要自己增改；
@@ -1352,7 +1352,7 @@ You are an expert in data processing pipeline node extraction.
         },
         "run": {
           "storage": "self.storage.step()",
-          "input_key": "raw_content",
+          "input_key": '参考样例数据的key',
           "output_key": "eval"  * 算子1的输出value
         }
       }

@@ -61,9 +61,7 @@ class MainState:
 class DFRequest(MainRequest):
     """主流程的Request，继承自MainRequest"""
     # ⑤ 测试样例文件（仅 CLI 批量跑用）
-    json_file: str = (
-        f"{DATAFLOW_DIR}/dataflow/example/DataflowAgent/mq_test_data.jsonl"
-    )
+    json_file: str = ""
 
     # ⑥ Python 代码文件位置
     python_file_path: str = ""
