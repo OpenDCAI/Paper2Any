@@ -3,7 +3,7 @@ requires = ["setuptools>=62", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "dataflow-agent"        # pip install dataflow-agent
+name = "dataflow"        # pip install dataflow-agent
 version = "0.1.0"
 description = "LLM agent component for DataFlow."
 authors = [{ name = "Zhou Liu", email = "liuzhoul82@gmail.com" }]
@@ -32,14 +32,6 @@ dev = [
     "black",
     "ruff",
 ]
-paper=[
-
-]
-data=[
-    "pandas",
-    "numpy"
-]
-
 
 [tool.setuptools.package-dir]
 # 告诉 setuptools 源码包目录

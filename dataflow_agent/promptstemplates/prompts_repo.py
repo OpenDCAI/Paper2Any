@@ -747,8 +747,7 @@ Always think step-by-step before you answer.
 [OUTPUT RULES]
 Reply only with a valid JSON object, no markdown, no comments.
 1 The JSON must and can only contain one top-level key:
-”reason“: In natural language, explain in detail the root cause of the error and provide specific, actionable suggestions for a fix. Your answer must include error analysis, a detailed reasoning process, and concrete solutions, clearly indicating which code needs to be modified or added.
-
+"reason": In natural language, explain in detail the root cause of the error and provide specific, actionable suggestions for how to fix it. Your answer should include both error analysis and a concrete solution, with sufficient detail and reasoning.
 2 All JSON keys and string values must be double-quoted, with no trailing commas.
 3 If you are unsure about any value, use an empty string.
 4 Double-check that your response is a valid JSON. Do not output anything else.
@@ -762,7 +761,7 @@ class CodeRewriter:
     system_prompt_for_code_rewriting = """
 You are a Python code expert.
 """
-    task_prompt_for_code_pipe_rewriting = """
+    task_prompt_for_code_rewriting = """"
     [INPUT]
 
 The input consists of:
@@ -782,11 +781,10 @@ The input consists of:
  -The FileStorage class uses the step() method to manage and switch between different stages of data processing. Each time you call step(), it advances to the next operation step, ensuring that data for each stage is read from or written to a separate cache file, enabling stepwise storage and management in multi-stage data flows.
 
 [OUTPUT RULES]
-1.Reply only with a valid JSON object, no markdown, no comments.
-2.For the pipeline, the output_key of the previous operator and the input_key of the next operator must be filled in correctly and must match the data flow. Modify them logically as needed；
-3.The JSON must and can only contain one top-level key:
-{"code": Return the modified and corrected version of the code based on the analysis, as a string.}
-4.请根据Debug analysis and suggestions修改代码；
+Reply only with a valid JSON object, no markdown, no comments.
+
+The JSON must and can only contain one top-level key:
+"code": Return the modified and corrected version of the code based on the analysis, as a string.
 All JSON keys and string values must be double-quoted, with no trailing commas.
 If you are unsure about any value, use an empty string.
 Double-check that your response is a valid JSON. Do not output anything else.
@@ -1168,22 +1166,24 @@ class WebAgentPrompts:
     
     # 下载方法决策器
     system_prompt_for_download_method_decision = """
-你是一个智能下载策略决策器。根据用户的目标和搜索关键词，你需要决定使用哪种下载方法：
-1. "huggingface" - 适用于学术数据集、机器学习数据集、NLP数据集等。
-2. "web_crawl" - 适用于需要从网站爬取数据、下载文件、或搜索特定资源的情况。
+你是一个智能下载策略决策器。当前系统策略为：始终优先尝试 "huggingface"，若失败则回退到 "web_crawl"。
+你的任务：
+1) 基于用户目标与搜索关键词，产出尽可能有效的 HuggingFace 搜索关键词,关键词尽量避免单独出现"datasets"、"machine learning"等与当前数据集无关的字样, 如果当前任务有具体的数据集名称例如"mnist",关键词可以直接是"mnist',尽量避免额外的字样影响检索召回,例如"mnist
+ datasets"。
+2) 输出固定策略：method = "huggingface"，fallback_method = "web_crawl"。
 
 返回JSON格式：
 {
-    "method": "huggingface" 或 "web_crawl",
-    "reasoning": "选择此方法的原因",
-    "keywords_for_hf": ["如果选择huggingface，提供适合HF搜索的关键词"],
-    "fallback_method": "如果主方法失败，备用的方法"
+    "method": "huggingface",
+    "reasoning": "简述为何HF可能可行，或给出关键词构成逻辑",
+    "keywords_for_hf": ["用于HF搜索的关键词列表"],
+    "fallback_method": "web_crawl"
 }
 """
     
     task_prompt_for_download_method_decision = """用户目标: {objective}
 搜索关键词: {keywords}
-请根据以上信息决定最佳的下载方法。"""
+请根据上述策略生成用于HF的关键词，并按要求返回JSON（method固定为huggingface，fallback_method固定为web_crawl）。"""
     
     # HuggingFace 决策器
     system_prompt_for_huggingface_decision = """
@@ -1194,6 +1194,7 @@ class WebAgentPrompts:
 2.  **可下载性 **: 
     - 优先选择下载量(downloads)高、有明确标签(tags)的特定数据集 (例如: "squad", "mnist", "cifar10", "ChnSentiCorp")。
 3.  **流行度**: 在相关性相似的情况下，选择 `downloads` 数量最高的数据集。
+    同时参考用户的需求清晰描述(message)，若与 objective 一致则正常判断；若二者冲突，以更具体的 message 为准。
 
 你的输出必须是一个JSON对象:
 {
@@ -1206,6 +1207,7 @@ class WebAgentPrompts:
     
     task_prompt_for_huggingface_decision = """
 用户目标: "{objective}"
+用户清晰描述(message): "{message}"
 
 搜索结果:
 ```json
@@ -1231,9 +1233,11 @@ class WebAgentPrompts:
 1. `type`: 任务类型，'research' 或 'download'。
 2. `objective`: 对该子任务目标的清晰、简洁的描述。
 3. `search_keywords`: 根据 objective 提炼出的、最适合直接输入给搜索引擎的简短关键词。
+ 此外，必须输出一个顶层字段 `message`，它是对用户当前需求的清晰、简明描述（1-2句），供后续阶段使用以避免语义偏差。
 
 示例输出格式:
 {
+    "message": "针对用户需求的清晰描述",
     "sub_tasks": [
         {
             "type": "research",
@@ -1249,24 +1253,47 @@ class WebAgentPrompts:
 }
 """
     
-    task_prompt_for_task_decomposer = """请为以下用户请求创建一个子任务计划: '{request}'"""
+    task_prompt_for_task_decomposer = """请为以下用户请求创建一个子任务计划，并包含一个顶层字段 message（1-2句清晰描述用户当前需求）: '{request}'"""
+    
+    # 查询生成 Agent
+    system_prompt_for_query_generator = """
+You are a query generation expert for RAG retrieval. Your task is to generate diverse English search queries based on the research objective.
+
+Rules:
+1. Generate 3-5 different search queries in English
+2. Each query should cover different aspects of the objective
+3. Queries should be varied to maximize retrieval diversity
+4. Output ONLY a JSON array of query strings
+"""
+    
+    task_prompt_for_query_generator = """Research objective: '{objective}'
+User description: '{message}'
+
+Generate diverse English search queries for RAG retrieval. Return a JSON array of 3-5 different query strings.
+Example format:
+["query 1 in English", "query 2 in English", "query 3 in English"]"""
     
     # 总结与规划 Agent
     system_prompt_for_summary_agent = """
-你是一个高级AI分析师和任务规划师。你的职责是从提供的网页文本片段中，根据用户的研究目标，提取关键实体（如数据集名称），并为每一个实体创建一个新的、具体的下载子任务。
+You are an AI analyst and task planner. Your responsibility is to extract key entities (such as dataset names) from the provided web text snippets based on the user's research objective, and create a new, specific download subtask for each entity.
 
-注意：提供给你的文本是经过RAG语义检索筛选的最相关内容（如果启用了RAG），每个片段都标注了来源URL和相关度分数。
+Note: The text provided to you is the most relevant content filtered by RAG semantic search (if RAG is enabled), with each snippet annotated with source URL.
+You will also receive a message from the task decomposer (a clear description of user needs), and your analysis should prioritize consistency with this message to avoid semantic drift.
 
-你的输出必须是一个JSON对象，其中包含：
-1. `new_sub_tasks`: 列表，每个子任务字典必须包含 `type` (固定为 "download"), `objective`, 和 `search_keywords`。
-2. `summary`: 字符串，简要总结你从文本中发现的关键信息。
+Your output must be a JSON object containing:
+1. `new_sub_tasks`: A list of subtasks. Each subtask dictionary must contain `type` (fixed as "download"), `objective`, and `search_keywords`.
+2. `summary`: A string briefly summarizing the key information you found in the text.
 
-如果找不到任何相关实体，请返回一个空的 `new_sub_tasks` 列表，但仍要提供 summary。
+If no relevant entities are found, return an empty `new_sub_tasks` list, but still provide a summary.
 """
     
-    task_prompt_for_summary_agent = """研究目标: '{objective}'
+    task_prompt_for_summary_agent = """Research objective: '{objective}'
+User description (message): '{message}'
 
-请分析以下文本片段，并为发现的每个关键实体生成具体的下载子任务:
+Current download subtasks list (for reference):
+{existing_subtasks}
+
+Please analyze the following text snippets and generate specific download subtasks for each key dataset entity discovered:
 
 {context}"""
     
@@ -1307,6 +1334,8 @@ Visible text content:
 ```"""
 
 
+
+
 # --------------------------------------------------------------------------- #
 # 14. NodesExporter                                                           #
 # --------------------------------------------------------------------------- #
@@ -1314,7 +1343,7 @@ class NodesExporter:
   system_prompt_for_nodes_export = """
 You are an expert in data processing pipeline node extraction.
 """       
-  task_prompt_for_nodes_export = """
+  task_prompt_for_nodes_export = """"
 我有一个 JSON 格式的 pipeline，只包含 "nodes" 数组。每个节点（node）有 "id" 和 "config" 字段，"config" 里包含 "run" 参数（如 input_key、output_key）。
 
 请帮我自动修改每个节点的 input_key 和 output_key，使得这些节点从上到下（按 nodes 数组顺序）能前后相连，也就是说，每个节点的 output_key 会被下一个节点的 input_key 用到，形成一条完整的数据流管道。第一个节点的 input_key 可以固定为 "input1"，最后一个节点的 output_key 可以固定为 "output_final"。
@@ -1325,14 +1354,13 @@ You are an expert in data processing pipeline node extraction.
 {nodes_info}
 
 [输出规则]
-1. 第一个节点的 `input_key` 固定为 "raw_content"。
-2. 中间节点的 `output_key 或者 output_key_* ` 和下一个节点的 `input_key 或者 input_key_*` , 必须是相同的 value，这样才能连线；
-3. 最后一个节点的 `output_key_*` 固定为 "output_final"。
-4. 如果某些节点的 `run` 字段未包含 `input_key` 或 `output_key`，则跳过这些字段，不要自己增改；
-5. 输出的 JSON 需保持与输入完全一致，除了 `input_key_*` 和 `output_key_*` 的值，其余字段（包括字段顺序、嵌套结构等）不作任何修改。
-6. 输出的 JSON 结构必须包含一个 `nodes` 的 key，且保持原始结构，只修改 `input_key` 和 `output_key`。
-
-[必须遵守: 只返回json内容，不要有其余任何的说明文字！！！解释！！注释！！！只需要json！！！]
+1. 第一个node的“input_key”默认是 raw_content；
+2. 只回复 JSON 格式，禁止任何解释性文字。
+3. 输出的 JSON 结构与输入完全相同，只修改 input_key 和 output_key。
+4. 中间节点的 output_key 和下一个节点的 input_key 保持一致，可以依次命名为 "step1"、"step2"、"step3" 等。
+5. 所有节点的 "run" 字段不是都包含 "input_key" 和 "output_key"，不能自己新增！！。
+6. 只回复 JSON 格式，禁止任何解释性文字，必须有一个nodes的key！！
+7. 输出的 JSON 结构与输入完全相同，只修改 input_key 和 output_key。
 
 返回内容参考：
 
@@ -1353,7 +1381,7 @@ You are an expert in data processing pipeline node extraction.
         "run": {
           "storage": "self.storage.step()",
           "input_key": "raw_content",
-          "output_key": "eval"  * 算子1的输出value
+          "output_key": "eval"
         }
       }
     },
@@ -1368,8 +1396,7 @@ You are an expert in data processing pipeline node extraction.
         },
         "run": {
           "storage": "self.storage.step()",
-          "input_key": "eval",   * 算子1的输出value，这里作为算子2的输出
-          "output_question_key": "refined_question",
+          "input_key": "eval"
         }
       }
     }]
@@ -1377,7 +1404,6 @@ You are an expert in data processing pipeline node extraction.
 
 
 """
-
 
 
 # --------------------------------------------------------------------------- #

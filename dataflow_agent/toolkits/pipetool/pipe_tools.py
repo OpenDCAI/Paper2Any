@@ -1026,7 +1026,20 @@ async def apipeline_assembler_with_params(
     return pipeline_assembler_with_params(opname_and_params, state, **kwargs)
 
 
-# ================================之前的版本
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def build_pipeline_code(
     op_names: List[str],
     state: DFState,

@@ -13,9 +13,7 @@ async def run_pipeline_workflow(
     need_debug: bool = False,
     session_id: str = "default",
     chat_api_url: str = "http://123.129.219.111:3000/v1/",
-    api_key: str = os.getenv("DF_API_KEY", ""),
-    model_name:str = 'gpt-4o',
-    max_debug_rounds: int = 2
+    api_key: str = os.getenv("DF_API_KEY", "")
 ) -> dict:
     if api_key:
         os.environ["DF_API_KEY"] = api_key
@@ -36,13 +34,12 @@ async def run_pipeline_workflow(
         language="en",
         chat_api_url=chat_api_url,
         api_key=api_key,
-        model= model_name,
+        model="gpt-4o",
         json_file=json_file,
         target=target,
         python_file_path=str(python_file_path),
         need_debug=need_debug,
         session_id=session_id,
-        max_debug_rounds= max_debug_rounds
     )
 
     # state 初始化

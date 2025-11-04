@@ -1,6 +1,12 @@
 
 from __future__ import annotations
 import os
+
+# 在导入 huggingface_hub / datasets 之前，优先设置 HF_ENDPOINT，确保所有内部请求走镜像
+# 支持通过环境变量 DF_HF_ENDPOINT 覆盖（例如 https://hf-mirror.com）
+_df_hf_endpoint = os.getenv("DF_HF_ENDPOINT")
+if _df_hf_endpoint and not os.getenv("HF_ENDPOINT"):
+    os.environ["HF_ENDPOINT"] = _df_hf_endpoint
 import asyncio
 import json
 import httpx
@@ -19,7 +25,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 import os
 from langchain_community.tools import DuckDuckGoSearchRun
-os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
 from huggingface_hub import HfApi,snapshot_download
 from datasets import load_dataset, get_dataset_config_names
 import sys
@@ -61,25 +67,40 @@ class LogManager:
 # --- RAG管理器 ---
 class RAGManager:
 
-    def __init__(self, api_base_url: str, api_key: str, persist_directory: str = "./rag_db"):
+    def __init__(self, api_base_url: str, api_key: str, persist_directory: str = "./rag_db", reset: bool = False, collection_name: str = "rag_collection"):
         print(f"[RAG] 初始化 RAG 管理器，存储目录: {persist_directory}")
+        embed_model = os.getenv("RAG_EMB_MODEL", "text-embedding-3-large")
         self.embeddings = OpenAIEmbeddings(
-            openai_api_base=api_base_url,
-            openai_api_key=api_key,
-            model="text-embedding-3-small"
+            openai_api_base=os.getenv("RAG_API_URL"),
+            openai_api_key=os.getenv("RAG_API_KEY"),
+            model=embed_model
         )
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
+            chunk_size=600,
+            chunk_overlap=120,
             length_function=len,
             separators=["\n\n", "\n", "。", "！", "？", ". ", "! ", "? ", " ", ""]
         )
         self.persist_directory = persist_directory
         self.vectorstore = None
+        self.collection_name = collection_name
         self.document_count = 0
-        if os.path.exists(persist_directory):
+        # 仅在明确要求时重置
+        if reset and os.path.exists(persist_directory):
             shutil.rmtree(persist_directory)
         os.makedirs(persist_directory, exist_ok=True)
+        # 预先初始化一个持久化的空集合，便于后续追加与检索
+        try:
+            self.vectorstore = Chroma(
+                collection_name=self.collection_name,
+                embedding_function=self.embeddings,
+                persist_directory=self.persist_directory
+            )
+        except Exception as e:
+            print(f"[RAG] 初始化向量存储失败: {e}")
+            self.vectorstore = None
+        # 去重集合，避免重复块污染召回
+        self._seen_hashes = set()
     
     async def add_webpage_content(self, url: str, text_content: str, metadata: Dict[str, Any] = None):
 
@@ -88,10 +109,20 @@ class RAGManager:
             return
         try:
             print(f"[RAG] 正在添加网页内容: {url} (长度: {len(text_content)} 字符)")
-            chunks = self.text_splitter.split_text(text_content)
+            # 基础清洗
+            cleaned = re.sub(r"\s+", " ", text_content).strip()
+            chunks = self.text_splitter.split_text(cleaned)
             print(f"[RAG] 文本已分成 {len(chunks)} 个块")
             documents = []
             for i, chunk in enumerate(chunks):
+                if not chunk or len(chunk.strip()) < 80:
+                    continue
+                # 内容去重
+                import hashlib
+                digest = hashlib.sha1(chunk.strip().encode("utf-8")).hexdigest()
+                if digest in self._seen_hashes:
+                    continue
+                self._seen_hashes.add(digest)
                 doc_metadata = {
                     "source_url": url,
                     "chunk_id": i,
@@ -101,50 +132,128 @@ class RAGManager:
                 if metadata:
                     doc_metadata.update(metadata)
                 documents.append(Document(page_content=chunk, metadata=doc_metadata))
+            if not documents:
+                print(f"[RAG] 清洗/去重后无有效文档块可添加: {url}")
+                return
             if self.vectorstore is None:
+                # 兜底：如果之前初始化失败，则在首次添加时创建
                 self.vectorstore = await asyncio.to_thread(
                     Chroma.from_documents,
                     documents=documents,
                     embedding=self.embeddings,
-                    persist_directory=self.persist_directory
+                    persist_directory=self.persist_directory,
                 )
             else:
                 await asyncio.to_thread(self.vectorstore.add_documents, documents)
+            # 立即持久化，保证下次运行可用
+            try:
+                await asyncio.to_thread(self.vectorstore.persist)
+            except Exception as e:
+                print(f"[RAG] 持久化失败: {e}")
             self.document_count += len(documents)
             print(f"[RAG] 成功添加 {len(documents)} 个文档块，总计: {self.document_count} 块")
         except Exception as e:
             print(f"[RAG] 添加网页内容时出错 ({url}): {e}")
     
-    async def get_context_for_analysis(self, objective: str, max_chars: int = 15000) -> str:
-        """获取用于分析的上下文"""
+    async def get_context_for_single_query(self, query: str, max_chars: int = 18000) -> str:
+        """获取单个查询的上下文"""
         if self.vectorstore is None:
             print("[RAG] 向量存储为空，无法检索")
             return ""
         try:
-            print(f"[RAG] 正在检索与 '{objective[:50]}...' 相关的内容")
-            results = await asyncio.to_thread(
-                self.vectorstore.similarity_search_with_score,
-                objective,
-                k=20
+            print(f"[RAG] 检索查询: {query[:50]}...")
+            mmr_docs = await asyncio.to_thread(
+                self.vectorstore.max_marginal_relevance_search,
+                query,
+                k=15,
+                fetch_k=60,
+                lambda_mult=0.5
             )
+            
+            # 构建上下文
             context_parts = []
             total_chars = 0
             seen_urls = set()
-            for doc, score in results:
+            for doc in mmr_docs:
                 source_url = doc.metadata.get("source_url", "unknown")
                 content = doc.page_content
                 if source_url not in seen_urls:
-                    header = f"\n--- 来源: {source_url} (相关度: {score:.4f}) ---\n"
+                    header = f"\n--- Source: {source_url} ---\n"
                     context_parts.append(header)
                     total_chars += len(header)
                     seen_urls.add(source_url)
                 if total_chars + len(content) > max_chars:
                     remaining = max_chars - total_chars
                     if remaining > 100:
-                        context_parts.append(content[:remaining] + "...[已截断]")
+                        context_parts.append(content[:remaining] + "...[truncated]")
                     break
                 context_parts.append(content + "\n")
                 total_chars += len(content) + 1
+            
+            context = "".join(context_parts)
+            print(f"[RAG] 查询检索完成: {len(context)} 字符，来自 {len(seen_urls)} 个不同来源")
+            return context
+        except Exception as e:
+            print(f"[RAG] 检索查询 '{query}' 时出错: {e}")
+            return ""
+    
+    async def get_context_for_analysis(self, objective: str, max_chars: int = 20000, queries: List[str] = None) -> str:
+        """获取用于分析的上下文，支持多个查询（合并结果）"""
+        if self.vectorstore is None:
+            print("[RAG] 向量存储为空，无法检索")
+            return ""
+        try:
+            # 如果没有提供查询，使用原始objective
+            if queries is None or len(queries) == 0:
+                queries = [objective]
+            
+            print(f"[RAG] 使用 {len(queries)} 个查询进行检索")
+            all_docs = []
+            seen_doc_hashes = set()
+            
+            # 对每个查询进行检索
+            for i, query in enumerate(queries, 1):
+                print(f"[RAG] 查询 {i}/{len(queries)}: {query[:50]}...")
+                try:
+                    mmr_docs = await asyncio.to_thread(
+                        self.vectorstore.max_marginal_relevance_search,
+                        query,
+                        k=15,  # 每个查询检索更少的文档，但多个查询会合并
+                        fetch_k=60,
+                        lambda_mult=0.5
+                    )
+                    # 去重：使用内容hash避免重复
+                    import hashlib
+                    for doc in mmr_docs:
+                        doc_hash = hashlib.sha1(doc.page_content.encode("utf-8")).hexdigest()
+                        if doc_hash not in seen_doc_hashes:
+                            seen_doc_hashes.add(doc_hash)
+                            all_docs.append(doc)
+                except Exception as e:
+                    print(f"[RAG] 查询 '{query}' 检索失败: {e}")
+            
+            print(f"[RAG] 合并后共获得 {len(all_docs)} 个去重文档")
+            
+            # 构建上下文
+            context_parts = []
+            total_chars = 0
+            seen_urls = set()
+            for doc in all_docs:
+                source_url = doc.metadata.get("source_url", "unknown")
+                content = doc.page_content
+                if source_url not in seen_urls:
+                    header = f"\n--- Source: {source_url} ---\n"
+                    context_parts.append(header)
+                    total_chars += len(header)
+                    seen_urls.add(source_url)
+                if total_chars + len(content) > max_chars:
+                    remaining = max_chars - total_chars
+                    if remaining > 100:
+                        context_parts.append(content[:remaining] + "...[truncated]")
+                    break
+                context_parts.append(content + "\n")
+                total_chars += len(content) + 1
+            
             context = "".join(context_parts)
             print(f"[RAG] 生成分析上下文: {len(context)} 字符，来自 {len(seen_urls)} 个不同来源")
             return context
@@ -162,10 +271,11 @@ class RAGManager:
 class BaseAgent(ABC):
     _prompt_generator = None
     
-    def __init__(self, model_name: str = "gpt-4o"):
-        api_base_url ="http://123.129.219.111:3000/v1"
-        api_key = os.getenv("DF_API_KEY")
-        if not api_key: raise ValueError("错误：请先设置 DF_API_KEY 环境变量！")
+    def __init__(self, model_name: str = "gpt-4o", api_base_url: str = None, api_key: str = None):
+        if not api_base_url:
+            raise ValueError("错误：必须提供 api_base_url 参数！")
+        if not api_key:
+            raise ValueError("错误：必须提供 api_key 参数！")
         self.llm = ChatOpenAI(model=model_name, temperature=0.1, openai_api_base=api_base_url, openai_api_key=api_key, max_tokens=4096)
         
         # 初始化 prompt generator（只初始化一次）
@@ -186,13 +296,53 @@ class BaseAgent(ABC):
 class HuggingFaceDatasetManager:
 
     
-    def __init__(self, max_retries: int = 3, retry_delay: int = 5, size_categories: List[str] = None):
+    def __init__(self, max_retries: int = 3, retry_delay: int = 5, size_categories: List[str] = None, cache_dir: str = None, disable_cache: bool = False, temp_base_dir: str = None):
         self.hf_endpoint = 'https://hf-mirror.com'
         self.hf_api = HfApi(endpoint=self.hf_endpoint)
         self.max_retries = max_retries
         self.retry_delay = retry_delay # seconds
         self.size_categories = size_categories  # e.g., ["n<1K", "1K<n<10K", "10K<n<100K"]
+        self.disable_cache = disable_cache
         os.environ['HF_ENDPOINT'] = self.hf_endpoint
+        
+        # 允许通过 DF_TEMP_DIR 或传参指定临时目录基准，避免写入系统 /tmp
+        self.temp_base_dir = os.getenv("DF_TEMP_DIR") or temp_base_dir
+        if self.temp_base_dir:
+            os.makedirs(self.temp_base_dir, exist_ok=True)
+
+        # 如果禁用缓存，使用可控的临时目录并在下载后清理
+        if disable_cache:
+            import tempfile
+            temp_cache = tempfile.mkdtemp(prefix="hf_cache_", dir=self.temp_base_dir)
+            os.environ['HF_HOME'] = temp_cache
+            os.environ['HUGGINGFACE_HUB_CACHE'] = os.path.join(temp_cache, "hub")
+            os.environ['HF_DATASETS_CACHE'] = os.path.join(temp_cache, "datasets")
+            os.environ['TRANSFORMERS_CACHE'] = os.path.join(temp_cache, "transformers")
+            self._temp_cache_dir = temp_cache
+            print(f"[HuggingFace] 缓存已禁用，使用临时目录: {temp_cache} (下载后将自动清理)")
+        elif cache_dir:
+            cache_dir = os.path.abspath(cache_dir)
+            os.makedirs(cache_dir, exist_ok=True)
+            # 设置 HuggingFace 相关的缓存环境变量
+            hf_cache = os.path.join(cache_dir, "hf_cache")
+            os.makedirs(hf_cache, exist_ok=True)
+            os.environ['HF_HOME'] = hf_cache
+            os.environ['HUGGINGFACE_HUB_CACHE'] = os.path.join(hf_cache, "hub")
+            os.environ['HF_DATASETS_CACHE'] = os.path.join(hf_cache, "datasets")
+            os.environ['TRANSFORMERS_CACHE'] = os.path.join(hf_cache, "transformers")
+            self._temp_cache_dir = None
+            print(f"[HuggingFace] 缓存目录已设置为: {hf_cache} (避免占用系统盘)")
+        else:
+            # 如果未指定，使用默认的项目目录
+            default_cache = os.path.join(os.getcwd(), ".cache", "hf")
+            os.makedirs(default_cache, exist_ok=True)
+            os.environ['HF_HOME'] = default_cache
+            os.environ['HUGGINGFACE_HUB_CACHE'] = os.path.join(default_cache, "hub")
+            os.environ['HF_DATASETS_CACHE'] = os.path.join(default_cache, "datasets")
+            os.environ['TRANSFORMERS_CACHE'] = os.path.join(default_cache, "transformers")
+            self._temp_cache_dir = None
+            print(f"[HuggingFace] 使用默认缓存目录: {default_cache}")
+        
         print(f"[HuggingFace] 初始化，最大重试次数: {self.max_retries}, 延迟: {self.retry_delay}s (线性增长), 数据集大小类别: {self.size_categories if self.size_categories else '不限制'}")
 
     @staticmethod
@@ -266,7 +416,7 @@ class HuggingFaceDatasetManager:
                     self.hf_api.list_datasets, 
                     search=keyword, 
                     limit=max_results,
-                    size_categories=self.size_categories
+                    # size_categories=self.size_categories
                 )
                 
                 results[keyword] = []
@@ -302,7 +452,8 @@ class HuggingFaceDatasetManager:
                 
                 configs = await self._retry_async_thread(
                     get_dataset_config_names,
-                    path=dataset_id, 
+                    path=dataset_id,
+                    # base_url=self.hf_endpoint,  # 显式传入镜像端点
                     # token=self.hf_api.token 
                 )
                 
@@ -313,10 +464,7 @@ class HuggingFaceDatasetManager:
                     print(f"[HuggingFace] 数据集 {dataset_id} 没有特定的配置.")
             
             except Exception as e:
-                print(f"[HuggingFace] 检查配置时出错 (将尝试无配置下载): {e}")
-                if "Invalid pattern" in str(e):
-                    print(f"[HuggingFace] 检测到 'Invalid pattern' 错误，终止此数据集下载。")
-                    raise e 
+                print(f"[HuggingFace] 检查配置时出错 (将跳过配置检查，直接下载): {e}")
                 config_to_load = None
             
             # --- 核心修改：使用 snapshot_download 替换 load_dataset ---
@@ -328,10 +476,20 @@ class HuggingFaceDatasetManager:
                 local_dir=dataset_dir,
                 repo_type="dataset",             # 明确告知是数据集
                 force_download=True,           # 相当于 download_mode="force_redownload"
-                local_dir_use_symlinks=False   # 推荐设置，避免Windows或跨设备问题
+                local_dir_use_symlinks=False,  # 推荐设置，避免Windows或跨设备问题
+                endpoint=self.hf_endpoint      # 显式传入镜像端点，确保重试时使用镜像
                 # token=self.hf_api.token      # 如果需要私有库，可以传入
             )
             # --- 修改结束 ---
+            
+            # 如果禁用了缓存，下载完成后清理临时缓存目录
+            if self.disable_cache and hasattr(self, '_temp_cache_dir') and self._temp_cache_dir:
+                try:
+                    if os.path.exists(self._temp_cache_dir):
+                        shutil.rmtree(self._temp_cache_dir, ignore_errors=True)
+                        print(f"[HuggingFace] 已清理临时缓存目录: {self._temp_cache_dir}")
+                except Exception as e:
+                    print(f"[HuggingFace] 清理临时缓存目录时出错: {e} (可忽略)")
             
             config_str = f"(配置: {config_to_load})" if config_to_load else "(默认配置)"
             print(f"[HuggingFace] 数据集 {dataset_id} {config_str} *文件*下载成功，保存至 {returned_path}")
@@ -340,6 +498,214 @@ class HuggingFaceDatasetManager:
         except Exception as e:
             print(f"[HuggingFace] 下载数据集 {dataset_id} 失败 (经过重试后): {e}")
             return None
+
+class KaggleDatasetManager:
+
+    def __init__(self, search_engine: str = "tavily", cache_dir: str = None, disable_cache: bool = False, temp_base_dir: str = None):
+        self.search_engine = search_engine
+        self.api = None
+        self.disable_cache = disable_cache
+        self.temp_base_dir = os.getenv("DF_TEMP_DIR") or temp_base_dir
+        if self.temp_base_dir:
+            os.makedirs(self.temp_base_dir, exist_ok=True)
+        
+        # 如果禁用缓存，使用可控的临时目录并在下载后清理
+        if disable_cache:
+            import tempfile
+            temp_cache = tempfile.mkdtemp(prefix="kaggle_cache_", dir=self.temp_base_dir)
+            os.environ['KAGGLE_HUB_CACHE'] = temp_cache
+            kaggle_config = os.path.join(temp_cache, "config")
+            os.makedirs(kaggle_config, exist_ok=True)
+            if 'KAGGLE_CONFIG_DIR' not in os.environ:
+                os.environ['KAGGLE_CONFIG_DIR'] = kaggle_config
+            self._temp_cache_dir = temp_cache
+            print(f"[Kaggle] 缓存已禁用，使用临时目录: {temp_cache} (下载后将自动清理)")
+        elif cache_dir:
+            cache_dir = os.path.abspath(cache_dir)
+            os.makedirs(cache_dir, exist_ok=True)
+            kaggle_cache = os.path.join(cache_dir, "kaggle_cache")
+            os.makedirs(kaggle_cache, exist_ok=True)
+            # 设置 kagglehub 缓存目录（通过环境变量）
+            os.environ['KAGGLE_HUB_CACHE'] = kaggle_cache
+            # Kaggle API 默认下载到指定目录，但可能还会有元数据缓存
+            # 设置 KAGGLE_CONFIG_DIR 可以控制配置和缓存位置
+            kaggle_config = os.path.join(kaggle_cache, "config")
+            os.makedirs(kaggle_config, exist_ok=True)
+            if 'KAGGLE_CONFIG_DIR' not in os.environ:
+                os.environ['KAGGLE_CONFIG_DIR'] = kaggle_config
+            self._temp_cache_dir = None
+            print(f"[Kaggle] 缓存目录已设置为: {kaggle_cache} (避免占用系统盘)")
+        else:
+            # 如果未指定，使用默认的项目目录
+            default_cache = os.path.join(os.getcwd(), ".cache", "kaggle")
+            os.makedirs(default_cache, exist_ok=True)
+            os.environ['KAGGLE_HUB_CACHE'] = default_cache
+            if 'KAGGLE_CONFIG_DIR' not in os.environ:
+                kaggle_config = os.path.join(default_cache, "config")
+                os.makedirs(kaggle_config, exist_ok=True)
+                os.environ['KAGGLE_CONFIG_DIR'] = kaggle_config
+            self._temp_cache_dir = None
+            print(f"[Kaggle] 使用默认缓存目录: {default_cache}")
+        
+        try:
+            from kaggle.api.kaggle_api_extended import KaggleApi  # type: ignore
+            self.api = KaggleApi()
+            self.api.authenticate()
+            print("[Kaggle] 已使用 KaggleApi 进行认证。")
+        except Exception as e:
+            print(f"[Kaggle] KaggleApi 初始化/认证失败: {e}. 请配置 ~/.kaggle/kaggle.json 或设置 KAGGLE_USERNAME/KAGGLE_KEY。将无法使用 Kaggle API。")
+
+    async def search_datasets(self, keywords: List[str], max_results: int = 5) -> List[str]:
+        if not self.api:
+            print("[Kaggle] 未初始化 KaggleApi，跳过 Kaggle 搜索。")
+            return []
+        refs: List[str] = []
+        try:
+            # KaggleApi 不支持并发调用，这里串行合并结果
+            for kw in keywords:
+                try:
+                    items = await asyncio.to_thread(self.api.dataset_list, search=kw)
+                    for it in (items or [])[:max_results]:
+                        # it.ref 格式如 owner/slug
+                        ref = getattr(it, 'ref', None) or f"{getattr(it, 'ownerSlug', '')}/{getattr(it, 'datasetSlug', '')}"
+                        if ref and '/' in ref:
+                            refs.append(ref)
+                except Exception as e:
+                    print(f"[Kaggle] 搜索 '{kw}' 出错: {e}")
+        except Exception as e:
+            print(f"[Kaggle] 搜索失败: {e}")
+        # 去重并限量
+        dedup = list(dict.fromkeys(refs))[:max_results]
+        print(f"[Kaggle] API 搜索汇总结果: {len(dedup)} 个候选")
+        return dedup
+
+    @staticmethod
+    def _to_ref(s: str) -> str | None:
+        # 支持 URL 或者 owner/slug 形式
+        s = (s or '').strip()
+        if not s:
+            return None
+        if 'kaggle.com/datasets/' in s:
+            m = re.search(r"kaggle\.com/datasets/([^/]+)/([^/?#]+)", s)
+            if not m:
+                return None
+            return f"{m.group(1)}/{m.group(2)}"
+        # 直接是 ref
+        if '/' in s and len(s.split('/')) == 2:
+            return s
+        return None
+
+    async def try_download(self, page: Page, dataset_identifier: str, save_dir: str) -> str | None:
+        os.makedirs(save_dir, exist_ok=True)
+        ref = self._to_ref(dataset_identifier)
+        if not ref:
+            print(f"[Kaggle] 无法解析数据集标识: {dataset_identifier}")
+            return None
+        
+        # 优先使用 KaggleApi（直接下载到指定目录，避免系统盘缓存）
+        if self.api:
+            try:
+                print(f"[Kaggle] 使用 KaggleApi 下载: {ref} (直接下载到 {save_dir}，避免系统盘缓存)")
+                await asyncio.to_thread(self.api.dataset_download_files, ref, path=save_dir, unzip=True, quiet=True)
+                print(f"[Kaggle] 下载完成并解压至: {save_dir}")
+                return save_dir
+            except Exception as e:
+                print(f"[Kaggle] API 下载失败: {e}")
+        else:
+            print("[Kaggle] 未初始化 KaggleApi，尝试使用 kagglehub。")
+        
+        # 如果 KaggleApi 失败或未初始化，尝试 kagglehub
+        # 注意：kagglehub 可能会在缓存目录留下文件，但我们已经设置了环境变量
+        try:
+            import kagglehub  # type: ignore
+            print(f"[Kaggle] 使用 kagglehub 下载: {ref}")
+            path = await asyncio.to_thread(kagglehub.dataset_download, ref)
+            if path and os.path.exists(path):
+                print(f"[Kaggle] kagglehub 下载完成: {path}")
+                # 如果 kagglehub 下载的路径不在 save_dir 中，尝试将文件移动到指定目录
+                # 这样可以避免在缓存目录留下文件
+                if os.path.abspath(path) != os.path.abspath(save_dir):
+                    try:
+                        # 如果是文件，移动到 save_dir；如果是目录，复制内容
+                        if os.path.isfile(path):
+                            dest_path = os.path.join(save_dir, os.path.basename(path))
+                            shutil.move(path, dest_path)
+                            print(f"[Kaggle] 已移动文件到指定目录: {dest_path}")
+                            return dest_path
+                        elif os.path.isdir(path):
+                            # 如果是目录，复制内容到 save_dir
+                            for item in os.listdir(path):
+                                src_item = os.path.join(path, item)
+                                dst_item = os.path.join(save_dir, item)
+                                if os.path.isdir(src_item):
+                                    shutil.copytree(src_item, dst_item, dirs_exist_ok=True)
+                                else:
+                                    shutil.copy2(src_item, dst_item)
+                            print(f"[Kaggle] 已复制内容到指定目录: {save_dir}")
+                            # 如果禁用了缓存，删除原始缓存目录
+                            if self.disable_cache:
+                                try:
+                                    shutil.rmtree(path, ignore_errors=True)
+                                    print(f"[Kaggle] 已清理 kagglehub 缓存目录: {path}")
+                                except Exception as e:
+                                    print(f"[Kaggle] 清理缓存目录时出错: {e} (可忽略)")
+                            return save_dir
+                    except Exception as move_e:
+                        print(f"[Kaggle] 移动/复制文件时出错: {move_e}，返回原始路径")
+                return path
+            print("[Kaggle] kagglehub 返回无效路径。")
+        except Exception as e:
+            print(f"[Kaggle] kagglehub 失败或未安装: {e}")
+        
+        # 如果禁用了缓存，清理临时缓存目录
+        if self.disable_cache and hasattr(self, '_temp_cache_dir') and self._temp_cache_dir:
+            try:
+                if os.path.exists(self._temp_cache_dir):
+                    shutil.rmtree(self._temp_cache_dir, ignore_errors=True)
+                    print(f"[Kaggle] 已清理临时缓存目录: {self._temp_cache_dir}")
+            except Exception as e:
+                print(f"[Kaggle] 清理临时缓存目录时出错: {e} (可忽略)")
+        
+        # 最后兜底失败
+        return None
+
+class PaddleDatasetManager:
+
+    def __init__(self, search_engine: str = "tavily"):
+        self.search_engine = search_engine
+        print(f"[Paddle] 初始化 (search_engine={self.search_engine})")
+
+    async def search_datasets(self, keywords: List[str], max_results: int = 5) -> List[str]:
+        urls: List[str] = []
+        for kw in keywords:
+            try:
+                query = f"site:paddlepaddle.org.cn {kw} 数据集"
+                text = await ToolManager.search_web(query, search_engine=self.search_engine)
+                found = ToolManager._extract_urls_from_markdown(text)
+                # 只保留 Paddle 官方域名上的链接
+                filtered = [u for u in found if "paddlepaddle.org.cn" in u]
+                urls.extend(filtered)
+            except Exception as e:
+                print(f"[Paddle] 搜索 '{kw}' 出错: {e}")
+        dedup = list(dict.fromkeys(urls))[:max_results]
+        print(f"[Paddle] 搜索汇总结果: {len(dedup)} 个候选")
+        return dedup
+
+    async def try_download(self, page: Page, dataset_page_url: str, save_dir: str) -> str | None:
+        os.makedirs(save_dir, exist_ok=True)
+        try:
+            content = await ToolManager._read_with_jina_reader(dataset_page_url)
+            urls = content.get("urls", []) if content else []
+            candidates = [u for u in urls if any(u.lower().endswith(ext) for ext in [".zip", ".csv", ".tar", ".gz", ".parquet"])]
+            candidates = list(dict.fromkeys(candidates))
+            print(f"[Paddle] 页面解析得到 {len(candidates)} 个下载候选链接")
+            for u in candidates:
+                path = await ToolManager.download_file(page, u, save_dir)
+                if path:
+                    return path
+        except Exception as e:
+            print(f"[Paddle] 解析页面失败: {e}")
+        return None
 class ToolManager:
     @staticmethod
     async def search_web(query: str, search_engine: str = "tavily") -> str:
@@ -761,8 +1127,8 @@ class DownloadMethodDecisionAgent(BaseAgent):
             return {"method": "web_crawl", "reasoning": "解析失败，使用默认的web爬取方法", "keywords_for_hf": [], "fallback_method": "huggingface"}
 
 class HuggingFaceDecisionAgent(BaseAgent):
-
-    async def execute(self, search_results: Dict[str, List[Dict]], objective: str, logger: LogManager) -> str | None:
+    
+    async def execute(self, search_results: Dict[str, List[Dict]], objective: str, logger: LogManager, message: str = "") -> str | None:
         print("\n--- HuggingFace 决策器 ---")
         
         if not search_results or all(not v for v in search_results.values()):
@@ -772,6 +1138,7 @@ class HuggingFaceDecisionAgent(BaseAgent):
         system_prompt = self.prompt_gen.render("system_prompt_for_huggingface_decision")
         human_prompt = self.prompt_gen.render("task_prompt_for_huggingface_decision",
                                               objective=objective,
+                                              message=message,
                                               search_results=json.dumps(search_results, indent=2, ensure_ascii=False))
 
         messages = self._create_messages(system_prompt, human_prompt)
@@ -807,61 +1174,224 @@ class TaskDecomposer(BaseAgent):
             clean_response = response.content.strip().replace("```json", "").replace("```", "")
             plan = json.loads(clean_response)
             state.sub_tasks = plan.get("sub_tasks", [])
+            # 保存任务分解器提供的清晰用户需求描述
+            state.user_message = plan.get("message", state.initial_request)
             print(f"任务计划已生成，包含 {len(state.sub_tasks)} 个步骤。")
             logger.log_data("1_decomposer_parsed_plan", plan, is_json=True)
         except Exception as e:
             print(f"解析任务计划时出错: {e}\n原始响应: {response.content}")
         return state
 
+class QueryGeneratorAgent(BaseAgent):
+    """查询生成器 - 为RAG检索生成多样的英文查询"""
+    async def execute(self, objective: str, message: str, logger: LogManager) -> List[str]:
+        print("\n--- 查询生成器 ---")
+        system_prompt = self.prompt_gen.render("system_prompt_for_query_generator")
+        human_prompt = self.prompt_gen.render("task_prompt_for_query_generator",
+                                              objective=objective,
+                                              message=message)
+        messages = self._create_messages(system_prompt, human_prompt)
+        response = await self.llm.ainvoke(messages)
+        logger.log_data("query_generator_raw_response", response.content)
+        
+        try:
+            clean_response = response.content.strip().replace("```json", "").replace("```", "")
+            queries = json.loads(clean_response)
+            if isinstance(queries, list) and all(isinstance(q, str) for q in queries):
+                print(f"生成了 {len(queries)} 个检索查询: {queries}")
+                logger.log_data("query_generator_parsed", queries, is_json=True)
+                return queries
+            else:
+                print(f"查询生成格式错误，返回空列表")
+                return []
+        except Exception as e:
+            print(f"解析查询生成响应时出错: {e}\n原始响应: {response.content}")
+            return []
+
 class SummaryAgent(BaseAgent):
-    async def execute(self, state: WebCrawlState, logger: LogManager, research_objective: str) -> WebCrawlState:
-        print("\n--- 总结与规划（使用RAG增强） ---")
+    async def execute(self, state: WebCrawlState, logger: LogManager, research_objective: str, query_generator: QueryGeneratorAgent = None) -> WebCrawlState:
+        print("\n--- 总结与规划（使用RAG增强，多次查询多次生成） ---")
+        
+        # 收集所有生成的新子任务
+        all_new_sub_tasks = []
+        all_summaries = []
         
         # [--- 使用 RAG 获取精炼的相关内容 ---]
         if state.enable_rag and state.rag_manager:
             print("[Summary] 使用 RAG 检索相关内容...")
-            relevant_context = await state.rag_manager.get_context_for_analysis(
-                objective=research_objective,
-                max_chars=18000
-            )
-            if not relevant_context:
-                print("[Summary] RAG 检索未能找到相关内容，使用原始方法...")
-                all_text = "\n\n---\n\n".join([data['text_content'] for data in state.crawled_data if 'text_content' in data])
-                relevant_context = all_text[:18000] if all_text else ""
-            else:
-                rag_stats = state.rag_manager.get_statistics()
-                print(f"[Summary] RAG统计: {rag_stats}")
-                logger.log_data("rag_statistics", rag_stats, is_json=True)
+            
+            # 生成多样化的英文查询
+            queries = None
+            if query_generator:
+                try:
+                    queries = await query_generator.execute(
+                        objective=research_objective,
+                        message=getattr(state, "user_message", ""),
+                        logger=logger
+                    )
+                except Exception as e:
+                    print(f"[Summary] 查询生成失败: {e}，使用单一查询")
+            
+            # 如果没有生成查询，使用原始objective作为单查询
+            if not queries or len(queries) == 0:
+                queries = [research_objective]
+            
+            print(f"[Summary] 将对 {len(queries)} 个查询分别检索并生成子任务")
+            
+            # 对每个查询分别检索并生成子任务
+            for query_idx, query in enumerate(queries, 1):
+                print(f"\n[Summary] === 处理查询 {query_idx}/{len(queries)}: {query[:50]}... ===")
+                
+                # 获取当前查询的上下文
+                relevant_context = await state.rag_manager.get_context_for_single_query(
+                    query=query,
+                    max_chars=18000
+                )
+                
+                if not relevant_context:
+                    print(f"[Summary] 查询 {query_idx} 检索结果为空，跳过")
+                    continue
+                
+                # 收集当前已有的download子任务列表（包括之前生成的，使用集合去重）
+                # 使用集合来存储任务的唯一标识，避免重复
+                seen_task_keys = set()
+                existing_download_tasks = []
+                
+                # 从state.sub_tasks中收集已有的download任务
+                if hasattr(state, "sub_tasks") and state.sub_tasks:
+                    for task in state.sub_tasks:
+                        if task.get("type") == "download":
+                            task_key = (task.get("objective", ""), task.get("search_keywords", ""))
+                            if task_key not in seen_task_keys:
+                                seen_task_keys.add(task_key)
+                                existing_download_tasks.append({
+                                    "objective": task.get("objective", ""),
+                                    "search_keywords": task.get("search_keywords", "")
+                                })
+                
+                # 也要包含本次循环中已生成的新子任务
+                for new_task in all_new_sub_tasks:
+                    task_key = (new_task.get("objective", ""), new_task.get("search_keywords", ""))
+                    if task_key not in seen_task_keys:
+                        seen_task_keys.add(task_key)
+                        existing_download_tasks.append({
+                            "objective": new_task.get("objective", ""),
+                            "search_keywords": new_task.get("search_keywords", "")
+                        })
+                
+                existing_subtasks_str = json.dumps(existing_download_tasks, indent=2, ensure_ascii=False) if existing_download_tasks else "[]"
+                
+                # 调用模型生成子任务
+                system_prompt = self.prompt_gen.render("system_prompt_for_summary_agent")
+                human_prompt = self.prompt_gen.render("task_prompt_for_summary_agent",
+                                                      objective=research_objective,
+                                                      message=getattr(state, "user_message", ""),
+                                                      existing_subtasks=existing_subtasks_str,
+                                                      context=relevant_context)
+                messages = self._create_messages(system_prompt, human_prompt)
+                response = await self.llm.ainvoke(messages)
+                log_name = f"summary_query_{query_idx}_{research_objective.replace(' ', '_')}"
+                logger.log_data(f"{log_name}_raw_response", response.content)
+                logger.log_data(f"{log_name}_query", query)
+                logger.log_data(f"{log_name}_context_used", relevant_context)
+                logger.log_data(f"{log_name}_existing_subtasks", existing_download_tasks, is_json=True)
+                
+                try:
+                    clean_response = response.content.strip().replace("```json", "").replace("```", "")
+                    summary_plan = json.loads(clean_response)
+                    
+                    new_tasks = summary_plan.get("new_sub_tasks", [])
+                    summary_text = summary_plan.get("summary", "")
+                    
+                    if new_tasks:
+                        print(f"[Summary] 查询 {query_idx} 生成了 {len(new_tasks)} 个新子任务")
+                        # 将新任务添加到all_new_sub_tasks
+                        all_new_sub_tasks.extend(new_tasks)
+                        
+                        # 将新子任务添加到state.sub_tasks中，以便下次查询时能避免重复
+                        # 添加时也做去重，避免state.sub_tasks中有重复任务
+                        if not hasattr(state, "sub_tasks") or state.sub_tasks is None:
+                            state.sub_tasks = []
+                        
+                        # 使用集合跟踪已有的任务键
+                        existing_task_keys = set()
+                        for task in state.sub_tasks:
+                            if task.get("type") == "download":
+                                task_key = (task.get("objective", ""), task.get("search_keywords", ""))
+                                existing_task_keys.add(task_key)
+                        
+                        # 只添加不重复的新任务
+                        for new_task in new_tasks:
+                            task_key = (new_task.get("objective", ""), new_task.get("search_keywords", ""))
+                            if task_key not in existing_task_keys:
+                                state.sub_tasks.append(new_task)
+                                existing_task_keys.add(task_key)
+                    
+                    if summary_text:
+                        all_summaries.append(f"[Query {query_idx}: {query[:30]}...] {summary_text}")
+                    
+                    logger.log_data(f"{log_name}_parsed_plan", summary_plan, is_json=True)
+                except Exception as e:
+                    print(f"[Summary] 查询 {query_idx} 解析响应时出错: {e}\n原始响应: {response.content}")
+            
+            # 记录RAG统计
+            rag_stats = state.rag_manager.get_statistics()
+            print(f"[Summary] RAG统计: {rag_stats}")
+            logger.log_data("rag_statistics", rag_stats, is_json=True)
+            
         else:
+            # RAG未启用，使用传统方法（单次生成）
             print("[Summary] RAG 未启用，使用传统方法...")
             all_text = "\n\n---\n\n".join([data['text_content'] for data in state.crawled_data if 'text_content' in data])
             relevant_context = all_text[:18000] if all_text else ""
+            
+            if not relevant_context:
+                print("研究阶段未能收集到任何文本内容，无法生成新任务。")
+                return state
+            
+            # 收集现有的download子任务列表
+            existing_download_tasks = []
+            if hasattr(state, "sub_tasks") and state.sub_tasks:
+                for task in state.sub_tasks:
+                    if task.get("type") == "download":
+                        existing_download_tasks.append({
+                            "objective": task.get("objective", ""),
+                            "search_keywords": task.get("search_keywords", "")
+                        })
+            existing_subtasks_str = json.dumps(existing_download_tasks, indent=2, ensure_ascii=False) if existing_download_tasks else "[]"
+            
+            system_prompt = self.prompt_gen.render("system_prompt_for_summary_agent")
+            human_prompt = self.prompt_gen.render("task_prompt_for_summary_agent",
+                                                  objective=research_objective,
+                                                  message=getattr(state, "user_message", ""),
+                                                  existing_subtasks=existing_subtasks_str,
+                                                  context=relevant_context)
+            messages = self._create_messages(system_prompt, human_prompt)
+            response = await self.llm.ainvoke(messages)
+            log_name = f"summary_and_plan_{research_objective.replace(' ', '_')}"
+            logger.log_data(f"{log_name}_raw_response", response.content)
+            logger.log_data(f"{log_name}_context_used", relevant_context)
+            try:
+                clean_response = response.content.strip().replace("```json", "").replace("```", "")
+                summary_plan = json.loads(clean_response)
+                all_new_sub_tasks = summary_plan.get("new_sub_tasks", [])
+                all_summaries = [summary_plan.get("summary", "No summary")]
+                logger.log_data(f"{log_name}_parsed_plan", summary_plan, is_json=True)
+            except Exception as e:
+                print(f"解析总结规划响应时出错: {e}\n原始响应: {response.content}")
         
-        if not relevant_context:
-            print("研究阶段未能收集到任何文本内容，无法生成新任务。")
-            return state
-
-        system_prompt = self.prompt_gen.render("system_prompt_for_summary_agent")
-        human_prompt = self.prompt_gen.render("task_prompt_for_summary_agent",
-                                              objective=research_objective,
-                                              context=relevant_context)
-        messages = self._create_messages(system_prompt, human_prompt)
-        response = await self.llm.ainvoke(messages)
-        log_name = f"summary_and_plan_{research_objective.replace(' ', '_')}"
-        logger.log_data(f"{log_name}_raw_response", response.content)
-        logger.log_data(f"{log_name}_context_used", relevant_context)
-        try:
-            clean_response = response.content.strip().replace("```json", "").replace("```", "")
-            summary_plan = json.loads(clean_response)
-            state.research_summary = summary_plan
-            new_task_count = len(summary_plan.get("new_sub_tasks", []))
-            summary_text = summary_plan.get("summary", "无摘要")
-            print(f"总结与规划完成:")
-            print(f"  - 摘要: {summary_text[:200]}..." if len(summary_text) > 200 else f"  - 摘要: {summary_text}")
-            print(f"  - 生成了 {new_task_count} 个新的下载任务")
-            logger.log_data(f"{log_name}_parsed_plan", summary_plan, is_json=True)
-        except Exception as e:
-            print(f"解析总结规划响应时出错: {e}\n原始响应: {response.content}")
+        # 将所有结果合并到research_summary
+        state.research_summary = {
+            "new_sub_tasks": all_new_sub_tasks,
+            "summary": "\n".join(all_summaries) if all_summaries else "No summary"
+        }
+        
+        print(f"\n总结与规划完成:")
+        print(f"  - 总共生成了 {len(all_new_sub_tasks)} 个新的下载任务")
+        if all_summaries:
+            summary_preview = "\n".join(all_summaries)[:300]
+            print(f"  - 摘要预览: {summary_preview}..." if len("\n".join(all_summaries)) > 300 else f"  - 摘要: {summary_preview}")
+        
         return state
 
 # --- Agent ---
@@ -1054,6 +1584,9 @@ class Supervisor(BaseAgent):
 
 class WebCrawlOrchestrator:
     def __init__(self, 
+                 api_base_url: str,
+                 api_key: str,
+                 model_name: str = "gpt-4o",
                  download_dir: str = "./downloaded_data5", 
                  dataset_size_categories: List[str] = None,
                  max_crawl_cycles_per_task: int = 5,
@@ -1061,10 +1594,20 @@ class WebCrawlOrchestrator:
                  search_engine: str = "tavily",
                  use_jina_reader: bool=True,
                  enable_rag: bool = True,
-                 concurrent_pages: int = 5):
+                 concurrent_pages: int = 5,
+                 disable_cache: bool = True,
+                 temp_base_dir: str = None):
         """
         初始化 WebCrawlOrchestrator
+        
+        Args:
+            disable_cache: 如果为 True，将完全禁用 HuggingFace 和 Kaggle 的缓存，
+                           使用临时目录并在下载后自动清理，避免占用任何磁盘空间。
+                           也可以通过环境变量 DF_DISABLE_CACHE=true 来启用。
         """
+        self.api_base_url = api_base_url
+        self.api_key = api_key
+        self.model_name = model_name
         self.download_dir = download_dir
         self.max_crawl_cycles_per_task = max_crawl_cycles_per_task
         self.max_crawl_cycles_for_research = max_crawl_cycles_for_research
@@ -1074,39 +1617,54 @@ class WebCrawlOrchestrator:
         self.concurrent_pages = concurrent_pages
         os.makedirs(self.download_dir, exist_ok=True)
         
+        # 统一控制临时目录，避免写入系统 /tmp
+        self.temp_base_dir = os.getenv("DF_TEMP_DIR") or temp_base_dir or os.path.join(self.download_dir, ".tmp")
+        os.makedirs(self.temp_base_dir, exist_ok=True)
+        os.environ.setdefault("TMPDIR", self.temp_base_dir)
+
+        # 检查是否禁用缓存（优先使用参数，其次使用环境变量）
+        if not disable_cache:
+            disable_cache = os.getenv("DF_DISABLE_CACHE", "false").lower() in ("true", "1", "yes")
+        
         print(f"[Orchestrator] 配置:")
+        print(f"  - 模型: {model_name}")
         print(f"  - 搜索引擎: {search_engine.upper()}")
         print(f"  - Jina Reader: {'启用' if use_jina_reader else '禁用'}")
         print(f"  - RAG 增强: {'启用' if enable_rag else '禁用'}")
         print(f"  - 并行页面数: {concurrent_pages}")
+        print(f"  - 禁用缓存: {'是 (下载后自动清理临时文件)' if disable_cache else '否 (缓存将保存在项目目录)'}")
         
-        self.task_decomposer = TaskDecomposer()
-        self.summary_agent = SummaryAgent()
-        self.url_filter = URLFilter()
-        self.web_page_reader = WebPageReader()
+        self.task_decomposer = TaskDecomposer(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
+        self.summary_agent = SummaryAgent(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
+        self.url_filter = URLFilter(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
+        self.web_page_reader = WebPageReader(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
         self.executor = Executor()
-        self.supervisor = Supervisor()
-        self.download_decision_agent = DownloadMethodDecisionAgent()
+        self.supervisor = Supervisor(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
+        self.download_decision_agent = DownloadMethodDecisionAgent(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
         self.logger = LogManager()
         
         # *** 在 Orchestrator 中初始化 HF 工具和新 Agent ***
-        self.hf_decision_agent = HuggingFaceDecisionAgent()
-        self.hf_manager = HuggingFaceDatasetManager(max_retries=3, retry_delay=5, size_categories=dataset_size_categories)
+        # 如果未禁用缓存，设置缓存目录到 download_dir 下的 .cache 文件夹，避免占用系统盘
+        cache_base_dir = None if disable_cache else os.path.join(os.path.abspath(self.download_dir), ".cache")
+        
+        self.hf_decision_agent = HuggingFaceDecisionAgent(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
+        self.hf_manager = HuggingFaceDatasetManager(max_retries=3, retry_delay=5, size_categories=dataset_size_categories, cache_dir=cache_base_dir, disable_cache=disable_cache, temp_base_dir=self.temp_base_dir)
+        # Kaggle / Paddle 管理器
+        self.kaggle_manager = KaggleDatasetManager(search_engine=self.search_engine, cache_dir=cache_base_dir, disable_cache=disable_cache, temp_base_dir=self.temp_base_dir)
+        # self.paddle_manager = PaddleDatasetManager(search_engine=self.search_engine)  # 已注释：Paddle数据集获取功能
+        
+        # [--- QueryGenerator Agent 初始化 ---]
+        self.query_generator = QueryGeneratorAgent(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
         
         # [--- RAG 管理器初始化 ---]
         self.rag_manager = None
         if enable_rag:
-            api_base_url = "http://123.129.219.111:3000/v1"
-            api_key = os.getenv("DF_API_KEY")
-            if api_key:
-                print("[Orchestrator] 初始化 RAG 管理器...")
-                self.rag_manager = RAGManager(
-                    api_base_url=api_base_url,
-                    api_key=api_key,
-                    persist_directory=os.path.join(self.download_dir, "rag_db")
-                )
-            else:
-                print("[Orchestrator] 警告: 未找到 DF_API_KEY，RAG 功能将被禁用。")
+            print("[Orchestrator] 初始化 RAG 管理器...")
+            self.rag_manager = RAGManager(
+                api_base_url=self.api_base_url,
+                api_key=self.api_key,
+                persist_directory=os.path.join(self.download_dir, "rag_db")
+            )
         
     async def _process_single_url(self, page, url: str, state: WebCrawlState, 
                                    task_objective: str, task_type: str, 
@@ -1256,27 +1814,30 @@ class WebCrawlOrchestrator:
                         else:
                             print(f"研究阶段未发现具体下载目标，执行默认的下载任务作为兜底。") 
 
-                    download_method = "web_crawl"
+                    download_method = "huggingface"
                     hf_keywords = []
-                    fallback_method = "huggingface"
+                    fallback_method = "web_crawl"
                     
                     if task_type == "download":
-                        print("正在决策最佳下载方法...")
+                        print("正在获取 HuggingFace 搜索关键词（默认优先HF）...")
                         decision = await self.download_decision_agent.execute(
                             state, self.logger, task_objective, search_keywords
                         )
-                        download_method = decision.get("method", "web_crawl")
+                        # 只用于提取关键词，策略固定为先HF后Web
                         hf_keywords = decision.get("keywords_for_hf", [])
-                        fallback_method = decision.get("fallback_method", "huggingface")
-                        print(f"决策结果: 主要方法={download_method}, 备用方法={fallback_method}")
-                        if hf_keywords:
-                            print(f"HuggingFace搜索关键词: {hf_keywords}")
+                        if not hf_keywords:
+                            # 回退：从当前任务关键词/目标生成
+                            if isinstance(search_keywords, (list, tuple)):
+                                hf_keywords = [kw for kw in search_keywords if isinstance(kw, str) and kw.strip()] or [task_objective]
+                            else:
+                                hf_keywords = [search_keywords] if isinstance(search_keywords, str) and search_keywords.strip() else [task_objective]
+                        print(f"HuggingFace搜索关键词: {hf_keywords}")
 
                     download_success = False
                     
-                    # [--- HF 逻辑修改点： "搜索 -> 决策 -> 下载" ---]
-                    if task_type == "download" and download_method == "huggingface":
-                        print("尝试使用HuggingFace方法下载...")
+                    # 始终先尝试 HuggingFace："搜索 -> 决策 -> 下载"
+                    if task_type == "download":
+                        print("优先尝试使用 HuggingFace 方法下载...")
                         selected_id = None
                         hf_search_results = {}
                         try:
@@ -1286,7 +1847,7 @@ class WebCrawlOrchestrator:
                             
                             # 2. Decide
                             selected_id = await self.hf_decision_agent.execute(
-                                hf_search_results, task_objective, self.logger
+                                hf_search_results, task_objective, self.logger, message=getattr(state, "user_message", "")
                             )
                             
                             # 3. Download
@@ -1318,16 +1879,67 @@ class WebCrawlOrchestrator:
                         except Exception as e:
                             print(f"[HuggingFace] HF下载流程发生意外错误: {e}")
                             download_success = False
-                        
-                        # --- Fallback Logic for HF -> Web Crawl ---
-                        if not download_success and fallback_method == "web_crawl":
-                            print("HuggingFace下载失败，回退到网页爬取方法...")
-                            download_method = "web_crawl" # 强制设为 web_crawl
-                        elif download_success:
+                        if download_success:
                             state.download_successful_for_current_task = True
+
+                    # 若 HF 未成功，尝试 Kaggle
+                    if task_type == "download" and not state.download_successful_for_current_task:
+                        try:
+                            print("尝试使用 Kaggle 源下载...")
+                            kaggle_urls = await self.kaggle_manager.search_datasets(hf_keywords or [task_objective], max_results=5)
+                            if kaggle_urls:
+                                dl_page = await context.new_page()
+                                try:
+                                    for ds_url in kaggle_urls:
+                                        print(f"[Kaggle] 候选: {ds_url}")
+                                        save_dir = os.path.join(state.download_dir, "kaggle_datasets")
+                                        saved = await self.kaggle_manager.try_download(dl_page, ds_url, save_dir)
+                                        if saved:
+                                            state.crawled_data.append({
+                                                "source_url": ds_url,
+                                                "local_path": saved,
+                                                "type": "kaggle_dataset"
+                                            })
+                                            print(f"[Kaggle] 下载成功: {saved}")
+                                            state.download_successful_for_current_task = True
+                                            break
+                                finally:
+                                    await dl_page.close()
+                            else:
+                                print("[Kaggle] 未找到候选数据集。")
+                        except Exception as e:
+                            print(f"[Kaggle] 下载流程发生意外错误: {e}")
+
+                    # 若 Kaggle 未成功，尝试 Paddle（已注释）
+                    # if task_type == "download" and not state.download_successful_for_current_task:
+                    #     try:
+                    #         print("尝试使用 Paddle 源下载...")
+                    #         paddle_urls = await self.paddle_manager.search_datasets(hf_keywords or [task_objective], max_results=5)
+                    #         if paddle_urls:
+                    #             dl_page = await context.new_page()
+                    #             try:
+                    #                 for ds_url in paddle_urls:
+                    #                     print(f"[Paddle] 候选: {ds_url}")
+                    #                     save_dir = os.path.join(state.download_dir, "paddle_datasets")
+                    #                     saved = await self.paddle_manager.try_download(dl_page, ds_url, save_dir)
+                    #                     if saved:
+                    #                         state.crawled_data.append({
+                    #                             "source_url": ds_url,
+                    #                             "local_path": saved,
+                    #                             "type": "paddle_dataset"
+                    #                         })
+                    #                         print(f"[Paddle] 下载成功: {saved}")
+                    #                         state.download_successful_for_current_task = True
+                    #                         break
+                    #             finally:
+                    #                 await dl_page.close()
+                    #         else:
+                    #             print("[Paddle] 未找到候选数据集。")
+                    #     except Exception as e:
+                    #         print(f"[Paddle] 下载流程发生意外错误: {e}")
                     
                     # --- Web Crawl Logic ---
-                    if task_type == "research" or (task_type == "download" and download_method == "web_crawl" and not state.download_successful_for_current_task):
+                    if task_type == "research" or (task_type == "download" and not state.download_successful_for_current_task):
                         
                         is_research_phase = (task_type == "research")
                         
@@ -1338,7 +1950,26 @@ class WebCrawlOrchestrator:
                         search_results = await ToolManager.search_web(query_kw, search_engine=state.search_engine)
                         state.search_results_text = search_results
                         self.logger.log_data(f"2_search_results_{task_objective.replace(' ', '_')}", search_results)
-                        state = await self.url_filter.execute(state, logger=self.logger, is_research=is_research_phase)
+
+                        # Research 阶段：直接从搜索结果中提取 URL 入队，跳过 URL 筛选
+                        if is_research_phase:
+                            try:
+                                direct_urls = ToolManager._extract_urls_from_markdown(search_results) if search_results else []
+                                # 防止过多：保留前 30 个即可
+                                direct_urls = direct_urls[:30]
+                                state.filtered_urls = direct_urls
+                                for u in direct_urls:
+                                    if u not in state.visited_urls and u not in state.url_queue:
+                                        state.url_queue.append(u)
+                                self.logger.log_data("3_url_extracted_directly_for_research", {
+                                    "count": len(direct_urls),
+                                    "urls": direct_urls
+                                }, is_json=True)
+                                print(f"Research阶段：已直接加入 {len(direct_urls)} 个URL到待爬取队列（跳过筛选）。")
+                            except Exception as e:
+                                print(f"Research阶段直接提取URL时出错: {e}")
+                        else:
+                            state = await self.url_filter.execute(state, logger=self.logger, is_research=is_research_phase)
 
                         max_cycles = state.max_crawl_cycles_for_research if is_research_phase else state.max_crawl_cycles_per_task
                         
@@ -1381,52 +2012,10 @@ class WebCrawlOrchestrator:
                                 print(f"子任务 '{task_objective}' 的下载目标已完成，提前结束爬取循环。")
                                 break
                             print(f"[并行处理] 批次完成，剩余 {len(state.url_queue)} 个URL待处理")
-                    # --- Fallback Logic for Web Crawl -> HuggingFace ---
-                    if task_type == "download" and not state.download_successful_for_current_task and fallback_method == "huggingface":
-                        print("\n网页爬取方法未能成功下载，尝试回退到HuggingFace方法...")
-                        selected_id = None
-                        hf_search_results = {}
-                        try:
-                            # 如果没有预定义的HF关键词，从任务目标中生成
-                            if not hf_keywords:
-                                hf_keywords = [task_objective]
-                            print(f"[HuggingFace Fallback] 正在搜索关键词: {hf_keywords}")
-                            hf_search_results = await self.hf_manager.search_datasets(hf_keywords, max_results=5)
-                            
-                            selected_id = await self.hf_decision_agent.execute(
-                                hf_search_results, task_objective, self.logger
-                            )
-                            if selected_id:
-                                hf_download_dir = os.path.join(state.download_dir, "hF_datasets")
-                                save_path = await self.hf_manager.download_dataset(selected_id, hf_download_dir)
-                                
-                                if save_path:
-                                    # 记录下载的数据集信息
-                                    dataset_info = {}
-                                    for res_list in hf_search_results.values():
-                                        for d in res_list:
-                                            if d['id'] == selected_id:
-                                                dataset_info = d
-                                                break
-                                    
-                                    state.crawled_data.append({
-                                        "source_url": f"https://huggingface.co/datasets/{selected_id}",
-                                        "local_path": save_path, 
-                                        "type": "huggingface_dataset",
-                                        "dataset_id": selected_id,
-                                        "dataset_info": dataset_info
-                                    })
-                                    print(f"[HuggingFace Fallback] 数据集下载成功: {selected_id}")
-                                    state.download_successful_for_current_task = True
-                                else:
-                                    print(f"[HuggingFace Fallback] LLM选择的数据集 {selected_id} 下载失败。")
-                            else:
-                                print("[HuggingFace Fallback] 未找到合适的数据集。")
-                        except Exception as e:
-                            print(f"[HuggingFace Fallback] HF备用下载流程发生意外错误: {e}")
+                    # 已经先尝试过 HuggingFace，这里不再二次回退到 HF
                     
                     if task_type == "research":
-                        state = await self.summary_agent.execute(state, self.logger, research_objective=task_objective)
+                        state = await self.summary_agent.execute(state, self.logger, research_objective=task_objective, query_generator=self.query_generator)
                     
                     if task_type == "download":
                         if state.download_successful_for_current_task:
@@ -1464,7 +2053,12 @@ class WebCrawlOrchestrator:
         return state
 
 async def main():
-    if "DF_API_KEY" not in os.environ:
+    # 从环境变量获取 API 配置
+    api_base_url = os.getenv("DF_API_URL", "http://123.129.219.111:3000/v1")
+    api_key = os.getenv("DF_API_KEY")
+    model_name = os.getenv("DF_MODEL", "gpt-4o")
+    
+    if not api_key:
         print("错误: 请在运行脚本前设置 DF_API_KEY 环境变量。")
         return
     
@@ -1474,6 +2068,9 @@ async def main():
     # dataset_size_categories 可选值: ["n<1K", "1K<n<10K", "10K<n<100K", "100K<n<1M", "1M<n<10M", "10M<n<100M", "100M<n<1B", "n>1B"]
     # search_engine 可选值: "tavily", "duckduckgo", "jina"
     orchestrator = WebCrawlOrchestrator(
+        api_base_url=api_base_url,
+        api_key=api_key,
+        model_name=model_name,
         dataset_size_categories=["1K<n<10K"],
         max_crawl_cycles_per_task=10,  # 下载任务的最大循环次数
         max_crawl_cycles_for_research=15,  # research阶段的最大循环次数，允许访问更多网站
@@ -1485,5 +2082,4 @@ async def main():
     await orchestrator.run(user_request)
 
 if __name__ == "__main__":
-    os.environ.setdefault("DF_API_URL", "http://123.129.219.111:3000/v1")
     asyncio.run(main())

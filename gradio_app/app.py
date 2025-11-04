@@ -1,48 +1,19 @@
 # gradio_app/app.py
 from __future__ import annotations
-import os, argparse, socket, importlib, sys
+import os, argparse, socket, importlib
 from pathlib import Path
 import gradio as gr
-
-
-# 标签显示名称映射,如果需要自定义页面名称
-TAB_NAME_MAP = {
-    "operator_write": "Operator Write",
-}
-
 
 def load_pages() -> dict[str, gr.Blocks]:
     pages = {}
     pages_dir = Path(__file__).parent / "pages"
-    
-    # 确保项目根目录在 Python 路径中
-    project_root = Path(__file__).parent.parent.resolve()
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
-    
     for py_file in pages_dir.glob("*.py"):
         if py_file.name.startswith("_"):
             continue
-        try:
-            # 尝试两种导入方式
-            module = None
-            module_name = f"gradio_app.pages.{py_file.stem}"
-            try:
-                module = importlib.import_module(module_name)
-            except ModuleNotFoundError:
-                # 如果从 gradio_app 目录运行，尝试相对导入
-                try:
-                    module = importlib.import_module(f"pages.{py_file.stem}")
-                except ModuleNotFoundError:
-                    raise
-            
-            fn_name = f"create_{py_file.stem}"
-            if hasattr(module, fn_name):
-                pages[py_file.stem] = getattr(module, fn_name)()
-        except Exception as e:
-            print(f"⚠️  跳过页面 {py_file.name}: {e}")
-            import traceback
-            traceback.print_exc()
+        module = importlib.import_module(f"gradio_app.pages.{py_file.stem}")
+        fn_name = f"create_{py_file.stem}"
+        if hasattr(module, fn_name):
+            pages[py_file.stem] = getattr(module, fn_name)()
     return pages
 
 pages = load_pages()
@@ -51,9 +22,7 @@ with gr.Blocks(title="DataFlow Agent Platform") as app:
     gr.Markdown("# 🌊 DataFlow Agent 多功能平台")
     with gr.Tabs():
         for name, page in pages.items():
-            # 优先使用映射表中的名称，否则使用默认转换
-            tab_name = TAB_NAME_MAP.get(name, name.replace("_", " ").title())
-            with gr.Tab(tab_name):
+            with gr.Tab(name.replace("_", " ").title()):
                 page.render()         
 
 # -----------------------------------------------------------

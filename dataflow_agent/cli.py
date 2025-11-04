@@ -2,8 +2,7 @@ import click
 from pathlib import Path
 from datetime import datetime
 from jinja2 import Template
-from dataflow_agent.logger import get_logger
-log = get_logger(__name__)
+
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 # ---------- util ----------
@@ -127,11 +126,11 @@ def _generate_file(dest: Path, tpl_path: Path, context: dict, file_type: str):
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     if dest.exists():
-        log.error(f"  {dest} 已存在，跳过生成")
+        click.echo(f"  {dest} 已存在，跳过生成")
         return
 
     if not tpl_path.exists():
-        log.error(f" 模板不存在: {tpl_path}", err=True)
+        click.echo(f" 模板不存在: {tpl_path}", err=True)
         raise SystemExit(1)
 
     rendered = Template(tpl_path.read_text(encoding="utf-8")).render(**context)
@@ -142,7 +141,7 @@ def _generate_file(dest: Path, tpl_path: Path, context: dict, file_type: str):
     except ValueError:
         rel_path = dest
 
-    log.critical(f" 已生成 {file_type}: {rel_path}")
+    click.echo(f" 已生成 {file_type}: {rel_path}")
 
 
 if __name__ == "__main__":

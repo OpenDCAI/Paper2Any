@@ -50,6 +50,9 @@ async def web_crawl_collection(
     
     # 创建 WebCrawlOrchestrator
     orchestrator = WebCrawlOrchestrator(
+        api_base_url=request.chat_api_url,
+        api_key=request.api_key,
+        model_name=request.model,
         download_dir=request.download_dir,
         dataset_size_categories=[request.dataset_size_category] if request.dataset_size_category else None,
         max_crawl_cycles_per_task=max_crawl_cycles_per_task,
@@ -92,12 +95,12 @@ async def main() -> None:
         category="SFT",  # 数据类别：PT(预训练) 或 SFT(指令微调)
         dataset_num_limit=5,  # HuggingFace 搜索时每个关键词的数据集数量上限
         dataset_size_category='1K<n<10K',  # HuggingFace 数据集大小范围
-        download_dir=r'downloaded_data_finally',  # 下载目录
+        download_dir=r'downloaded_data_finally2',  # 下载目录
         
         # API 配置（用于 LLM 调用）
-        chat_api_url="http://123.129.219.111:3000/v1",
-        api_key=os.getenv("DF_API_KEY"),
-        model="gpt-4o",
+        chat_api_url=os.getenv("CHAT_API_URL"),
+        api_key=os.getenv("CHAT_API_URL"),
+        model=os.getenv("CHAT_MODEL"),
         language="zh"  # 提示词语言
     )
     
@@ -160,9 +163,7 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    # 设置环境变量（如果未设置）
-    os.environ.setdefault("DF_API_URL", "http://123.129.219.111:3000/v1")
-    
+
     # 运行主函数
     asyncio.run(main())
 

@@ -462,8 +462,18 @@ class UniversalDataConvertor(DataConvertor):
             log.error(f"压缩文件不存在: {compressed_path}")
             return None
             
-        # 创建临时目录
-        temp_dir = tempfile.mkdtemp(prefix="dataflow_extract_")
+        # 创建可控位置的临时目录，优先使用 DF_TEMP_DIR 或下载目录下的 .tmp
+        temp_base_dir = os.getenv("DF_TEMP_DIR") or None
+        if temp_base_dir is None:
+            # 尝试从压缩文件所在目录的上级派生一个 .tmp
+            parent_dir = os.path.dirname(os.path.abspath(compressed_path))
+            tmp_candidate = os.path.join(parent_dir, ".tmp")
+            try:
+                os.makedirs(tmp_candidate, exist_ok=True)
+                temp_base_dir = tmp_candidate
+            except Exception:
+                temp_base_dir = None
+        temp_dir = tempfile.mkdtemp(prefix="dataflow_extract_", dir=temp_base_dir)
         self._temp_dirs.append(temp_dir)
         log.info(f"正在解压 {compressed_path} 到 {temp_dir}")
         
@@ -531,6 +541,39 @@ class UniversalDataConvertor(DataConvertor):
             except Exception as e:
                 log.warning(f"清理临时目录失败 {temp_dir}: {e}")
         self._temp_dirs.clear()
+    
+    def _cleanup_download_dir_cache_files(self, download_dir: str):
+        """
+        清理下载目录中的残留缓存文件（如 .conda 文件等）。
+        
+        Args:
+            download_dir: 下载目录路径
+        """
+        if not os.path.exists(download_dir):
+            return
+        
+        cleaned_count = 0
+        total_size = 0
+        
+        for root, dirs, files in os.walk(download_dir):
+            # 跳过临时目录和输出目录
+            dirs[:] = [d for d in dirs if d not in ('.tmp', 'processed_output', '.cache', 'rag_db')]
+            
+            for f in files:
+                # 清理 conda 包缓存文件
+                if f.endswith('.conda'):
+                    file_path = os.path.join(root, f)
+                    try:
+                        file_size = os.path.getsize(file_path)
+                        os.remove(file_path)
+                        cleaned_count += 1
+                        total_size += file_size
+                        log.info(f"已清理 conda 缓存文件: {file_path} ({file_size / (1024*1024):.2f} MB)")
+                    except Exception as e:
+                        log.warning(f"清理 conda 缓存文件失败 {file_path}: {e}")
+        
+        if cleaned_count > 0:
+            log.info(f"共清理 {cleaned_count} 个 conda 缓存文件，释放空间 {total_size / (1024*1024):.2f} MB")
 
     def _get_file_list_string(self, root_path: str, exclude_files: List[str] = None) -> str:
         """
@@ -545,12 +588,22 @@ class UniversalDataConvertor(DataConvertor):
         
         file_list = []
         for root, dirs, files in os.walk(root_path, topdown=True):
-            dirs[:] = [d for d in dirs if not d.startswith(('.', '__')) and d not in ('.cache', 'processed_output')]
+            # 忽略临时/缓存/输出目录，避免把临时文件当作数据处理
+            dirs[:] = [
+                d for d in dirs
+                if not d.startswith(('.', '__'))
+                and d not in ('.cache', 'processed_output', '.tmp', 'rag_db')
+                and not d.startswith(('datasets_cache_', 'dataflow_extract_', 'hf_cache_', 'kaggle_cache_'))
+            ]
             files = [f for f in files if not f.startswith(('.', '__'))]
             
             for f in files:
+                # 忽略排除列表中的文件
                 if f in exclude_files:
-                    continue                
+                    continue
+                # 忽略 conda 包缓存文件
+                if f.endswith('.conda'):
+                    continue
                 full_path = os.path.join(root, f)
                 relative_path = os.path.relpath(full_path, root_path)
                 file_list.append(relative_path.replace(os.sep, '/'))
@@ -805,16 +858,46 @@ class UniversalDataConvertor(DataConvertor):
     async def _load_with_datasets(self, builder_type: str, file_path: str) -> Optional[Any]:
         """使用datasets库的load_dataset方法加载文件"""
         try:
-            # 尝试多种load_dataset参数组合
+            # 为 datasets 创建可控位置的临时缓存目录，避免写入系统 /tmp
+            temp_base_dir = os.getenv("DF_TEMP_DIR") or None
+            if temp_base_dir is None:
+                parent_dir = os.path.dirname(os.path.abspath(file_path))
+                tmp_candidate = os.path.join(parent_dir, ".tmp")
+                try:
+                    os.makedirs(tmp_candidate, exist_ok=True)
+                    temp_base_dir = tmp_candidate
+                except Exception:
+                    temp_base_dir = None
+            temp_cache_dir = tempfile.mkdtemp(prefix="datasets_cache_", dir=temp_base_dir)
+            self._temp_dirs.append(temp_cache_dir)
+
+            # 明确指定使用内存与临时缓存目录，避免默认 .cache 目录
+            from datasets import DownloadConfig
+            dl_config = DownloadConfig(cache_dir=temp_cache_dir)
+
+            # 尝试多种 load_dataset 参数组合（全部使用临时缓存目录 + 内存优先）
             strategies = [
-                # 策略1: 基本参数
-                {"name": "基本参数", "params": {"path": builder_type, "data_files": file_path}},
-                # 策略2: 禁用缓存
-                {"name": "禁用缓存", "params": {"path": builder_type, "data_files": file_path, "cache_dir": None}},
-                # 策略3: 强制重新下载
-                {"name": "强制重新下载", "params": {"path": builder_type, "data_files": file_path, "download_mode": "force_redownload"}},
-                # 策略4: 使用临时缓存
-                {"name": "临时缓存", "params": {"path": builder_type, "data_files": file_path, "cache_dir": "/tmp/datasets_cache"}},
+                {
+                    "name": "临时缓存+内存优先",
+                    "params": {
+                        "path": builder_type,
+                        "data_files": file_path,
+                        "cache_dir": temp_cache_dir,
+                        "keep_in_memory": True,
+                        "download_config": dl_config,
+                    },
+                },
+                {
+                    "name": "临时缓存+强制重建",
+                    "params": {
+                        "path": builder_type,
+                        "data_files": file_path,
+                        "cache_dir": temp_cache_dir,
+                        "keep_in_memory": True,
+                        "download_config": dl_config,
+                        "download_mode": "force_redownload",
+                    },
+                },
             ]
             
             for strategy in strategies:
@@ -851,7 +934,7 @@ class UniversalDataConvertor(DataConvertor):
         file_path: str, 
         state: DataCollectionState, 
         category: str,
-        output_jsonl_path: str,
+        output_jsonl_prefix: str,
         processed_sources_list: List[Tuple[str, int]]
     ) -> int:
         """
@@ -893,7 +976,17 @@ class UniversalDataConvertor(DataConvertor):
                 
             # 格式化并写入统一的 jsonl 文件
             split_record_count = 0
-            with open(output_jsonl_path, 'a', encoding='utf-8') as f_out:
+            # 分片写入：每 10000 条切换到下一个文件
+            chunk_size = 10000
+            current_chunk_index = 1
+            current_chunk_count = 0
+
+            def _open_chunk_file(index: int):
+                chunk_path = f"{output_jsonl_prefix}_{index:05d}.jsonl"
+                return open(chunk_path, 'a', encoding='utf-8')
+
+            f_out = _open_chunk_file(current_chunk_index)
+            try:
                 if category == 'PT':
                     text_field = annotation_result.get('text')
                     if not text_field or text_field not in column_names:
@@ -906,6 +999,12 @@ class UniversalDataConvertor(DataConvertor):
                             json.dump({'text': text}, f_out, ensure_ascii=False)
                             f_out.write('\n')
                             split_record_count += 1
+                            current_chunk_count += 1
+                            if current_chunk_count >= chunk_size:
+                                f_out.close()
+                                current_chunk_index += 1
+                                current_chunk_count = 0
+                                f_out = _open_chunk_file(current_chunk_index)
                             
                 elif category == 'SFT':
                     q_field = annotation_result.get('question')
@@ -922,6 +1021,17 @@ class UniversalDataConvertor(DataConvertor):
                             json.dump({'question': question, 'answer': answer}, f_out, ensure_ascii=False)
                             f_out.write('\n')
                             split_record_count += 1
+                            current_chunk_count += 1
+                            if current_chunk_count >= chunk_size:
+                                f_out.close()
+                                current_chunk_index += 1
+                                current_chunk_count = 0
+                                f_out = _open_chunk_file(current_chunk_index)
+            finally:
+                try:
+                    f_out.close()
+                except Exception:
+                    pass
             
             if split_record_count > 0:
                 log.info(f"从 {file_name} ({split_name}) 提取了 {split_record_count} 条记录。")
@@ -989,6 +1099,13 @@ class UniversalDataConvertor(DataConvertor):
 
         # 直接处理整个下载目录
         data_root = state.request.download_dir
+        # 设置全局 TMPDIR，确保标准库和第三方库的临时文件落在受控目录
+        try:
+            controlled_tmp = os.getenv("DF_TEMP_DIR") or os.path.join(data_root, ".tmp")
+            os.makedirs(controlled_tmp, exist_ok=True)
+            os.environ.setdefault("TMPDIR", controlled_tmp)
+        except Exception as e:
+            log.warning(f"设置受控临时目录失败（可忽略）: {e}")
 
         if not os.path.exists(data_root):
             log.error(f"下载目录 {data_root} 不存在")
@@ -1025,18 +1142,14 @@ class UniversalDataConvertor(DataConvertor):
         os.makedirs(output_dir, exist_ok=True)
         log.info(f"输出目录: {os.path.abspath(output_dir)}")
         
-        # 统一输出文件（放在输出目录中）
-        output_jsonl_path = os.path.join(output_dir, f"{category.upper()}.jsonl")
+        # 统一输出文件前缀（放在输出目录中），每 10000 条切分一个文件
+        output_jsonl_prefix = os.path.join(output_dir, f"{category.upper()}")
         log.info(f"========================================")
-        log.info(f"输出文件路径（绝对路径）:")
-        log.info(f"   {os.path.abspath(output_jsonl_path)}")
+        log.info(f"输出文件前缀（绝对路径），将每10000条切分一个文件:")
+        log.info(f"   {os.path.abspath(output_jsonl_prefix)}_00001.jsonl ...")
         log.info(f"========================================")
         processed_sources_list = [] 
-        
-        if os.path.exists(output_jsonl_path):
-            log.info(f"输出文件已存在")
-        else:
-            log.info(f"将创建新的输出文件")
+        # 不提前创建文件，由写入过程按需创建各分片
             
         for relative_file_path in data_file_list:
             absolute_file_path = os.path.join(data_root, relative_file_path)
@@ -1105,7 +1218,7 @@ class UniversalDataConvertor(DataConvertor):
 
                 await self._process_dataset(
                     data, file_path, state, category, 
-                    output_jsonl_path, processed_sources_list
+                    output_jsonl_prefix, processed_sources_list
                 )
 
         # --- 文件处理循环结束 ---
@@ -1115,10 +1228,9 @@ class UniversalDataConvertor(DataConvertor):
         # 输出文件位置信息
         if total_records_processed > 0:
             log.info(f"========================================")
-            log.info(f"数据已成功写入文件:")
-            log.info(f"文件路径: {os.path.abspath(output_jsonl_path)}")
+            log.info(f"数据已成功写入多个分片文件，前缀如下:")
+            log.info(f"前缀路径: {os.path.abspath(output_jsonl_prefix)}_*.jsonl")
             log.info(f"记录总数: {total_records_processed}")
-            log.info(f"文件大小: {os.path.getsize(output_jsonl_path) / (1024*1024):.2f} MB" if os.path.exists(output_jsonl_path) else "   文件大小: 未知")
             log.info(f"========================================")
         else:
             log.warning(f"未提取到任何有效记录，输出文件可能为空或不存在。")
@@ -1134,6 +1246,10 @@ class UniversalDataConvertor(DataConvertor):
         # 步骤 4: 清理临时目录
         log.info("正在清理临时解压目录...")
         self._cleanup_temp_dirs()
+        
+        # 步骤 4.5: 清理下载目录中的残留缓存文件（如 .conda 文件）
+        log.info("正在清理下载目录中的残留缓存文件...")
+        self._cleanup_download_dir_cache_files(data_root)
 
         # 步骤 5: 记录总结 (调用父类方法，传递输出目录)
         log.info("所有文件处理完毕，正在生成总结报告...")
