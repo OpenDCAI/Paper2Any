@@ -70,7 +70,9 @@ def export_nodes_with_llm(nodes_info: Any, state: DFState) -> Dict[str, Any]:
         nodes_info = nodes_info
     else:
         nodes_info = json.dumps(nodes_info, indent=2, ensure_ascii=False)
-    
+    from dataflow_agent.toolkits.basetool.file_tools import local_tool_for_sample
+    sample = local_tool_for_sample(state.request,sample_size = 1)["samples"]
+
     task_prompt = f"""
     我有一个 JSON 格式的 pipeline，包含多个算子节点。每个节点有 "name"（算子名称）基础的包含运行参数（如 input_key、output_key 等）。
 
@@ -82,7 +84,7 @@ def export_nodes_with_llm(nodes_info: Any, state: DFState) -> Dict[str, Any]:
     {nodes_info}
 
     [处理规则]
-    1. 第一个节点的 `input_key` 固定为 "raw_content"
+    1. 第一个 node1 节点的 `input_key` 需要参考样例数据的key是什么： {sample}。
     2. 中间节点的 `output_key` (或 `output_key_*`) 和下一个节点的 `input_key` (或 `input_key_*`) 必须相同，形成数据流连接
     3. 最后一个节点的 `output_key_*` 固定为 "output_final"
     4. 如果某个节点的 `config.run` 中没有 `input_key` 或 `output_key` 相关字段，保持原样不修改
@@ -101,7 +103,7 @@ def export_nodes_with_llm(nodes_info: Any, state: DFState) -> Dict[str, Any]:
     {{
         "op_name": "PromptedFilter",
         "params": {{
-            "input_key": "raw_content",
+            "input_key": '参考样例数据的key',
             "output_key": "eval"
         }}
     }},

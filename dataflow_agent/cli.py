@@ -127,6 +127,7 @@ def _generate_file(dest: Path, tpl_path: Path, context: dict, file_type: str):
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     if dest.exists():
+        # click.echo(f"  {dest} 已存在，跳过生成")
         log.error(f"  {dest} 已存在，跳过生成")
         return
 

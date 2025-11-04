@@ -5,6 +5,8 @@ from abc import ABC, abstractmethod
 import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Callable, Tuple
+from dataflow_agent.llm_callers.base import BaseLLMCaller
+from dataflow_agent.parsers.parsers import BaseParser
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage, AIMessage
 from langchain_core.tools import Tool
@@ -45,18 +47,18 @@ class BaseAgent(ABC):
                  max_tokens: int = 4096,
                  tool_mode: str = "auto",
                  react_mode: bool = False,
-                 react_max_retries: int = 3):
+                 react_max_retries: int = 3,
+                 # 新增参数
+                 parser_type: str = "json",
+                 parser_config: Optional[Dict[str, Any]] = None,
+                 use_vlm: bool = False,
+                 vlm_config: Optional[Dict[str, Any]] = None):
         """
-        初始化Agent
-        
         Args:
-            tool_manager: 工具管理器
-            model_name: 模型名称
-            temperature: 模型温度
-            max_tokens: 最大token数
-            tool_mode: 工具选择模式 ("auto", "required", "none")
-            react_mode: 是否启用ReAct模式
-            react_max_retries: ReAct模式最大重试次数
+            parser_type: 解析器类型 ("json", "xml", "text")
+            parser_config: 解析器配置（如XML的root_tag）
+            use_vlm: 是否使用视觉语言模型
+            vlm_config: VLM配置字典
         """
         self.tool_manager = tool_manager
         self.model_name = model_name
@@ -65,6 +67,58 @@ class BaseAgent(ABC):
         self.tool_mode = tool_mode
         self.react_mode = react_mode
         self.react_max_retries = react_max_retries
+        
+        # 解析器配置
+        self.parser_type = parser_type
+        self.parser_config = parser_config or {}
+        self._parser = None  # 懒加载
+        
+        # VLM配置
+        self.use_vlm = use_vlm
+        self.vlm_config = vlm_config or {}
+
+    def get_llm_caller(self, state: MainState) -> BaseLLMCaller:
+        """根据配置返回对应的LLM Caller"""
+        if self.use_vlm:
+            from dataflow_agent.llm_callers import VisionLLMCaller
+            log.info(f"使用 VisionLLMCaller，模式: {self.vlm_config.get('mode', 'understanding')}")
+            return VisionLLMCaller(
+                state,
+                vlm_config=self.vlm_config,
+                model_name=self.model_name,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                tool_mode=self.tool_mode,
+                tool_manager=self.tool_manager
+            )
+        else:
+            from dataflow_agent.llm_callers import TextLLMCaller
+            return TextLLMCaller(
+                state,
+                model_name=self.model_name,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                tool_mode=self.tool_mode,
+                tool_manager=self.tool_manager
+            )
+
+    @property
+    def parser(self) -> BaseParser:
+        """获取解析器实例（懒加载）"""
+        if self._parser is None:
+            from dataflow_agent.parsers import ParserFactory
+            self._parser = ParserFactory.create(self.parser_type, **self.parser_config)
+        return self._parser
+    
+    def parse_result(self, content: str) -> Dict[str, Any]:
+        """使用配置的解析器解析结果"""
+        try:
+            parsed = self.parser.parse(content)
+            log.info(f"{self.role_name} 使用 {self.parser_type} 解析器解析成功")
+            return parsed
+        except Exception as e:
+            log.exception(f"解析失败: {e}")
+            return {"raw": content, "error": str(e)}
 
     @classmethod
     def create(cls, tool_manager: Optional[ToolManager] = None, **kwargs) -> "BaseAgent":
@@ -106,27 +160,27 @@ class BaseAgent(ABC):
         """
         return pre_tool_results
     
-    def parse_result(self, content: str) -> Dict[str, Any]:
-        """
-        解析结果 - 子类可重写自定义解析逻辑
+    # def parse_result(self, content: str) -> Dict[str, Any]:
+    #     """
+    #     解析结果 - 子类可重写自定义解析逻辑
         
-        Args:
-            content: LLM输出内容
+    #     Args:
+    #         content: LLM输出内容
             
-        Returns:
-            解析后的结果
-        """
-        try:
-            parsed = robust_parse_json(content)
-            # log.info(f'parsed是什么？？{parsed}')
-            log.info(f"{self.role_name} 结果解析成功")
-            return parsed
-        except ValueError as e:
-            log.warning(f"JSON解析失败: {e}")
-            return {"raw": content}
-        except Exception as e:
-            log.warning(f"解析过程出错: {e}")
-            return {"raw": content}
+    #     Returns:
+    #         解析后的结果
+    #     """
+    #     try:
+    #         parsed = robust_parse_json(content)
+    #         # log.info(f'content是什么？？{content}')
+    #         log.info(f"{self.role_name} 结果解析成功")
+    #         return parsed
+    #     except ValueError as e:
+    #         log.warning(f"JSON解析失败: {e}")
+    #         return {"raw": content}
+    #     except Exception as e:
+    #         log.warning(f"解析过程出错: {e}")
+    #         return {"raw": content}
     
     def get_default_pre_tool_results(self) -> Dict[str, Any]:
         """获取默认前置工具结果 - 子类可重写"""
@@ -392,21 +446,6 @@ class BaseAgent(ABC):
             pickle.dump(data, f)
         log.info(f"已保存->: {file_path}")
         return str(file_path)
-    def get_llm_caller(self, state: MainState):
-        """
-        默认返回 TextLLMCaller，子类可重写返回 ImageLLMCaller / AudioLLMCaller…
-        """
-        return TextLLMCaller(state, model_name=self.model_name,
-                             temperature=self.temperature,
-                             max_tokens=self.max_tokens,
-                             tool_mode=self.tool_mode,
-                             tool_manager=self.tool_manager)
-
-    async def _llm_invoke(self, messages: List[BaseMessage],
-                          state: MainState,
-                          bind_post_tools: bool = False):
-        caller = self.get_llm_caller(state)
-        return await caller.call(messages, bind_post_tools=bind_post_tools)
     
     async def execute_pre_tools(self, state: MainState) -> Dict[str, Any]:
         """执行前置工具"""
@@ -427,19 +466,47 @@ class BaseAgent(ABC):
         log.info(f"前置工具执行完成，获得: {list(results.keys())}")
         return results
     
+    # def build_messages(self, 
+    #                   state: MainState, 
+    #                   pre_tool_results: Dict[str, Any]) -> List[BaseMessage]:
+    #     """构建消息列表"""
+    #     log.info("构建提示词消息...")
+        
+    #     ptg = PromptsTemplateGenerator(state.request.language)
+    #     sys_prompt = ptg.render(self.system_prompt_template_name)
+        
+    #     task_params = self.get_task_prompt_params(pre_tool_results)
+    #     task_prompt = ptg.render(self.task_prompt_template_name, **task_params)
+    #     # log.info(f"系统提示词: {sys_prompt}")
+    #     log.debug(f"[base agent]: 任务提示词: {task_prompt}")
+        
+    #     messages = [
+    #         SystemMessage(content=sys_prompt),
+    #         HumanMessage(content=task_prompt),
+    #     ]
+        
+    #     log.info("提示词消息构建完成")
+    #     return messages
+
+    # 多模态版本
     def build_messages(self, 
-                      state: MainState, 
-                      pre_tool_results: Dict[str, Any]) -> List[BaseMessage]:
-        """构建消息列表"""
+                    state: MainState, 
+                    pre_tool_results: Dict[str, Any]) -> List[BaseMessage]:
+        """构建消息列表 - 添加格式说明"""
         log.info("构建提示词消息...")
         
         ptg = PromptsTemplateGenerator(state.request.language)
         sys_prompt = ptg.render(self.system_prompt_template_name)
         
+        # 添加解析器格式说明
+        format_instruction = self.parser.get_format_instruction()
+        if format_instruction and not self.use_vlm:  # VLM模式可能不需要格式说明
+            sys_prompt += f"\n\n{format_instruction}"
+        
         task_params = self.get_task_prompt_params(pre_tool_results)
         task_prompt = ptg.render(self.task_prompt_template_name, **task_params)
         # log.info(f"系统提示词: {sys_prompt}")
-        log.info(f"任务提示词: {task_prompt}")
+        log.debug(f"[]任务提示词: {task_prompt}")
         
         messages = [
             SystemMessage(content=sys_prompt),
@@ -452,7 +519,7 @@ class BaseAgent(ABC):
     def create_llm(self, state: MainState, bind_post_tools: bool = False) -> ChatOpenAI:
         """创建LLM实例"""
         actual_model = self.model_name or state.request.model
-        log.info(f"创建LLM实例，模型: {actual_model}")
+        log.info(f"[create_llm:]创建LLM实例，模型: {actual_model}")
         
         llm = ChatOpenAI(
             openai_api_base=state.request.chat_api_url,
@@ -466,7 +533,7 @@ class BaseAgent(ABC):
             post_tools = self.get_post_tools()
             if post_tools:
                 llm = llm.bind_tools(post_tools, tool_choice=self.tool_mode)
-                log.info(f"为LLM绑定了 {len(post_tools)} 个后置工具: {[t.name for t in post_tools]}")
+                log.info(f"[create_llm]:为LLM绑定了 {len(post_tools)} 个后置工具: {[t.name for t in post_tools]}")
         return llm
     
     def get_post_tools(self) -> List[Tool]:
@@ -529,7 +596,7 @@ class BaseAgent(ABC):
             "post_tools": [t.name for t in self.get_post_tools()],
             "results": result
         }
-    
+# =================================================================================execute 部分！ 核心！！！=================================================================================
     async def execute(self, state: MainState, use_agent: bool = False, **kwargs) -> MainState:
         """
         统一执行入口
@@ -543,7 +610,15 @@ class BaseAgent(ABC):
             更新后的DFState
         """
         log.info(f"开始执行 {self.role_name} (ReAct模式: {self.react_mode}, 图模式: {use_agent})")
-        
+
+        if getattr(self, "use_vlm", False):
+            # 直接走多模态链路
+            log.critical(f'[base agent]: 走多模态路径 ')
+            result = await self._execute_vlm(state, **kwargs)
+            # 和简单/React 逻辑保持一致，更新到 state
+            self.update_state_result(state, result, {})
+            log.info(f"{self.role_name} 多模态执行完成")
+            return state
         try:
             # 1. 执行前置工具
             pre_tool_results = await self.execute_pre_tools(state)
@@ -583,6 +658,55 @@ class BaseAgent(ABC):
             
         return state
     
+    async def _execute_vlm(self,
+                        state: MainState,
+                        **kwargs) -> Dict[str, Any]:
+        """
+        Vision-LLM 专用执行流程
+        与文本链路完全解耦，不碰原有 llm / process_simple_mode 等函数
+        """
+        # 1. 前置工具
+        pre_tool_results = await self.execute_pre_tools(state)
+
+        # 2. 构建消息（若是图像生成/编辑仅用 prompt 就行，
+        #    若是图像理解可和文本一样）——示例给两种典型写法:
+        mode = self.vlm_config.get("mode", "understanding")
+
+        # if mode in {"generation", "edit"}:
+        #     # 只需要最后一条 prompt
+        #     messages = [
+        #         HumanMessage(content=self.build_generation_prompt(pre_tool_results))
+        #     ]
+        # else:
+        messages = self.build_messages(state, pre_tool_results)
+
+        # 3. 调用 VisionLLMCaller
+        from dataflow_agent.llm_callers import VisionLLMCaller
+        vlm_caller = VisionLLMCaller(
+            state,
+            vlm_config=self.vlm_config,
+            model_name=self.model_name,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+            tool_mode=self.tool_mode,
+            tool_manager=self.tool_manager,
+        )
+        response = await vlm_caller.call(messages)
+
+        # 4. 解析
+        parsed = self.parse_result(response.content)
+
+        # 5. 如有附加信息（例如图像路径 / base64），一起返回
+        if hasattr(response, "additional_kwargs"):
+            parsed.update(response.additional_kwargs)
+        return parsed
+# 这个暂时用不到
+    def build_generation_prompt(self, pre_tool_results: Dict[str, Any]) -> str:
+        """示例：把工具结果拼进 prompt"""
+        return (
+            f"{self.vlm_config.get('prompt', '')}"
+        )
+    
     def create_assistant_node_func(self, state: MainState, pre_tool_results: Dict[str, Any]):
         async def assistant_node(graph_state):
             messages = graph_state.get("messages", [])
@@ -610,3 +734,22 @@ class BaseAgent(ABC):
                     "finished": True
                 }
         return assistant_node
+    
+# # ---------------------------------- 在 BaseAgent 顶部添加 --------------------------
+# from langchain_core.messages import AIMessage, BaseMessage
+
+# # ---------------------------------- 添加统一调用助手 ------------------------------
+# async def _call_llm(self,
+#                     messages: List[BaseMessage],
+#                     state: MainState,
+#                     bind_post_tools: bool = False) -> AIMessage:
+#     if self.use_vlm:
+#         caller = self.get_llm_caller(state)       # VisionLLMCaller
+#         return await caller.call(messages)
+
+#     llm = self.create_llm(state, bind_post_tools=bind_post_tools)
+#     return await llm.ainvoke(messages)
+# # -------------------------------------------------------------------------------
+
+# # process_simple_mode / process_react_mode 内全部换成：
+# answer_msg = await self._call_llm(messages, state, bind_post_tools=False)
