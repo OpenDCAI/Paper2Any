@@ -517,7 +517,7 @@ class BaseAgent(ABC):
     def create_llm(self, state: MainState, bind_post_tools: bool = False) -> ChatOpenAI:
         """创建LLM实例"""
         actual_model = self.model_name or state.request.model
-        log.info(f"创建LLM实例，模型: {actual_model}")
+        log.info(f"[create_llm:]创建LLM实例，模型: {actual_model}")
         
         llm = ChatOpenAI(
             openai_api_base=state.request.chat_api_url,
@@ -531,7 +531,7 @@ class BaseAgent(ABC):
             post_tools = self.get_post_tools()
             if post_tools:
                 llm = llm.bind_tools(post_tools, tool_choice=self.tool_mode)
-                log.info(f"为LLM绑定了 {len(post_tools)} 个后置工具: {[t.name for t in post_tools]}")
+                log.info(f"[create_llm]:为LLM绑定了 {len(post_tools)} 个后置工具: {[t.name for t in post_tools]}")
         return llm
     
     def get_post_tools(self) -> List[Tool]:
@@ -732,3 +732,22 @@ class BaseAgent(ABC):
                     "finished": True
                 }
         return assistant_node
+    
+# # ---------------------------------- 在 BaseAgent 顶部添加 --------------------------
+# from langchain_core.messages import AIMessage, BaseMessage
+
+# # ---------------------------------- 添加统一调用助手 ------------------------------
+# async def _call_llm(self,
+#                     messages: List[BaseMessage],
+#                     state: MainState,
+#                     bind_post_tools: bool = False) -> AIMessage:
+#     if self.use_vlm:
+#         caller = self.get_llm_caller(state)       # VisionLLMCaller
+#         return await caller.call(messages)
+
+#     llm = self.create_llm(state, bind_post_tools=bind_post_tools)
+#     return await llm.ainvoke(messages)
+# # -------------------------------------------------------------------------------
+
+# # process_simple_mode / process_react_mode 内全部换成：
+# answer_msg = await self._call_llm(messages, state, bind_post_tools=False)

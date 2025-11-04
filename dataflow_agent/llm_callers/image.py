@@ -217,7 +217,7 @@ if __name__ == "__main__":
             sys.exit(1)
 
         # 3. 构造极简 MainState
-        request = SimpleNamespace(chat_api_url=api_url.rstrip("/"), api_key=api_key, model = "gemini-2.5-flash-image-preview")
+        request = SimpleNamespace(chat_api_url=api_url.rstrip("/"), api_key=api_key, model = "gpt-4o")
         state = SimpleNamespace(request=request)
 
         # 4. 实例化并调用
@@ -227,7 +227,8 @@ if __name__ == "__main__":
                 "mode": "understanding",
                 "input_image": str(img_path),
                 "timeout": 60,
-            }
+            },
+            
         )
         print("🚀 正在请求模型，请稍候 …")
         ai_msg = await caller.call([HumanMessage(content="描述这个img!")])
