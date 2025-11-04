@@ -81,6 +81,7 @@ mkdocs-material
 beautifulsoup4
 playwright
 IPython==8.18.1
+opencv-python
 
 # speech
 librosa
