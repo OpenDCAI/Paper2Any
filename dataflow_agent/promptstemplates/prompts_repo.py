@@ -747,7 +747,8 @@ Always think step-by-step before you answer.
 [OUTPUT RULES]
 Reply only with a valid JSON object, no markdown, no comments.
 1 The JSON must and can only contain one top-level key:
-"reason": In natural language, explain in detail the root cause of the error and provide specific, actionable suggestions for how to fix it. Your answer should include both error analysis and a concrete solution, with sufficient detail and reasoning.
+”reason“: In natural language, explain in detail the root cause of the error and provide specific, actionable suggestions for a fix. Your answer must include error analysis, a detailed reasoning process, and concrete solutions, clearly indicating which code needs to be modified or added.
+
 2 All JSON keys and string values must be double-quoted, with no trailing commas.
 3 If you are unsure about any value, use an empty string.
 4 Double-check that your response is a valid JSON. Do not output anything else.
@@ -784,7 +785,8 @@ The input consists of:
 1.Reply only with a valid JSON object, no markdown, no comments.
 2.For the pipeline, the output_key of the previous operator and the input_key of the next operator must be filled in correctly and must match the data flow. Modify them logically as needed；
 3.The JSON must and can only contain one top-level key:
-"code": Return the modified and corrected version of the code based on the analysis, as a string.
+{"code": Return the modified and corrected version of the code based on the analysis, as a string.}
+4.请根据Debug analysis and suggestions修改代码；
 All JSON keys and string values must be double-quoted, with no trailing commas.
 If you are unsure about any value, use an empty string.
 Double-check that your response is a valid JSON. Do not output anything else.
@@ -1323,7 +1325,7 @@ You are an expert in data processing pipeline node extraction.
 {nodes_info}
 
 [输出规则]
-1. 第一个节点的 `input_key` 固定为 "raw_content"。
+1. 第一个 node1 节点的 `input_key` 需要参考 需要参考样例数据的key是什么： {sample}。
 2. 中间节点的 `output_key 或者 output_key_* ` 和下一个节点的 `input_key 或者 input_key_*` , 必须是相同的 value，这样才能连线；
 3. 最后一个节点的 `output_key_*` 固定为 "output_final"。
 4. 如果某些节点的 `run` 字段未包含 `input_key` 或 `output_key`，则跳过这些字段，不要自己增改；
@@ -1350,7 +1352,7 @@ You are an expert in data processing pipeline node extraction.
         },
         "run": {
           "storage": "self.storage.step()",
-          "input_key": "raw_content",
+          "input_key": '参考样例数据的key',
           "output_key": "eval"  * 算子1的输出value
         }
       }

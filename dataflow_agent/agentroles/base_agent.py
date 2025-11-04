@@ -505,6 +505,8 @@ class BaseAgent(ABC):
         
         task_params = self.get_task_prompt_params(pre_tool_results)
         task_prompt = ptg.render(self.task_prompt_template_name, **task_params)
+        # log.info(f"系统提示词: {sys_prompt}")
+        log.debug(f"[]任务提示词: {task_prompt}")
         
         messages = [
             SystemMessage(content=sys_prompt),

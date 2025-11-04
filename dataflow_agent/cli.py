@@ -4,7 +4,6 @@ from datetime import datetime
 from jinja2 import Template
 from dataflow_agent.logger import get_logger
 log = get_logger(__name__)
-
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 # ---------- util ----------
@@ -133,8 +132,7 @@ def _generate_file(dest: Path, tpl_path: Path, context: dict, file_type: str):
         return
 
     if not tpl_path.exists():
-        # click.echo(f" 模板不存在: {tpl_path}", err=True)
-        log.error(f" 模板不存在: {tpl_path}")
+        log.error(f" 模板不存在: {tpl_path}", err=True)
         raise SystemExit(1)
 
     rendered = Template(tpl_path.read_text(encoding="utf-8")).render(**context)
@@ -145,8 +143,7 @@ def _generate_file(dest: Path, tpl_path: Path, context: dict, file_type: str):
     except ValueError:
         rel_path = dest
 
-    # click.echo(f" 已生成 {file_type}: {rel_path}")
-    log.critical(f'生成模板文件：{file_type}: {rel_path}')
+    log.critical(f" 已生成 {file_type}: {rel_path}")
 
 
 if __name__ == "__main__":
