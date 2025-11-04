@@ -35,7 +35,6 @@ def robust_parse_json(s: str) -> dict:
     for d in dicts:
         merged.update(d)
     return merged
-
 def _strip_json_comments(s: str) -> str:
         """
         Remove block and line comments, and trailing commas from JSON-like strings.
