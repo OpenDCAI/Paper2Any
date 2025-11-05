@@ -18,7 +18,7 @@
          alt="License: Apache 2.0">
   </a>
   <!-- Python -->
-  <a href="https://www.python.org/downloads/" title="Python 3.12+">
+  <a href="https://www.python.org/downloads/" title="Python ≥ 3.12">
     <img src="https://img.shields.io/badge/Python-3.12%2B-blue?style=for-the-badge&logo=python&logoColor=white"
          alt="Python 3.12+">
   </a>
@@ -27,6 +27,11 @@
     <img src="https://img.shields.io/badge/Docs-latest-brightgreen?style=for-the-badge&logo=readthedocs&logoColor=white"
          alt="Documentation">
   </a>
+  <!-- Upstream repo -->
+  <a href="https://github.com/OpenDCAI/DataFlow" title="上游仓库 OpenDCAI/DataFlow">
+    <img src="https://img.shields.io/badge/Upstream-OpenDCAI%2FDataFlow-181717?style=for-the-badge&logo=github&logoColor=white"
+         alt="Upstream Repository">
+  </a>
 </p>
 
 <!-- 快捷导航 -->
@@ -34,7 +39,8 @@
   <a href="#快速开始">快速开始</a> •
   <a href="#功能特性">功能特性</a> •
   <a href="#贡献指南">贡献指南</a> •
-  <a href="https://your-docs-url">文档</a>
+  <a href="https://your-docs-url">文档</a> •
+  <a href="https://github.com/OpenDCAI/DataFlow">上游仓库</a>
 </p>
 
 ---
