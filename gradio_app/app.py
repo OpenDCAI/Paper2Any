@@ -77,12 +77,28 @@ def is_port_free(port: int) -> bool:
 
 
 if __name__ == "__main__":
+    import os
+    
+    server_name = os.getenv("GRADIO_SERVER_NAME", "0.0.0.0")
+    server_port_env = os.getenv("GRADIO_SERVER_PORT")
+    
     args = parse_args()
-    port = args.server_port
-    if not is_port_free(port):
-        print(f"⚠️  端口 {port} 已被占用，自动切换到随机空闲端口。"
-              " 如需固定端口，请换一个数字或先释放该端口。")
-        port = 0  # 让 Gradio 自动选
-
-    app.queue() 
-    app.launch(server_name="0.0.0.0", server_port=port)
+    if server_port_env:
+        # Docker 环境：使用环境变量指定的端口
+        port = int(server_port_env)
+        print(f"🐳 Docker 模式：使用环境变量端口 {port}")
+    else:
+        # 本地开发：使用命令行参数
+        port = args.server_port
+        if not is_port_free(port):
+            print(f"⚠️  端口 {port} 已被占用，自动切换到随机空闲端口。"
+                  " 如需固定端口，请换一个数字或先释放该端口。")
+            port = 0  # 让 Gradio 自动选
+    
+    # 4. 启动应用
+    app.queue()
+    app.launch(
+        server_name=server_name,
+        server_port=port,
+        share=False  
+    )
