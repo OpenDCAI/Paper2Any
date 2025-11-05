@@ -8,11 +8,8 @@ __pycache__/
 
 dataflow_agent/tmps/
 dataflow_cache/
-<<<<<<< HEAD
 .dfavenv
-=======
 .dfavenv/
->>>>>>> lz/dev
 
 # Distribution / packaging
 .Python
