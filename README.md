@@ -44,6 +44,12 @@
 </p>
 
 ---
+<!-- 更新通知 -->
+> **🎉 最新更新 (2025-11-04)**  
+> - 新增手动编排管线，管线推荐以及算子编写；
+
+
+---
 
 ## ✨ 功能特性
 
@@ -65,7 +71,7 @@ git clone https://github.com/your-org/DataFlow-Agent.git
 cd DataFlow-Agent
 
 # 安装依赖
-pip install -r requirements-dev.txt
+pip install -r requirements.txt
 pip install -e .
 ```
 
@@ -269,7 +275,7 @@ nav:
 
 ---
 
-## 🎯 核心概念
+## 贡献代码
 
 ### Agent 注册机制
 
@@ -340,10 +346,24 @@ def create_model_hub():  # 函数名 = create_ + 文件名
 
 ---
 ## 新增
-- llm_caller 新增多模态的api调用；可以通过agent初始化的 use_vlm 参数开启；目前只支持gemini2.5+我们的api供应商；
-- store_outputs 新增agent持久化存储函数；
+- *llm_caller* 新增多模态的api调用；可以通过agent初始化的 use_vlm 参数开启；
+  - 目前图像编辑和生成，只支持gemini2.5+我们的api供应商；
+  - 支持多模态模型；
+- store_outputs 新增agent持久化存储；
+- 
 
 ---
+
+## 🗓️ Roadmap
+
+- [ ] Paper系列agent集成
+  - [ ] paper2video
+  - [ ] paper2web
+  - [ ] paper2poster
+  - [ ] paper2gragh
+- [ ] DataAgent集成
+  - [ ] 多数据源深度分析 + 报告
+  - [ ] 智能取数
 
 <!-- ---
 
