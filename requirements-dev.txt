@@ -1,5 +1,7 @@
 -e .[dev]
 
+open-dataflow
+
 numpy<2.0.0
 datasets<=3.2
 scipy
