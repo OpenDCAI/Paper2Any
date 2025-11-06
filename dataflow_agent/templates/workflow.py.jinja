@@ -38,12 +38,21 @@ def create_{{ wf_name_snake }}_graph() -> GenericGraphBuilder:  # noqa: N802
     # TOOLS (pre_tool definitions)
     # ----------------------------------------------------------------------
     # 例:
-    # @builder.pre_tool("purpose", "step1")
-    # def _purpose(state: xxState):
-    #     return "这里放入字符串 / 数值 / 列表 / 字典等供 prompt 使用"
+    @builder.pre_tool("purpose", "step1")
+    def _purpose(state: xxState):
+        return "这里放入字符串 / 数值 / 列表 / 字典等供 prompt 使用"
 
-    # @builder.post_tool('','')
-    # def _post_tool1():
+    # 后置工具就是让agent选择的工具，可以定制多个；
+    class ModuleListInput(BaseModel):
+        #这里要写好工具的描述，agent会根据实际上下文输入参数：
+        module_list: list = Field(
+            description="List of dotted-path python modules or file paths"
+        )
+    @builder.post_tool("step2")
+    @tool(args_schema=ModuleListInput)
+    def _post_tool1(param1):
+        return func(param1)
+
     # ----------------------------------------------------------------------
 
     # ==============================================================

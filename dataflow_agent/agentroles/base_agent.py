@@ -430,6 +430,85 @@ class BaseAgent(ABC):
         return "\n".join(feedback_parts)
     
     # ==================== 原有方法 ============================================================================================================================================
+    async def _execute_react_graph(self, state: MainState, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        自动构建和执行ReAct子图
+        
+        Args:
+            state: 主状态
+            pre_tool_results: 前置工具结果
+            
+        Returns:
+            执行结果
+        """
+        from langgraph.graph import StateGraph
+        from langgraph.prebuilt import ToolNode, tools_condition
+        
+        log.info(f"开始构建 {self.role_name} 的子图...")
+        
+        # 1. 获取后置工具
+        post_tools = self.get_post_tools()
+        if not post_tools:
+            log.warning(f"{self.role_name} 没有后置工具，回退到简单模式")
+            return await self.process_simple_mode(state, pre_tool_results)
+                
+        # 2. 使用 DFState 作为子图状态（与现有代码一致）
+
+        subgraph = StateGraph(type(state))
+        
+        # 3. 直接复用 create_assistant_node_func
+        assistant_func = self.create_assistant_node_func(state, pre_tool_results)
+        
+        # 4. 添加节点
+        subgraph.add_node("assistant", assistant_func)
+        subgraph.add_node("tools", ToolNode(post_tools))
+        
+        # 5. 添加边
+        subgraph.add_conditional_edges("assistant", tools_condition)
+        subgraph.add_edge("tools", "assistant")
+        
+        # 6. 设置入口点
+        subgraph.set_entry_point("assistant")
+        
+        # 7. 编译并执行
+        compiled_graph = subgraph.compile()
+        log.info(f"{self.role_name} 子图编译完成")
+        
+        try:
+            # 执行子图，传入当前 state
+            final_state = await compiled_graph.ainvoke(state)
+            
+            log.info(f"{self.role_name} 子图执行完成")
+            
+            # 8. 从 final_state 中提取结果
+            # create_assistant_node_func 已经把结果放到 state.agent_results 中了
+            result = final_state["agent_results"].get(self.role_name.lower(), {}).get("results", {})
+            
+            if not result:
+                log.error("子图执行后未找到结果")
+                return {"error": "子图执行异常：未找到结果"}
+            
+            # 如果需要 react mode 验证，这里可以加react对LLM Resp的
+
+            # if self.react_mode:
+            #     # 从 messages 中获取最后的 AI 响应
+            #     messages = final_state.get("messages", [])
+            #     if messages:
+            #         last_msg = messages[-1]
+            #         if hasattr(last_msg, 'content'):
+            #             all_passed, errors = self._run_validators(last_msg.content, result)
+            #             if not all_passed:
+            #                 log.warning(f"ReAct 验证未通过: {errors}")
+            #                 result["validation_errors"] = errors
+            
+            log.info(f"{self.role_name} 子图结果解析完成")
+            return result
+            
+        except Exception as e:
+            log.exception(f"{self.role_name} 子图执行失败: {e}")
+            return {"error": f"子图执行失败: {str(e)}"}
+
+
 
     def store_outputs(self, data, file_name: str = None) -> str:
         """保存输出结果到文件"""
@@ -628,13 +707,14 @@ class BaseAgent(ABC):
             
             # 3. 根据模式和工具情况选择处理方式
             if use_agent and post_tools:
-                # 图模式 - 需要外部图构建器处理
-                log.info("图模式 - 需要外部图构建器处理，暂存必要数据")
+                log.info(f"[子图新模式] 自动构建 {self.role_name} 的子图，后置工具: {[t.name for t in post_tools]}")
+                result = await self._execute_react_graph(state, pre_tool_results)
+                self.update_state_result(state, result, pre_tool_results)
+                log.info(f"[子图新模式] {self.role_name} 子图模式执行完成")
                 if not hasattr(state, 'temp_data'):
                     state.temp_data = {}
                 state.temp_data['pre_tool_results'] = pre_tool_results
                 state.temp_data[f'{self.role_name}_instance'] = self
-                log.info(f"已暂存前置工具结果和 {self.role_name} 实例，后置工具: {[t.name for t in post_tools]}")
                 
             elif self.react_mode:
                 # ReAct模式 - 带验证的循环调用
