@@ -1,90 +1,101 @@
 # ================================================================
-# BRIA-RMBG 2.0 高质量抠图工具（离线版）
+# BRIA-RMBG 2.0 高质量抠图工具
 # - 模型：RMBG 2.0（ONNX）
 # - 依赖：onnxruntime, pillow, numpy
 # ================================================================
 
 from __future__ import annotations
 import os
-import sys
 import numpy as np
 from pathlib import Path
 from PIL import Image, ImageFilter
-
-# 若依赖放在 ./deps 目录（推荐本地隔离）
-DEPS_DIR = Path(__file__).resolve().parent / "deps"
-if DEPS_DIR.exists():
-    sys.path.append(str(DEPS_DIR))
-
 import onnxruntime as ort
+import shutil
 
 CURRENT_DIR = Path(__file__).resolve().parent
-MODELS_DIR = CURRENT_DIR / "models" / "RMBG-2.0" / "onnx"
-MODELS_DIR.mkdir(parents=True, exist_ok=True)
+MODEL_PATH = CURRENT_DIR / "onnx" / "model.onnx"
+OUTPUT_DIR = CURRENT_DIR
 
-DEFAULT_OUTPUT_DIR = CURRENT_DIR
-DEFAULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# 使用 RMBG-2.0 的主模型
-DEFAULT_MODEL_PATH = MODELS_DIR / "model.onnx"
+def ensure_model():
+    """确保 RMBG 模型存在，如不存在则自动从 ModelScope 下载"""
+    if MODEL_PATH.exists():
+        print(f"模型已存在: {MODEL_PATH}")
+        return
+
+    print("未检测到模型，正在从 ModelScope 下载 onnx/model.onnx ...")
+    os.system(
+        f"cd '{CURRENT_DIR}' && "
+        "modelscope download --model AI-ModelScope/RMBG-2.0 onnx/model.onnx"
+    )
+
+    # 清理临时目录
+    temp_dir = CURRENT_DIR / ".____temp"
+    if temp_dir.exists():
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    #Step 1: 在当前目录搜索
+    found = list(CURRENT_DIR.rglob("model.onnx"))
+
+    #Step 2: 若未找到，则在 ModelScope 缓存目录搜索
+    if not found:
+        cache_dir = Path.home() / ".cache" / "modelscope" / "hub"
+        if cache_dir.exists():
+            found = list(cache_dir.rglob("model.onnx"))
+
+    if not found:
+        raise FileNotFoundError("模型下载失败：未在本地或缓存中找到 model.onnx 文件。")
+
+    # 找到最新的 model.onnx 文件
+    src = max(found, key=lambda p: p.stat().st_mtime)
+    MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    # 若模型不在标准路径，则复制过去
+    if src.resolve() != MODEL_PATH.resolve():
+        shutil.copy2(src, MODEL_PATH)
+        print(f"检测到模型实际位置: {src}")
+        print(f"已复制到标准路径: {MODEL_PATH}")
+    else:
+        print(f"模型下载完成: {MODEL_PATH}")
 
 
 class BriaRMBG2Remover:
     """使用 BRIA-RMBG 2.0 模型进行高质量抠图"""
 
     def __init__(self, model_path: str | None = None, output_dir: str | None = None):
-        self.model_path = Path(model_path) if model_path else DEFAULT_MODEL_PATH
+        ensure_model()
+        self.model_path = Path(model_path) if model_path else MODEL_PATH
+        self.output_dir = Path(output_dir) if output_dir else OUTPUT_DIR
 
-        if not self.model_path.exists():
-            raise FileNotFoundError(f"模型文件不存在: {self.model_path}")
+        # 优先使用 GPU，否则退回 CPU
+        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        self.session = ort.InferenceSession(str(self.model_path), providers=providers)
 
-        # 初始化 ONNXRuntime 推理会话
-        self.session = ort.InferenceSession(
-            str(self.model_path),
-            providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
-        )
-
-        self.output_dir = Path(output_dir) if output_dir else DEFAULT_OUTPUT_DIR
-        self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def remove_background(self, image_path: str) -> str:
-        """输入图片路径，输出抠图后透明 PNG 文件路径"""
         img = Image.open(image_path).convert("RGB")
         orig_w, orig_h = img.size
 
-        # 模型期望输入分辨率（1024x1024）
         side = 1024
         img_rs = img.resize((side, side), Image.BICUBIC)
-
-        # 归一化 + 调整维度
         arr = np.asarray(img_rs).astype(np.float32) / 255.0
-        arr = arr.transpose(2, 0, 1)[None, ...]  # (1,3,H,W)
+        arr = arr.transpose(2, 0, 1)[None, ...]
 
-        # 模型推理
         input_name = self.session.get_inputs()[0].name
         pred = self.session.run(None, {input_name: arr})[0]
 
-        # RMBG 2.0 输出掩码（可能带边缘增强）
-        mask = pred[0, 0]
-        mask = np.clip(mask, 0, 1)
+        mask = np.clip(pred[0, 0], 0, 1)
         mask = (mask * 255).astype(np.uint8)
-
-        # 调整掩码尺寸回原图
         m = Image.fromarray(mask, "L").resize((orig_w, orig_h), Image.BICUBIC)
 
-        # 合并 RGBA
         rgba = img.convert("RGBA")
         r, g, b, _ = rgba.split()
-        out = Image.merge("RGBA", (r, g, b, m))
+        out = Image.merge("RGBA", (r, g, b, m)).filter(ImageFilter.SMOOTH_MORE)
 
-        # 轻微平滑边缘，增强自然感
-        out = out.filter(ImageFilter.SMOOTH_MORE)
-
-        name = Path(image_path).stem
-        output_path = self.output_dir / f"{name}_bg_removed.png"
-        out.save(output_path)
-        print(f"抠图完成: {output_path}")
-        return str(output_path)
+        out_path = self.output_dir / f"{Path(image_path).stem}_bg_removed.png"
+        out.save(out_path)
+        print(f"抠图完成: {out_path}")
+        return str(out_path)
 
 
 def local_tool_for_bg_remove(req: dict) -> str:
