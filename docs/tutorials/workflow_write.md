@@ -69,13 +69,12 @@ async def processing_node(state: YourWorkflowState) -> YourWorkflowState:
 ### 6. 工具绑定（前置/后置工具）
 ```python
 # 前置工具
-@builder.pre_tool("tool_name", "node_name")
-@builder.desc("参数描述字符串")
+@builder.pre_tool("提示词里面你的占位符=pre_tools_results里面的key", "node_name")
 def pre_tool_function(state: YourWorkflowState):
     return state.some_data
 
 # 后置工具（简化版）
-@builder.post_tool("tool_name", "node_name")  
+@builder.post_tool("node_name")  
 def post_tool_function(module_list):
     “”“
     
@@ -166,7 +165,4 @@ def create_your_workflow_graph() -> GenericGraphBuilder:
     edges = [("start", "end")]
     
     return builder.add_nodes(nodes).add_edges(edges)
-```
-
-这个教程涵盖了从基础概念到实际开发的完整流程，你可以根据具体需求调整每个步骤的详细内容。需要我详细解释某个特定步骤吗？
-        
+```        
