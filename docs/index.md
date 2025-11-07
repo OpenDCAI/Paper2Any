@@ -4,7 +4,7 @@
 
 <!-- ![DataFlow-Agent Logo](static/LogoDataFlow_Agentlogo_image_1.png) -->
 
-**智能化数据流处理框架 · 模块化 Agent 编排系统**
+智能化数据流处理框架 · 模块化 Agent 编排系统
 
 <!-- [[License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [[Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
