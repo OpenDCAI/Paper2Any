@@ -29,7 +29,7 @@ from dataflow_agent.logger import get_logger
 log = get_logger(__name__)
 
 @register("{{ wf_name }}")
-def create_{{ wf_name_snake }}_graph() -> GenericGraphBuilder:  # noqa: N802
+def create_{{ wf_name_snake }}_graph() -> GenericGraphBuilder:
     """
     Workflow factory: dfa run --wf {{ wf_name }}
     """
@@ -62,16 +62,47 @@ def create_{{ wf_name_snake }}_graph() -> GenericGraphBuilder:  # noqa: N802
     # ==============================================================
     async def step1(state: xxState) -> xxState:
         """
-        示例节点 1
+        示例节点 1: 使用 create_agent 创建并执行agent
+        
+        Args:
+            model_name: 模型名称，如 "gpt-4"
+            temperature: 采样温度，控制随机性 (0.0-1.0)
+            max_tokens: 最大生成token数
+            tool_mode: 工具调用模式 ("auto", "none", "required")
+            react_mode: 是否启用ReAct推理模式
+            react_max_retries: ReAct模式下最大重试次数
+            parser_type: 解析器类型 ("json", "xml", "text")，这个允许你在提示词中定义LLM不同的返回，xml还是json，还是直出；
+            parser_config: 解析器配置字典（如XML的root_tag）
+            use_vlm: 是否使用视觉语言模型，使用了视觉模型，其余的参数失效；
+            vlm_config: VLM配置字典
+            use_agent: 是否使用agent模式
+            **kwargs: 其他传递给init的参数
         """
-        # TODO: 替换为真正的业务逻辑
-        state.agent_results["step1"] = {"msg": "hello step1"}
+        # 创建agent实例
+        agent = create_agent(
+            name="your_agent_name",  # 替换为实际的agent名称
+            model_name="gpt-4",      # 模型名称
+            temperature=0.7,         # 采样温度
+            max_tokens=4096,         # 最大token数
+            tool_mode="auto",        # 工具调用模式
+            react_mode=True,         # 启用ReAct推理
+            react_max_retries=3,     # 最大重试次数
+            parser_type="json",     # 解析器类型
+            use_agent=True           # 使用agent模式
+        )
+        
+        # 执行agent
+        state = await agent.execute(state=state, use_agent=True)
         return state
 
     async def step2(state: xxState) -> xxState:
         """
-        示例节点 2
+        示例节点 2: 处理agent执行结果
+        
+        Args:
+            state: 主状态对象
         """
+        # TODO: 替换为真正的业务逻辑
         state.agent_results["step2"] = {"msg": "hello step2"}
         return state
 
@@ -81,6 +112,7 @@ def create_{{ wf_name_snake }}_graph() -> GenericGraphBuilder:  # noqa: N802
     nodes = {
         "step1": step1,
         "step2": step2,
+        '_end_': lambda state: state,  # 终止节点
     }
 
     # ------------------------------------------------------------------
@@ -88,6 +120,7 @@ def create_{{ wf_name_snake }}_graph() -> GenericGraphBuilder:  # noqa: N802
     # ------------------------------------------------------------------
     edges = [
         ("step1", "step2"),
+        ("step2", "_end_"),  # 指向终止节点
     ]
 
     builder.add_nodes(nodes).add_edges(edges)

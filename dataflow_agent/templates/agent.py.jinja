@@ -72,6 +72,9 @@ class {{ agent_name_camel }}(BaseAgent):
         pre_tool_results: Dict[str, Any],
     ):
         """将推理结果写回 MainState，可按需重写"""
+
+        state.xx = result
+
         super().update_state_result(state, result, pre_tool_results)
 
 

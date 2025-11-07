@@ -13,15 +13,15 @@ import asyncio
 import pytest
 
 # ------------ 依赖 -------------
-from dataflow_agent.state import MainState
+from dataflow_agent.state import xxState, xxRequest
 from dataflow_agent.workflow import run_workflow
-# 如果使用了自定义 State，请替换上面的 MainState 导入：
+# 如果使用了自定义 State，请替换上面的 xxState 导入：
 # from dataflow_agent.state import YourCustomState
 # --------------------------------
 
 
 # ============ 核心异步流程 ============
-async def run_{{ wf_name_snake }}_pipeline() -> MainState:
+async def run_{{ wf_name_snake }}_pipeline() -> xxState:
     """
     执行 {{ wf_name }} 工作流的测试流程
     """
@@ -33,7 +33,7 @@ async def run_{{ wf_name_snake }}_pipeline() -> MainState:
     # )
     
     # 2) 初始化状态
-    state = MainState(
+    state = xxState(
         messages=[],
         # request=req,  # 如果有自定义请求
     )
@@ -43,7 +43,7 @@ async def run_{{ wf_name_snake }}_pipeline() -> MainState:
     # state.agent_results = {}
 
     # 3) 通过注册中心执行工作流
-    final_state: MainState = await run_workflow("{{ wf_name }}", state)
+    final_state: xxState = await run_workflow("{{ wf_name }}", state)
     return final_state
 
 
