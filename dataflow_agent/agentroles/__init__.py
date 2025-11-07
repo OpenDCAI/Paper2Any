@@ -1,6 +1,7 @@
 # dataflow_agent/agentroles/__init__.py
 import importlib
 from pathlib import Path
+from dataflow_agent.toolkits.tool_manager import get_tool_manager
 
 # 1) 自动 import 所有 .py 文件
 _pkg_path = Path(__file__).resolve().parent
@@ -14,7 +15,7 @@ from .registry import AgentRegistry
 def get_agent_cls(name: str):
     return AgentRegistry.get(name)
 
-def create_agent(name: str, tool_manager=None, **kwargs):
+def create_agent(name: str, tool_manager=get_tool_manager(), **kwargs):
     cls = get_agent_cls(name)
     return cls.create(tool_manager=tool_manager, **kwargs)
 
