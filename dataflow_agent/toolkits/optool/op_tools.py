@@ -307,6 +307,39 @@ def get_operator_source_by_name(operator_name: str) -> str:
     except Exception as e:
         return f"# 获取算子源码时发生错误: {e}"
 
+def get_prompt_sources_of_operator(op_name: str) -> Dict[str, str]:
+    """
+    获取 operator 的 prompt_templates 的源码，并随机获取2个示例
+    """
+    import random
+    cls = OPERATOR_REGISTRY.get(op_name)
+    if cls is None:
+        raise KeyError(f"Operator {op_name} not found in registry")
+    log.info(f"Getting prompt_sources of {op_name}")
+    
+    # 获取 prompt_templates，如果没有则抛出异常
+    if getattr(cls, "ALLOWED_PROMPTS", None):
+        prompt_classes = cls.ALLOWED_PROMPTS
+    else:
+        raise ValueError(f"Operator {op_name} has no ALLOWED_PROMPTS")
+    
+    # 如果 prompt_templates 为空，则抛出异常，若只有一个，则直接使用，否则随机采样2个示例
+    if len(prompt_classes) == 0:
+        raise ValueError(f"Operator {op_name} has no prompt_templates")
+    if len(prompt_classes) == 1:
+        sample_classes = prompt_classes
+    else:
+        sample_classes = random.sample(prompt_classes, 2)
+        
+    # 获取源码
+    out = {}
+    for c in sample_classes:
+        try:
+            out[c.__name__] = inspect.getsource(c)
+        except OSError:
+            out[c.__name__] = "# 源码不可用（可能是C扩展/找不到源码/zip导入）"
+    return out
+
 def post_process_combine_pipeline_result(results: Dict) -> str:
 
     return "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"

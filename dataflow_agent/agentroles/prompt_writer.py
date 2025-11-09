@@ -5,17 +5,19 @@ import os
 import re
 import time
 import json
+import sys
 import subprocess
 
-from dataflow_agent.state import DFState
+from dataflow_agent.state import PromptWritingState
 from dataflow_agent.toolkits.tool_manager import ToolManager
 from dataflow_agent.logger import get_logger
-from dataflow_agent.registry import PROMPT_REGISTRY, OPERATOR_REGISTRY
+from dataflow.utils.registry import PROMPT_REGISTRY, OPERATOR_REGISTRY
 from dataflow_agent.agentroles.registry import register
 
 from dataflow_agent.toolkits.pipetool.pipe_tools import extract_op_params, indent_block, snake_case
 
 from dataflow_agent.agentroles.base_agent import BaseAgent
+from pydantic.type_adapter import P
 
 
 """
@@ -78,7 +80,7 @@ class PromptWriter(BaseAgent):
     # ---------------- 写入prompt代码 -------------------
     
     # 未使用
-    def _get_prompt_dir(self, state: DFState) -> str:
+    def _get_prompt_dir(self, state: PromptWritingState) -> str:
         op_name = state.prompt_op_name
         op_cls = OPERATOR_REGISTRY.get(op_name)
         if op_cls is None:
@@ -95,7 +97,7 @@ class PromptWriter(BaseAgent):
         return prompt_dir
     
     # 未使用
-    def _init_diy_prompt_module(self, state: DFState, prompt_dir: str):
+    def _init_diy_prompt_module(self, state: PromptWritingState, prompt_dir: str):
         # 初始化diy_prompt模块，并创建自动读取的init文件
         if not os.path.exists(prompt_dir + "/diy_prompt/__init__.py"):
             os.makedirs(prompt_dir + "/diy_prompt", exist_ok=True)
@@ -129,13 +131,13 @@ for _, _mod, _ispkg in iter_modules(_pkg_path):
         
         return prompt_dir
         
-    def _build_diy_prompt_file_path(self, state: DFState) -> str:
+    def _build_diy_prompt_file_path(self, state: PromptWritingState) -> str:
         """
         1. 初始化diy_prompt模块
         2. 从代码文本中提取类名，并将类名转化为蛇形命名法，添加时间戳保证唯一性，构建为文件名，返回完整保存路径。
 
         Args:
-            state: DFState
+            state: PromptWritingState
 
         Returns:
             str: 完整的保存路径
@@ -143,7 +145,7 @@ for _, _mod, _ispkg in iter_modules(_pkg_path):
         # prompt_dir = self._get_prompt_dir(state)
         # self._init_diy_prompt_module(state, prompt_dir)
         # diy_prompt_dir = state.temp_data["prompt_dir"]
-        diy_prompt_dir = "/mnt/DataFlow/lz/proj/agentgroup/ziyi/dataflow/DataFlow/dataflow/prompts/diy_prompts"
+        diy_prompt_dir = state.request.cache_dir
         prompt_code = state.draft_prompt_code
         
         # 尝试通过__all__获取类名
@@ -166,7 +168,7 @@ for _, _mod, _ispkg in iter_modules(_pkg_path):
         
         return file_path
     
-    def _dump_code(self, state: DFState, file_path_str: str, new_code: str) -> Path | None:
+    def _dump_code(self, state: PromptWritingState, file_path_str: str, new_code: str) -> Path | None:
         """
         将新代码写入目标文件。如果未提供路径，则仅返回 None（不强制落盘）。
         """
@@ -182,21 +184,25 @@ for _, _mod, _ispkg in iter_modules(_pkg_path):
         
         
     # ---------------- 测试prompt -------------------
-    def _init_cache_dir(self, state: DFState) -> str:
+    def _init_cache_dir(self, state: PromptWritingState) -> str:
         """
         初始化缓存目录
         """
-        cache_dir = state.request.python_file_path or state.temp_data.get("pipeline_file_path", ".")
-        cache_dir = os.path.join(cache_dir, "cache_local")
+        cache_dir = (
+            state.request.cache_dir
+            or state.temp_data.get("cache_dir")
+            or state.temp_data.get("pipeline_file_path")
+            or "./pa_cache"
+        )
         os.makedirs(cache_dir, exist_ok=True)
         
         state.temp_data["cache_dir"] = cache_dir
         
-        log.info("初始化缓存目录: {cache_dir}")
+        log.info(f"初始化缓存目录: {cache_dir}")
         
         return cache_dir
     
-    async def _build_test_data_by_llm(self, state: DFState) -> str:
+    async def _build_test_data_by_llm(self, state: PromptWritingState) -> str:
         """
         通过LLM生成测试数据
         """
@@ -263,7 +269,7 @@ for _, _mod, _ispkg in iter_modules(_pkg_path):
             log.error(f"未匹配到代码块，解析失败: {answer_text}")
             return ""
 
-    def _get_imports(self, state: DFState) -> List[str]:
+    def _get_imports(self, state: PromptWritingState) -> List[str]:
         op_name = state.prompt_op_name
         prompt_name = state.temp_data["prompt_class_name"]
         
@@ -272,25 +278,26 @@ for _, _mod, _ispkg in iter_modules(_pkg_path):
         op_cls = OPERATOR_REGISTRY.get(op_name)
         if op_cls is None:
             raise KeyError(f"Operator <{op_name}> not in OPERATOR_REGISTRY")
-        # 获取算子导入
-        op_import_line = f"from {op_cls.__module__} import {op_cls.__qualname__}"
-        import_lines.append(op_import_line)
+        # 获取算子导入（优先精确模块，失败则回退到上层聚合）
+        parts = op_cls.__module__.split('.')
+        parent2_module = '.'.join(parts[:-2]) if len(parts) > 2 else (parts[0] if parts else '')
+        op_import_block = (
+            f"try:\n"
+            f"    from {op_cls.__module__} import {op_cls.__qualname__}\n"
+            f"except Exception:\n"
+            f"    from {parent2_module} import {op_cls.__qualname__}"
+        )
+        import_lines.append(op_import_block)
         
-        # 获取一个提示词类，并获取其模块相对位置
-        # prompt_cls = op_cls.ALLOWED_PROMPTS[0]
-        # module_name = prompt_cls.__module__
-        # 获取DIY提示词导入
-        prompt_import_line = f"from dataflow.prompts.diy_prompts import {prompt_name}"
+        # 获取DIY提示词导入：把算子测试代码与提示词代码放在同一个目录里
+        prompt_file_path = state.temp_data.get("prompt_file_path", "")
+        prompt_file_name = os.path.basename(prompt_file_path).split('.')[0]
+        prompt_import_line = f"from {prompt_file_name} import {prompt_name}"
         import_lines.append(prompt_import_line)
+        
         return import_lines
-        # prompt_cls = PROMPT_REGISTRY.get(prompt_name)
-        # if prompt_cls is None:
-        #     raise KeyError(f"Prompt <{prompt_name}> not in PROMPT_REGISTRY")
-        # prompt_import_line = f"from {prompt_cls.__module__} import {prompt_cls.__qualname__}"
-        # import_lines.append(prompt_import_line)
-        # return import_lines
 
-    def _render_operator_blocks(self, op_name: str, state: DFState) -> str:
+    def _render_operator_blocks(self, op_name: str, state: PromptWritingState) -> str:
         op_cls = OPERATOR_REGISTRY.get(op_name)
         prompt_name = state.temp_data["prompt_class_name"]
         if op_cls is None:
@@ -330,7 +337,7 @@ for _, _mod, _ispkg in iter_modules(_pkg_path):
     def _build_test_code(
         self,
         op_name: str,
-        state: DFState,
+        state: PromptWritingState,
         file_path: str, # 测试数据文件路径
         chat_api_url: str = None,
         *,
@@ -340,7 +347,13 @@ for _, _mod, _ispkg in iter_modules(_pkg_path):
         model_name: str = "gpt-4o",
     ) -> str:
         if cache_dir is None:
-            cache_dir = state.request.python_file_path or state.temp_data.get("pipeline_file_path", "./cache_local")
+            cache_dir = (
+                state.request.cache_dir
+                or state.temp_data.get("cache_dir")
+                or state.request.python_file_path
+                or state.temp_data.get("pipeline_file_path")
+                or "./pa_cache"
+            )
         
         if chat_api_url is None:
             chat_api_url = state.request.chat_api_url
@@ -438,10 +451,10 @@ if __name__ == "__main__":
         )
         return code
         
-    # ---------------- 更新 DFState -------------------
+    # ---------------- 更新 State -------------------
     def update_state_result(
         self,
-        state: DFState,
+        state: PromptWritingState,
         result: Dict[str, Any],
         pre_tool_results: Dict[str, Any],
     ):
@@ -452,6 +465,7 @@ if __name__ == "__main__":
         state.draft_prompt_code = code_str
         if code_str:
             file_path_str = self._build_diy_prompt_file_path(state)
+            log.info(f"写入提示词代码文件: {file_path_str}")
             new_code = state.draft_prompt_code
             
             saved_path = self._dump_code(state, file_path_str, new_code)
@@ -464,9 +478,36 @@ if __name__ == "__main__":
         super().update_state_result(state, result, pre_tool_results)
 
 
-    async def execute(self, state: DFState, use_agent: bool = False, **kwargs) -> DFState:
+    async def execute(self, state: PromptWritingState, use_agent: bool = False, **kwargs) -> PromptWritingState:
+        # 先初始化缓存目录，确保后续写入提示词文件不会因目录不存在而失败
+        self._init_cache_dir(state)
         await super().execute(state, use_agent=use_agent, **kwargs)
         
+        # 前置校验：确保已生成可用的提示词代码
+        prompt_code = state.temp_data.get("prompt_code", "")
+        if not prompt_code:
+            raise ValueError("提示词未生成或格式不正确：需要使用 ```python 包裹完整源码。")
+
+        # 确保存在 prompt_class_name；若缺失，尝试从代码回溯提取
+        if not state.temp_data.get("prompt_class_name"):
+            name = None
+            try:
+                m = re.search(r"__all__\s*=\s*\[(.*?)\]", prompt_code, re.S)
+                if m:
+                    first = m.group(1).split(",")[0].strip().strip("'\"")
+                    if first:
+                        name = first
+                if not name:
+                    m2 = re.search(r"class\s+([A-Za-z_]\w*)\s*\(", prompt_code)
+                    if m2:
+                        name = m2.group(1)
+            except Exception:
+                name = None
+            if name:
+                state.temp_data["prompt_class_name"] = name
+            else:
+                raise ValueError("无法确定提示词类名：请确保源码包含 __all__ = ['YourClass'] 或明确的 class 定义。")
+
         log.info("开始进行算子测试流程")
         cache_dir = self._init_cache_dir(state)
         test_data_file_path = await self._build_test_data_by_llm(state)
@@ -486,22 +527,139 @@ if __name__ == "__main__":
         log.info(f"开始执行测试代码: {test_file_path}")
         print("当前工作目录: " + os.getcwd())
         result = subprocess.run(["python", test_file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        
+        # 收集结果文件
+        try:
+            cache_dir = state.temp_data.get("cache_dir") or "./pa_cache"
+            candidates = []
+            for name in os.listdir(cache_dir):
+                if not name.startswith("dataflow_cache_step"):
+                    continue
+                if not (name.endswith(".jsonl") or name.endswith(".json") or name.endswith(".csv")):
+                    continue
+                full_path = os.path.join(cache_dir, name)
+                try:
+                    mtime = os.path.getmtime(full_path)
+                except Exception:
+                    mtime = 0
+                candidates.append((mtime, full_path))
+            if candidates:
+                candidates.sort(key=lambda x: x[0], reverse=True)
+                latest_path = candidates[0][1]
+                state.temp_data["prompt_result_file_path"] = latest_path
+                try:
+                    with open(latest_path, "r", encoding="utf-8") as f:
+                        state.temp_data["prompt_result_preview"] = f.read()
+                except Exception:
+                    state.temp_data["prompt_result_preview"] = ""
+        except Exception:
+            pass
+        
         if result.returncode != 0:
             log.error(f"执行测试代码失败: {result.stderr}")
         else:
             log.info(f"执行测试代码成功: {result.stdout}")
         
         return state
+    
+    async def revise_with_feedback(self, state: PromptWritingState, feedback: str) -> PromptWritingState:
+        # 若没有已有代码，回退到初次生成
+        current_code = state.temp_data.get("prompt_code") or getattr(state, "draft_prompt_code", "")
+        if not current_code:
+            return await self.execute(state, use_agent=False)
+        
+        # 1) 通过LLM根据反馈改写现有代码
+        try:
+            prompt_text = f"""
+你是一个高级提示词模板工程师。请根据“用户反馈”对下方的 Python 提示词类代码进行改写：
+- 保持原有类名与 __all__ 不变
+- 不改变导入路径风格
+- 仅改写提示词内容/逻辑以满足反馈
+- 输出必须是完整的 Python 源码，并使用 ```python 代码块 包裹
+
+用户反馈：
+{feedback or "（无）"}
+
+现有代码：
+```python
+{current_code}
+```
+"""
+            llm = self.create_llm(state, bind_post_tools=False)
+            answer_msg = await llm.ainvoke([{"role": "user", "content": prompt_text}])
+            answer_text = answer_msg.content
+            result = self.parse_result(answer_text)  # 期望返回 {"code": "..."}
+        except Exception as e:
+            log.error(f"基于反馈改写提示词失败: {e}")
+            return state
+        
+        # 2) 写回新代码并保存
+        pre_tool_results = state.temp_data.get("pre_tool_results", {})
+        self.update_state_result(state, result, pre_tool_results)
+        
+        # 3) 复用测试流程：生成测试数据、生成并执行测试代码
+        log.info("基于反馈改写后，开始进行算子测试流程")
+        cache_dir = self._init_cache_dir(state)
+        test_data_file_path = await self._build_test_data_by_llm(state)
+        op_name = state.prompt_op_name
+        test_code = self._build_test_code(op_name, state, file_path=test_data_file_path, cache_dir=cache_dir)
+        state.temp_data["prompt_test_code"] = test_code
+        
+        prompt_name = state.temp_data["prompt_class_name"]
+        test_file_path = os.path.join(cache_dir, "test_" + prompt_name + ".py")
+        saved_path = self._dump_code(state, test_file_path, test_code)
+        if saved_path is not None:
+            state.temp_data["prompt_test_file_path"] = str(saved_path)
+        
+        log.info(f"开始执行测试代码(反馈改写后): {test_file_path}")
+        env = os.environ.copy()
+        base = os.getcwd()
+        env["PYTHONPATH"] = base + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+        result_run = subprocess.run([sys.executable, test_file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+        
+        # 收集结果文件
+        try:
+            cache_dir = state.temp_data.get("cache_dir") or base
+            candidates = []
+            for name in os.listdir(cache_dir):
+                if not name.startswith("dataflow_cache_step"):
+                    continue
+                if not (name.endswith(".jsonl") or name.endswith(".json") or name.endswith(".csv")):
+                    continue
+                full_path = os.path.join(cache_dir, name)
+                try:
+                    mtime = os.path.getmtime(full_path)
+                except Exception:
+                    mtime = 0
+                candidates.append((mtime, full_path))
+            if candidates:
+                candidates.sort(key=lambda x: x[0], reverse=True)
+                latest_path = candidates[0][1]
+                state.temp_data["prompt_result_file_path"] = latest_path
+                try:
+                    with open(latest_path, "r", encoding="utf-8") as f:
+                        state.temp_data["prompt_result_preview"] = f.read()
+                except Exception:
+                    state.temp_data["prompt_result_preview"] = ""
+        except Exception:
+            pass
+        
+        if result_run.returncode != 0:
+            log.error(f"执行测试代码失败(反馈改写后): {result_run.stderr}")
+        else:
+            log.info(f"执行测试代码成功(反馈改写后): {result_run.stdout}")
+        
+        return state
         
 async def prompt_writing(
-    state: DFState,
+    state: PromptWritingState,
     model_name: Optional[str] = None,
     tool_manager: Optional[ToolManager] = None,
     temperature: float = 0.0,
     max_tokens: int = 2048,
     use_agent: bool = False,
     **kwargs,
-) -> DFState:
+    ) -> PromptWritingState:
     inst = create_prompt_writer(
         tool_manager=tool_manager,
         model_name=model_name,

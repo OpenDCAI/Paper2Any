@@ -197,3 +197,16 @@ class WebCrawlState(MainState):
         self.url_queue = []
         self.current_cycle = 0
         self.download_successful_for_current_task = False
+        
+
+    
+@dataclass
+class PromptWritingState(MainState):
+    """提示词生成任务的State，继承自MainState"""
+    request: DFRequest = field(default_factory=DFRequest)
+    
+    # 提示词生成特有的字段
+    prompt_op_name: str = ""
+    prompt_args: Dict[str, Any] = field(default_factory=dict)
+    prompt_output_format: Dict[str, Any] = field(default_factory=dict)
+    delete_test_files: bool = True
