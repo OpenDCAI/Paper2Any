@@ -83,7 +83,7 @@ mkdocs-material
 beautifulsoup4
 playwright
 IPython==8.18.1
-pyarrow==21.0.0
+pyarrow==20.0.0
 chromadb
 opencv-python
 

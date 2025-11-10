@@ -12,9 +12,8 @@ import shutil
 import tempfile
 from abc import ABC, abstractmethod
 from collections import Counter
-from typing import Any, Dict, List, Optional, Type, Tuple
+from typing import Any, Dict, List, Optional, Set, Type, Tuple, TYPE_CHECKING
 from pathlib import Path
-from datasets import load_dataset, load_from_disk, Dataset, DatasetDict
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
 from langchain_core.tools import Tool
@@ -24,7 +23,57 @@ from dataflow_agent.utils import robust_parse_json
 from dataflow_agent.toolkits.tool_manager import ToolManager
 from dataflow_agent.logger import get_logger
 
+if TYPE_CHECKING:
+    from datasets import Dataset, DatasetDict
+
 log = get_logger()
+
+
+class SimpleDataset:
+    """A lightweight dataset container that mimics the interface used from HuggingFace datasets."""
+
+    def __init__(self, records: List[Dict[str, Any]]):
+        self._records = records
+        self._column_names = list(records[0].keys()) if records else []
+
+    def __len__(self) -> int:
+        return len(self._records)
+
+    def __getitem__(self, index: int) -> Dict[str, Any]:
+        return self._records[index]
+
+    def __iter__(self):  # type: ignore[override]
+        return iter(self._records)
+
+    @property
+    def column_names(self) -> List[str]:
+        return self._column_names
+
+
+def _build_simple_dataset(records: List[Dict[str, Any]]) -> Optional[Dict[str, SimpleDataset]]:
+    if not records:
+        return None
+    return {"train": SimpleDataset(records)}
+
+
+def _ensure_hf_cache_env(download_dir: Optional[str]) -> None:
+    """确保 HuggingFace 相关环境变量指向下载目录。"""
+    if not download_dir:
+        return
+
+    base_dir = os.path.abspath(download_dir)
+    hf_cache_root = os.path.join(base_dir, ".cache", "hf")
+    hub_dir = os.path.join(hf_cache_root, "hub")
+    datasets_dir = os.path.join(hf_cache_root, "datasets")
+    transformers_dir = os.path.join(hf_cache_root, "transformers")
+
+    for path in (hf_cache_root, hub_dir, datasets_dir, transformers_dir):
+        os.makedirs(path, exist_ok=True)
+
+    os.environ.setdefault("HF_HOME", hf_cache_root)
+    os.environ.setdefault("HUGGINGFACE_HUB_CACHE", hub_dir)
+    os.environ.setdefault("HF_DATASETS_CACHE", datasets_dir)
+    os.environ.setdefault("TRANSFORMERS_CACHE", transformers_dir)
 
 
 # =================================================================
@@ -216,6 +265,16 @@ class DataConvertor:
         """(数据映射) 调用LLM并处理响应"""
         log.info(f"{self.role_name} 调用LLM(数据映射)并处理响应...")
         
+        # 记录输入
+        inputs = {
+            "role_name": self.role_name,
+            "column_names": column_names,
+            "sample_record_keys": list(sample_record.keys()) if sample_record else [],
+            "dataset_size": len(dataset) if dataset is not None else None,
+            "category": state.request.category
+        }
+        log.info(f"[Agent Input] {self.role_name}.invoke: {json.dumps(inputs, indent=2, ensure_ascii=False)}")
+        
         messages = self.build_messages(state, column_names, sample_record, dataset)
         llm = self.create_llm(state)
         
@@ -229,6 +288,8 @@ class DataConvertor:
 
             try:
                 annotation_result = json.loads(match)
+                # 记录输出
+                log.info(f"[Agent Output] {self.role_name}.invoke: {json.dumps(annotation_result, indent=2, ensure_ascii=False)}")
                 return annotation_result
             except json.JSONDecodeError as e:
                 log.exception(f"解析GPT(数据映射)响应为JSON失败: 内容为{match}")
@@ -236,6 +297,7 @@ class DataConvertor:
             
         except Exception as e:
             log.exception("hf数据集(数据映射)标注失败: %s", e)
+            log.error(f"[Agent Output] {self.role_name}.invoke: Error - {str(e)}")
             raise Exception(f"Error during dataset annotation: {e}")
 
     
@@ -325,6 +387,19 @@ class DataConvertor:
         它处理已下载并整理到 'tmp' 目录的 HF 数据集。
         """
         log.info(f"{self.role_name} (Base) 开始执行...")
+
+        _ensure_hf_cache_env(state.request.download_dir)
+        from datasets import load_from_disk
+
+        # 记录输入
+        inputs = {
+            "role_name": self.role_name,
+            "category": state.request.category,
+            "keywords": state.keywords,
+            "downloads_count": sum(len(v) for v in state.downloads.values()) if state.downloads else 0,
+            "download_dir": state.request.download_dir
+        }
+        log.info(f"[Agent Input] {self.role_name}.execute: {json.dumps(inputs, indent=2, ensure_ascii=False)}")
 
         category = state.request.category.upper() # PT/SFT
 
@@ -417,6 +492,12 @@ class DataConvertor:
         # Step 2: Record summary
         self.record_summary(state)
 
+        # 记录输出
+        outputs = {
+            "sources": {k: {cat: len(v) for cat, v in sources.items()} for k, sources in state.sources.items()},
+            "total_keywords_processed": len(state.keywords)
+        }
+        log.info(f"[Agent Output] {self.role_name}.execute: {json.dumps(outputs, indent=2, ensure_ascii=False)}")
         log.info(f"{self.role_name} (Base) 执行完成")
         return state
 
@@ -462,8 +543,18 @@ class UniversalDataConvertor(DataConvertor):
             log.error(f"压缩文件不存在: {compressed_path}")
             return None
             
-        # 创建临时目录
-        temp_dir = tempfile.mkdtemp(prefix="dataflow_extract_")
+        # 创建可控位置的临时目录，优先使用 DF_TEMP_DIR 或下载目录下的 .tmp
+        temp_base_dir = os.getenv("DF_TEMP_DIR") or None
+        if temp_base_dir is None:
+            # 尝试从压缩文件所在目录的上级派生一个 .tmp
+            parent_dir = os.path.dirname(os.path.abspath(compressed_path))
+            tmp_candidate = os.path.join(parent_dir, ".tmp")
+            try:
+                os.makedirs(tmp_candidate, exist_ok=True)
+                temp_base_dir = tmp_candidate
+            except Exception:
+                temp_base_dir = None
+        temp_dir = tempfile.mkdtemp(prefix="dataflow_extract_", dir=temp_base_dir)
         self._temp_dirs.append(temp_dir)
         log.info(f"正在解压 {compressed_path} 到 {temp_dir}")
         
@@ -531,6 +622,121 @@ class UniversalDataConvertor(DataConvertor):
             except Exception as e:
                 log.warning(f"清理临时目录失败 {temp_dir}: {e}")
         self._temp_dirs.clear()
+    
+    def _cleanup_download_dir_cache_files(self, download_dir: str):
+        """
+        清理下载目录中的残留缓存文件（如 .conda 文件等）。
+        
+        Args:
+            download_dir: 下载目录路径
+        """
+        if not os.path.exists(download_dir):
+            return
+        
+        cleaned_count = 0
+        total_size = 0
+        
+        for root, dirs, files in os.walk(download_dir):
+            # 跳过临时目录和输出目录
+            dirs[:] = [d for d in dirs if d not in ('.tmp', 'processed_output', '.cache', 'rag_db')]
+            
+            for f in files:
+                # 清理 conda 包缓存文件
+                if f.endswith('.conda'):
+                    file_path = os.path.join(root, f)
+                    try:
+                        file_size = os.path.getsize(file_path)
+                        os.remove(file_path)
+                        cleaned_count += 1
+                        total_size += file_size
+                        log.info(f"已清理 conda 缓存文件: {file_path} ({file_size / (1024*1024):.2f} MB)")
+                    except Exception as e:
+                        log.warning(f"清理 conda 缓存文件失败 {file_path}: {e}")
+        
+        if cleaned_count > 0:
+            log.info(f"共清理 {cleaned_count} 个 conda 缓存文件，释放空间 {total_size / (1024*1024):.2f} MB")
+
+    @staticmethod
+    def _flatten_column_name(column: Any) -> str:
+        if isinstance(column, tuple):
+            return "__".join(str(part) for part in column if part not in (None, ""))
+        return str(column)
+
+    def _normalize_value(self, value: Any) -> Any:
+        import pandas as pd
+        import numpy as np
+
+        if value is None:
+            return None
+
+        if isinstance(value, dict):
+            return {str(k): self._normalize_value(v) for k, v in value.items()}
+
+        if isinstance(value, (list, tuple, set)):
+            return [self._normalize_value(v) for v in list(value)]
+
+        try:
+            if pd.isna(value):
+                return None
+        except (TypeError, ValueError):
+            pass
+
+        if isinstance(value, pd.Timestamp):
+            return value.isoformat()
+
+        if isinstance(value, pd.Timedelta):
+            return value.isoformat()
+
+        if isinstance(value, pd.Period):
+            return value.to_timestamp().isoformat()
+
+        if isinstance(value, np.ndarray):
+            return [self._normalize_value(v) for v in value.tolist()]
+
+        if isinstance(value, (np.integer,)):
+            return int(value)
+
+        if isinstance(value, (np.floating,)):
+            if np.isfinite(value):
+                return float(value)
+            return None
+
+        if isinstance(value, (np.bool_,)):
+            return bool(value)
+
+        if hasattr(value, "item") and callable(getattr(value, "item")):
+            try:
+                return self._normalize_value(value.item())
+            except Exception:
+                pass
+
+        return value
+
+    def _dataframe_to_simple_dataset(self, df: "pd.DataFrame") -> Optional[Dict[str, SimpleDataset]]:
+        import pandas as pd
+
+        if df is None or len(df) == 0:
+            log.warning("pandas DataFrame 为空，无法构建 SimpleDataset")
+            return None
+
+        df = df.copy()
+        df.columns = [self._flatten_column_name(col) for col in df.columns]
+
+        records = df.to_dict(orient="records")
+        normalized_records: List[Dict[str, Any]] = []
+        for record in records:
+            normalized_record = {str(k): self._normalize_value(v) for k, v in record.items()}
+            normalized_records.append(normalized_record)
+
+        dataset = _build_simple_dataset(normalized_records)
+        if dataset:
+            sample_columns = dataset["train"].column_names[:5]
+            log.info(
+                "使用 pandas 构建 SimpleDataset 成功，共 %d 条记录，示例列: %s",
+                len(dataset["train"]),
+                sample_columns,
+            )
+        return dataset
 
     def _get_file_list_string(self, root_path: str, exclude_files: List[str] = None) -> str:
         """
@@ -545,12 +751,22 @@ class UniversalDataConvertor(DataConvertor):
         
         file_list = []
         for root, dirs, files in os.walk(root_path, topdown=True):
-            dirs[:] = [d for d in dirs if not d.startswith(('.', '__')) and d not in ('.cache', 'processed_output')]
+            # 忽略临时/缓存/输出目录，避免把临时文件当作数据处理
+            dirs[:] = [
+                d for d in dirs
+                if not d.startswith(('.', '__'))
+                and d not in ('.cache', 'processed_output', '.tmp', 'rag_db')
+                and not d.startswith(('datasets_cache_', 'dataflow_extract_', 'hf_cache_', 'kaggle_cache_'))
+            ]
             files = [f for f in files if not f.startswith(('.', '__'))]
             
             for f in files:
+                # 忽略排除列表中的文件
                 if f in exclude_files:
-                    continue                
+                    continue
+                # 忽略 conda 包缓存文件
+                if f.endswith('.conda'):
+                    continue
                 full_path = os.path.join(root, f)
                 relative_path = os.path.relpath(full_path, root_path)
                 file_list.append(relative_path.replace(os.sep, '/'))
@@ -559,6 +775,67 @@ class UniversalDataConvertor(DataConvertor):
             return "This directory is empty."
         
         return "File list:\n" + "\n".join(sorted(file_list))
+
+    def _chunk_file_list_for_llm(
+        self,
+        file_list_str: str,
+        max_chars: int = 8000,
+        max_lines: int = 200,
+    ) -> List[str]:
+        """
+        将文件列表字符串按块拆分，防止单次请求超出上下文长度限制。
+        """
+        if not file_list_str:
+            return []
+
+        lines = file_list_str.splitlines()
+        if not lines:
+            return []
+
+        header = None
+        if lines[0].strip().lower().startswith("file list"):
+            header = lines[0]
+            content_lines = lines[1:]
+        else:
+            content_lines = lines
+
+        if not content_lines:
+            return [file_list_str]
+
+        chunks: List[List[str]] = []
+        current_chunk: List[str] = []
+        current_char_len = 0
+
+        for line in content_lines:
+            line_len = len(line) + 1  # 估算换行符
+            if current_chunk and (
+                current_char_len + line_len > max_chars
+                or len(current_chunk) >= max_lines
+            ):
+                chunks.append(current_chunk)
+                current_chunk = [line]
+                current_char_len = line_len
+            else:
+                current_chunk.append(line)
+                current_char_len += line_len
+
+        if current_chunk:
+            chunks.append(current_chunk)
+
+        if len(chunks) <= 1:
+            return [file_list_str]
+
+        total_chunks = len(chunks)
+        result_chunks: List[str] = []
+        for idx, chunk_lines in enumerate(chunks, start=1):
+            if header:
+                chunk_header = f"{header} (chunk {idx}/{total_chunks})"
+            else:
+                chunk_header = f"File list (chunk {idx}/{total_chunks})"
+            chunk_str = chunk_header + "\n" + "\n".join(chunk_lines)
+            result_chunks.append(chunk_str)
+
+        return result_chunks
 
     def _get_builder_type(self, file_path: str) -> Optional[str]:
         """
@@ -585,8 +862,6 @@ class UniversalDataConvertor(DataConvertor):
         手动加载 JSON 文件的备用方法。
         
         """
-        from datasets import Dataset, DatasetDict
-        
         try:
             # 检查文件大小，避免加载超大文件导致内存问题
             file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
@@ -594,68 +869,68 @@ class UniversalDataConvertor(DataConvertor):
                 log.warning(f"文件过大 ({file_size_mb:.2f} MB > {max_file_size_mb} MB)，跳过手动加载: {file_path}")
                 return None
             
-            log.info(f"尝试手动读取 JSON 文件 ({file_size_mb:.2f} MB): {file_path}")
-            
+            log.info(f"尝试使用 pandas 手动读取 JSON 文件 ({file_size_mb:.2f} MB): {file_path}")
+
+            import pandas as pd
+
+            # 优先尝试按行读取（适用于 JSONL）
+            try:
+                df = pd.read_json(file_path, lines=True)
+                if len(df) > 0:
+                    log.info(f"pandas 按行读取 JSON 成功，获得 {len(df)} 条记录")
+                    return self._dataframe_to_simple_dataset(df)
+                log.info("pandas 按行读取 JSON 返回空 DataFrame，尝试其他策略")
+            except ValueError as err:
+                log.info(f"pandas 按行读取 JSON 失败: {err}")
+
+            # 回退到手动解析
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read().strip()
-            
+
             if not content:
                 log.warning(f"文件为空: {file_path}")
                 return None
-            
-            records = []
-            
-            # 尝试1: JSONL 格式（每行一个 JSON）
+
             try:
-                lines = content.split('\n')
-                for line in lines:
-                    line = line.strip()
-                    if line:
-                        records.append(json.loads(line))
-                
-                if records:
-                    log.info(f"成功以 JSONL 格式加载 {len(records)} 条记录")
-                    dataset = Dataset.from_list(records)
-                    return DatasetDict({"train": dataset})
-            except:
-                pass
-            
-            # 尝试2: JSON 数组格式
-            try:
-                data = json.loads(content)
-                
-                # 如果是列表，直接使用
-                if isinstance(data, list):
-                    if data:
-                        log.info(f"成功以 JSON 数组格式加载 {len(data)} 条记录")
-                        dataset = Dataset.from_list(data)
-                        return DatasetDict({"train": dataset})
-                    else:
-                        log.warning(f"JSON 数组为空: {file_path}")
-                        return None
-                
-                # 如果是字典，检查是否包含数据列表
-                elif isinstance(data, dict):
-                    # 尝试查找可能的数据字段
-                    for key in ['data', 'items', 'records', 'examples', 'train', 'test']:
-                        if key in data and isinstance(data[key], list) and data[key]:
-                            log.info(f"在字典的 '{key}' 字段中找到 {len(data[key])} 条记录")
-                            dataset = Dataset.from_list(data[key])
-                            return DatasetDict({"train": dataset})
-                    
-                    # 如果字典本身就是一条记录，包装成列表
-                    log.info(f"将单个 JSON 对象包装为数据集")
-                    dataset = Dataset.from_list([data])
-                    return DatasetDict({"train": dataset})
-                
-                else:
-                    log.warning(f"不支持的 JSON 类型: {type(data)}")
-                    return None
-                    
+                parsed = json.loads(content)
             except json.JSONDecodeError as e:
                 log.error(f"JSON 解析失败: {e}")
                 return None
-        
+
+            candidate_records: List[Any] = []
+            if isinstance(parsed, list):
+                candidate_records = parsed
+            elif isinstance(parsed, dict):
+                key_candidates = ['data', 'items', 'records', 'examples', 'train', 'test', 'validation', 'val']
+                for key in key_candidates:
+                    if key in parsed and isinstance(parsed[key], list) and parsed[key]:
+                        candidate_records = parsed[key]
+                        log.info(f"在 JSON 字典的 '{key}' 字段中找到 {len(parsed[key])} 条记录")
+                        break
+                if not candidate_records:
+                    candidate_records = [parsed]
+            else:
+                log.warning(f"不支持的 JSON 顶层类型: {type(parsed)}，跳过 {file_path}")
+                return None
+
+            if not candidate_records:
+                log.warning(f"JSON 内容未包含可用记录: {file_path}")
+                return None
+
+            normalized_records: List[Dict[str, Any]] = []
+            for item in candidate_records:
+                if isinstance(item, dict):
+                    normalized_records.append(item)
+                else:
+                    normalized_records.append({"value": item})
+
+            df = pd.json_normalize(normalized_records)
+            if len(df) == 0:
+                log.warning(f"pd.json_normalize 结果为空: {file_path}")
+                return None
+
+            return self._dataframe_to_simple_dataset(df)
+
         except Exception as e:
             log.error(f"手动加载 JSON 文件时出错: {e}")
             return None
@@ -707,18 +982,11 @@ class UniversalDataConvertor(DataConvertor):
                 log.error(f"所有Parquet读取策略都失败: {file_path}")
                 return None
             
-            # 转换为Dataset格式
-            if len(df) > 0:
-                # 将DataFrame转换为字典列表
-                records = df.to_dict('records')
-                log.info(f"成功从Parquet文件加载 {len(records)} 条记录")
-                
-                # 创建Dataset
-                dataset = Dataset.from_list(records)
-                return DatasetDict({"train": dataset})
-            else:
+            if len(df) == 0:
                 log.warning(f"Parquet文件为空: {file_path}")
                 return None
+
+            return self._dataframe_to_simple_dataset(df)
                 
         except Exception as e:
             log.error(f"手动加载 Parquet 文件时出错: {e}")
@@ -779,10 +1047,7 @@ class UniversalDataConvertor(DataConvertor):
             if file_ext == '.csv':
                 import pandas as pd
                 df = pd.read_csv(file_path)
-                records = df.to_dict('records')
-                dataset = Dataset.from_list(records)
-                log.info(f"成功从CSV文件加载 {len(records)} 条记录")
-                return DatasetDict({"train": dataset})
+                return self._dataframe_to_simple_dataset(df)
             
             elif file_ext in ['.txt', '.md']:
                 with open(file_path, 'r', encoding='utf-8') as f:
@@ -790,9 +1055,10 @@ class UniversalDataConvertor(DataConvertor):
                 
                 # 将文本内容包装为单条记录
                 records = [{"text": content}]
-                dataset = Dataset.from_list(records)
-                log.info(f"成功从文本文件加载内容")
-                return DatasetDict({"train": dataset})
+                dataset = _build_simple_dataset(records)
+                if dataset:
+                    log.info("成功从文本文件加载内容")
+                return dataset
             
             else:
                 log.warning(f"不支持的文件类型: {file_ext}")
@@ -805,16 +1071,46 @@ class UniversalDataConvertor(DataConvertor):
     async def _load_with_datasets(self, builder_type: str, file_path: str) -> Optional[Any]:
         """使用datasets库的load_dataset方法加载文件"""
         try:
-            # 尝试多种load_dataset参数组合
+            # 为 datasets 创建可控位置的临时缓存目录，避免写入系统 /tmp
+            temp_base_dir = os.getenv("DF_TEMP_DIR") or None
+            if temp_base_dir is None:
+                parent_dir = os.path.dirname(os.path.abspath(file_path))
+                tmp_candidate = os.path.join(parent_dir, ".tmp")
+                try:
+                    os.makedirs(tmp_candidate, exist_ok=True)
+                    temp_base_dir = tmp_candidate
+                except Exception:
+                    temp_base_dir = None
+            temp_cache_dir = tempfile.mkdtemp(prefix="datasets_cache_", dir=temp_base_dir)
+            self._temp_dirs.append(temp_cache_dir)
+
+            # 明确指定使用内存与临时缓存目录，避免默认 .cache 目录
+            from datasets import DownloadConfig, load_dataset
+            dl_config = DownloadConfig(cache_dir=temp_cache_dir)
+
+            # 尝试多种 load_dataset 参数组合（全部使用临时缓存目录 + 内存优先）
             strategies = [
-                # 策略1: 基本参数
-                {"name": "基本参数", "params": {"path": builder_type, "data_files": file_path}},
-                # 策略2: 禁用缓存
-                {"name": "禁用缓存", "params": {"path": builder_type, "data_files": file_path, "cache_dir": None}},
-                # 策略3: 强制重新下载
-                {"name": "强制重新下载", "params": {"path": builder_type, "data_files": file_path, "download_mode": "force_redownload"}},
-                # 策略4: 使用临时缓存
-                {"name": "临时缓存", "params": {"path": builder_type, "data_files": file_path, "cache_dir": "/tmp/datasets_cache"}},
+                {
+                    "name": "临时缓存+内存优先",
+                    "params": {
+                        "path": builder_type,
+                        "data_files": file_path,
+                        "cache_dir": temp_cache_dir,
+                        "keep_in_memory": True,
+                        "download_config": dl_config,
+                    },
+                },
+                {
+                    "name": "临时缓存+强制重建",
+                    "params": {
+                        "path": builder_type,
+                        "data_files": file_path,
+                        "cache_dir": temp_cache_dir,
+                        "keep_in_memory": True,
+                        "download_config": dl_config,
+                        "download_mode": "force_redownload",
+                    },
+                },
             ]
             
             for strategy in strategies:
@@ -837,10 +1133,11 @@ class UniversalDataConvertor(DataConvertor):
         try:
             if builder_type == 'parquet':
                 return await self._manual_load_parquet(file_path)
-            elif builder_type in ['json', 'csv']:
+            if builder_type == 'json':
                 return await self._manual_load_json(file_path)
-            else:
+            if builder_type == 'csv':
                 return await self._manual_load_generic(file_path)
+            return await self._manual_load_generic(file_path)
         except Exception as e:
             log.error(f"备用加载方法出错: {e}")
             return None
@@ -851,7 +1148,7 @@ class UniversalDataConvertor(DataConvertor):
         file_path: str, 
         state: DataCollectionState, 
         category: str,
-        output_jsonl_path: str,
+        output_jsonl_prefix: str,
         processed_sources_list: List[Tuple[str, int]]
     ) -> int:
         """
@@ -893,11 +1190,21 @@ class UniversalDataConvertor(DataConvertor):
                 
             # 格式化并写入统一的 jsonl 文件
             split_record_count = 0
-            with open(output_jsonl_path, 'a', encoding='utf-8') as f_out:
+            # 分片写入：每 10000 条切换到下一个文件
+            chunk_size = 10000
+            current_chunk_index = 1
+            current_chunk_count = 0
+
+            def _open_chunk_file(index: int):
+                chunk_path = f"{output_jsonl_prefix}_{index:05d}.jsonl"
+                return open(chunk_path, 'a', encoding='utf-8')
+
+            f_out = _open_chunk_file(current_chunk_index)
+            try:
                 if category == 'PT':
-                    text_field = annotation_result.get('text')
+                    text_field = annotation_result.get('text') if annotation_result else None
                     if not text_field or text_field not in column_names:
-                        log.warning(f"未在 {file_name} ({split_name}) 中找到有效的 'text' 字段 (来自 LLM: {text_field})，跳过。")
+                        log.warning(f"未在 {file_name} ({split_name}) 中找到有效的 'text' 字段 (来自 LLM: {annotation_result})，跳过。")
                         continue
                     
                     for row in data_content:
@@ -906,6 +1213,12 @@ class UniversalDataConvertor(DataConvertor):
                             json.dump({'text': text}, f_out, ensure_ascii=False)
                             f_out.write('\n')
                             split_record_count += 1
+                            current_chunk_count += 1
+                            if current_chunk_count >= chunk_size:
+                                f_out.close()
+                                current_chunk_index += 1
+                                current_chunk_count = 0
+                                f_out = _open_chunk_file(current_chunk_index)
                             
                 elif category == 'SFT':
                     q_field = annotation_result.get('question')
@@ -922,6 +1235,17 @@ class UniversalDataConvertor(DataConvertor):
                             json.dump({'question': question, 'answer': answer}, f_out, ensure_ascii=False)
                             f_out.write('\n')
                             split_record_count += 1
+                            current_chunk_count += 1
+                            if current_chunk_count >= chunk_size:
+                                f_out.close()
+                                current_chunk_index += 1
+                                current_chunk_count = 0
+                                f_out = _open_chunk_file(current_chunk_index)
+            finally:
+                try:
+                    f_out.close()
+                except Exception:
+                    pass
             
             if split_record_count > 0:
                 log.info(f"从 {file_name} ({split_name}) 提取了 {split_record_count} 条记录。")
@@ -981,7 +1305,16 @@ class UniversalDataConvertor(DataConvertor):
         4. 记录总结。
         """
         log.info(f"{self.role_name} (Universal) 开始执行...")
+        _ensure_hf_cache_env(state.request.download_dir)
         category = state.request.category.upper() # 'PT' or 'SFT'
+        
+        # 记录输入
+        inputs = {
+            "role_name": self.role_name,
+            "category": category,
+            "download_dir": state.request.download_dir
+        }
+        log.info(f"[Agent Input] {self.role_name}.execute: {json.dumps(inputs, indent=2, ensure_ascii=False)}")
         
         if category not in ['PT', 'SFT']:
             log.error(f"不支持的数据类别: {category}")
@@ -989,6 +1322,13 @@ class UniversalDataConvertor(DataConvertor):
 
         # 直接处理整个下载目录
         data_root = state.request.download_dir
+        # 设置全局 TMPDIR，确保标准库和第三方库的临时文件落在受控目录
+        try:
+            controlled_tmp = os.getenv("DF_TEMP_DIR") or os.path.join(data_root, ".tmp")
+            os.makedirs(controlled_tmp, exist_ok=True)
+            os.environ.setdefault("TMPDIR", controlled_tmp)
+        except Exception as e:
+            log.warning(f"设置受控临时目录失败（可忽略）: {e}")
 
         if not os.path.exists(data_root):
             log.error(f"下载目录 {data_root} 不存在")
@@ -1003,20 +1343,45 @@ class UniversalDataConvertor(DataConvertor):
         if file_list_str == "This directory is empty.":
             log.warning(f"目录 {data_root} 为空，无文件可处理。")
             return state
-        
         log.debug(f"文件列表:\n{file_list_str}")
-        
-        try:
-            # 调用 LLM 筛选数据文件
-            data_file_list = await self._invoke_file_discovery(state, file_list_str)
-            log.info(f"LLM 识别出 {len(data_file_list)} 个数据文件: {data_file_list}")
-        except Exception as e:
-            log.error(f"LLM 文件发现失败: {e}")
-            return state
-        
+
+        chunked_file_lists = self._chunk_file_list_for_llm(file_list_str)
+        total_chunks = len(chunked_file_lists)
+        log.info(f"文件列表将拆分为 {total_chunks} 个分块提交给 LLM 进行文件发现。")
+
+        data_file_list: List[str] = []
+        seen_paths: Set[str] = set()
+        failed_chunks = 0
+
+        for idx, chunk_str in enumerate(chunked_file_lists, start=1):
+            log.info(
+                f"正在处理文件发现分块 {idx}/{total_chunks}，字符数约 {len(chunk_str)}。"
+            )
+            try:
+                chunk_result = await self._invoke_file_discovery(state, chunk_str)
+                log.info(
+                    f"分块 {idx}/{total_chunks} 返回 {len(chunk_result)} 个候选文件。"
+                )
+                for candidate in chunk_result:
+                    if isinstance(candidate, str) and candidate not in seen_paths:
+                        seen_paths.add(candidate)
+                        data_file_list.append(candidate)
+            except Exception as e:
+                failed_chunks += 1
+                log.error(f"LLM 文件发现分块 {idx}/{total_chunks} 失败: {e}")
+
         if not data_file_list:
-            log.warning(f"LLM 未在 {data_root} 中找到任何数据文件。")
+            if failed_chunks == total_chunks:
+                log.error("所有文件发现分块均失败，无法继续执行。")
+            else:
+                log.warning(f"LLM 未在 {data_root} 中找到任何数据文件。")
             return state
+
+        if failed_chunks:
+            log.warning(
+                f"文件发现过程中有 {failed_chunks}/{total_chunks} 个分块失败，结果可能不完整。"
+            )
+        log.info(f"LLM 识别出 {len(data_file_list)} 个数据文件: {data_file_list}")
 
         # === 步骤 2 & 3: 数据转换与合并 ===
         
@@ -1025,18 +1390,14 @@ class UniversalDataConvertor(DataConvertor):
         os.makedirs(output_dir, exist_ok=True)
         log.info(f"输出目录: {os.path.abspath(output_dir)}")
         
-        # 统一输出文件（放在输出目录中）
-        output_jsonl_path = os.path.join(output_dir, f"{category.upper()}.jsonl")
+        # 统一输出文件前缀（放在输出目录中），每 10000 条切分一个文件
+        output_jsonl_prefix = os.path.join(output_dir, f"{category.upper()}")
         log.info(f"========================================")
-        log.info(f"输出文件路径（绝对路径）:")
-        log.info(f"   {os.path.abspath(output_jsonl_path)}")
+        log.info(f"输出文件前缀（绝对路径），将每10000条切分一个文件:")
+        log.info(f"   {os.path.abspath(output_jsonl_prefix)}_00001.jsonl ...")
         log.info(f"========================================")
         processed_sources_list = [] 
-        
-        if os.path.exists(output_jsonl_path):
-            log.info(f"输出文件已存在")
-        else:
-            log.info(f"将创建新的输出文件")
+        # 不提前创建文件，由写入过程按需创建各分片
             
         for relative_file_path in data_file_list:
             absolute_file_path = os.path.join(data_root, relative_file_path)
@@ -1105,7 +1466,7 @@ class UniversalDataConvertor(DataConvertor):
 
                 await self._process_dataset(
                     data, file_path, state, category, 
-                    output_jsonl_path, processed_sources_list
+                    output_jsonl_prefix, processed_sources_list
                 )
 
         # --- 文件处理循环结束 ---
@@ -1115,10 +1476,9 @@ class UniversalDataConvertor(DataConvertor):
         # 输出文件位置信息
         if total_records_processed > 0:
             log.info(f"========================================")
-            log.info(f"数据已成功写入文件:")
-            log.info(f"文件路径: {os.path.abspath(output_jsonl_path)}")
+            log.info(f"数据已成功写入多个分片文件，前缀如下:")
+            log.info(f"前缀路径: {os.path.abspath(output_jsonl_prefix)}_*.jsonl")
             log.info(f"记录总数: {total_records_processed}")
-            log.info(f"文件大小: {os.path.getsize(output_jsonl_path) / (1024*1024):.2f} MB" if os.path.exists(output_jsonl_path) else "   文件大小: 未知")
             log.info(f"========================================")
         else:
             log.warning(f"未提取到任何有效记录，输出文件可能为空或不存在。")
@@ -1134,11 +1494,22 @@ class UniversalDataConvertor(DataConvertor):
         # 步骤 4: 清理临时目录
         log.info("正在清理临时解压目录...")
         self._cleanup_temp_dirs()
+        
+        # 步骤 4.5: 清理下载目录中的残留缓存文件（如 .conda 文件）
+        log.info("正在清理下载目录中的残留缓存文件...")
+        self._cleanup_download_dir_cache_files(data_root)
 
         # 步骤 5: 记录总结 (调用父类方法，传递输出目录)
         log.info("所有文件处理完毕，正在生成总结报告...")
         super().record_summary(state, output_dir=output_dir) 
         
+        # 记录输出
+        outputs = {
+            "total_records_processed": total_records_processed,
+            "processed_sources_count": len(processed_sources_list),
+            "output_dir": os.path.abspath(output_dir)
+        }
+        log.info(f"[Agent Output] {self.role_name}.execute: {json.dumps(outputs, indent=2, ensure_ascii=False)}")
         log.info(f"========================================")
         log.info(f"{self.role_name} (Universal) 执行完成")
         log.info(f"所有输出文件位于: {os.path.abspath(output_dir)}")
