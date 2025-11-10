@@ -3,7 +3,13 @@ from __future__ import annotations
 import os, argparse, socket, importlib
 from pathlib import Path
 import gradio as gr
+import sys
+from pathlib import Path
 
+# 将项目根目录添加到 sys.path 最前面，优先导入本地修改的版本
+project_root = Path(__file__).resolve().parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 def load_pages() -> dict[str, gr.Blocks]:
     pages = {}
     pages_dir = Path(__file__).parent / "pages"
@@ -51,7 +57,7 @@ if __name__ == "__main__":
     if not is_port_free(port):
         print(f"⚠️  端口 {port} 已被占用，自动切换到随机空闲端口。"
               " 如需固定端口，请换一个数字或先释放该端口。")
-        port = 0  # 让 Gradio 自动选
+        port = 7860  # 让 Gradio 自动选
 
     app.queue() 
     app.launch(server_name="0.0.0.0", server_port=port)
