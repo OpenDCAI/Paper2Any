@@ -101,8 +101,8 @@ python gradio_app/app.py
 
 <div align="center">
   <figure style="display: inline-block; margin: 10px; text-align: center;">
-    <img src="static/promptagent.png" width="260" alt="智能体对话"/>
-    <figcaption>智能管线推荐</figcaption>
+    <img src="static/promptagent.png" width="260" alt="算子复用/修改算子提示词"/>
+    <figcaption>算子复用/修改算子提示词</figcaption>
   </figure>
   <figure style="display: inline-block; margin: 10px; text-align: center;">
     <img src="static/Icongen_refine.png" width="260" alt="图标生成与优化界面"/>
