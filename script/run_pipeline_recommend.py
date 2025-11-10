@@ -30,16 +30,26 @@ def to_serializable(obj: Any):
     return str(obj)
 
 
+# def save_final_state_json(final_state: dict, out_dir: Path, filename: str = "final_state.json") -> None:
+#     """
+#     把 DFState 序列化写入 <项目根>/dataflow_agent/tmps/(session_id?)/final_state.json
+#     """
+#     out_dir.mkdir(parents=True, exist_ok=True)
+#     out_path = out_dir / filename
+#     with out_path.open("w", encoding="utf-8") as f:
+#         json.dump(to_serializable(final_state), f, ensure_ascii=False, indent=2)
+#     print(f"final_state 已保存到 {out_path}")
+
 def save_final_state_json(final_state: dict, out_dir: Path, filename: str = "final_state.json") -> None:
     """
-    把 DFState 序列化写入 <项目根>/dataflow_agent/tmps/(session_id?)/final_state.json
+    直接把 final_state 用 json.dump 存到 <项目根>/dataflow_agent/tmps/(session_id?)/final_state.json
+    遇到无法序列化的对象用 str 兜底。
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / filename
     with out_path.open("w", encoding="utf-8") as f:
-        json.dump(to_serializable(final_state), f, ensure_ascii=False, indent=2)
+        json.dump(final_state, f, ensure_ascii=False, indent=2, default=str)
     print(f"final_state 已保存到 {out_path}")
-
 
 # ====================== 主函数 ====================== #
 async def main() -> None:
