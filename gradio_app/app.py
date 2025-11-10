@@ -6,10 +6,21 @@ import gradio as gr
 import sys
 from pathlib import Path
 
+<<<<<<< HEAD
 # 将项目根目录添加到 sys.path 最前面，优先导入本地修改的版本
 project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
+=======
+
+# 标签显示名称映射,如果需要自定义页面名称
+TAB_NAME_MAP = {
+    "operator_write": "Operator Write",
+    "PA_frontend": "PromptAgent Frontend",
+}
+
+
+>>>>>>> main
 def load_pages() -> dict[str, gr.Blocks]:
     pages = {}
     pages_dir = Path(__file__).parent / "pages"
@@ -24,7 +35,14 @@ def load_pages() -> dict[str, gr.Blocks]:
 
 pages = load_pages()
 
-with gr.Blocks(title="DataFlow Agent Platform") as app:
+with gr.Blocks(title="DataFlow Agent Platform", elem_id="app-root") as app:
+    # PromptAgent 前端样式注入，不影响其他页面及整体逻辑
+    gr.HTML("<style>"
+            ".left-pane-pa{max-height:70vh!important;overflow:auto!important;}"
+            ".right-pane-pa{max-height:70vh!important;overflow:auto!important;}"
+            ".chat-box-pa{max-height:70vh!important;overflow:auto!important;}"
+            "</style>")
+    
     gr.Markdown("# 🌊 DataFlow Agent 多功能平台")
     with gr.Tabs():
         for name, page in pages.items():
