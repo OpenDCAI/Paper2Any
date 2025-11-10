@@ -100,6 +100,11 @@ def create_web_collection():
                     value=os.getenv("KAGGLE_KEY", ""),
                     type="password"
                 )
+                tavily_api_key = gr.Textbox(
+                    label="TAVILY_API_KEY",
+                    value=os.getenv("TAVILY_API_KEY", ""),
+                    type="password"
+                )
 
                 gr.Markdown("### RAG 配置")
                 rag_ebd_model = gr.Textbox(
@@ -233,6 +238,7 @@ def create_web_collection():
             rag_ebd_model_val: str,
             rag_api_url_val: str,
             rag_api_key_val: str,
+            tavily_api_key_val: str,
             # 高级配置参数
             max_crawl_cycles_per_task_val: int,
             max_crawl_cycles_for_research_val: int,
@@ -257,6 +263,10 @@ def create_web_collection():
             os.environ["RAG_EBD_MODEL"] = rag_ebd_model_val or ""
             os.environ["RAG_API_URL"] = rag_api_url_val or ""
             os.environ["RAG_API_KEY"] = rag_api_key_val or ""
+            if tavily_api_key_val:
+                os.environ["TAVILY_API_KEY"] = tavily_api_key_val
+            else:
+                os.environ.pop("TAVILY_API_KEY", None)
 
             # 设置高级配置相关环境变量
             if disable_cache_val:
@@ -317,6 +327,7 @@ def create_web_collection():
                 api_key=api_key_val,
                 model=model_val,
                 language=language_val,
+                tavily_api_key=tavily_api_key_val or None,
             )
 
             # 构建工作流
@@ -515,6 +526,7 @@ def create_web_collection():
                 rag_ebd_model,
                 rag_api_url,
                 rag_api_key,
+                tavily_api_key,
                 # 高级配置参数
                 max_crawl_cycles_per_task,
                 max_crawl_cycles_for_research,
