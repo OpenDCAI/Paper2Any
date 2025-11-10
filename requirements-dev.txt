@@ -82,6 +82,8 @@ onnxruntime
 mkdocs-material
 beautifulsoup4
 playwright
+kaggle
+kagglehub
 IPython==8.18.1
 pyarrow==20.0.0
 chromadb
