@@ -689,6 +689,8 @@ class BaseAgent(ABC):
             更新后的DFState
         """
         log.info(f"开始执行 {self.role_name} (ReAct模式: {self.react_mode}, 图模式: {use_agent})")
+        # 获取一些状态信息，方便验证器/或者别的地方可以读取state的一些参数；
+        self.state = state
 
         if getattr(self, "use_vlm", False):
             # 直接走多模态链路
