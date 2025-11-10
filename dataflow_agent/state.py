@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from dataflow.cli_funcs.paths import DataFlowPath
 current_file = Path(__file__).resolve()
 
@@ -99,6 +99,7 @@ class DFState(MainState):
     opname_and_params: List[Dict[str, Dict[str, Any]]] = field(default_factory=list)
 
 
+
 # ==================== 数据采集 Request ====================
 @dataclass
 class DataCollectionRequest(MainRequest):
@@ -111,6 +112,12 @@ class DataCollectionRequest(MainRequest):
     dataset_size_category: str = '1K<n<10K'
     dataset_num_limit: int = 5
     category: str = "PT"
+    max_dataset_size: int = None  # 数据集大小限制（字节数），None表示不限制
+    max_download_subtasks: Optional[int] = None  # 下载子任务执行数量上限，None 表示不限制
+    rag_api_url: Optional[str] = None
+    rag_api_key: Optional[str] = None
+    rag_embed_model: Optional[str] = None
+    tavily_api_key: Optional[str] = None
 
 
 # ==================== 数据采集 State ====================
@@ -125,7 +132,6 @@ class DataCollectionState(MainState):
     datasets: Dict[str, list] = field(default_factory=dict)
     downloads: Dict[str, list] = field(default_factory=dict)
     sources: Dict[str, Dict] = field(default_factory=dict)
-
 
 # Iconagent相关 State 和 Request 定义
 # ==================== Icon 生成 Request ====================
@@ -143,7 +149,7 @@ class IconGenState(MainState):
     icon_prompt: str = ""                                 # 生成的图标提示词
     img_save_path: str = ""                              # 生成的图标保存路径
 
-    
+
 # ==================== Web 爬取/研究 Request ====================
 @dataclass
 class WebCrawlRequest(MainRequest):
@@ -156,6 +162,7 @@ class WebCrawlRequest(MainRequest):
     search_engine: str = "tavily"     # 'tavily' | 'duckduckgo' | 'jina'
     use_jina_reader: bool = False
     enable_rag: bool = True
+    max_download_subtasks: Optional[int] = None
 
 
 # ==================== Web 爬取/研究 State ====================
@@ -172,6 +179,7 @@ class WebCrawlState(MainState):
     use_jina_reader: bool = False
     enable_rag: bool = True
     rag_manager: Any = None
+    max_download_subtasks: Optional[int] = None
 
     # 研究/爬取过程中的临时与产出数据
     sub_tasks: list[Dict[str, Any]] = field(default_factory=list)
@@ -187,8 +195,10 @@ class WebCrawlState(MainState):
     # 控制参数
     max_crawl_cycles_per_task: int = 5
     max_crawl_cycles_for_research: int = 15
+    max_dataset_size: Optional[int] = None
     current_cycle: int = 0
     download_successful_for_current_task: bool = False
+    completed_download_tasks: int = 0
 
     def reset_for_new_task(self):
         self.search_results_text = ""

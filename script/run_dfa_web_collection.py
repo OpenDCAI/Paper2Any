@@ -24,6 +24,8 @@ async def web_crawl_collection(
     use_jina_reader: bool = True,
     enable_rag: bool = True,
     concurrent_pages: int = 5,
+    disable_cache: bool = True,
+    temp_base_dir: str | None = None,
     **kwargs
 ) -> DataCollectionState:
     """
@@ -38,6 +40,8 @@ async def web_crawl_collection(
         use_jina_reader: 是否使用 Jina Reader 提取网页结构化内容
         enable_rag: 是否启用 RAG 增强
         concurrent_pages: 并行处理的页面数量
+        disable_cache: 是否禁用 HuggingFace/Kaggle 缓存（使用临时目录并在下载后清理）
+        temp_base_dir: 自定义临时目录（覆盖默认 download_dir/.tmp）
     
     Returns:
         更新后的 DataCollectionState
@@ -48,8 +52,15 @@ async def web_crawl_collection(
     
     request = state.request
     
+    tavily_api_key = request.tavily_api_key or os.getenv("TAVILY_API_KEY")
+    if tavily_api_key:
+        os.environ["TAVILY_API_KEY"] = tavily_api_key
+    
     # 创建 WebCrawlOrchestrator
     orchestrator = WebCrawlOrchestrator(
+        api_base_url=request.chat_api_url,
+        api_key=request.api_key,
+        model_name=request.model,
         download_dir=request.download_dir,
         dataset_size_categories=[request.dataset_size_category] if request.dataset_size_category else None,
         max_crawl_cycles_per_task=max_crawl_cycles_per_task,
@@ -57,7 +68,15 @@ async def web_crawl_collection(
         search_engine=search_engine,
         use_jina_reader=use_jina_reader,
         enable_rag=enable_rag,
-        concurrent_pages=concurrent_pages
+        concurrent_pages=concurrent_pages,
+        disable_cache=disable_cache,
+        temp_base_dir=temp_base_dir,
+        max_dataset_size=request.max_dataset_size,
+        max_download_subtasks=request.max_download_subtasks,
+        rag_api_base_url=request.rag_api_url,
+        rag_api_key=request.rag_api_key,
+        rag_embed_model=request.rag_embed_model,
+        tavily_api_key=tavily_api_key
     )
     
     # 运行网页爬取（自动搜索、分析并下载数据）
@@ -74,10 +93,7 @@ async def web_crawl_collection(
     log.info(f"  - 数据保存目录: {request.download_dir}")
     log.info("=" * 60)
     
-    # 更新 state
-    # 注意：universal_data_conversion 会直接扫描 download_dir 处理所有下载的数据
-    # 它会结合 state.request.target（用户需求）和 state.request.category（PT/SFT）
-    # 自动识别数据文件并转换为标准格式，不会进行额外的下载
+
     state.keywords = ["web_crawl"]  # 设置虚拟关键词用于后续流程
     
     return state
@@ -88,17 +104,23 @@ async def main() -> None:
     
     # 配置数据收集请求
     req = DataCollectionRequest(
-        target="我需要一些Python代码的数据集",  # 输入的自然语言指令
+        target="收集金融领域问答数据集用于大模型微调",  # 输入的自然语言指令
         category="SFT",  # 数据类别：PT(预训练) 或 SFT(指令微调)
         dataset_num_limit=5,  # HuggingFace 搜索时每个关键词的数据集数量上限
         dataset_size_category='1K<n<10K',  # HuggingFace 数据集大小范围
-        download_dir=r'downloaded_data_finally',  # 下载目录
+        download_dir=r'downloaded_data_finally2',  # 下载目录
+        max_dataset_size=None,  #1T 数据集大小限制（字节数），None表示不限制，例如：10*1024*1024*1024 表示10GB
+        max_download_subtasks=5,  # 下载子任务执行上限
         
         # API 配置（用于 LLM 调用）
-        chat_api_url="http://123.129.219.111:3000/v1",
-        api_key=os.getenv("DF_API_KEY"),
-        model="gpt-4o",
-        language="zh"  # 提示词语言
+        chat_api_url=os.getenv("CHAT_API_URL"),
+        api_key=os.getenv("CHAT_API_KEY"),
+        model=os.getenv("CHAT_MODEL"),
+        language="zh",  # 提示词语言
+        rag_api_url=os.getenv("RAG_API_URL"),
+        rag_api_key=os.getenv("RAG_API_KEY"),
+        rag_embed_model=os.getenv("RAG_EMB_MODEL"),
+        tavily_api_key=os.getenv("TAVILY_API_KEY")
     )
     
     if not req.api_key:
@@ -160,9 +182,7 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    # 设置环境变量（如果未设置）
-    os.environ.setdefault("DF_API_URL", "http://123.129.219.111:3000/v1")
-    
+
     # 运行主函数
     asyncio.run(main())
 
