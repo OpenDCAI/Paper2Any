@@ -85,11 +85,30 @@ python gradio_app/app.py
 访问 `http://127.0.0.1:7860` 即可使用。
 
 <div align="center">
-  <img src="static/imag_piperec.png" width="260"/>
-  <img src="static/image_opwrite.png" width="260"/>
-  <img src="static/image.png" width="260"/>
+  <figure style="display: inline-block; margin: 10px; text-align: center;">
+    <img src="static/imag_piperec.png" width="260" alt="管线推荐界面"/>
+    <figcaption>管线推荐</figcaption>
+  </figure>
+  <figure style="display: inline-block; margin: 10px; text-align: center;">
+    <img src="static/image_opwrite.png" width="260" alt="算子编写界面"/>
+    <figcaption>算子编写</figcaption>
+  </figure>
+  <figure style="display: inline-block; margin: 10px; text-align: center;">
+    <img src="static/image.png" width="260" alt="手动编排界面"/>
+    <figcaption>手动编排</figcaption>
+  </figure>
 </div>
 
+<div align="center">
+  <figure style="display: inline-block; margin: 10px; text-align: center;">
+    <img src="static/promptagent.png" width="260" alt="智能体对话"/>
+    <figcaption>智能管线推荐</figcaption>
+  </figure>
+  <figure style="display: inline-block; margin: 10px; text-align: center;">
+    <img src="static/Icongen_refine.png" width="260" alt="图标生成与优化界面"/>
+    <figcaption>图标/抠图生成与优化</figcaption>
+  </figure>
+</div>
 
 <!-- ### 基础使用示例
 
@@ -360,16 +379,20 @@ def create_model_hub():  # 函数名 = create_ + 文件名
   - [ ] paper2video
   - [ ] paper2web
   - [ ] paper2poster
+  - [ ] AutoPR
   - [ ] paper2gragh
+  - [ ] paperCiter
+  - [ ] paper2Code
 - [ ] DataAgent集成
   - [ ] 多数据源深度分析 + 报告
   - [ ] 智能取数
-
+- [ ] Trj Expport
+   
 <!-- ---
 
 ## 📚 文档
 
-- [完整文档](https://your-docs-url.com)
+- [完整文档]
 - [快速开始](docs/quickstart.md)
 - [CLI 工具使用](docs/guides/cli-tool.md)
 - [Agent 开发指南](docs/guides/agent-development.md)
@@ -407,8 +430,8 @@ pytest --cov=dataflow_agent --cov-report=html
 
 ## 📞 联系我们
 
-- **Issue**: [提交问题](https://github.com/your-org/DataFlow-Agent/issues)
-<!-- - **Discussions**: [参与讨论](https://github.com/your-org/DataFlow-Agent/discussions)
+- **Issue**: [提交问题]
+<!-- - **Discussions**: [参与讨论]
 - **邮件**: dev@example.com -->
 
 ---
@@ -424,3 +447,4 @@ pytest --cov=dataflow_agent --cov-report=html
 ## 📝 更新日志
 
 <!-- 查看 [CHANGELOG.md](CHANGELOG.md) 了解版本历史和更新内容。 -->
+```
