@@ -1080,13 +1080,15 @@ Sample Data: {first_row}
 
 [Instruction]
 
-1. **Check Dataset Relevance**: First, determine if this dataset is relevant to the user's requirements ({user_target}). If the dataset content does not match the user's domain or intent, you should return null.
+1. **Check Dataset Relevance**: Determine whether the dataset content is related to the user's domain or intent described in ({user_target}). As long as the dataset belongs to the same domain/topic (for example, finance-related data for a finance request), treat it as relevant even if its task type (classification, sentiment analysis, etc.) differs from the user's exact wording. Only return null when the dataset is clearly unrelated to the requested domain.
 
-2. **Identify Text Column**: If the dataset is relevant, pretraining data typically consists of coherent text paragraphs with meaningful content. Choose the column that contains textual content suitable for pretraining.
+2. **Identify Text Column**: For relevant datasets, choose the column that contains textual content suitable for pretraining. Classification or sentiment datasets are acceptable—pick the column with coherent text (sentences, descriptions, comments, etc.) even if it is short or paired with labels.
+
+3. **Do Not Over-Filter**: Do not reject a dataset merely because it lacks question-answer pairs or instructional dialogue. Whenever there is domain-aligned textual content, return the column name.
 
 [OUTPUT RULES]
 
-If the dataset is relevant AND contains a column with meaningful textual content that could be used for pretraining, return the following JSON object in ```json block and replace "column_name" with the actual column name:
+If the dataset is relevant AND contains a column with textual content that could be used for pretraining, return the following JSON object in ```json block and replace "column_name" with the actual column name:
 {
     "text": "column_name"
 }
@@ -1168,22 +1170,24 @@ class WebAgentPrompts:
     
     # 下载方法决策器
     system_prompt_for_download_method_decision = """
-你是一个智能下载策略决策器。根据用户的目标和搜索关键词，你需要决定使用哪种下载方法：
-1. "huggingface" - 适用于学术数据集、机器学习数据集、NLP数据集等。
-2. "web_crawl" - 适用于需要从网站爬取数据、下载文件、或搜索特定资源的情况。
+你是一个智能下载策略决策器。当前系统策略为：始终优先尝试 "huggingface"，若失败则回退到 "web_crawl"。
+你的任务：
+1) 基于用户目标与搜索关键词，产出尽可能有效的 HuggingFace 搜索关键词,关键词尽量避免单独出现"datasets"、"machine learning"等与当前数据集无关的字样, 如果当前任务有具体的数据集名称例如"mnist",关键词可以直接是"mnist',尽量避免额外的字样影响检索召回,例如"mnist
+ datasets"。
+2) 输出固定策略：method = "huggingface"，fallback_method = "web_crawl"。
 
 返回JSON格式：
 {
-    "method": "huggingface" 或 "web_crawl",
-    "reasoning": "选择此方法的原因",
-    "keywords_for_hf": ["如果选择huggingface，提供适合HF搜索的关键词"],
-    "fallback_method": "如果主方法失败，备用的方法"
+    "method": "huggingface",
+    "reasoning": "简述为何HF可能可行，或给出关键词构成逻辑",
+    "keywords_for_hf": ["用于HF搜索的关键词列表"],
+    "fallback_method": "web_crawl"
 }
 """
     
     task_prompt_for_download_method_decision = """用户目标: {objective}
 搜索关键词: {keywords}
-请根据以上信息决定最佳的下载方法。"""
+请根据上述策略生成用于HF的关键词，并按要求返回JSON（method固定为huggingface，fallback_method固定为web_crawl）。"""
     
     # HuggingFace 决策器
     system_prompt_for_huggingface_decision = """
@@ -1194,6 +1198,7 @@ class WebAgentPrompts:
 2.  **可下载性 **: 
     - 优先选择下载量(downloads)高、有明确标签(tags)的特定数据集 (例如: "squad", "mnist", "cifar10", "ChnSentiCorp")。
 3.  **流行度**: 在相关性相似的情况下，选择 `downloads` 数量最高的数据集。
+    同时参考用户的需求清晰描述(message)，若与 objective 一致则正常判断；若二者冲突，以更具体的 message 为准。
 
 你的输出必须是一个JSON对象:
 {
@@ -1206,6 +1211,7 @@ class WebAgentPrompts:
     
     task_prompt_for_huggingface_decision = """
 用户目标: "{objective}"
+用户清晰描述(message): "{message}"
 
 搜索结果:
 ```json
@@ -1215,6 +1221,152 @@ class WebAgentPrompts:
 请根据上述标准选择最佳的数据集ID。
 """
     
+    # Kaggle 决策器
+    system_prompt_for_kaggle_decision = """
+你是一个Kaggle数据集专家。你的任务是分析一个JSON格式的搜索结果列表，并根据用户的目标，选择一个最合适下载的数据集ID。
+
+决策标准:
+1. **相关性**: 数据集的标题(title)和描述(description)必须与用户目标(objective)高度相关。
+2. **大小限制**: 如果提供了max_dataset_size参数，必须选择大小(size，单位：字节)不超过该限制的数据集。如果所有数据集都超过限制，返回null。
+3. **可下载性**: 
+    - 优先选择下载量(downloads)高、有明确标签(tags)的特定数据集。
+4. **流行度**: 在相关性相似的情况下，选择 `downloads` 数量最高的数据集。
+   同时参考用户的需求清晰描述(message)，若与 objective 一致则正常判断；若二者冲突，以更具体的 message 为准。
+
+你的输出必须是一个JSON对象:
+{
+    "selected_dataset_id": "owner/dataset-slug", // 字符串, 或 null
+    "reasoning": "你为什么选择这个ID，以及为什么它可能是可下载的。如果因为大小限制被过滤，请说明。"
+}
+"""
+    
+    task_prompt_for_kaggle_decision = """
+用户目标: "{objective}"
+用户清晰描述(message): "{message}"
+最大数据集大小限制: {max_dataset_size} 字节 (None表示不限制)
+
+搜索结果:
+```json
+{search_results}
+```
+
+请根据上述标准选择最佳的数据集ID。注意：如果提供了大小限制，必须确保选择的数据集大小不超过限制。
+"""
+    
+    # 数据集详情读取器
+    system_prompt_for_dataset_detail_reader = """
+你是一个数据集分析专家。你的任务是读取和分析数据集的详细信息，特别是HuggingFace数据集。
+
+你的任务：
+1. 分析数据集的详细信息（包括大小、配置、字段等）
+2. 检查数据集是否符合大小限制要求
+3. 提取关键信息供后续使用
+
+输出格式:
+{
+    "dataset_id": "数据集ID",
+    "size_bytes": 数据集大小（字节），如果无法获取则为null,
+    "size_readable": "人类可读的大小（如'1.5GB'）",
+    "configs": ["配置列表"],
+    "features": ["字段列表"],
+    "sample_count": 样本数量（如果可获取）,
+    "meets_size_limit": true/false, // 是否满足大小限制
+    "summary": "数据集摘要信息"
+}
+"""
+    
+    task_prompt_for_dataset_detail_reader = """
+数据集ID: "{dataset_id}"
+数据集类型: "{dataset_type}"  // "huggingface" 或 "kaggle"
+最大大小限制: {max_dataset_size} 字节 (None表示不限制)
+
+数据集详细信息:
+```json
+{dataset_info}
+```
+
+请分析该数据集的详细信息，并检查是否符合大小限制。
+"""
+    
+    # 子任务精炼与去重
+    system_prompt_for_subtask_refiner = """
+你是一名任务规划与质量控制专家。给你用户的清晰需求描述与一组待执行的子任务列表，请你：
+1) 删除重复或语义等价的子任务；
+2) 删除与用户需求领域不一致或不合理的子任务,例如用户想收集代码数据,但是子任务却让下载mnist,这是完全不允许的。
+3) 严格返回 JSON，键为 filtered_sub_tasks（数组）。
+每个子任务对象至少包含字段：type（"research"|"download"）、objective、search_keywords。
+
+【示例1：删除领域不一致的任务】
+用户需求：收集Python代码数据集用于代码生成训练
+输入子任务：
+[
+  {"type": "download", "objective": "下载Python代码数据集", "search_keywords": "python code"},
+  {"type": "download", "objective": "下载MNIST图像数据集", "search_keywords": "mnist"},
+  {"type": "download", "objective": "下载Python项目代码", "search_keywords": "python project"}
+]
+输出：
+{
+  "filtered_sub_tasks": [
+    {"type": "download", "objective": "下载Python代码数据集", "search_keywords": "python code"},
+    {"type": "download", "objective": "下载Python项目代码", "search_keywords": "python project"}
+  ]
+}
+说明：删除了MNIST任务（图像数据集，与代码需求不符）
+
+【示例2：删除重复/语义等价的任务】
+用户需求：收集中文对话数据集
+输入子任务：
+[
+  {"type": "download", "objective": "下载中文对话数据集", "search_keywords": "chinese dialogue"},
+  {"type": "download", "objective": "获取中文对话数据", "search_keywords": "chinese conversation"},
+  {"type": "download", "objective": "下载中文问答数据集", "search_keywords": "chinese qa"}
+]
+输出：
+{
+  "filtered_sub_tasks": [
+    {"type": "download", "objective": "下载中文对话数据集", "search_keywords": "chinese dialogue"},
+    {"type": "download", "objective": "下载中文问答数据集", "search_keywords": "chinese qa"}
+  ]
+}
+说明：合并了"对话"和"conversation"的重复任务，保留问答任务（语义不同）
+
+【示例3：保留合理的多样化任务】
+用户需求：收集机器学习相关的文本数据集
+输入子任务：
+[
+  {"type": "download", "objective": "下载机器学习论文摘要数据集", "search_keywords": "machine learning abstracts"},
+  {"type": "download", "objective": "下载NLP数据集", "search_keywords": "nlp dataset"},
+  {"type": "download", "objective": "下载图像分类数据集", "search_keywords": "image classification"},
+  {"type": "download", "objective": "下载ML文本语料库", "search_keywords": "ml text corpus"}
+]
+输出：
+{
+  "filtered_sub_tasks": [
+    {"type": "download", "objective": "下载机器学习论文摘要数据集", "search_keywords": "machine learning abstracts"},
+    {"type": "download", "objective": "下载NLP数据集", "search_keywords": "nlp dataset"},
+    {"type": "download", "objective": "下载ML文本语料库", "search_keywords": "ml text corpus"}
+  ]
+}
+说明：删除了图像分类任务（非文本领域），合并了语义重复的ML文本任务
+"""
+
+    task_prompt_for_subtask_refiner = """
+用户清晰需求（message）:
+
+{message}
+
+
+当前子任务列表（JSON 数组）:
+```json
+{sub_tasks}
+```
+
+请根据上述规则和示例，返回一个 JSON 对象：
+{
+  "filtered_sub_tasks": [ {"type": "download", "objective": "...", "search_keywords": "..."}, ... ]
+}
+"""
+
     # 任务分解器
     system_prompt_for_task_decomposer = """
 你是一个专业的AI项目规划师。你的任务是将用户的复杂请求分解成一个清晰、分步执行的JSON计划。
@@ -1231,9 +1383,11 @@ class WebAgentPrompts:
 1. `type`: 任务类型，'research' 或 'download'。
 2. `objective`: 对该子任务目标的清晰、简洁的描述。
 3. `search_keywords`: 根据 objective 提炼出的、最适合直接输入给搜索引擎的简短关键词。
+ 此外，必须输出一个顶层字段 `message`，它是对用户当前需求的清晰、简明描述（1-2句），供后续阶段使用以避免语义偏差。
 
 示例输出格式:
 {
+    "message": "针对用户需求的清晰描述",
     "sub_tasks": [
         {
             "type": "research",
@@ -1249,24 +1403,47 @@ class WebAgentPrompts:
 }
 """
     
-    task_prompt_for_task_decomposer = """请为以下用户请求创建一个子任务计划: '{request}'"""
+    task_prompt_for_task_decomposer = """请为以下用户请求创建一个子任务计划，并包含一个顶层字段 message（1-2句清晰描述用户当前需求）: '{request}'"""
+    
+    # 查询生成 Agent
+    system_prompt_for_query_generator = """
+You are a query generation expert for RAG retrieval. Your task is to generate diverse English search queries based on the research objective.
+
+Rules:
+1. Generate 3-5 different search queries in English
+2. Each query should cover different aspects of the objective
+3. Queries should be varied to maximize retrieval diversity
+4. Output ONLY a JSON array of query strings
+"""
+    
+    task_prompt_for_query_generator = """Research objective: '{objective}'
+User description: '{message}'
+
+Generate diverse English search queries for RAG retrieval. Return a JSON array of 3-5 different query strings.
+Example format:
+["query 1 in English", "query 2 in English", "query 3 in English"]"""
     
     # 总结与规划 Agent
     system_prompt_for_summary_agent = """
-你是一个高级AI分析师和任务规划师。你的职责是从提供的网页文本片段中，根据用户的研究目标，提取关键实体（如数据集名称），并为每一个实体创建一个新的、具体的下载子任务。
+You are an AI analyst and task planner. Your responsibility is to extract key entities (such as dataset names) from the provided web text snippets based on the user's research objective, and create a new, specific download subtask for each entity.
 
-注意：提供给你的文本是经过RAG语义检索筛选的最相关内容（如果启用了RAG），每个片段都标注了来源URL和相关度分数。
+Note: The text provided to you is the most relevant content filtered by RAG semantic search (if RAG is enabled), with each snippet annotated with source URL.
+You will also receive a message from the task decomposer (a clear description of user needs), and your analysis should prioritize consistency with this message to avoid semantic drift.
 
-你的输出必须是一个JSON对象，其中包含：
-1. `new_sub_tasks`: 列表，每个子任务字典必须包含 `type` (固定为 "download"), `objective`, 和 `search_keywords`。
-2. `summary`: 字符串，简要总结你从文本中发现的关键信息。
+Your output must be a JSON object containing:
+1. `new_sub_tasks`: A list of subtasks. Each subtask dictionary must contain `type` (fixed as "download"), `objective`, and `search_keywords`.
+2. `summary`: A string briefly summarizing the key information you found in the text.
 
-如果找不到任何相关实体，请返回一个空的 `new_sub_tasks` 列表，但仍要提供 summary。
+If no relevant entities are found, return an empty `new_sub_tasks` list, but still provide a summary.
 """
     
-    task_prompt_for_summary_agent = """研究目标: '{objective}'
+    task_prompt_for_summary_agent = """Research objective: '{objective}'
+User description (message): '{message}'
 
-请分析以下文本片段，并为发现的每个关键实体生成具体的下载子任务:
+Current download subtasks list (for reference):
+{existing_subtasks}
+
+Please analyze the following text snippets and generate specific download subtasks for each key dataset entity discovered:
 
 {context}"""
     
@@ -1305,6 +1482,7 @@ Visible text content:
 ```text
 {text_content}
 ```"""
+
 
 
 # --------------------------------------------------------------------------- #
