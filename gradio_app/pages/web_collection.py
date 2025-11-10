@@ -1,10 +1,13 @@
 import os
+import asyncio
+import logging
+from typing import Optional
 import gradio as gr
 from langgraph.graph import StateGraph, START, END
 
 from dataflow_agent.state import DataCollectionRequest, DataCollectionState
 from dataflow_agent.agentroles.dataconvertor import universal_data_conversion
-from script.run_web_pipeline import web_crawl_collection
+from script.run_dfa_web_collection import web_crawl_collection
 
 
 def create_web_collection():
@@ -38,6 +41,26 @@ def create_web_collection():
                     choices=["n<1K", "1K<n<10K", "10K<n<100K", "100K<n<1M", "n>1M"],
                     value="1K<n<10K"
                 )
+                max_download_subtasks = gr.Number(
+                    label="下载子任务上限",
+                    value=None,
+                    precision=0,
+                    minimum=0,
+                    info="限制最终执行的下载子任务数量，留空表示不限制"
+                )
+                with gr.Row():
+                    max_dataset_size_value = gr.Number(
+                        label="最大数据集大小",
+                        value=None,
+                        precision=0,
+                        minimum=0,
+                        info="可留空；输入数值后选择单位"
+                    )
+                    max_dataset_size_unit = gr.Dropdown(
+                        label="单位",
+                        choices=["B", "KB", "MB", "GB", "TB"],
+                        value="GB"
+                    )
                 download_dir = gr.Textbox(
                     label="下载目录",
                     value="downloaded_data",
@@ -196,6 +219,9 @@ def create_web_collection():
             category_val: str,
             dataset_num_limit_val: int,
             dataset_size_category_val: str,
+            max_download_subtasks_val: float | None,
+            max_dataset_size_value_val: float | None,
+            max_dataset_size_unit_val: str,
             download_dir_val: str,
             language_val: str,
             chat_api_url_val: str,
@@ -231,22 +257,61 @@ def create_web_collection():
             os.environ["RAG_EBD_MODEL"] = rag_ebd_model_val or ""
             os.environ["RAG_API_URL"] = rag_api_url_val or ""
             os.environ["RAG_API_KEY"] = rag_api_key_val or ""
-            
+
             # 设置高级配置相关环境变量
             if disable_cache_val:
                 os.environ["DF_DISABLE_CACHE"] = "true"
             else:
                 os.environ.pop("DF_DISABLE_CACHE", None)
-            
+
             if temp_base_dir_val:
                 os.environ["DF_TEMP_DIR"] = temp_base_dir_val
+            else:
+                os.environ.pop("DF_TEMP_DIR", None)
 
             # 组装请求
+            def _convert_size_to_bytes(value: float | None, unit: str) -> Optional[int]:
+                if value is None:
+                    return None
+                try:
+                    numeric = float(value)
+                except (TypeError, ValueError):
+                    return None
+                if numeric <= 0:
+                    return None
+                unit = (unit or "B").upper()
+                multipliers = {
+                    "B": 1,
+                    "KB": 1024,
+                    "MB": 1024 ** 2,
+                    "GB": 1024 ** 3,
+                    "TB": 1024 ** 4,
+                }
+                multiplier = multipliers.get(unit, 1)
+                return int(numeric * multiplier)
+
+            max_dataset_size_bytes = _convert_size_to_bytes(max_dataset_size_value_val, max_dataset_size_unit_val)
+
+            def _normalize_download_limit(value: float | None) -> Optional[int]:
+                if value is None:
+                    return None
+                try:
+                    numeric = int(value)
+                except (TypeError, ValueError):
+                    return None
+                if numeric <= 0:
+                    return None
+                return numeric
+
+            max_download_subtasks_int = _normalize_download_limit(max_download_subtasks_val)
+
             req = DataCollectionRequest(
                 target=target_text,
                 category=category_val,
                 dataset_num_limit=int(dataset_num_limit_val),
                 dataset_size_category=dataset_size_category_val,
+                max_dataset_size=max_dataset_size_bytes,
+                max_download_subtasks=max_download_subtasks_int,
                 download_dir=download_dir_val,
                 chat_api_url=chat_api_url_val,
                 api_key=api_key_val,
@@ -267,8 +332,11 @@ def create_web_collection():
                     use_jina_reader=use_jina_reader_val,
                     enable_rag=enable_rag_val,
                     concurrent_pages=int(concurrent_pages_val),
+                    disable_cache=bool(disable_cache_val),
+                    temp_base_dir=(temp_base_dir_val.strip() or None) if isinstance(temp_base_dir_val, str) else None,
+                    max_download_subtasks=max_download_subtasks_int,
                 )
-            
+
             async def universal_data_conversion_wrapper(state: DataCollectionState) -> DataCollectionState:
                 return await universal_data_conversion(
                     state,
@@ -287,42 +355,144 @@ def create_web_collection():
             graph_builder.add_edge("universal_data_conversion", END)
             graph = graph_builder.compile()
 
-            # 执行
-            log_lines = []
-            log_lines.append("=" * 60)
-            log_lines.append("开始执行网页采集与转换工作流")
-            log_lines.append("=" * 60)
-            log_lines.append(f"目标: {req.target}")
-            log_lines.append(f"类别: {req.category}")
-            log_lines.append(f"下载目录: {req.download_dir}")
-            log_lines.append("\n【网页采集配置】")
-            log_lines.append(f"  - 搜索引擎: {search_engine_val}")
-            log_lines.append(f"  - 任务最大循环次数: {max_crawl_cycles_per_task_val}")
-            log_lines.append(f"  - 研究阶段最大循环次数: {max_crawl_cycles_for_research_val}")
-            log_lines.append(f"  - 使用 Jina Reader: {'是' if use_jina_reader_val else '否'}")
-            log_lines.append(f"  - 启用 RAG: {'是' if enable_rag_val else '否'}")
-            log_lines.append(f"  - 并行页面数: {concurrent_pages_val}")
-            log_lines.append(f"  - 禁用缓存: {'是' if disable_cache_val else '否'}")
-            log_lines.append("\n【数据转换配置】")
-            log_lines.append(f"  - 模型温度: {conversion_temperature_val}")
-            log_lines.append(f"  - 最大 Token 数: {conversion_max_tokens_val}")
-            log_lines.append(f"  - 最大采样长度: {conversion_max_sample_length_val}")
-            log_lines.append(f"  - 采样记录数: {conversion_num_sample_records_val}")
-            log_lines.append("=" * 60)
+            header_lines = [
+                "=" * 60,
+                "开始执行网页采集与转换工作流",
+                "=" * 60,
+                f"目标: {req.target}",
+                f"类别: {req.category}",
+                f"下载目录: {req.download_dir}",
+                "\n【网页采集配置】",
+                f"  - 搜索引擎: {search_engine_val}",
+                f"  - 下载子任务上限: {max_download_subtasks_int if max_download_subtasks_int is not None else '不限制'}",
+                f"  - 任务最大循环次数: {max_crawl_cycles_per_task_val}",
+                f"  - 研究阶段最大循环次数: {max_crawl_cycles_for_research_val}",
+                f"  - 使用 Jina Reader: {'是' if use_jina_reader_val else '否'}",
+                f"  - 启用 RAG: {'是' if enable_rag_val else '否'}",
+                f"  - 并行页面数: {concurrent_pages_val}",
+                f"  - 禁用缓存: {'是' if disable_cache_val else '否'}",
+                "\n【数据转换配置】",
+                f"  - 模型温度: {conversion_temperature_val}",
+                f"  - 最大 Token 数: {conversion_max_tokens_val}",
+                f"  - 最大采样长度: {conversion_max_sample_length_val}",
+                f"  - 采样记录数: {conversion_num_sample_records_val}",
+                f"\n数据集大小限制: {max_dataset_size_bytes if max_dataset_size_bytes else '不限制'}",
+                "=" * 60,
+            ]
 
-            final_state: DataCollectionState = await graph.ainvoke(state)
+            log_lines: list[str] = header_lines.copy()
+            log_queue: asyncio.Queue = asyncio.Queue()
 
-            log_lines.append("流程执行完成！")
+            class DataflowLogFilter(logging.Filter):
+                def filter(self, record: logging.LogRecord) -> bool:  # type: ignore[override]
+                    return record.name.startswith("dataflow_agent") or record.name.startswith("script")
 
-            result = {
-                "download_dir": req.download_dir,
-                "processed_output": os.path.join(req.download_dir, "processed_output"),
-                "category": req.category,
-                "language": req.language,
-                "chat_model": req.model,
-            }
+            class GradioLogHandler(logging.Handler):
+                def __init__(self, queue: asyncio.Queue[str]):
+                    super().__init__(level=logging.INFO)
+                    self.queue = queue
+                    self.addFilter(DataflowLogFilter())
+                    self.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
 
-            return "\n".join(log_lines), result
+                def emit(self, record: logging.LogRecord) -> None:  # type: ignore[override]
+                    try:
+                        message = self.format(record)
+                        loop = asyncio.get_running_loop()
+                        loop.call_soon_threadsafe(self.queue.put_nowait, message)
+                    except RuntimeError:
+                        try:
+                            self.queue.put_nowait(self.format(record))
+                        except asyncio.QueueFull:
+                            pass
+                    except Exception:
+                        pass
+
+            handler = GradioLogHandler(log_queue)
+            root_logger = logging.getLogger()
+            root_logger.addHandler(handler)
+            original_level = root_logger.level
+            if original_level == 0 or original_level > logging.INFO:
+                root_logger.setLevel(logging.INFO)
+
+            attached_loggers: set[logging.Logger] = {root_logger}
+
+            def _attach_to_existing_loggers() -> None:
+                logger_dict = logging.root.manager.loggerDict  # type: ignore[attr-defined]
+                for name in list(logger_dict.keys()):
+                    if isinstance(name, str) and (name.startswith("dataflow_agent") or name.startswith("script")):
+                        logger_obj = logging.getLogger(name)
+                        logger_obj.addHandler(handler)
+                        attached_loggers.add(logger_obj)
+
+                for name in ("dataflow_agent", "script"):
+                    logger_obj = logging.getLogger(name)
+                    logger_obj.addHandler(handler)
+                    attached_loggers.add(logger_obj)
+
+            _attach_to_existing_loggers()
+
+            # 初始输出
+            yield "\n".join(log_lines), gr.update(value=None)
+
+            async def run_workflow() -> DataCollectionState:
+                return await graph.ainvoke(state)
+
+            workflow_task = asyncio.create_task(run_workflow())
+            result_payload: Optional[dict] = None
+
+            try:
+                while True:
+                    try:
+                        message = await asyncio.wait_for(log_queue.get(), timeout=0.3)
+                        log_lines.append(message)
+                        yield "\n".join(log_lines), gr.update(value=result_payload)
+                    except asyncio.TimeoutError:
+                        if workflow_task.done():
+                            break
+
+                await workflow_task
+
+                # 清空剩余日志
+                while True:
+                    try:
+                        pending = log_queue.get_nowait()
+                        log_lines.append(pending)
+                    except asyncio.QueueEmpty:
+                        break
+
+                log_lines.append("流程执行完成！")
+
+                result_payload = {
+                    "download_dir": req.download_dir,
+                    "processed_output": os.path.join(req.download_dir, "processed_output"),
+                    "category": req.category,
+                    "language": req.language,
+                    "chat_model": req.model,
+                    "max_download_subtasks": req.max_download_subtasks,
+                    "max_dataset_size_bytes": req.max_dataset_size,
+                    "max_dataset_size_unit": max_dataset_size_unit_val if req.max_dataset_size else None,
+                    "max_dataset_size_value": max_dataset_size_value_val if req.max_dataset_size else None,
+                }
+
+                yield "\n".join(log_lines), result_payload
+
+            except Exception as exc:
+                error_message = f"流程执行失败: {exc}"
+                log_lines.append(error_message)
+                while True:
+                    try:
+                        pending = log_queue.get_nowait()
+                        log_lines.append(pending)
+                    except asyncio.QueueEmpty:
+                        break
+                result_payload = {"error": str(exc)}
+                yield "\n".join(log_lines), result_payload
+                raise
+            finally:
+                for logger_obj in attached_loggers:
+                    logger_obj.removeHandler(handler)
+                handler.close()
+                root_logger.setLevel(original_level)
 
         submit_btn.click(
             run_pipeline,
@@ -331,6 +501,9 @@ def create_web_collection():
                 category,
                 dataset_num_limit,
                 dataset_size_category,
+                max_download_subtasks,
+                max_dataset_size_value,
+                max_dataset_size_unit,
                 download_dir,
                 language,
                 chat_api_url,
