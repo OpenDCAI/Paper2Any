@@ -224,14 +224,14 @@ if __name__ == "__main__":
         caller = VisionLLMCaller(
             state=state,
             vlm_config={
-                "mode": "generation",
+                "mode": "edit",
                 "input_image": str(img_path),
                 "timeout": 60,
             },
             
         )
         print("🚀 正在请求模型，请稍候 …")
-        ai_msg = await caller.call([HumanMessage(content="生成一直狗狗！")])
+        ai_msg = await caller.call([HumanMessage(content="水果风格猫！")])
 
         print("\n================  结果  ================")
         print(ai_msg.content)

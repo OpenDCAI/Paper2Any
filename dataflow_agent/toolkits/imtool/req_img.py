@@ -169,7 +169,6 @@ async def generate_or_edit_and_save_image_async(
         raw = await call_gemini_image_generation_async(
             api_url, api_key, model, prompt, timeout
         )
-
     b64 = extract_base64(raw)
     if not b64:
         raise RuntimeError(f"未找到 Base64 字符串，原始响应前 200 字符: {raw[:200]}")
@@ -179,7 +178,7 @@ async def generate_or_edit_and_save_image_async(
     with open(save_path, "wb") as f:
         f.write(base64.b64decode(b64))
 
-    log.info(f"图片已保存至 {save_path}")
+    # log.info(f"图片已保存至 {save_path}")
     return b64
 
 
