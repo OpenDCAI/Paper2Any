@@ -8,6 +8,10 @@ __pycache__/
 
 dataflow_agent/tmps/
 dataflow_cache/
+.dfavenv
+.dfavenv/
+dataflow_agent/toolkits/imtool/models/
+dataflow_agent/toolkits/imtool/onnx/
 
 # Distribution / packaging
 .Python

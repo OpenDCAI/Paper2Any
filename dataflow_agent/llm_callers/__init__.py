@@ -1,7 +1,7 @@
 from .text import TextLLMCaller
-from .image import ImageLLMCaller
+from .image import VisionLLMCaller
 
 __all__ = [
     "TextLLMCaller",
-    "ImageLLMCaller",
+    "VisionLLMCaller",
 ]

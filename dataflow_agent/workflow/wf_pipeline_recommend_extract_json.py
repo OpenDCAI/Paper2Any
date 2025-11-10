@@ -60,6 +60,7 @@ def create_pipeline_graph() -> GenericGraphBuilder:
         return local_tool_for_get_categories()
 
     # -------- recommender 前置工具 --------
+    @builder.pre_tool("sample", "exporter")
     @builder.pre_tool("sample", "recommender")
     def rec_get_sample(state: DFState):
         # 推荐器只拿 1 条样本
@@ -89,7 +90,7 @@ def create_pipeline_graph() -> GenericGraphBuilder:
 
     @builder.pre_tool("error_trace", "code_debugger")
     def get_error_trace_for_debug(state: DFState):
-        return state.execution_result.get("stderr", "") or state.execution_result.get("s't'dou't", "")
+        return state.execution_result.get("stderr", "") or state.execution_result.get("stdout", "")
 
     @builder.pre_tool("pipeline_code", "rewriter")
     def get_pipeline_code_for_rewrite(state: DFState):

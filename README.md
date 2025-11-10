@@ -3,20 +3,51 @@
 
 
 
-<div align="center">
-<img src="static/LogoDataFlow_Agentlogo_image_1.png" alt="DataFlow-Agent Logo" style="width:240px; height:240px;">
+<!-- Logo -->
+<p align="center">
+  <img src="static/LogoDataFlow_Agentlogo_image_1.png"
+       alt="DataFlow-Agent Logo"
+       width="220">
+</p>
 
-[[License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[[Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[[Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg)](https://)
+<!-- Badges -->
+<p align="center">
+  <!-- License -->
+  <a href="LICENSE" title="Apache 2.0 License">
+    <img src="https://img.shields.io/badge/License-Apache_2.0-007ec6?style=for-the-badge&logo=open-source-initiative&logoColor=white"
+         alt="License: Apache 2.0">
+  </a>
+  <!-- Python -->
+  <a href="https://www.python.org/downloads/" title="Python ≥ 3.12">
+    <img src="https://img.shields.io/badge/Python-3.12%2B-blue?style=for-the-badge&logo=python&logoColor=white"
+         alt="Python 3.12+">
+  </a>
+  <!-- Docs -->
+  <a href="https://your-docs-url" title="项目文档">
+    <img src="https://img.shields.io/badge/Docs-latest-brightgreen?style=for-the-badge&logo=readthedocs&logoColor=white"
+         alt="Documentation">
+  </a>
+  <!-- Upstream repo -->
+  <a href="https://github.com/OpenDCAI/DataFlow" title="上游仓库 OpenDCAI/DataFlow">
+    <img src="https://img.shields.io/badge/Upstream-OpenDCAI%2FDataFlow-181717?style=for-the-badge&logo=github&logoColor=white"
+         alt="Upstream Repository">
+  </a>
+</p>
 
+<!-- 快捷导航 -->
+<p align="center">
+  <a href="#快速开始">快速开始</a> •
+  <a href="#功能特性">功能特性</a> •
+  <a href="#贡献指南">贡献指南</a> •
+  <a href="https://your-docs-url">文档</a> •
+  <a href="https://github.com/OpenDCAI/DataFlow">上游仓库</a>
+</p>
 
-[快速开始](#快速开始) •
-[功能特性](#功能特性) •
-[贡献指南](#贡献指南) •
-[文档](https://)
+---
+<!-- 更新通知 -->
+> **🎉 最新更新 (2025-11-04)**  
+> - 新增手动编排管线，管线推荐以及算子编写；
 
-</div>
 
 ---
 
@@ -40,7 +71,7 @@ git clone https://github.com/your-org/DataFlow-Agent.git
 cd DataFlow-Agent
 
 # 安装依赖
-pip install -r requirements-dev.txt
+pip install -r requirements.txt
 pip install -e .
 ```
 
@@ -237,7 +268,7 @@ nav:
 
 ---
 
-## 🎯 核心概念
+## 贡献代码
 
 ### Agent 注册机制
 
@@ -305,6 +336,27 @@ def create_model_hub():  # 函数名 = create_ + 文件名
 ```
 
 重启 `gradio_app/app.py`，页面自动出现在 Tab 栏。
+
+---
+## 新增
+- *llm_caller* 新增多模态的api调用；可以通过agent初始化的 use_vlm 参数开启；
+  - 目前图像编辑和生成，只支持gemini2.5+我们的api供应商；
+  - 支持多模态模型；
+- store_outputs 新增agent持久化存储；
+- 
+
+---
+
+## 🗓️ Roadmap
+
+- [ ] Paper系列agent集成
+  - [ ] paper2video
+  - [ ] paper2web
+  - [ ] paper2poster
+  - [ ] paper2gragh
+- [ ] DataAgent集成
+  - [ ] 多数据源深度分析 + 报告
+  - [ ] 智能取数
 
 <!-- ---
 

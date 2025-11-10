@@ -1502,13 +1502,14 @@ You are an expert in data processing pipeline node extraction.
 {nodes_info}
 
 [输出规则]
-1. 第一个node的"input_key"默认是 raw_content；
-2. 只回复 JSON 格式，禁止任何解释性文字。
-3. 输出的 JSON 结构与输入完全相同，只修改 input_key 和 output_key。
-4. 中间节点的 output_key 和下一个节点的 input_key 保持一致，可以依次命名为 "step1"、"step2"、"step3" 等。
-5. 所有节点的 "run" 字段不是都包含 "input_key" 和 "output_key"，不能自己新增！！。
-6. 只回复 JSON 格式，禁止任何解释性文字，必须有一个nodes的key！！
-7. 输出的 JSON 结构与输入完全相同，只修改 input_key 和 output_key。
+1. 第一个 node1 节点的 `input_key` 需要参考 需要参考样例数据的key是什么： {sample}。
+2. 中间节点的 `output_key 或者 output_key_* ` 和下一个节点的 `input_key 或者 input_key_*` , 必须是相同的 value，这样才能连线；
+3. 最后一个节点的 `output_key_*` 固定为 "output_final"。
+4. 如果某些节点的 `run` 字段未包含 `input_key` 或 `output_key`，则跳过这些字段，不要自己增改；
+5. 输出的 JSON 需保持与输入完全一致，除了 `input_key_*` 和 `output_key_*` 的值，其余字段（包括字段顺序、嵌套结构等）不作任何修改。
+6. 输出的 JSON 结构必须包含一个 `nodes` 的 key，且保持原始结构，只修改 `input_key` 和 `output_key`。
+
+[必须遵守: 只返回json内容，不要有其余任何的说明文字！！！解释！！注释！！！只需要json！！！]
 
 返回内容参考：
 
@@ -1528,8 +1529,8 @@ You are an expert in data processing pipeline node extraction.
         },
         "run": {
           "storage": "self.storage.step()",
-          "input_key": "raw_content",
-          "output_key": "eval"
+          "input_key": '参考样例数据的key',
+          "output_key": "eval"  * 算子1的输出value
         }
       }
     },

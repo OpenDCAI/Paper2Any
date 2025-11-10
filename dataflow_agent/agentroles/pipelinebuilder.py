@@ -40,6 +40,141 @@ log = get_logger(__name__)
 #                              工具函数                                   #
 # ---------------------------------------------------------------------- #
 
+<<<<<<< HEAD
+=======
+def export_nodes_with_llm(nodes_info: Any, state: DFState) -> Dict[str, Any]:
+    """
+    调用 LLM API 处理 nodes_info，自动连接 input_key 和 output_key
+    
+    Args:
+        nodes_info: 节点信息（list 或 dict）
+        state: DFState 对象，包含 API 配置信息
+    
+    Returns:
+        Dict[str, Any]: 处理后的节点字典，包含修改后的 input_key/output_key
+    """
+    # 提取 API 配置
+    api_url = state.request.chat_api_url
+    api_key = state.request.api_key
+    model = state.request.model
+    
+    log.info(f"[export_nodes_with_llm] 使用模型: {model}, API: {api_url}")
+    
+    # 准备提示词
+#     system_prompt = """
+# You are an expert in data processing pipeline node extraction.
+# """
+    system_prompt = NodesExporter.system_prompt_for_nodes_export
+    
+    # 将 nodes_info 转换为 JSON 字符串
+    if isinstance(nodes_info, str):
+        nodes_info = nodes_info
+    else:
+        nodes_info = json.dumps(nodes_info, indent=2, ensure_ascii=False)
+    from dataflow_agent.toolkits.basetool.file_tools import local_tool_for_sample
+    sample = local_tool_for_sample(state.request,sample_size = 1)["samples"]
+
+    task_prompt = f"""
+    我有一个 JSON 格式的 pipeline，包含多个算子节点。每个节点有 "name"（算子名称）基础的包含运行参数（如 input_key、output_key 等）。
+
+    请帮我：
+    1. 自动修改每个节点的 input_key 和 output_key，使这些节点从上到下能前后相连
+    2. 将数据转换成指定的输出格式
+
+    下面是原始 JSON：
+    {nodes_info}
+
+    [处理规则]
+    1. 第一个 node1 节点的 `input_key` 需要参考样例数据的key是什么： {sample}。
+    2. 中间节点的 `output_key` (或 `output_key_*`) 和下一个节点的 `input_key` (或 `input_key_*`) 必须相同，形成数据流连接
+    3. 最后一个节点的 `output_key_*` 固定为 "output_final"
+    4. 如果某个节点的 `config.run` 中没有 `input_key` 或 `output_key` 相关字段，保持原样不修改
+    5. `config.run` 中的 `storage` 字段不要输出到最终结果中
+
+    [输出格式要求]
+    返回一个数组，每个元素包含：
+    - "op_name": 算子名称（来自原 JSON 的 "name" 字段）
+    - "params": 运行参数字典（来自原 JSON 的 "config.run"，但去掉 "storage" 字段）
+
+    [必须遵守: 只返回 JSON 数组，不要任何说明文字、解释或注释！]
+
+    返回格式示例：
+
+    [
+    {{
+        "op_name": "PromptedFilter",
+        "params": {{
+            "input_key": '参考样例数据的key',
+            "output_key": "eval"
+        }}
+    }},
+    {{
+        "op_name": "PromptedRefiner",
+        "params": {{
+            "input_key": "eval",
+            "output_question_key": "refined_question"
+        }}
+    }},
+    {{
+        "op_name": "AnotherOperator",
+        "params": {{
+            "input_key": "refined_question",
+            "output_key": "output_final"
+        }}
+    }}
+    ]
+    """
+    log.warning(task_prompt)
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": task_prompt}
+        ],
+        "temperature": 0.0,
+    }
+    # 调用 API
+    try:
+        log.info("[export_nodes_with_llm] 开始调用 LLM API...")
+        
+        response = requests.post(
+            f"{api_url}chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=120
+        )
+        response.raise_for_status()
+        log.info(response)
+        
+        # 解析响应
+        result = response.json()
+        log.info(result)
+        content = result["choices"][0]["message"]["content"]
+        log.info(content)
+        
+        log.info(f"[export_nodes_with_llm] LLM 返回内容长度: {len(content)}")
+        
+        # 使用 robust_parse_json 提取 JSON
+        from dataflow_agent.utils import robust_parse_json
+
+        parsed_json = robust_parse_json(content)
+        return parsed_json
+        
+    except requests.exceptions.RequestException as e:
+        log.error(f"[export_nodes_with_llm] API 请求失败: {str(e)}")
+        raise RuntimeError(f"调用 LLM API 失败: {str(e)}")
+    except (KeyError, IndexError) as e:
+        log.error(f"[export_nodes_with_llm] 响应解析失败: {str(e)}")
+        raise RuntimeError(f"解析 LLM 响应失败: {str(e)}")
+    except Exception as e:
+        log.error(f"[export_nodes_with_llm] 未知错误: {str(e)}")
+        raise RuntimeError(f"处理节点导出时出错: {str(e)}")
+
+>>>>>>> main
 def _patch_first_entry_file(py_file: str | Path,
                             old_path: str,
                             new_path: str) -> None:
