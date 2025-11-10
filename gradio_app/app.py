@@ -8,6 +8,7 @@ import gradio as gr
 # 标签显示名称映射,如果需要自定义页面名称
 TAB_NAME_MAP = {
     "operator_write": "Operator Write",
+    "PA_frontend": "PromptAgent Frontend",
 }
 
 
@@ -47,7 +48,14 @@ def load_pages() -> dict[str, gr.Blocks]:
 
 pages = load_pages()
 
-with gr.Blocks(title="DataFlow Agent Platform") as app:
+with gr.Blocks(title="DataFlow Agent Platform", elem_id="app-root") as app:
+    # PromptAgent 前端样式注入，不影响其他页面及整体逻辑
+    gr.HTML("<style>"
+            ".left-pane-pa{max-height:70vh!important;overflow:auto!important;}"
+            ".right-pane-pa{max-height:70vh!important;overflow:auto!important;}"
+            ".chat-box-pa{max-height:70vh!important;overflow:auto!important;}"
+            "</style>")
+    
     gr.Markdown("# 🌊 DataFlow Agent 多功能平台")
     with gr.Tabs():
         for name, page in pages.items():

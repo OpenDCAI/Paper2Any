@@ -701,6 +701,13 @@ class BaseAgent(ABC):
         try:
             # 1. 执行前置工具
             pre_tool_results = await self.execute_pre_tools(state)
+            # 1.1 统一写入 temp_data，确保简单模式/图模式均可用
+            try:
+                if not hasattr(state, 'temp_data') or state.temp_data is None:
+                    state.temp_data = {}
+                state.temp_data['pre_tool_results'] = pre_tool_results
+            except Exception:
+                pass
             
             # 2. 检查是否有后置工具
             post_tools = self.get_post_tools()
@@ -711,9 +718,6 @@ class BaseAgent(ABC):
                 result = await self._execute_react_graph(state, pre_tool_results)
                 self.update_state_result(state, result, pre_tool_results)
                 log.info(f"[子图新模式] {self.role_name} 子图模式执行完成")
-                if not hasattr(state, 'temp_data'):
-                    state.temp_data = {}
-                state.temp_data['pre_tool_results'] = pre_tool_results
                 state.temp_data[f'{self.role_name}_instance'] = self
                 
             elif self.react_mode:
@@ -733,6 +737,8 @@ class BaseAgent(ABC):
             
         except Exception as e:
             log.exception(f"{self.role_name} 执行失败: {e}")
+            import traceback
+            traceback.print_exc()
             error_result = {"error": str(e)}
             self.update_state_result(state, error_result, {})
             
