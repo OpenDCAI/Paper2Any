@@ -48,10 +48,37 @@
 > **🎉 最新更新 (2025-11-04)**  
 > - 新增手动编排管线，管线推荐以及算子编写；
 
+---
+## ✨ 功能
 
+- **管线推荐** - 智能推荐算法处理管线配置
+  
+  ![管线推荐](static/imag_piperec.png)
+
+- **算子编写** - 支持自定义算子的编写和配置
+  
+  ![算子编写](static/image_opwrite.png)
+
+- **手动编排** - 灵活的手动编排工作流
+  
+  ![手动编排](static/image.png)
+
+- **算子复用/修改算子提示词优化** - 复用现有算子并优化提示词配置
+  
+  ![算子复用](static/promptagent.png)
+
+- **Web Search** - 网络搜索集成功能
+  
+  ![Web Search](static/web_collection.png)
+
+- **图标/图生图生成与优化** - 支持论文图标/模型图生成和编辑
+  
+  ![图生图](static/icon_refine.png)
+  ![图生图](static/paper_icon_2589319.png)
+  ![图生图](static/paper_icon_2639547.png)
 ---
 
-## ✨ 功能特性
+## ✨ 特性
 
 - 🔧 **模块化设计**：Agent 和 Workflow 插件式注册，开箱即用
 - 🎨 **可视化界面**：基于 Gradio 的交互式 Web 前端
