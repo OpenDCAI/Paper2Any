@@ -14,7 +14,7 @@ import asyncio
 import json
 import os
 from dataflow_agent.state import MainState
-from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
+from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 
 
 from dataflow_agent.workflow.registry import register
@@ -25,7 +25,7 @@ from langchain.tools import tool
 from langgraph.graph import StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
-from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
+from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 
 from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
