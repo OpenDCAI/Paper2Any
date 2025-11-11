@@ -1562,23 +1562,54 @@ You are an expert in data processing pipeline node extraction.
 # 15. icon_prompt_generator                                                           #
 # --------------------------------------------------------------------------- #
 
-class IconPromptGenerator:
-  system_prompt_for_icon_prompt_generation = """
-You are an expert in generating concise icon description prompts.
-"""      
-  task_prompt_for_icon_prompt_generation = """
-你是一位专业的图标提示词生成专家。
+class IconPromptGeneratorPrompts:
+    system_prompt_for_icon_prompt_generation = """
+[ROLE]
+You are an expert in generating prompts for creating model architecture diagrams for academic papers. Your task is to create a descriptive and effective prompt for a text-to-image model based on user-provided descriptions and style preferences.
 
-请根据以下关键词：{user_keywords}，结合以下风格偏好：{style_preferences}，生成适合用于 AI 绘图模型的图标描述提示词。
+[TASK]
+1.  Analyze the user's description and style preferences.
+2.  Generate a detailed and descriptive prompt for creating a model architecture diagram Text2Img.
+3.  The diagram should be suitable for an academic paper, implying clarity, professionalism, and a white background.
+4.  The prompt should be in English.
+5.  The output must be a JSON object with a single key "icon_prompt".
+6.  Do not include any other text or explanations in the output.
+"""
 
-要求输出简明、具体、可用于生成图标，风格信息需明确体现，适合用作小尺寸应用图标,背景需要时纯色。
+    task_prompt_for_icon_prompt_generation = """
+[CONTEXT]
+You are generating a prompt for a text-to-image model to create a model architecture diagram for an academic paper.
+You need to decide whether this is a new diagram generation task or an editing task based on the user's input.
 
-请直接输出提示词内容：
-1.必须是json格式内容
-2.不需要任何额外的输出！
-{
-  "icon_prompt": "生成的图标描述提示词"
-}
+- If the 'edit_prompt' is empty or not provided, it is a **new diagram generation task**.
+- If the 'edit_prompt' is provided, it is an **editing task**.
+
+[INPUT]
+- Model Description: {user_keywords}
+- Style Preferences: {style_preferences}
+- Edit Prompt: {edit_prompt}
+
+[TASK]
+1.  **IF it is a new diagram generation task:**
+    - Based on the 'Model Description' and 'Style Preferences', create a detailed and descriptive prompt for a text-to-image model.
+    - The prompt must specify that the output should be a **model architecture diagram**.
+    - The prompt must explicitly mention a **white background**.
+    - The prompt should describe the components of the model (e.g., layers, modules), their connections (e.g., arrows showing data flow), and the overall layout.
+    - The style should be clean, professional, and suitable for an academic paper.
+    - Example for "an encoder-decoder model with attention": "A clear, professional diagram of a sequence-to-sequence model architecture. It features an encoder block on the left and a decoder block on the right, with an attention mechanism connecting them. Data flow is indicated by clear arrows. The diagram has a clean, minimalist style, with a white background, suitable for an academic publication."
+
+2.  **IF it is an editing task:**
+    - The 'edit_prompt' contains the user's instructions for modifying the previous diagram.
+    - Your task is to directly use the 'edit_prompt' as the core of the new prompt. You can slightly rephrase it to be more direct if needed, but the user's intent must be preserved.
+    - The main goal is to pass the user's editing instructions to the image generation model.
+    - Example for "make the arrows thicker": "make the arrows in the diagram thicker"
+
+[OUTPUT FORMAT]
+Return a JSON object with a single key "icon_prompt".
+
+{{
+  "icon_prompt": "YOUR_GENERATED_PROMPT_HERE"
+}}
 """
 
 

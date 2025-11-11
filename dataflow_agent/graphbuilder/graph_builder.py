@@ -1,4 +1,4 @@
-# graghbuilder/gragh_builder.py
+# graphbuilder/graph_builder.py
 from __future__ import annotations
 
 import asyncio

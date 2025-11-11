@@ -19,6 +19,7 @@ async def run_pipeline_workflow(
 ) -> dict:
     if api_key:
         os.environ["DF_API_KEY"] = api_key
+        os.environ["DF_API_URL"] = chat_api_url
         
     """封装 workflow，返回执行结果（包含 agent_results）"""
     # 1. 获取项目根目录

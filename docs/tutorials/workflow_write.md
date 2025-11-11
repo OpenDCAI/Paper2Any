@@ -12,7 +12,7 @@
 ### 3. 基础Workflow结构
 ```python
 from dataflow_agent.workflow.registry import register
-from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
+from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.state import YourStateClass
 
 @register("your_workflow_name")
@@ -136,7 +136,7 @@ your_workflow workflow
 """
 
 from dataflow_agent.workflow.registry import register
-from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
+from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.state import YourWorkflowState
 from dataflow_agent.logger import get_logger
 

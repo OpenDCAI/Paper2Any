@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json
 from dataflow_agent.state import DFState
-from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
+from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.toolkits.optool.op_tools import (
     local_tool_for_get_purpose,
     get_operator_content_str,

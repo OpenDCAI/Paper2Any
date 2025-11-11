@@ -329,7 +329,7 @@ Workflow 文件必须以 `wf_` 开头，注册名为去掉前缀的部分：
 ```python
 # 文件：dataflow_agent/workflow/wf_data_validation.py
 from dataflow_agent.workflow.registry import register
-from dataflow_agent.graghbuilder import GraphBuilder
+from dataflow_agent.graphbuilder import GraphBuilder
 
 @register("data_validation")  # 注册名为 "data_validation"
 def create_data_validation_graph():

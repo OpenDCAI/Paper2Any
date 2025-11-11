@@ -271,7 +271,7 @@ async def generate_or_edit_and_save_image_async(
     quality: str = "standard",
     style: str = "vivid",
     response_format: str = "b64_json",
-    timeout: int = 120,
+    timeout: int = 1200,
 ) -> str:
     """
     根据模型类型选择不同的API进行图像生成/编辑
@@ -311,7 +311,7 @@ async def generate_or_edit_and_save_image_async(
                 response_format, timeout
             )
     elif _is_gemini_model(model):
-        if use_edit or image_path:
+        if use_edit :
             if not image_path:
                 raise ValueError("Gemini Edit模式必须提供image_path")
             raw = await call_gemini_image_edit_async(
@@ -376,7 +376,7 @@ if __name__ == "__main__":
             api_key=API_KEY,
             model=MODEL_DALLE,
             use_edit=False,
-            quality="hd",
+            quality="standard",
             style="vivid"
         )
 

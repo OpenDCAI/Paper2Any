@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any
 
 from dataflow_agent.state import MainState
 from dataflow_agent.workflow.registry import register
-from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
+from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 
 from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
@@ -123,7 +123,7 @@ def create_icongen_refine_loop_graph() -> GenericGraphBuilder:
             save_path=out_path,
             api_url=api_url,
             api_key=api_key,
-            model="gemini-2.5-flash-image-preview",
+            model=state.request.model,
         )
         state.agent_results["round1_img"] = {"path": out_path, "b64": b64}
         state._vars["final_img"] = out_path
@@ -141,7 +141,7 @@ def create_icongen_refine_loop_graph() -> GenericGraphBuilder:
         try:
             out_path = local_tool_for_bg_remove({
                 "image_path": src,
-                "model_path": None,         # 允许 bg_tool 内部走默认
+                "model_path": "dataflow_agent/toolkits/imtool/models/RMBG-2.0/onnx/model.onnx",         # 允许 bg_tool 内部走默认
                 "output_dir": "./"
             })
         except Exception as e:

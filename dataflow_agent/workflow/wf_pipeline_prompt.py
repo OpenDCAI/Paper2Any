@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
+from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.state import PromptWritingState, DFRequest
 from dataflow_agent.agentroles.prompt_writer import create_prompt_writer
 from dataflow_agent.agentroles.pipelinebuilder import create_pipeline_builder

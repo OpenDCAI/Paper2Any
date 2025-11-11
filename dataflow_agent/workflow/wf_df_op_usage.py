@@ -12,7 +12,7 @@ import subprocess
 import asyncio
 from pathlib import Path
 from dataflow_agent.state import DFState
-from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
+from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register
 from dataflow_agent.logger import get_logger
 import os
