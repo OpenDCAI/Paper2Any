@@ -431,7 +431,7 @@ class MyAgent(BaseAgent):
 2. 使用 `@register` 装饰器注册工厂函数：
 ```python
 from dataflow_agent.workflow.registry import register
-from dataflow_agent.graghbuilder import GraphBuilder
+from dataflow_agent.graphbuilder import GraphBuilder
 
 @register("my_workflow")
 def create_my_workflow_graph():

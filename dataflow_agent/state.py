@@ -139,6 +139,8 @@ class DataCollectionState(MainState):
 class IconGenRequest(MainRequest):      
     keywords: str = ""
     style: str = ""
+    prev_image: str = ""
+    edit_prompt: str = ""
 
 # ==================== Icon 生成 State ======================
 @dataclass

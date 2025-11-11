@@ -311,7 +311,7 @@ async def generate_or_edit_and_save_image_async(
                 response_format, timeout
             )
     elif _is_gemini_model(model):
-        if use_edit or image_path:
+        if use_edit :
             if not image_path:
                 raise ValueError("Gemini Edit模式必须提供image_path")
             raw = await call_gemini_image_edit_async(
