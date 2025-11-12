@@ -47,4 +47,3 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
     
-# python /mnt/DataFlow/lz/proj/agentgroup/ziyi/dataflow-agent/DataFlow-Agent/script/run_dfa_pipeline_prompt.py --task-description 我想写一个适用于金融问题的过滤器提示词 --op-name ReasoningQuestionFilter --cache-dir /mnt/DataFlow/lz/proj/agentgroup/ziyi/dataflow-agent/cache

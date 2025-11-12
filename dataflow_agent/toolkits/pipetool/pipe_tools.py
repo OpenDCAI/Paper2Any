@@ -1523,7 +1523,7 @@ if __name__ == "__main__":
     from pathlib import Path
     import pprint
 
-    PY_PATH = Path("/mnt/DataFlow/lz/proj/DataFlow/dataflow/dataflowagent/tests/my_pipeline.py")
+    PY_PATH = Path("")
 
     graph = parse_pipeline_file(PY_PATH)
 

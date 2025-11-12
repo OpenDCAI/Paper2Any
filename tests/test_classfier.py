@@ -1,5 +1,4 @@
 from __future__ import annotations
-# export PYTHONPATH=/mnt/h_h_public/lh/lz/DataFlow:$PYTHONPATH
 
 import asyncio
 import os

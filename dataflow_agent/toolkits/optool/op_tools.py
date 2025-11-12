@@ -657,7 +657,7 @@ if __name__ == "__main__":
         search_queries=queries,
         category=None,  # 不指定category，读取全部
         top_k=4,
-        faiss_index_path="/mnt/DataFlow/lz/proj/DataFlow-Agent/dataflow_agent/resources/faiss_cache/all_ops.index"
+        faiss_index_path=""
     )
     log.info(f"\n返回结果: {result2}\n")
     
