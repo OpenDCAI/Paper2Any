@@ -46,7 +46,7 @@ class PromptsTemplateGenerator:
             Defaults to ["prompts_repo"].
         template_dirs : Sequence[str] | None, optional
             A list of directory paths to scan for pt_*.py files.
-            Example: ["/mnt/DataFlow/lz/proj/DataFlow-Agent/dataflow_agent/promptstemplates/resources"]
+            Example: [""]
         """
         self.output_language = output_language
         self.templates: Dict[str, str] = {}

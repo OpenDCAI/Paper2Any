@@ -78,6 +78,9 @@ class DFRequest(MainRequest):
     cache_dir: str = f"{PROJDIR}/cache_dir"
     session_id: str = "default_session"
 
+    # embeddings url
+    chat_api_url_for_embeddings : str = ""
+    embedding_model_name: str = "text-embedding-3-small"
 
 # ==================== 主流程 State ====================
 @dataclass

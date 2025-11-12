@@ -208,7 +208,8 @@ def create_pipeline_graph() -> GenericGraphBuilder:
         ops_list = get_operators_by_rag(search_queries=ops_list, 
                                         top_k=1, 
                                         faiss_index_path=f"{PROJDIR}/dataflow_agent/resources/faiss_cache/all_ops.index",
-                                        base_url=s.request.chat_api_url)
+                                        base_url=f"{s.request.chat_api_url}embeddings" if s.request.chat_api_url_for_embeddings == "" else s.request.chat_api_url_for_embeddings,
+                                        model_name = s.request.embedding_model_name)
 
         ops_list = [item for sub in ops_list for item in sub]
         log.warning(f"[recommender_node + RAG ] 推荐算子列表：{ops_list}")

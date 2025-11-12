@@ -1,5 +1,3 @@
-# /mnt/DataFlow/lz/proj/DataFlow-Agent/dataflow_agent/new_state.py
-
 from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, List, Type, Optional, TypeVar, Generic
 import os

@@ -42,7 +42,7 @@ async def run_df_op_usage_pipeline() -> DFState:
         model="gpt-4o",
         target="测试 pipeline 生成和执行",
         json_file=f"{PROJDIR}/tests/test.jsonl",  
-        cache_dir="/mnt/DataFlow/lz/proj/DataFlow-Agent/dataflow_cache",
+        cache_dir="",
         session_id="test_session_001",
         use_local_model=False,
         need_debug=False,

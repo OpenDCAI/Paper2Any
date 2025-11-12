@@ -24,29 +24,47 @@ def create_pipeline_rec():
                     label="Session ID",
                     value="default"
                 )
+                
+                # 主要聊天 API 配置
+                gr.Markdown("### 主要模型配置")
                 chat_api_url = gr.Textbox(
                     label="Chat API URL",
                     value="http://123.129.219.111:3000/v1/"
                 )
                 api_key = gr.Textbox(
                     label="API Key",
-                    value="",  # 或者默认从环境变量读取
+                    value="",
                     type="password"
                 )
-                # 新增模型名称输入框
                 model_name = gr.Textbox(
                     label="模型名称",
-                    placeholder="如：gpt-4, qwen-max, llama3, etc.",
-                    value=""  # 可设置默认模型名
+                    placeholder="如：gpt-4o, qwen-max, llama3, etc.",
+                    value="gpt-4o"
                 )
+                
+                # 嵌入模型配置
+                gr.Markdown("### 嵌入模型配置")
+                chat_api_url_for_embeddings = gr.Textbox(
+                    label="Embedding API URL",
+                    placeholder="留空则使用主要 API URL",
+                    value=""
+                )
+                embedding_model_name = gr.Textbox(
+                    label="Embedding 模型名称",
+                    placeholder="如：text-embedding-3-small",
+                    value="text-embedding-3-small"
+                )
+                
+                # 调试配置
+                gr.Markdown("### 调试配置")
                 debug_mode = gr.Checkbox(label="启用调试模式", value=False)
-                # 新增调试模式次数下拉框，默认隐藏
                 debug_times = gr.Dropdown(
                     label="调试模式执行次数",
                     choices=[1, 2, 3, 5, 10],
-                    value=1,
+                    value=2,
                     visible=False
                 )
+                
                 submit_btn = gr.Button("生成 Pipeline", variant="primary")
 
             # 右侧：输出区（3 个页签）
@@ -60,7 +78,6 @@ def create_pipeline_rec():
 
         # ---------------------- 事件绑定：调试模式显示下拉 ----------------------
         def toggle_debug_times(is_debug):
-            # 返回 update 控制可见性
             return gr.update(visible=is_debug)
 
         debug_mode.change(
@@ -76,7 +93,9 @@ def create_pipeline_rec():
             session_id_val, 
             chat_api_url_val, 
             api_key_val, 
-            model_name_val, 
+            model_name_val,
+            chat_api_url_for_embeddings_val,
+            embedding_model_name_val,
             debug,
             max_debug_rounds
         ):
@@ -88,7 +107,9 @@ def create_pipeline_rec():
                 chat_api_url=chat_api_url_val,
                 api_key=api_key_val,
                 model_name=model_name_val,
-                max_debug_rounds=max_debug_rounds if debug else 2  
+                max_debug_rounds=max_debug_rounds if debug else 2,
+                chat_api_url_for_embeddings=chat_api_url_for_embeddings_val,
+                embedding_model_name=embedding_model_name_val
             )
 
             # 读取生成的 Python 文件
@@ -101,7 +122,18 @@ def create_pipeline_rec():
 
         submit_btn.click(
             generate_pipeline,
-            inputs=[target, json_file, session_id, chat_api_url, api_key, model_name, debug_mode, debug_times],
+            inputs=[
+                target, 
+                json_file, 
+                session_id, 
+                chat_api_url, 
+                api_key, 
+                model_name,
+                chat_api_url_for_embeddings,
+                embedding_model_name,
+                debug_mode, 
+                debug_times
+            ],
             outputs=[output_code, output_log, agent_results_json]   
         )
 
