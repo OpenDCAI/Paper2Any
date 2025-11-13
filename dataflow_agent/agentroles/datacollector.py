@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 import os
 
@@ -9,22 +8,14 @@ if _df_hf_endpoint and not os.getenv("HF_ENDPOINT"):
     os.environ["HF_ENDPOINT"] = _df_hf_endpoint
 import asyncio
 import json
-import httpx
 import re
-from bs4 import BeautifulSoup
-from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 import shutil
-from playwright.async_api import async_playwright, Page, Error as PlaywrightError
-from urllib.parse import urljoin
+from playwright.async_api import async_playwright, Page
 import tenacity
 import requests.exceptions
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
-import os
-from langchain_community.tools import DuckDuckGoSearchRun
 
 import sys
 from pathlib import Path
@@ -32,9 +23,20 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
-from dataflow_agent.promptstemplates.prompt_template import PromptsTemplateGenerator
 from dataflow_agent.state import WebCrawlState
 from dataflow_agent.logger import get_logger
+from dataflow_agent.agentroles.webresearch import (
+    BaseAgent,
+    ToolManager,
+    URLFilter,
+    WebPageReader,
+    Executor,
+    Supervisor,
+    WebResearchAgent,
+    QueryGeneratorAgent,
+)
+from dataflow_agent.agentroles.download_manager import DownloadManager
+from dataflow_agent.toolkits.webatool import check_if_download_link, download_file
 
 log = get_logger(__name__)
 
@@ -82,6 +84,7 @@ class LogManager:
             log.warning("LogManager尚未初始化，无法记录日志。")
             return
         safe_step_name = re.sub(r'[\\/*?:"<>|]', "", step_name)
+        safe_step_name = re.sub(r'\s+', '_', safe_step_name).strip("_") or "log"
         extension = ".json" if is_json else ".txt"
         filename = os.path.join(self.run_dir, f"{safe_step_name}{extension}")
         content = json.dumps(data, indent=2, ensure_ascii=False) if isinstance(data, (dict, list)) else str(data)
@@ -309,31 +312,6 @@ class RAGManager:
             "total_documents": self.document_count,
             "vectorstore_ready": self.vectorstore is not None
         }
-
-class BaseAgent(ABC):
-    _prompt_generator = None
-    
-    def __init__(self, model_name: str = "gpt-4o", api_base_url: str = None, api_key: str = None):
-        if not api_base_url:
-            raise ValueError("错误：必须提供 api_base_url 参数！")
-        if not api_key:
-            raise ValueError("错误：必须提供 api_key 参数！")
-        self.llm = ChatOpenAI(model=model_name, temperature=0.1, openai_api_base=api_base_url, openai_api_key=api_key, max_tokens=4096)
-        
-        # 初始化 prompt generator（只初始化一次）
-        if BaseAgent._prompt_generator is None:
-            BaseAgent._prompt_generator = PromptsTemplateGenerator(
-                output_language="zh",
-                python_modules=["prompts_repo"]
-            )
-        self.prompt_gen = BaseAgent._prompt_generator
-
-    @abstractmethod
-    async def execute(self, *args, **kwargs) -> Any:
-        pass
-
-    def _create_messages(self, system_prompt: str, human_prompt: str) -> List:
-        return [SystemMessage(content=system_prompt), HumanMessage(content=human_prompt)]
 
 class HuggingFaceDatasetManager:
 
@@ -825,405 +803,6 @@ class PaddleDatasetManager:
         except Exception as e:
             log.info(f"[Paddle] 解析页面失败: {e}")
         return None
-class ToolManager:
-    @staticmethod
-    async def search_web(query: str, search_engine: str = "tavily") -> str:
-
-        if isinstance(query, (list, tuple)):
-            query = ", ".join([str(x) for x in query if x])
-        elif not isinstance(query, str):
-            query = str(query)
-        
-        log.info(f"[Search] 使用 {search_engine.upper()} 搜索: '{query}'")
- 
-        if search_engine.lower() == "jina":
-            return await ToolManager._jina_search(query)
-        elif search_engine.lower() == "duckduckgo":
-            return await ToolManager._duckduckgo_search(query)
-        else:  
-            return await ToolManager._tavily_search(query)
-    
-    @staticmethod
-    async def _tavily_search(query: str) -> str:
-        tavily_api_key = os.getenv("TAVILY_API_KEY", "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")
-        if not tavily_api_key:
-            log.info("[Tavily] API Key 未设置，回退到 DuckDuckGo")
-            return await ToolManager._duckduckgo_search(query)
-        
-        try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
-                resp = await client.post(
-                    "https://api.tavily.com/search",
-                    json={
-                        "api_key": tavily_api_key,
-                        "query": query,
-                        "search_depth": "advanced",
-                        "include_answer": False,
-                        "include_raw_content": False,
-                        "max_results": 30
-                    }
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                results = data.get("results", [])
-                
-                if not results:
-                    log.info("[Tavily] 无结果，回退到 DuckDuckGo")
-                    return await ToolManager._duckduckgo_search(query)
-                
-                formatted = [
-                    f"标题: {item.get('title', '无标题')}\n"
-                    f"URL: {item.get('url', '')}\n"
-                    f"摘要: {item.get('content', '')}\n---"
-                    for item in results
-                ]
-                log.info(f"[Tavily] 搜索完成，找到 {len(results)} 个结果")
-                return "\n".join(formatted)
-        except Exception as e:
-            log.info(f"[Tavily] 错误: {e}，回退到 DuckDuckGo")
-            return await ToolManager._duckduckgo_search(query)
-    
-    @staticmethod
-    async def _duckduckgo_search(query: str) -> str:
-        """DuckDuckGo 搜索"""
-        try:
-            search_tool = DuckDuckGoSearchRun()
-            result_text = await asyncio.to_thread(search_tool.run, query)
-            log.info(f"[DuckDuckGo] 搜索完成")
-            return result_text
-        except Exception as e:
-            log.info(f"[DuckDuckGo] 搜索错误: {e}")
-            return ""
-    
-    @staticmethod
-    async def _jina_search(query: str) -> str:
-
-        try:
-            from urllib.parse import quote
-            encoded_query = quote(query)
-            search_url = f"https://s.jina.ai/{encoded_query}"
-            
-            log.info(f"[Jina Search] 搜索查询: {query}")
-            
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.get(
-                    search_url,
-                    headers={
-                        "Accept": "application/json", 
-                        "X-Return-Format": "markdown"  
-                    }
-                )
-                resp.raise_for_status()
-
-                try:
-                    data = resp.json()
-                    if isinstance(data, dict) and "data" in data:
-                        results = data.get("data", [])
-                        if results:
-                            formatted = []
-                            for item in results[:10]: 
-                                title = item.get("title", "无标题")
-                                url = item.get("url", "")
-                                content = item.get("content", "") or item.get("description", "")
-                                formatted.append(f"标题: {title}\nURL: {url}\n摘要: {content}\n---")
-                            log.info(f"[Jina Search] 搜索完成，找到 {len(formatted)} 个结果")
-                            return "\n".join(formatted)
-                except:
-                    text_content = resp.text
-                    if text_content:
-                        log.info(f"[Jina Search] 搜索完成（文本模式）")
-                        return text_content[:15000]  
-                
-                log.info("[Jina Search] 无搜索结果，回退到 DuckDuckGo")
-                return await ToolManager._duckduckgo_search(query)
-                
-        except Exception as e:
-            log.info(f"[Jina Search] 错误: {e}，回退到 DuckDuckGo")
-            return await ToolManager._duckduckgo_search(query)
-
-    @staticmethod
-    async def read_web_page(page: Page, url: str, use_jina_reader: bool = False) -> Dict[str, Any]:
-
-        if use_jina_reader:
-            return await ToolManager._read_with_jina_reader(url)
-
-        log.info(f"[Playwright] 正在读取网页: {url}")
-        try:
-            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            html_content = await page.content()
-            soup = BeautifulSoup(html_content, 'html.parser')
-            for element in soup(['script', 'style', 'noscript', 'header', 'footer', 'nav']):
-                element.decompose()
-            text_content = soup.get_text(separator='\n', strip=True)
-            base_url = await page.evaluate("() => document.baseURI")
-            raw_urls = [a.get('href', '').strip() for a in soup.find_all('a', href=True) if a.get('href', '').strip() and not a.get('href').startswith(('javascript:', 'mailto:'))]
-            urls = [urljoin(base_url, raw_url) for raw_url in raw_urls]
-            log.info(f"[Playwright] 网页读取成功: {url}")
-            return {"urls": urls, "text": text_content}
-        except PlaywrightError as e:
-            log.info(f"[Playwright] 读取网页时出错: {e}")
-            return {"urls": [], "text": f"错误: 无法访问页面 {url} ({e})"}
-        except Exception as e:
-            log.info(f"读取网页时发生未知错误: {e}")
-            return {"urls": [], "text": f"错误: 读取页面 {url} 时发生未知错误。"}
-    
-    @staticmethod
-    async def _read_with_jina_reader(url: str) -> Dict[str, Any]:
-
-        log.info(f"[Jina Reader] 正在提取网页: {url}")
-        try:
-            jina_url = f"https://r.jina.ai/{url}"
-            
-            async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
-                resp = await client.get(
-                    jina_url,
-                    headers={
-                        "Accept": "text/plain",  
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                    }
-                )
-                resp.raise_for_status()
-
-                text_response = resp.text
-
-                structured_content = ToolManager._parse_jina_text_format(text_response, url)
-
-                markdown_content = structured_content.get("markdown", "")
-
-                warning = structured_content.get("warning", "")
-                if warning:
-                    log.info(f"[Jina Reader] 警告: {warning}")
-                    if "blocked" in warning.lower() or "403" in warning or "forbidden" in warning.lower():
-                        log.info(f"[Jina Reader] 网页被封禁，无法提取内容")
-                        return {
-                            "urls": [],
-                            "text": f"无法访问该页面: {warning}",
-                            "structured_content": structured_content
-                        }
-                
-
-                urls = ToolManager._extract_urls_from_markdown(markdown_content)
-                
-                log.info(f"[Jina Reader] 提取成功: {len(markdown_content)} 字符, {len(urls)} 个链接")
-                
-                return {
-                    "urls": urls,
-                    "text": markdown_content,
-                    "structured_content": structured_content
-                }
-                    
-        except httpx.HTTPStatusError as e:
-            log.info(f"[Jina Reader] HTTP错误 {e.response.status_code}: {e}")
-            return {
-                "urls": [],
-                "text": f"HTTP错误: {e.response.status_code}",
-                "structured_content": None
-            }
-        except Exception as e:
-            log.info(f"[Jina Reader] 提取失败: {e}")
-            return {
-                "urls": [],
-                "text": f"Jina Reader 错误: {str(e)}",
-                "structured_content": None
-            }
-    
-    @staticmethod
-    def _parse_jina_text_format(text: str, original_url: str) -> Dict[str, Any]:
-
-        structured = {
-            "title": "",
-            "url_source": original_url,
-            "warning": "",
-            "markdown": "",
-            "url": original_url
-        }
-        
-        lines = text.split('\n')
-        current_section = None
-        markdown_lines = []
-        
-        i = 0
-        while i < len(lines):
-            line = lines[i].strip()
-
-            if line.startswith("Title:"):
-                structured["title"] = line[6:].strip()
-                i += 1
-                continue
-            
-            if line.startswith("URL Source:"):
-                structured["url_source"] = line[11:].strip()
-                i += 1
-                continue
-
-            if line.startswith("Warning:"):
-                structured["warning"] = line[8:].strip()
-                i += 1
-                continue
-            
-
-            if line == "Markdown Content:":
-                current_section = "markdown"
-                i += 1
-
-                while i < len(lines):
-                    markdown_lines.append(lines[i])
-                    i += 1
-                break
-            
-            i += 1
-        
-        structured["markdown"] = '\n'.join(markdown_lines).strip()
-        
-        return structured
-    
-    @staticmethod
-    def _extract_urls_from_markdown(markdown_text: str) -> List[str]:
-
-        import re
-        urls = []
-        
-        markdown_link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
-        markdown_links = re.findall(markdown_link_pattern, markdown_text)
-        for text, url in markdown_links:
-            if url and not url.startswith('#'): 
-                urls.append(url)
-
-        plain_url_pattern = r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
-        plain_urls = re.findall(plain_url_pattern, markdown_text)
-        urls.extend(plain_urls)
-
-        unique_urls = list(dict.fromkeys(urls))[:50]
-        
-        return unique_urls
-    
-    @staticmethod
-    async def check_if_download_link(url: str) -> Dict[str, Any]:
-
-        result = {
-            "is_download": False,
-            "reason": "",
-            "content_type": "",
-            "filename": ""
-        }
-        
-        # 1. 快速检查：URL 扩展名
-        common_file_extensions = [
-            '.zip', '.tar', '.gz', '.rar', '.7z', '.bz2', '.xz', 
-            '.csv', '.xlsx', '.xls', '.json', '.xml', '.tsv',  
-            '.pdf', '.doc', '.docx', '.txt', '.md', 
-            '.jpg', '.jpeg', '.png', '.gif', '.svg',
-            '.mp4', '.avi', '.mov', '.mp3', '.wav',  
-            '.exe', '.msi', '.dmg', '.deb', '.rpm',  
-            '.parquet', '.arrow', '.h5', '.hdf5', '.pkl'  
-        ]
-        
-        url_lower = url.lower()
-        for ext in common_file_extensions:
-            if url_lower.endswith(ext) or f"{ext}?" in url_lower or f"{ext}#" in url_lower:
-                result["is_download"] = True
-                result["reason"] = f"URL包含文件扩展名: {ext}"
-                result["filename"] = url.split('/')[-1].split('?')[0].split('#')[0]
-                return result
-        
-
-        try:
-            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-                response = await client.head(url, headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                })
-
-                content_disposition = response.headers.get("Content-Disposition", "")
-                if content_disposition and "attachment" in content_disposition.lower():
-                    result["is_download"] = True
-                    result["reason"] = "Content-Disposition 包含 attachment"
-                    if "filename=" in content_disposition:
-                        import re
-                        filename_match = re.search(r'filename[^;=\n]*=(([\'"]).*?\2|[^;\n]*)', content_disposition)
-                        if filename_match:
-                            result["filename"] = filename_match.group(1).strip('\'"')
-                    return result
-
-                content_type = response.headers.get("Content-Type", "").lower()
-                result["content_type"] = content_type
-
-                downloadable_types = [
-                    "application/octet-stream",
-                    "application/zip",
-                    "application/x-zip-compressed",
-                    "application/x-rar-compressed",
-                    "application/pdf",
-                    "application/vnd.ms-excel",
-                    "application/vnd.openxmlformats-officedocument",
-                    "application/x-tar",
-                    "application/gzip",
-                    "application/x-gzip",
-                    "text/csv",
-                    "application/json",
-                    "application/xml",
-                    "image/",
-                    "video/",
-                    "audio/"
-                ]
-                
-                for dtype in downloadable_types:
-                    if dtype in content_type:
-                        result["is_download"] = True
-                        result["reason"] = f"Content-Type 是可下载类型: {content_type}"
-                        return result
-                
-                if "text/html" in content_type:
-                    result["is_download"] = False
-                    result["reason"] = "Content-Type 是 HTML 页面，非文件下载"
-                    return result
-                
-        except Exception as e:
-            result["reason"] = f"HEAD 请求失败: {e}，无法确定"
-            return result
-        
-        result["reason"] = "无法确定是否为下载链接"
-        return result
-
-    @staticmethod
-    async def download_file(page: Page, url: str, save_dir: str) -> str | None:
-        log.info(f"[Playwright] 准备从 {url} 下载文件")
-        os.makedirs(save_dir, exist_ok=True)
-        
-        try:
-            download_page = await page.context.new_page()
-            async with download_page.expect_download(timeout=12000) as download_info: 
-                try:
-                    await download_page.goto(url, timeout=60000)
-                except PlaywrightError as e:
-                    if "Download is starting" in str(e) or "navigation" in str(e):
-                        log.info(f"下载已通过导航或重定向触发。")
-                        pass
-                    else:
-                        raise e
-            download = await download_info.value
-            try:
-                await download_page.close()
-            except Exception as close_e:
-                log.info(f"关闭下载页面时出错（可忽略）: {close_e}")
-            suggested_filename = download.suggested_filename
-            save_path = os.path.join(save_dir, suggested_filename)
-            log.info(f"文件 '{suggested_filename}' 正在保存中...")
-            temp_file_path = await download.path()
-            if not temp_file_path:
-                    log.info(f"[Playwright] 下载失败，未能获取临时文件路径。")
-                    await download.delete() 
-                    return None
-            shutil.move(temp_file_path, save_path)
-            log.info(f"[Playwright] 下载完成: {save_path}")
-            return save_path
-        except Exception as e:
-            log.info(f" [Playwright] 下载过程中发生意外错误 ({url}): {e}")
-            try:
-                await download_page.close()
-            except:
-                pass
-            return None
-
 class DownloadMethodDecisionAgent(BaseAgent):
     """下载方法决策器 - 决定使用哪种方法下载数据"""
     async def execute(self, state: WebCrawlState, logger: LogManager, current_objective: str, search_keywords: str) -> Dict[str, Any]:
@@ -1374,37 +953,6 @@ class DatasetDetailReaderAgent(BaseAgent):
                 "summary": f"解析失败: {e}"
             }
         
-class SubTaskRefinerAgent(BaseAgent):
-    """在 research 结束后，对生成的子任务列表进行一次 LLM 筛选去重/一致性检查。"""
-    async def execute(self, message: str, sub_tasks: list[dict], logger: LogManager) -> list[dict]:
-        log.info("\n--- 子任务精炼器 ---")
-        system_prompt = self.prompt_gen.render("system_prompt_for_subtask_refiner")
-        try:
-            sub_tasks_json = json.dumps(sub_tasks, indent=2, ensure_ascii=False)
-        except Exception:
-            # 兜底：将不可序列化对象转字符串
-            sub_tasks_json = json.dumps(sub_tasks, indent=2, ensure_ascii=False, default=lambda o: getattr(o, "__dict__", str(o)))
-        human_prompt = self.prompt_gen.render(
-            "task_prompt_for_subtask_refiner",
-            message=message or "",
-            sub_tasks=sub_tasks_json
-        )
-        messages = self._create_messages(system_prompt, human_prompt)
-        response = await self.llm.ainvoke(messages)
-        logger.log_data("subtask_refiner_raw_response", response.content)
-        try:
-            clean = response.content.strip().replace("```json", "").replace("```", "")
-            data = json.loads(clean)
-            filtered = data.get("filtered_sub_tasks", [])
-            if isinstance(filtered, list):
-                log.info(f"[SubTaskRefiner] 过滤后子任务数: {len(filtered)}")
-                logger.log_data("subtask_refiner_parsed", filtered, is_json=True)
-                return filtered
-        except Exception as e:
-            log.info(f"[SubTaskRefiner] 解析失败: {e}\n原始响应: {response.content}")
-        # 解析失败则返回原列表
-        return sub_tasks
-
 class TaskDecomposer(BaseAgent):
     async def execute(self, state: WebCrawlState, logger: LogManager) -> WebCrawlState:
         log.info("\n--- decomposer ---")
@@ -1424,458 +972,6 @@ class TaskDecomposer(BaseAgent):
             logger.log_data("1_decomposer_parsed_plan", plan, is_json=True)
         except Exception as e:
             log.info(f"解析任务计划时出错: {e}\n原始响应: {response.content}")
-        return state
-
-class QueryGeneratorAgent(BaseAgent):
-    """查询生成器 - 为RAG检索生成多样的英文查询"""
-    async def execute(self, objective: str, message: str, logger: LogManager) -> List[str]:
-        log.info("\n--- 查询生成器 ---")
-        system_prompt = self.prompt_gen.render("system_prompt_for_query_generator")
-        human_prompt = self.prompt_gen.render("task_prompt_for_query_generator",
-                                              objective=objective,
-                                              message=message)
-        messages = self._create_messages(system_prompt, human_prompt)
-        response = await self.llm.ainvoke(messages)
-        logger.log_data("query_generator_raw_response", response.content)
-        
-        try:
-            clean_response = response.content.strip().replace("```json", "").replace("```", "")
-            queries = json.loads(clean_response)
-            if isinstance(queries, list) and all(isinstance(q, str) for q in queries):
-                log.info(f"生成了 {len(queries)} 个检索查询: {queries}")
-                logger.log_data("query_generator_parsed", queries, is_json=True)
-                return queries
-            else:
-                log.info(f"查询生成格式错误，返回空列表")
-                return []
-        except Exception as e:
-            log.info(f"解析查询生成响应时出错: {e}\n原始响应: {response.content}")
-            return []
-
-class SummaryAgent(BaseAgent):
-    def _apply_download_limit_to_state(self, state: WebCrawlState) -> None:
-        """在研究阶段内部裁剪下载子任务，避免超过上限。"""
-        if not hasattr(state, "sub_tasks") or state.sub_tasks is None:
-            return
-
-        limit = getattr(state, "max_download_subtasks", None)
-        if limit is None:
-            return
-
-        completed = getattr(state, "completed_download_tasks", 0) or 0
-        remaining = limit - completed
-
-        if remaining <= 0:
-            downloads_removed = sum(1 for task in state.sub_tasks if task.get("type") == "download")
-            if downloads_removed:
-                log.info(f"[Summary] 下载子任务上限已达，移除 {downloads_removed} 个待执行的下载子任务。")
-            state.sub_tasks = [task for task in state.sub_tasks if task.get("type") != "download"]
-            return
-
-        filtered_tasks: List[Dict[str, Any]] = []
-        kept_downloads = 0
-        downloads_removed = 0
-        for task in state.sub_tasks:
-            if task.get("type") == "download":
-                if kept_downloads >= remaining:
-                    downloads_removed += 1
-                    continue
-                kept_downloads += 1
-            filtered_tasks.append(task)
-
-        if downloads_removed:
-            log.info(f"[Summary] 应用下载子任务上限，裁剪 {downloads_removed} 个多余的下载子任务。")
-        state.sub_tasks = filtered_tasks
-
-    async def execute(self, state: WebCrawlState, logger: LogManager, research_objective: str, query_generator: QueryGeneratorAgent = None) -> WebCrawlState:
-        log.info("\n--- 总结与规划（使用RAG增强，多次查询多次生成） ---")
-        
-        # 收集所有生成的新子任务
-        all_new_sub_tasks = []
-        all_summaries = []
-        
-        # [--- 使用 RAG 获取精炼的相关内容 ---]
-        if state.enable_rag and state.rag_manager:
-            log.info("[Summary] 使用 RAG 检索相关内容...")
-            
-            # 生成多样化的英文查询
-            queries = None
-            if query_generator:
-                try:
-                    queries = await query_generator.execute(
-                        objective=research_objective,
-                        message=getattr(state, "user_message", ""),
-                        logger=logger
-                    )
-                except Exception as e:
-                    log.info(f"[Summary] 查询生成失败: {e}，使用单一查询")
-            
-            # 如果没有生成查询，使用原始objective作为单查询
-            if not queries or len(queries) == 0:
-                queries = [research_objective]
-            
-            log.info(f"[Summary] 将对 {len(queries)} 个查询分别检索并生成子任务")
-            
-            # 对每个查询分别检索并生成子任务
-            for query_idx, query in enumerate(queries, 1):
-                log.info(f"\n[Summary] === 处理查询 {query_idx}/{len(queries)}: {query[:50]}... ===")
-                
-                # 获取当前查询的上下文
-                relevant_context = await state.rag_manager.get_context_for_single_query(
-                    query=query,
-                    max_chars=18000
-                )
-                
-                if not relevant_context:
-                    log.info(f"[Summary] 查询 {query_idx} 检索结果为空，跳过")
-                    continue
-                
-                # 收集当前已有的download子任务列表（包括之前生成的，使用集合去重）
-                # 使用集合来存储任务的唯一标识，避免重复
-                seen_task_keys = set()
-                existing_download_tasks = []
-                
-                # 从state.sub_tasks中收集已有的download任务
-                if hasattr(state, "sub_tasks") and state.sub_tasks:
-                    for task in state.sub_tasks:
-                        if task.get("type") == "download":
-                            task_key = (task.get("objective", ""), task.get("search_keywords", ""))
-                            if task_key not in seen_task_keys:
-                                seen_task_keys.add(task_key)
-                                existing_download_tasks.append({
-                                    "objective": task.get("objective", ""),
-                                    "search_keywords": task.get("search_keywords", "")
-                                })
-                
-                # 也要包含本次循环中已生成的新子任务
-                for new_task in all_new_sub_tasks:
-                    task_key = (new_task.get("objective", ""), new_task.get("search_keywords", ""))
-                    if task_key not in seen_task_keys:
-                        seen_task_keys.add(task_key)
-                        existing_download_tasks.append({
-                            "objective": new_task.get("objective", ""),
-                            "search_keywords": new_task.get("search_keywords", "")
-                        })
-                
-                existing_subtasks_str = json.dumps(existing_download_tasks, indent=2, ensure_ascii=False) if existing_download_tasks else "[]"
-                
-                # 调用模型生成子任务
-                system_prompt = self.prompt_gen.render("system_prompt_for_summary_agent")
-                human_prompt = self.prompt_gen.render("task_prompt_for_summary_agent",
-                                                      objective=research_objective,
-                                                      message=getattr(state, "user_message", ""),
-                                                      existing_subtasks=existing_subtasks_str,
-                                                      context=relevant_context)
-                messages = self._create_messages(system_prompt, human_prompt)
-                response = await self.llm.ainvoke(messages)
-                log_name = f"summary_query_{query_idx}_{research_objective.replace(' ', '_')}"
-                logger.log_data(f"{log_name}_raw_response", response.content)
-                logger.log_data(f"{log_name}_query", query)
-                logger.log_data(f"{log_name}_context_used", relevant_context)
-                logger.log_data(f"{log_name}_existing_subtasks", existing_download_tasks, is_json=True)
-                
-                try:
-                    clean_response = response.content.strip().replace("```json", "").replace("```", "")
-                    summary_plan = json.loads(clean_response)
-                    
-                    new_tasks = summary_plan.get("new_sub_tasks", [])
-                    summary_text = summary_plan.get("summary", "")
-                    
-                    if new_tasks:
-                        log.info(f"[Summary] 查询 {query_idx} 生成了 {len(new_tasks)} 个新子任务")
-                        # 将新任务添加到all_new_sub_tasks
-                        all_new_sub_tasks.extend(new_tasks)
-                        
-                        # 将新子任务添加到state.sub_tasks中，以便下次查询时能避免重复
-                        # 添加时也做去重，避免state.sub_tasks中有重复任务
-                        if not hasattr(state, "sub_tasks") or state.sub_tasks is None:
-                            state.sub_tasks = []
-                        
-                        # 使用集合跟踪已有的任务键
-                        existing_task_keys = set()
-                        for task in state.sub_tasks:
-                            if task.get("type") == "download":
-                                task_key = (task.get("objective", ""), task.get("search_keywords", ""))
-                                existing_task_keys.add(task_key)
-                        
-                        # 只添加不重复的新任务
-                        for new_task in new_tasks:
-                            task_key = (new_task.get("objective", ""), new_task.get("search_keywords", ""))
-                            if task_key not in existing_task_keys:
-                                state.sub_tasks.append(new_task)
-                                existing_task_keys.add(task_key)
-                    
-                    if summary_text:
-                        all_summaries.append(f"[Query {query_idx}: {query[:30]}...] {summary_text}")
-                    
-                    logger.log_data(f"{log_name}_parsed_plan", summary_plan, is_json=True)
-                except Exception as e:
-                    log.info(f"[Summary] 查询 {query_idx} 解析响应时出错: {e}\n原始响应: {response.content}")
-            
-            # 记录RAG统计
-            rag_stats = state.rag_manager.get_statistics()
-            log.info(f"[Summary] RAG统计: {rag_stats}")
-            logger.log_data("rag_statistics", rag_stats, is_json=True)
-            
-        else:
-            # RAG未启用，使用传统方法（单次生成）
-            log.info("[Summary] RAG 未启用，使用传统方法...")
-            all_text = "\n\n---\n\n".join([data['text_content'] for data in state.crawled_data if 'text_content' in data])
-            relevant_context = all_text[:18000] if all_text else ""
-            
-            if not relevant_context:
-                log.info("研究阶段未能收集到任何文本内容，无法生成新任务。")
-                return state
-            
-            # 收集现有的download子任务列表
-            existing_download_tasks = []
-            if hasattr(state, "sub_tasks") and state.sub_tasks:
-                for task in state.sub_tasks:
-                    if task.get("type") == "download":
-                        existing_download_tasks.append({
-                            "objective": task.get("objective", ""),
-                            "search_keywords": task.get("search_keywords", "")
-                        })
-            existing_subtasks_str = json.dumps(existing_download_tasks, indent=2, ensure_ascii=False) if existing_download_tasks else "[]"
-            
-            system_prompt = self.prompt_gen.render("system_prompt_for_summary_agent")
-            human_prompt = self.prompt_gen.render("task_prompt_for_summary_agent",
-                                                  objective=research_objective,
-                                                  message=getattr(state, "user_message", ""),
-                                                  existing_subtasks=existing_subtasks_str,
-                                                  context=relevant_context)
-            messages = self._create_messages(system_prompt, human_prompt)
-            response = await self.llm.ainvoke(messages)
-            log_name = f"summary_and_plan_{research_objective.replace(' ', '_')}"
-            logger.log_data(f"{log_name}_raw_response", response.content)
-            logger.log_data(f"{log_name}_context_used", relevant_context)
-            try:
-                clean_response = response.content.strip().replace("```json", "").replace("```", "")
-                summary_plan = json.loads(clean_response)
-                all_new_sub_tasks = summary_plan.get("new_sub_tasks", [])
-                all_summaries = [summary_plan.get("summary", "No summary")]
-                logger.log_data(f"{log_name}_parsed_plan", summary_plan, is_json=True)
-            except Exception as e:
-                log.info(f"解析总结规划响应时出错: {e}\n原始响应: {response.content}")
-        
-        # 将所有结果合并到research_summary
-        state.research_summary = {
-            "new_sub_tasks": all_new_sub_tasks,
-            "summary": "\n".join(all_summaries) if all_summaries else "No summary"
-        }
-        self._apply_download_limit_to_state(state)
-        
-        log.info(f"\n总结与规划完成:")
-        log.info(f"  - 总共生成了 {len(all_new_sub_tasks)} 个新的下载任务")
-        if all_summaries:
-            summary_preview = "\n".join(all_summaries)[:300]
-            log.info(f"  - 摘要预览: {summary_preview}..." if len("\n".join(all_summaries)) > 300 else f"  - 摘要: {summary_preview}")
-        
-        return state
-
-# --- Agent ---
-class URLFilter(BaseAgent):
-    async def execute(self, state: WebCrawlState, logger: LogManager, is_research: bool = False, **kwargs) -> WebCrawlState:
-        log.info("\n--- flitter ---")
-        if not state.search_results_text:
-            log.info("没有搜索结果文本可供筛选。")
-            return state
-        
-        # Research 阶段需要更多URL
-        url_count_instruction = "尽可能多地提取URL（至少10-15个）" if is_research else "提取最相关的URL（5-10个）"
-        
-        system_prompt = self.prompt_gen.render("system_prompt_for_url_filter",
-                                               url_count_instruction=url_count_instruction)
-        human_prompt = self.prompt_gen.render("task_prompt_for_url_filter",
-                                              request=state.initial_request,
-                                              search_results=state.search_results_text)
-        messages = self._create_messages(system_prompt, human_prompt)
-        response = await self.llm.ainvoke(messages)
-        logger.log_data("3_url_filter_raw_response", response.content)
-        try:
-            clean_response = response.content.strip().replace("```json", "").replace("```", "")
-            result = json.loads(clean_response)
-            urls = result.get("selected_urls", [])
-            state.filtered_urls = urls
-            state.url_queue.extend(urls)
-            log.info(f"URL筛选完成。待爬取栈: {state.url_queue}")
-            logger.log_data("3_url_filter_parsed_output", result, is_json=True)
-        except Exception as e:
-            log.info(f"解析LLM响应时出错: {e}\n原始响应: {response.content}")
-        return state
-
-# --- Agent---
-class WebPageReader(BaseAgent):
-    async def execute(self, state: WebCrawlState, logger: LogManager, page: Page, url: str, current_objective: str, is_research: bool = False) -> Dict[str, Any]:
-        log.info(f"\n--- web_reader (目标: {current_objective}) ---")
-        log.info(f"--- 正在分析 URL: {url} ---")
-        
-        page_data = await ToolManager.read_web_page(page, url, use_jina_reader=state.use_jina_reader)
-        safe_url_filename = f"4_read_page_{url.replace('://', '_').replace('/', '_')}"
-        logger.log_data(safe_url_filename, page_data, is_json=True)
-        
-        text_content = page_data.get("text", "")
-        if text_content:
-            crawl_entry = {"source_url": url, "text_content": text_content}
-            # 如果使用了 Jina Reader，保存结构化内容
-            if "structured_content" in page_data and page_data["structured_content"]:
-                crawl_entry["structured_content"] = page_data["structured_content"]
-            state.crawled_data.append(crawl_entry)
-            
-            # [--- RAG 集成：在 research 阶段将内容添加到 RAG 知识库（无论使用哪种解析方法） ---]
-            if is_research and state.enable_rag and state.rag_manager:
-                await state.rag_manager.add_webpage_content(
-                    url=url,
-                    text_content=text_content,
-                    metadata={
-                        "objective": current_objective,
-                        "extraction_method": "jina_reader" if state.use_jina_reader else "playwright"
-                    }
-                )
-
-        system_prompt = self.prompt_gen.render("system_prompt_for_webpage_reader")
-        compact_text = page_data.get("text", "")[:16000]
-        discovered_urls = page_data.get("urls", [])[:100]
-        urls_block = "\n".join(discovered_urls)
-        
-        human_prompt = self.prompt_gen.render("task_prompt_for_webpage_reader",
-                                              objective=current_objective,
-                                              urls_block=urls_block,
-                                              text_content=compact_text)
-        messages = self._create_messages(system_prompt, human_prompt)
-        response = await self.llm.ainvoke(messages)
-        logger.log_data(f"{safe_url_filename}_raw_response", response.content)
-        
-        try:
-            clean_response = response.content.strip().replace("```json", "").replace("```", "")
-            action_plan = json.loads(clean_response)
-            log.info(f"页面分析完毕。计划行动: {action_plan.get('action')}, 描述: {action_plan.get('description')}")
-            if action_plan.get('action') == 'download':
-                 log.info(f"发现 {len(action_plan.get('urls', []))} 个下载链接。")
-            logger.log_data(f"{safe_url_filename}_parsed_output", action_plan, is_json=True)
-            return action_plan
-        except Exception as e:
-            log.info(f"解析LLM响应时出错: {e}\n原始响应: {response.content}")
-            return {"action": "dead_end", "description": "Failed to parse LLM response."}
-
-
-class Executor:
-
-    def __init__(self):
-        pass
-    
-    async def execute(self, state: WebCrawlState, action_plan: Dict[str, Any], source_url: str, page: Page, current_task_type: str) -> WebCrawlState:
-        log.info(f"\n--- executor (任务类型: {current_task_type}) ---")
-        action = action_plan.get("action")
-        
-        if action == "download":
-            if current_task_type != "download":
-                log.info(f"在 '{current_task_type}' 阶段发现下载链接，已忽略。URL: {action_plan.get('urls', 'N/A')}")
-                return state
-
-            success = await self._execute_web_download(state, action_plan, source_url, page)
-            
-            if success:
-                state.download_successful_for_current_task = True
-        
-        elif action == "navigate":
-            url_to_navigate = action_plan.get("url")
-            if not url_to_navigate: return state
-            full_url = urljoin(source_url, url_to_navigate) 
-            if full_url not in state.visited_urls and full_url not in state.url_queue:
-                state.url_queue.append(full_url)
-                log.info(f"执行成功: 将新URL入栈: {full_url}")
-
-        elif action == "dead_end":
-            log.info("执行: 到达死胡同，无操作。")
-        
-        return state
-    
-    async def _execute_web_download(self, state: WebCrawlState, action_plan: Dict[str, Any], source_url: str, page: Page) -> bool:
-        """执行网页下载（支持多文件，包含下载链接检查）"""
-        urls_to_download = action_plan.get("urls", [])
-        if not urls_to_download: 
-            log.info("网页下载失败：LLM未在action_plan中提供 'urls' 列表。")
-            return False
-        
-        download_succeeded_at_least_once = False
-        
-        for url_to_download in urls_to_download:
-            if not url_to_download or not isinstance(url_to_download, str):
-                log.info(f"跳过无效的下载条目: {url_to_download}")
-                continue
-                    
-            try:
-                full_url = urljoin(source_url, url_to_download)
-                
-                # [---检查是否是文件下载链接 ---]
-                log.info(f"\n[检查] 正在验证 URL 是否为下载链接: {full_url}")
-                check_result = await ToolManager.check_if_download_link(full_url)
-                
-                log.info(f"[检查结果] 是否为下载链接: {check_result['is_download']}")
-                log.info(f"[检查结果] 原因: {check_result['reason']}")
-                if check_result.get('content_type'):
-                    log.info(f"[检查结果] Content-Type: {check_result['content_type']}")
-                if check_result.get('filename'):
-                    log.info(f"[检查结果] 文件名: {check_result['filename']}")
-
-                if check_result['is_download'] == False and "HTML 页面" in check_result['reason']:
-                    log.info(f"跳过非文件链接: {full_url}")
-                    continue
-
-                if not check_result['is_download']:
-                    log.info(f"非下载链接，跳过: {full_url} ({check_result['reason']})")
-                    continue
-
-                if state.max_dataset_size:
-                    content_length = 0
-                    try:
-                        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-                            head_resp = await client.head(full_url, headers={
-                                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                            })
-                            content_length = int(head_resp.headers.get("Content-Length", 0))
-                    except Exception as size_err:
-                        log.info(f"检查文件大小失败，将继续下载: {size_err}")
-                    if content_length and content_length > state.max_dataset_size:
-                        log.info(f"跳过下载：文件大小 {content_length} 字节超过限制 {state.max_dataset_size} 字节 -> {full_url}")
-                        continue
-
-                log.info(f"✓ 确认为文件下载链接，开始下载...")
-
-                final_save_path = await ToolManager.download_file(page, full_url, save_dir=state.download_dir)
-
-                if final_save_path:
-                    state.crawled_data.append({
-                        "source_url": full_url,
-                        "local_path": final_save_path,
-                        "type": "file",
-                        "check_result": check_result
-                    })
-                    log.info(f"网页下载成功: 已下载文件到 {final_save_path}")
-                    download_succeeded_at_least_once = True
-                else:
-                    log.info(f"网页下载失败: 从 {full_url} 下载文件失败。")
-                        
-            except Exception as e:
-                full_url_str = "N/A"
-                try:
-                    full_url_str = urljoin(source_url, str(url_to_download))
-                except Exception:
-                    pass
-                log.info(f"下载 {url_to_download} (Full: {full_url_str}) 时发生异常: {e}")
-        
-        return download_succeeded_at_least_once
-    
-class Supervisor(BaseAgent):
-    async def execute(self, state: WebCrawlState, logger: LogManager, current_objective: str, is_research: bool = False) -> WebCrawlState:
-        log.info("\n--- supervisor ---")
-        state.current_cycle += 1
-        # Research 阶段允许更多循环次数
-        max_cycles = state.max_crawl_cycles_for_research if is_research else state.max_crawl_cycles_per_task
-        if not state.url_queue or state.current_cycle >= max_cycles:
-            log.info(f"已完成 {state.current_cycle} 个循环 (最大: {max_cycles})")
-            return state
         return state
 
 class WebCrawlOrchestrator:
@@ -1963,13 +1059,21 @@ class WebCrawlOrchestrator:
         log.info(f"  - 禁用缓存: {'是 (下载后自动清理临时文件)' if disable_cache else '否 (缓存将保存在项目目录)'}")
         
         self.task_decomposer = TaskDecomposer(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
-        self.summary_agent = SummaryAgent(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
         self.url_filter = URLFilter(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
         self.web_page_reader = WebPageReader(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
         self.executor = Executor()
         self.supervisor = Supervisor(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
         self.download_decision_agent = DownloadMethodDecisionAgent(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
         self.logger = LogManager()
+        self.web_research_agent = WebResearchAgent(
+            model_name=self.model_name,
+            api_base_url=self.api_base_url,
+            api_key=self.api_key,
+            concurrent_pages=self.concurrent_pages,
+            web_page_reader=self.web_page_reader,
+            executor=self.executor,
+            supervisor=self.supervisor,
+        )
         
         # *** 在 Orchestrator 中初始化 HF 工具和新 Agent ***
         # 如果未禁用缓存，设置缓存目录到 download_dir 下的 .cache 文件夹，避免占用系统盘
@@ -1978,7 +1082,6 @@ class WebCrawlOrchestrator:
         self.hf_decision_agent = HuggingFaceDecisionAgent(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
         self.kaggle_decision_agent = KaggleDecisionAgent(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
         self.dataset_detail_reader = DatasetDetailReaderAgent(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
-        self.subtask_refiner = SubTaskRefinerAgent(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
         self.hf_manager = HuggingFaceDatasetManager(max_retries=2, retry_delay=5, size_categories=dataset_size_categories, cache_dir=cache_base_dir, disable_cache=disable_cache, temp_base_dir=self.temp_base_dir)
         # Kaggle / Paddle 管理器
         self.kaggle_manager = KaggleDatasetManager(search_engine=self.search_engine, cache_dir=cache_base_dir, disable_cache=disable_cache, temp_base_dir=self.temp_base_dir)
@@ -1986,6 +1089,18 @@ class WebCrawlOrchestrator:
         
         # [--- QueryGenerator Agent 初始化 ---]
         self.query_generator = QueryGeneratorAgent(model_name=self.model_name, api_base_url=self.api_base_url, api_key=self.api_key)
+        
+        # 下载管理器
+        self.download_manager = DownloadManager(
+            hf_manager=self.hf_manager,
+            kaggle_manager=self.kaggle_manager,
+            hf_decision_agent=self.hf_decision_agent,
+            kaggle_decision_agent=self.kaggle_decision_agent,
+            dataset_detail_reader=self.dataset_detail_reader,
+            logger=self.logger,
+            max_dataset_size=self.max_dataset_size,
+            download_dir=self.download_dir,
+        )
         
         # [--- RAG 管理器初始化 ---]
         self.rag_manager = None
@@ -2190,318 +1305,163 @@ class WebCrawlOrchestrator:
                         new_tasks = state.research_summary.pop("new_sub_tasks", [])
                         if new_tasks:
                             log.info(f"根据研究总结，将泛化下载任务替换为 {len(new_tasks)} 个具体任务。")
-                            state.sub_tasks = new_tasks + state.sub_tasks
+                            remaining_after_fallback: List[Dict[str, Any]] = []
+                            removed = False
+                            for task in state.sub_tasks:
+                                if not removed and task.get("type") == "download":
+                                    removed = True
+                                    continue
+                                remaining_after_fallback.append(task)
+                            state.sub_tasks = new_tasks + remaining_after_fallback
                             self._apply_download_limit_to_state(state)
                             continue
                         else:
                             log.info(f"研究阶段未发现具体下载目标，执行默认的下载任务作为兜底。") 
 
-                    download_method = "huggingface"
-                    hf_keywords = []
-                    fallback_method = "web_crawl"
-                    
+                    if task_type == "research":
+                        await self.web_research_agent.execute(
+                            state,
+                            context=context,
+                            logger=self.logger,
+                            objective=task_objective,
+                            search_keywords=search_keywords,
+                        )
+                        new_download_tasks = state.research_summary.get("new_sub_tasks", []) or []
+                        if new_download_tasks:
+                            log.info(f"[Research] 添加 {len(new_download_tasks)} 个新下载子任务，并移除默认兜底任务。")
+                            remaining_after_fallback: List[Dict[str, Any]] = []
+                            removed = False
+                            for task in state.sub_tasks:
+                                if not removed and task.get("type") == "download":
+                                    removed = True
+                                    continue
+                                remaining_after_fallback.append(task)
+                            state.sub_tasks = new_download_tasks + remaining_after_fallback
+                            state.research_summary["new_sub_tasks"] = []
+                        current_task["status"] = "completed"
+                        self._apply_download_limit_to_state(state)
+                        state.completed_sub_tasks.append(current_task)
+                        log.info(f"子任务 [{task_type.upper()}] 完成。状态: {current_task.get('status', 'completed')}")
+                        continue
+
+                    download_success = False
+                    abort_download_task = False
+
                     if task_type == "download":
                         log.info("正在获取 HuggingFace 搜索关键词（默认优先HF）...")
                         decision = await self.download_decision_agent.execute(
                             state, self.logger, task_objective, search_keywords
                         )
-                        # 只用于提取关键词，策略固定为先HF后Web
-                        hf_keywords = decision.get("keywords_for_hf", [])
+                        hf_keywords = decision.get("keywords_for_hf", []) or []
                         if not hf_keywords:
-                            # 回退：从当前任务关键词/目标生成
                             if isinstance(search_keywords, (list, tuple)):
-                                hf_keywords = [kw for kw in search_keywords if isinstance(kw, str) and kw.strip()] or [task_objective]
+                                hf_keywords = [
+                                    kw
+                                    for kw in search_keywords
+                                    if isinstance(kw, str) and kw.strip()
+                                ] or [task_objective]
                             else:
-                                hf_keywords = [search_keywords] if isinstance(search_keywords, str) and search_keywords.strip() else [task_objective]
-                        log.info(f"HuggingFace搜索关键词: {hf_keywords}")
-
-                    download_success = False
-                    abort_download_task = False
-                    
-                    # 始终先尝试 HuggingFace："搜索 -> 决策 -> 下载"
-                    if task_type == "download":
-                        log.info("优先尝试使用 HuggingFace 方法下载...")
-                        selected_id = None
-                        hf_search_results = {}
-                        try:
-                            # 1. Search
-                            log.info(f"[HuggingFace] 正在搜索关键词: {hf_keywords}")
-                            hf_search_results = await self.hf_manager.search_datasets(hf_keywords, max_results=5)
-                            
-                            # 2. Decide
-                            selected_id = await self.hf_decision_agent.execute(
-                                hf_search_results, task_objective, self.logger, 
-                                message=getattr(state, "user_message", ""),
-                                max_dataset_size=self.max_dataset_size
-                            )
-                            
-                            # 3. 读取数据集详情（如果选择了数据集）
-                            detail_result = None
-                            if selected_id:
-                                log.info(f"[HuggingFace] 已选择数据集: {selected_id}，开始读取详细信息...")
-                                try:
-                                    # 获取数据集基本信息
-                                    dataset_info = {}
-                                    for res_list in hf_search_results.values():
-                                        for d in res_list:
-                                            if d['id'] == selected_id:
-                                                dataset_info = d
-                                                break
-                                    
-                                    if not dataset_info:
-                                        log.info(f"[HuggingFace] 警告: 未找到数据集 {selected_id} 的详细信息")
-                                        dataset_info = {"id": selected_id}
-                                    
-                                    # 使用详情读取器分析数据集
-                                    log.info(f"[HuggingFace] 调用详情读取器分析数据集...")
-                                    detail_result = await self.dataset_detail_reader.execute(
-                                        dataset_id=selected_id,
-                                        dataset_type="huggingface",
-                                        dataset_info=dataset_info,
-                                        logger=self.logger,
-                                        max_dataset_size=self.max_dataset_size
-                                    )
-                                    
-                                    # 检查是否满足大小限制
-                                    if self.max_dataset_size:
-                                        log.info(f"[HuggingFace] 检查大小限制: 最大允许 {self.max_dataset_size} 字节")
-                                        if detail_result and not detail_result.get("meets_size_limit", True):
-                                            log.info(f"[HuggingFace] 数据集 {selected_id} 超过大小限制 ({self.max_dataset_size} 字节)，终止该下载子任务")
-                                            abort_download_task = True
-                                            selected_id = None
-                                        elif detail_result:
-                                            dataset_size = detail_result.get("size_bytes")
-                                            if dataset_size:
-                                                log.info(f"[HuggingFace] 数据集大小: {dataset_size} 字节，符合限制")
-                                            else:
-                                                log.info(f"[HuggingFace] 警告: 无法获取数据集大小，默认允许下载")
-                                    else:
-                                        log.info(f"[HuggingFace] 未设置大小限制，继续下载")
-                                except Exception as detail_e:
-                                    log.info(f"[HuggingFace] 读取数据集详情时出错: {detail_e}")
-                                    import traceback
-                                    traceback.print_exc()
-                                    # 如果详情读取失败，但设置了大小限制，为了安全起见，跳过下载
-                                    if self.max_dataset_size:
-                                        log.info(f"[HuggingFace] 由于无法验证大小且设置了限制，终止该下载子任务")
-                                        abort_download_task = True
-                                        selected_id = None
-                            
-                            # 4. Download
-                            if selected_id:
-                                hf_download_dir = os.path.join(state.download_dir, "hF_datasets")
-                                save_path = await self.hf_manager.download_dataset(selected_id, hf_download_dir)
-                                
-                                if save_path:
-                                    # 记录下载的数据集信息
-                                    dataset_info = {}
-                                    for res_list in hf_search_results.values():
-                                        for d in res_list:
-                                            if d['id'] == selected_id:
-                                                dataset_info = d
-                                                break
-                                    
-                                    state.crawled_data.append({
-                                        "source_url": f"https://huggingface.co/datasets/{selected_id}",
-                                        "local_path": save_path, 
-                                        "type": "huggingface_dataset",
-                                        "dataset_id": selected_id,
-                                        "dataset_info": dataset_info,
-                                        "detail_analysis": detail_result
-                                    })
-                                    log.info(f"[HuggingFace] 数据集下载成功: {selected_id}")
-                                    download_success = True
+                                if isinstance(search_keywords, str) and search_keywords.strip():
+                                    hf_keywords = [search_keywords]
                                 else:
-                                    log.info(f"[HuggingFace] LLM选择的数据集 {selected_id} 下载失败。")
-                            
-                        except Exception as e:
-                            log.info(f"[HuggingFace] HF下载流程发生意外错误: {e}")
-                            download_success = False
-                        if download_success:
-                            state.download_successful_for_current_task = True
+                                    hf_keywords = [task_objective]
 
-                    # 若 HF 未成功，尝试 Kaggle（但如果因大小限制已中止，则不再尝试）
-                    if task_type == "download" and not state.download_successful_for_current_task and not abort_download_task:
-                        try:
-                            log.info("尝试使用 Kaggle 源下载...")
-                            # 1. Search (返回详细信息)
-                            kaggle_search_results = await self.kaggle_manager.search_datasets(hf_keywords or [task_objective], max_results=5)
-                            
-                            if kaggle_search_results:
-                                # 2. Decide (使用模型选择)
-                                selected_kaggle_id = await self.kaggle_decision_agent.execute(
-                                    kaggle_search_results, task_objective, self.logger,
-                                    message=getattr(state, "user_message", ""),
-                                    max_dataset_size=self.max_dataset_size
-                                )
-                                
-                                if selected_kaggle_id:
-                                    # 3. 读取数据集详情
-                                    kaggle_dataset_info = {}
-                                    for res_list in kaggle_search_results.values():
-                                        for d in res_list:
-                                            if d['id'] == selected_kaggle_id:
-                                                kaggle_dataset_info = d
-                                                break
-                                    
-                                    # 使用详情读取器分析数据集
-                                    kaggle_detail_result = await self.dataset_detail_reader.execute(
-                                        dataset_id=selected_kaggle_id,
-                                        dataset_type="kaggle",
-                                        dataset_info=kaggle_dataset_info,
-                                        logger=self.logger,
-                                        max_dataset_size=self.max_dataset_size
-                                    )
-                                    
-                                    # 检查是否满足大小限制
-                                    if self.max_dataset_size and kaggle_detail_result and not kaggle_detail_result.get("meets_size_limit", True):
-                                        log.info(f"[Kaggle] 数据集 {selected_kaggle_id} 超过大小限制 ({self.max_dataset_size} 字节)，跳过下载")
-                                    else:
-                                        # 4. Download
-                                        dl_page = await context.new_page()
-                                        try:
-                                            save_dir = os.path.join(state.download_dir, "kaggle_datasets")
-                                            saved = await self.kaggle_manager.try_download(dl_page, selected_kaggle_id, save_dir)
-                                            if saved:
-                                                state.crawled_data.append({
-                                                    "source_url": f"https://www.kaggle.com/datasets/{selected_kaggle_id}",
-                                                    "local_path": saved,
-                                                    "type": "kaggle_dataset",
-                                                    "dataset_id": selected_kaggle_id,
-                                                    "dataset_info": kaggle_dataset_info,
-                                                    "detail_analysis": kaggle_detail_result
-                                                })
-                                                log.info(f"[Kaggle] 下载成功: {saved}")
-                                                state.download_successful_for_current_task = True
-                                        finally:
-                                            await dl_page.close()
-                                else:
-                                    log.info("[Kaggle] 模型未选择任何数据集。")
-                            else:
-                                log.info("[Kaggle] 未找到候选数据集。")
-                        except Exception as e:
-                            log.info(f"[Kaggle] 下载流程发生意外错误: {e}")
+                        state.download_successful_for_current_task = False
+                        manager_outcome = await self.download_manager.execute(
+                            state,
+                            context=context,
+                            task_objective=task_objective,
+                            search_keywords=search_keywords,
+                            hf_keywords=hf_keywords,
+                        )
+                        download_success = manager_outcome.success
+                        abort_download_task = manager_outcome.abort_due_to_size
+                        state.download_successful_for_current_task = download_success
 
-                    # 若 Kaggle 未成功，尝试 Paddle（已注释）
-                    # if task_type == "download" and not state.download_successful_for_current_task:
-                    #     try:
-                    #         log.info("尝试使用 Paddle 源下载...")
-                    #         paddle_urls = await self.paddle_manager.search_datasets(hf_keywords or [task_objective], max_results=5)
-                    #         if paddle_urls:
-                    #             dl_page = await context.new_page()
-                    #             try:
-                    #                 for ds_url in paddle_urls:
-                    #                     log.info(f"[Paddle] 候选: {ds_url}")
-                    #                     save_dir = os.path.join(state.download_dir, "paddle_datasets")
-                    #                     saved = await self.paddle_manager.try_download(dl_page, ds_url, save_dir)
-                    #                     if saved:
-                    #                         state.crawled_data.append({
-                    #                             "source_url": ds_url,
-                    #                             "local_path": saved,
-                    #                             "type": "paddle_dataset"
-                    #                         })
-                    #                         log.info(f"[Paddle] 下载成功: {saved}")
-                    #                         state.download_successful_for_current_task = True
-                    #                         break
-                    #             finally:
-                    #                 await dl_page.close()
-                    #         else:
-                    #             log.info("[Paddle] 未找到候选数据集。")
-                    #     except Exception as e:
-                    #         log.info(f"[Paddle] 下载流程发生意外错误: {e}")
-                    
                     # --- Web Crawl Logic ---
-                    if task_type == "research" or (task_type == "download" and not state.download_successful_for_current_task):
-                        
-                        is_research_phase = (task_type == "research")
-                        
+                    if (
+                        task_type == "download"
+                        and not download_success
+                        and not abort_download_task
+                    ): 
                         log.info(f"使用关键词进行搜索: '{search_keywords}'")
-                        # 防御：关键词可能为列表
-                        query_kw = ", ".join(search_keywords) if isinstance(search_keywords, (list, tuple)) else search_keywords
-                        # [--- 使用 state 中的搜索引擎配置 ---]
-                        search_results = await ToolManager.search_web(query_kw, search_engine=state.search_engine)
+                        query_kw = (
+                            ", ".join(search_keywords)
+                            if isinstance(search_keywords, (list, tuple))
+                            else search_keywords
+                        )
+                        search_results = await ToolManager.search_web(
+                            query_kw, search_engine=state.search_engine
+                        )
                         state.search_results_text = search_results
-                        self.logger.log_data(f"2_search_results_{task_objective.replace(' ', '_')}", search_results)
+                        self.logger.log_data(
+                            f"2_search_results_{task_objective.replace(' ', '_')}",
+                            search_results,
+                        )
 
-                        # Research 阶段：直接从搜索结果中提取 URL 入队，跳过 URL 筛选
-                        if is_research_phase:
-                            try:
-                                direct_urls = ToolManager._extract_urls_from_markdown(search_results) if search_results else []
-                                # 防止过多：保留前 30 个即可
-                                direct_urls = direct_urls[:30]
-                                state.filtered_urls = direct_urls
-                                for u in direct_urls:
-                                    if u not in state.visited_urls and u not in state.url_queue:
-                                        state.url_queue.append(u)
-                                self.logger.log_data("3_url_extracted_directly_for_research", {
-                                    "count": len(direct_urls),
-                                    "urls": direct_urls
-                                }, is_json=True)
-                                log.info(f"Research阶段：已直接加入 {len(direct_urls)} 个URL到待爬取队列（跳过筛选）。")
-                            except Exception as e:
-                                log.info(f"Research阶段直接提取URL时出错: {e}")
-                        else:
-                            state = await self.url_filter.execute(state, logger=self.logger, is_research=is_research_phase)
+                        state = await self.url_filter.execute(
+                            state, logger=self.logger, is_research=False
+                        )
 
-                        max_cycles = state.max_crawl_cycles_for_research if is_research_phase else state.max_crawl_cycles_per_task
-                        
+                        max_cycles = state.max_crawl_cycles_per_task
+
                         while state.url_queue and state.current_cycle < max_cycles:
-                            # 获取一批URL进行并行处理
-                            batch_urls = []
-                            while len(batch_urls) < self.concurrent_pages and state.url_queue:
+                            batch_urls: List[str] = []
+                            while (
+                                len(batch_urls) < self.concurrent_pages and state.url_queue
+                            ):
                                 current_url = state.url_queue.pop(0)
                                 if current_url not in state.visited_urls:
                                     batch_urls.append(current_url)
                                     state.visited_urls.add(current_url)
-                            
+
                             if not batch_urls:
                                 break
-                            
+
                             log.info(f"\n[并行处理] 开始处理 {len(batch_urls)} 个网页...")
-                            
-                            # 并行处理这批URL
+
                             results = await self._process_urls_parallel(
-                                context, batch_urls, state, task_objective, 
-                                task_type, is_research_phase
+                                context,
+                                batch_urls,
+                                state,
+                                task_objective,
+                                task_type,
+                                False,
                             )
                             for result in results:
-                                if result['success']:
-                                    crawled_entry = result.get('crawled_entry')
+                                if result["success"]:
+                                    crawled_entry = result.get("crawled_entry")
                                     if crawled_entry:
-                                        if 'multiple_entries' in crawled_entry:
-                                            state.crawled_data.extend(crawled_entry['multiple_entries'])
+                                        if "multiple_entries" in crawled_entry:
+                                            state.crawled_data.extend(
+                                                crawled_entry["multiple_entries"]
+                                            )
                                         else:
                                             state.crawled_data.append(crawled_entry)
 
-                                    for new_url in result.get('new_urls', []):
-                                        if new_url not in state.visited_urls and new_url not in state.url_queue:
+                                    for new_url in result.get("new_urls", []):
+                                        if (
+                                            new_url not in state.visited_urls
+                                            and new_url not in state.url_queue
+                                        ):
                                             state.url_queue.append(new_url)
-                                    if result.get('download_successful'):
+                                    if result.get("download_successful"):
                                         state.download_successful_for_current_task = True
-                            
-                            state = await self.supervisor.execute(state, self.logger, current_objective=task_objective, is_research=is_research_phase)
+
+                            state = await self.supervisor.execute(
+                                state,
+                                self.logger,
+                                current_objective=task_objective,
+                                is_research=False,
+                            )
                             if state.download_successful_for_current_task:
-                                log.info(f"子任务 '{task_objective}' 的下载目标已完成，提前结束爬取循环。")
-                                break
-                            log.info(f"[并行处理] 批次完成，剩余 {len(state.url_queue)} 个URL待处理")
-                    # 已经先尝试过 HuggingFace，这里不再二次回退到 HF
-                    
-                    if task_type == "research":
-                        state = await self.summary_agent.execute(state, self.logger, research_objective=task_objective, query_generator=self.query_generator)
-                        # 研究阶段完成后，对新生成的下载子任务统一做一次筛选去重
-                        try:
-                            new_tasks = state.research_summary.get("new_sub_tasks", []) if hasattr(state, "research_summary") else []
-                            if new_tasks:
-                                refined = await self.subtask_refiner.execute(
-                                    message=getattr(state, "user_message", ""),
-                                    sub_tasks=new_tasks,
-                                    logger=self.logger
+                                log.info(
+                                    f"子任务 '{task_objective}' 的下载目标已完成，提前结束爬取循环。"
                                 )
-                                state.research_summary["new_sub_tasks"] = refined
-                                self._apply_download_limit_to_state(state)
-                                log.info(f"[Research] 子任务精炼完成：{len(new_tasks)} -> {len(refined)}")
-                        except Exception as e:
-                            log.info(f"[Research] 子任务精炼失败: {e}")
+                                break
+                            log.info(
+                                f"[并行处理] 批次完成，剩余 {len(state.url_queue)} 个URL待处理"
+                            )
                     
                     if task_type == "download":
                         if state.download_successful_for_current_task:

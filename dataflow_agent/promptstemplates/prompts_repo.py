@@ -1066,73 +1066,86 @@ class DataConvertor:
 You are an expert in dataset classification and analysis.
 """
     task_prompt_for_data_conversion_pt = """
-You are given a dataset from HuggingFace. Your task is to identify the most appropriate column for language model pretraining from the dataset.
+You are given a dataset from HuggingFace. Your task is to identify the most appropriate field (column or nested path) for language model pretraining.
 
 [User Requirements]
-
 User's original request: {user_target}
 
 [Dataset Information]
-
 Dataset Columns: {column_names}
-
 Sample Data: {first_row}
 
 [Instruction]
+1. **Relevance**: Determine whether the dataset content aligns with {user_target}. As long as the topic/semantics match, treat it as relevant—even if task types differ. Only output null when the sample clearly has nothing to do with the requested domain.
+2. **Read the Values, Not Just Names**: Inspect the actual sample content. Ignore misleading field names; pick the field whose values truly contain long-form text useful for pretraining.
+3. **Support Nested Structures**: If the textual content lives inside lists or dictionaries, return a path using dot/bracket notation (e.g., `posts[*].body`, `metadata.description`, `paragraphs[0]`).
+4. **Prefer Real Text**: If multiple candidates exist, choose the one with the richest natural-language content. Lists of strings are acceptable; numeric-only fields should only be picked when no textual option exists.
+5. **Avoid Unnecessary null**: Only output null when there is genuinely no suitable textual field. If a field looks usable (even if short, structured, or slightly noisy), return its path.
 
-1. **Check Dataset Relevance**: Determine whether the dataset content is related to the user's domain or intent described in ({user_target}). As long as the dataset belongs to the same domain/topic (for example, finance-related data for a finance request), treat it as relevant even if its task type (classification, sentiment analysis, etc.) differs from the user's exact wording. Only return null when the dataset is clearly unrelated to the requested domain.
+[Few-shot Examples]
+Example 1 (should pick nested list):
+Columns: ["articles"]
+Sample: {"articles": [{"title": "Top 10 tips", "body": "Write clearly..."}]}
+Answer: {"text": "articles[*].body"}
 
-2. **Identify Text Column**: For relevant datasets, choose the column that contains textual content suitable for pretraining. Classification or sentiment datasets are acceptable—pick the column with coherent text (sentences, descriptions, comments, etc.) even if it is short or paired with labels.
+Example 2 (numeric only → null):
+Columns: ["values"]
+Sample: {"values": [1.2, 3.4]}
+Answer: {"text": null}
 
-3. **Do Not Over-Filter**: Do not reject a dataset merely because it lacks question-answer pairs or instructional dialogue. Whenever there is domain-aligned textual content, return the column name.
+Example 3 (mixed content → choose actual text):
+Columns: ["meta", "content"]
+Sample: {"meta": {"notes": "draft"}, "content": "Detailed policy analysis"}
+Answer: {"text": "content"}
 
-[OUTPUT RULES]
-
-If the dataset is relevant AND contains a column with textual content that could be used for pretraining, return the following JSON object in ```json block and replace "column_name" with the actual column name:
+[OUTPUT]
+Return a JSON object in ```json block:
 {
-    "text": "column_name"
+  "text": "field_path"
 }
-
-If the dataset is NOT relevant to user requirements OR no such column is present, return the following JSON object in ```json block:
-{
-    "text": null
-}
+If truly no textual field exists, return {"text": null}.
 """
     task_prompt_for_data_conversion_sft = """
-You are given a dataset from HuggingFace. Your task is to identify two columns that can be used to create instruction tuning data for a language model.
+You are given a dataset from HuggingFace. Your task is to identify two fields that form a question-answer pair for instruction tuning. Fields can be top-level columns or nested structures.
 
 [User Requirements]
-
 User's original request: {user_target}
 
 [Dataset Information]
-
 Dataset Columns: {column_names}
-
 Sample Data: {first_row}
 
 [Instruction]
+1. **Relevance**: Confirm the dataset relates to {user_target}. Only return null/null when the dataset is clearly off-topic.
+2. **Read Actual Values**: Examine the sample content carefully—do not rely solely on field names. Pick the fields whose values actually represent questions/instructions and answers/responses, even if the names differ.
+3. **Nested Paths**: When data is nested, return paths using dot/bracket notation (e.g., `items[*].question`, `dialogues[*].turns[0].text`). Lists of strings, numbers, or dictionaries are acceptable; the downstream system will handle serialization.
+4. **Avoid Unnecessary null**: If only one side is obvious and the other is ambiguous but still usable (e.g., list of answers, numeric outputs), return the corresponding path rather than null. Only set a field to null when there is genuinely no meaningful content for that side.
+5. **Graceful Degradation with Explanation**: If you can only find one field that is suitable, and the other field is truly missing, then set the missing field to null and add a `reason` field to explain why it's missing. For example, if you find a field that contains answers but not questions, you might return `"reason": "question field missing in sample"` in the JSON response.
 
-1. **Check Dataset Relevance**: First, determine if this dataset is relevant to the user's requirements ({user_target}). If the dataset content does not match the user's domain or intent, you should return null for both fields.
+[Few-shot Examples]
+Example A (classic QA list):
+Columns: ["qa_pairs"]
+Sample: {"qa_pairs": [{"q": "Who?", "a": "Alice"}]}
+Answer: {"question": "qa_pairs[*].q", "answer": "qa_pairs[*].a", "reason": null}
 
-2. **Identify Q&A Columns**: If the dataset is relevant, instruction tuning data typically consists of a question (instruction) and an answer pair. The question column contains the instruction or prompt, and the answer column contains the corresponding response.
-From the given dataset, select two columns to form a question-answer pair. Ensure the following requirements are met:
-   - Semantic Relevance: The selected columns should have clear semantic relevance, forming a logical question-answer relationship.
-   - Non-Empty Content: The selected columns must contain non-empty content and meaningful information.
-   - Different Columns: The question and answer columns must be from different fields.
+Example B (answers in list of strings):
+Columns: ["prompts", "solutions"]
+Sample: {"prompts": ["Solve..."], "solutions": [["x=2", "Check"]]}
+Answer: {"question": "prompts[*]", "answer": "solutions[*]", "reason": null}
 
-[OUTPUT RULES]
+Example C (only questions, explain null):
+Columns: ["queries"]
+Sample: {"queries": ["Explain GDP?"]}
+Answer: {"question": "queries[*]", "answer": null, "reason": "answers not present in sample"}
 
-If the dataset is relevant AND such columns exist, return the following JSON object in ```json block and replace "column_name" with the actual column name:
+[OUTPUT]
+Return JSON in ```json block:
 {
-    "question": "column_name",
-    "answer": "column_name"
+  "question": "question_path",
+  "answer": "answer_path",
+  "reason": null or "text explanation when any field is null"
 }
-If the dataset is NOT relevant to user requirements OR no such columns are found in the dataset, return the following JSON object in ```json block:
-{
-    "question": null,
-    "answer": null
-}
+If only one side exists, set the other to null and provide a concise explanation in `reason`. If the dataset is irrelevant to the request, return {"question": null, "answer": null, "reason": "dataset irrelevant"}.
 """
     system_prompt_for_file_discovery = """
 You are an expert data engineer. Your task is to analyze a file list from a directory and identify which files contain the actual data (e.g., text, tables, instructions).

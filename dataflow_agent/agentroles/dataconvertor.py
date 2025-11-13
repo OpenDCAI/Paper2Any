@@ -206,6 +206,83 @@ class DataConvertor:
         log.info(f"从数据集中随机采样了 {len(sampled_records)} 条记录（共 {dataset_size} 条）")
         return sampled_records
 
+    FIELD_TOKEN_PATTERN = re.compile(r"([^\[\]]+)(?:\[(.*?)\])?")
+
+    def _field_exists_in_columns(self, field_spec: Optional[str], column_names: List[str]) -> bool:
+        if not field_spec:
+            return False
+        token = field_spec.split(".")[0]
+        token = token.split("[")[0]
+        return token in column_names
+
+    def _normalize_field_value(self, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value
+        if isinstance(value, (int, float)):
+            return str(value)
+        try:
+            return json.dumps(value, ensure_ascii=False)
+        except Exception:
+            return str(value)
+
+    def _traverse_field_tokens(self, current: Any, tokens: List[str]) -> List[Any]:
+        if current is None:
+            return []
+        if not tokens:
+            if isinstance(current, list):
+                results: List[Any] = []
+                for item in current:
+                    results.extend(self._traverse_field_tokens(item, []))
+                return results
+            return [current]
+
+        token = tokens[0]
+        match = self.FIELD_TOKEN_PATTERN.match(token)
+        if not match:
+            return []
+        name, index = match.group(1), match.group(2)
+
+        if isinstance(current, dict):
+            next_value = current.get(name)
+        else:
+            return []
+
+        if index is None or index == "":
+            return self._traverse_field_tokens(next_value, tokens[1:])
+
+        if not isinstance(next_value, list):
+            return []
+
+        results: List[Any] = []
+        if index == "*" or index.lower() == "all":
+            for item in next_value:
+                results.extend(self._traverse_field_tokens(item, tokens[1:]))
+        else:
+            try:
+                idx = int(index)
+                if 0 <= idx < len(next_value):
+                    results.extend(self._traverse_field_tokens(next_value[idx], tokens[1:]))
+            except ValueError:
+                return []
+        return results
+
+    def _extract_field_values(self, row: Dict[str, Any], field_spec: Optional[str]) -> List[str]:
+        if not field_spec:
+            return []
+        field_spec = field_spec.strip()
+        if not field_spec:
+            return []
+        tokens = field_spec.split(".")
+        raw_values = self._traverse_field_tokens(row, tokens)
+        normalized: List[str] = []
+        for value in raw_values:
+            normalized_value = self._normalize_field_value(value)
+            if normalized_value is not None:
+                normalized.append(normalized_value)
+        return normalized
+
     def build_messages(self, state: DataCollectionState, column_names: List[str], sample_record: Dict[str, Any], dataset: Any = None) -> List[BaseMessage]:
         """(数据映射) 构建消息列表"""
         log.info("构建(数据映射)提示词消息...")
@@ -1203,35 +1280,58 @@ class UniversalDataConvertor(DataConvertor):
             try:
                 if category == 'PT':
                     text_field = annotation_result.get('text') if annotation_result else None
-                    if not text_field or text_field not in column_names:
-                        log.warning(f"未在 {file_name} ({split_name}) 中找到有效的 'text' 字段 (来自 LLM: {annotation_result})，跳过。")
+                    if text_field and not self._field_exists_in_columns(text_field, column_names):
+                        log.warning(
+                            f"未在 {file_name} ({split_name}) 中找到有效的文本字段 (来自 LLM: {annotation_result})，跳过。"
+                        )
                         continue
-                    
+
                     for row in data_content:
-                        text = row.get(text_field)
-                        if text and isinstance(text, str):
-                            json.dump({'text': text}, f_out, ensure_ascii=False)
-                            f_out.write('\n')
-                            split_record_count += 1
-                            current_chunk_count += 1
-                            if current_chunk_count >= chunk_size:
-                                f_out.close()
-                                current_chunk_index += 1
-                                current_chunk_count = 0
-                                f_out = _open_chunk_file(current_chunk_index)
+                        text_values = self._extract_field_values(row, text_field)
+                        if not text_values:
+                            continue
+                        for text in text_values:
+                            if text:
+                                json.dump({'text': text}, f_out, ensure_ascii=False)
+                                f_out.write('\n')
+                                split_record_count += 1
+                                current_chunk_count += 1
+                                if current_chunk_count >= chunk_size:
+                                    f_out.close()
+                                    current_chunk_index += 1
+                                    current_chunk_count = 0
+                                    f_out = _open_chunk_file(current_chunk_index)
                             
                 elif category == 'SFT':
-                    q_field = annotation_result.get('question')
-                    a_field = annotation_result.get('answer')
-                    
-                    if not q_field or q_field not in column_names or not a_field or a_field not in column_names:
-                        log.warning(f"未在 {file_name} ({split_name}) 中找到有效的 'question'/'answer' 字段 (来自 LLM: {q_field}, {a_field})，跳过。")
-                        continue
-                    
+                    q_field = annotation_result.get('question') if annotation_result else None
+                    a_field = annotation_result.get('answer') if annotation_result else None
+
+                    if q_field and not self._field_exists_in_columns(q_field, column_names):
+                        log.warning(
+                            f"未在 {file_name} ({split_name}) 中找到有效的 'question' 字段 (来自 LLM: {q_field})，将其置为 null。"
+                        )
+                        q_field = None
+                    if a_field and not self._field_exists_in_columns(a_field, column_names):
+                        log.warning(
+                            f"未在 {file_name} ({split_name}) 中找到有效的 'answer' 字段 (来自 LLM: {a_field})，将其置为 null。"
+                        )
+                        a_field = None
+
                     for row in data_content:
-                        question = row.get(q_field)
-                        answer = row.get(a_field)
-                        if question and isinstance(question, str) and answer and isinstance(answer, str):
+                        questions = self._extract_field_values(row, q_field) if q_field else []
+                        answers = self._extract_field_values(row, a_field) if a_field else []
+
+                        if not questions and not answers:
+                            continue
+
+                        max_pairs = max(len(questions), len(answers), 1)
+                        for idx in range(max_pairs):
+                            question = questions[idx] if idx < len(questions) else None
+                            answer = answers[idx] if idx < len(answers) else None
+
+                            if question is None and answer is None:
+                                continue
+
                             json.dump({'question': question, 'answer': answer}, f_out, ensure_ascii=False)
                             f_out.write('\n')
                             split_record_count += 1

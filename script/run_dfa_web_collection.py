@@ -124,8 +124,8 @@ async def main() -> None:
     )
     
     if not req.api_key:
-        print("错误: 请设置 DF_API_KEY 环境变量！")
-        print("示例: export DF_API_KEY=your_api_key")
+        print("错误: 请设置 CHAT_API_KEY 环境变量！")
+        print("示例: export CHAT_API_KEY=your_api_key")
         return
     
     print("\n" + "=" * 60)
@@ -153,7 +153,7 @@ async def main() -> None:
     # 构建 LangGraph 工作流
     graph_builder = StateGraph(DataCollectionState)
     
-    # 添加节点
+    # 添加节点子图
     graph_builder.add_node("web_crawl_collection", web_crawl_collection)
     graph_builder.add_node("universal_data_conversion", universal_data_conversion)
     
