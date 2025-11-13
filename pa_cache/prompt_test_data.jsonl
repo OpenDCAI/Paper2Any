@@ -1,0 +1,10 @@
+{"id": 1, "math_problem": "Calculate the sum of 123 and 456.", "golden_answer": true}
+{"id": 2, "math_problem": "What is the capital of France?", "golden_answer": false}
+{"id": 3, "math_problem": "Solve for x: 2x + 3 = 7.", "golden_answer": true}
+{"id": 4, "math_problem": "Is the Earth flat?", "golden_answer": false}
+{"id": 5, "math_problem": "What is the result of 9 multiplied by 8?", "golden_answer": true}
+{"id": 6, "math_problem": "Explain the theory of relativity.", "golden_answer": false}
+{"id": 7, "math_problem": "If a train travels at 60 mph for 2 hours, how far does it travel?", "golden_answer": true}
+{"id": 8, "math_problem": "What is the meaning of life?", "golden_answer": false}
+{"id": 9, "math_problem": "Convert 100 degrees Celsius to Fahrenheit.", "golden_answer": true}
+{"id": 10, "math_problem": "Describe the process of photosynthesis.", "golden_answer": false}

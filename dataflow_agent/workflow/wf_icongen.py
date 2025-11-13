@@ -73,7 +73,7 @@ def create_icongen_graph() -> GenericGraphBuilder:  # noqa: N802
         图标提示词生成器节点
         """
         from dataflow_agent.agentroles import create_agent  # 延迟导入以避免循环依赖
-        icon_prompt_generator = create_agent("icon_prompt_generator", tool_manager=get_tool_manager())
+        icon_prompt_generator = create_agent("icon_prompt_generator", model_name = "gpt-4o")
         state = await icon_prompt_generator.execute(state, use_agent=False)
         return state
 
@@ -123,7 +123,7 @@ def create_icongen_graph() -> GenericGraphBuilder:  # noqa: N802
         try:
             output_path = local_tool_for_bg_remove({
                 "image_path": image_to_process,
-                "model_path": 'dataflow_agent/toolkits/imtool/models/RMBG-2.0/onnx/model.onnx',
+                "model_path": os.getenv("RM_MODEL_PATH"),
                 "output_dir": "./"
             })
             if output_path:
