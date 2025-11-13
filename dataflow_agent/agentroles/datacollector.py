@@ -1007,6 +1007,10 @@ class WebCrawlOrchestrator:
         self.api_base_url = api_base_url
         self.api_key = api_key
         self.model_name = model_name
+        if isinstance(download_dir, str) and download_dir.startswith("\\\\?\\"):
+            cleaned_download_dir = download_dir[4:]
+            log.info(f"[Orchestrator] 检测到下载目录存在 '\\\\?\\' 前缀，已自动移除: {cleaned_download_dir}")
+            download_dir = cleaned_download_dir
         self.download_dir = download_dir
         self.max_crawl_cycles_per_task = max_crawl_cycles_per_task
         self.max_crawl_cycles_for_research = max_crawl_cycles_for_research
