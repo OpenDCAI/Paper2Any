@@ -14,22 +14,22 @@ import json
 from dataclasses import Field
 from pydantic import BaseModel
 from dataflow_agent.state import xxState
-from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
+from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register
-from dataflow_agent.agentroles import create_agent
+from dataflow_agent.agentroles import get_agent_cls, create_agent
 
 from dataflow_agent.toolkits.tool_manager import get_tool_manager
 from langchain.tools import tool
 from langgraph.graph import StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
-from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
+from dataflow_agent.graghbuilder.gragh_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 
 log = get_logger(__name__)
 
 @register("{{ wf_name }}")
-def create_{{ wf_name_snake }}_graph() -> GenericGraphBuilder:
+def create_{{ wf_name_snake }}_graph() -> GenericGraphBuilder:  # noqa: N802
     """
     Workflow factory: dfa run --wf {{ wf_name }}
     """
@@ -75,7 +75,6 @@ def create_{{ wf_name_snake }}_graph() -> GenericGraphBuilder:
             parser_config: 解析器配置字典（如XML的root_tag）
             use_vlm: 是否使用视觉语言模型，使用了视觉模型，其余的参数失效；
             vlm_config: VLM配置字典
-            use_agent: 是否使用agent模式
             **kwargs: 其他传递给init的参数
         """
         # 创建agent实例
@@ -88,11 +87,10 @@ def create_{{ wf_name_snake }}_graph() -> GenericGraphBuilder:
             react_mode=True,         # 启用ReAct推理
             react_max_retries=3,     # 最大重试次数
             parser_type="json",     # 解析器类型
-            use_agent=True           # 使用agent模式
         )
         
-        # 执行agent
-        state = await agent.execute(state=state, use_agent=True)
+        # 执行agent             use_agent: 是否使用agent模式
+        state = await agent.execute(state=state, use_agent=False)
         return state
 
     async def step2(state: xxState) -> xxState:
