@@ -32,10 +32,7 @@ def create_agent(name: str, tool_manager=get_tool_manager(), **kwargs):
         parser_type: 解析器类型 ("json", "xml", "text")，这个允许你在提示词中定义LLM不同的返回，xml还是json，还是直出；
         parser_config: 解析器配置字典（如XML的root_tag）
         use_vlm: 是否使用视觉语言模型，使用了视觉模型，其余的参数失效；
-        vlm_config: VLM配置字典
-        use_agent: 是否使用agent模式
-        **kwargs: 其他传递给execute的参数
-    
+        vlm_config: VLM配置字典    
     Returns:
         Agent: 代理角色实例
     """

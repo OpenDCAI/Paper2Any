@@ -10,6 +10,7 @@ from dataflow_agent.logger import get_logger
 
 from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
 from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove
+from dataflow_agent.utils import get_project_root
 
 log = get_logger(__name__)
 
@@ -141,7 +142,7 @@ def create_icongen_refine_loop_graph() -> GenericGraphBuilder:
         try:
             out_path = local_tool_for_bg_remove({
                 "image_path": src,
-                "model_path": "dataflow_agent/toolkits/imtool/models/RMBG-2.0/onnx/model.onnx",         # 允许 bg_tool 内部走默认
+                "model_path": f"{get_project_root()}/dataflow_agent/toolkits/imtool/models/RMBG-2.0/onnx/model.onnx",         # 允许 bg_tool 内部走默认
                 "output_dir": "./"
             })
         except Exception as e:
