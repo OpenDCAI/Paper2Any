@@ -2,6 +2,7 @@ import click
 from pathlib import Path
 from datetime import datetime
 from jinja2 import Template
+from typing import Optional
 from dataflow_agent.logger import get_logger
 log = get_logger(__name__)
 TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -30,12 +31,12 @@ def cli():
 @click.option("--prompt_name",  help="要创建的 prompt template 名称")
 @click.option("--agent_as_tool_name", help="要创建的 agent-as-tool 名称")
 @click.option("--state_name",   help="要创建的 state 名称")
-def create_artifact(wf_name: str | None,
-                    agent_name: str | None,
-                    gradio_name: str | None,
-                    prompt_name: str | None,
-                    agent_as_tool_name: str | None,
-                    state_name: str | None):
+def create_artifact(wf_name: Optional[str] = None,
+                    agent_name: Optional[str] = None,
+                    gradio_name: Optional[str] = None,
+                    prompt_name: Optional[str] = None,
+                    agent_as_tool_name: Optional[str] = None,
+                    state_name: Optional[str] = None):
     """
     dfa create --wf_name xxx
     dfa create --agent_name yyy
