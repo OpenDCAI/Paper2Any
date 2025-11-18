@@ -407,13 +407,13 @@ def create_model_hub():  # 函数名 = create_ + 文件名
   - [ ] paper2web
   - [ ] paper2poster
   - [ ] AutoPR
-  - [ ] paper2gragh
+  - [ ] paper2graph
   - [ ] paperCiter
   - [ ] paper2Code
 - [ ] DataAgent集成
   - [ ] 多数据源深度分析 + 报告
   - [ ] 智能取数
-- [ ] Trj Expport
+- [ ] Trj Export
    
 <!-- ---
 

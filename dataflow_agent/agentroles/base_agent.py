@@ -11,6 +11,8 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage, AIMessage
 from langchain_core.tools import Tool
 from pydantic import BaseModel, Field
+from dataflow_agent.graphbuilder.message_history import AdvancedMessageHistory
+
 
 from dataflow_agent.promptstemplates.prompt_template import PromptsTemplateGenerator
 from dataflow_agent.state import MainState
@@ -19,6 +21,8 @@ from dataflow_agent.toolkits.tool_manager import ToolManager
 import pickle
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
+from dataflow_agent.agentroles.cores.strategies import ExecutionStrategy
+
 PROJDIR = get_project_root()
 
 log = get_logger(__name__)
@@ -52,13 +56,22 @@ class BaseAgent(ABC):
                  parser_type: str = "json",
                  parser_config: Optional[Dict[str, Any]] = None,
                  use_vlm: bool = False,
-                 vlm_config: Optional[Dict[str, Any]] = None):
+                 vlm_config: Optional[Dict[str, Any]] = None,
+                 ignore_history: bool = True,
+                 message_history: Optional[AdvancedMessageHistory] = None,
+
+                # 新增参数，用于策略控制； 
+                 execution_config: Optional[Any] = None
+                 ):
         """
         Args:
             parser_type: 解析器类型 ("json", "xml", "text")
             parser_config: 解析器配置（如XML的root_tag）
             use_vlm: 是否使用视觉语言模型
             vlm_config: VLM配置字典
+            ignore_history: 是否忽略历史消息
+            message_history: 消息历史管理器
+            execution_config: 执行配置，用于策略控制
         """
         self.tool_manager = tool_manager
         self.model_name = model_name
@@ -76,6 +89,20 @@ class BaseAgent(ABC):
         # VLM配置
         self.use_vlm = use_vlm
         self.vlm_config = vlm_config or {}
+        
+        # 消息历史配置
+        self.ignore_history = ignore_history
+        self.message_history = message_history or AdvancedMessageHistory()
+
+        # ========== 新增：策略模式支持 ==========
+        self._execution_strategy: Optional[ExecutionStrategy] = None
+        if execution_config:
+            from dataflow_agent.agentroles.cores.strategies import StrategyFactory
+            self._execution_strategy = StrategyFactory.create(
+                execution_config.mode.value,
+                self,
+                execution_config
+            )
 
     def get_llm_caller(self, state: MainState) -> BaseLLMCaller:
         """根据配置返回对应的LLM Caller"""
@@ -115,6 +142,7 @@ class BaseAgent(ABC):
         try:
             parsed = self.parser.parse(content)
             log.info(f"{self.role_name} 使用 {self.parser_type} 解析器解析成功")
+            log.critical(f"[parse_result 解析结果] : {parsed}")
             return parsed
         except Exception as e:
             log.exception(f"解析失败: {e}")
@@ -360,6 +388,14 @@ class BaseAgent(ABC):
         
         # 构建初始消息
         messages = self.build_messages(state, pre_tool_results)
+        
+        # 消息历史管理
+        if not self.ignore_history:
+            history_messages = self.message_history.get_messages()
+            if history_messages:
+                messages = self.message_history.merge_histories(history_messages, messages)
+                log.info(f"合并了 {len(history_messages)} 条历史消息")
+        
         llm = self.create_llm(state, bind_post_tools=False)
         
         for attempt in range(self.react_max_retries + 1):
@@ -378,6 +414,12 @@ class BaseAgent(ABC):
                 
                 if all_passed:
                     log.info(f"✓ {self.role_name} ReAct验证通过，共尝试 {attempt + 1} 次")
+                    
+                    # 更新消息历史
+                    if not self.ignore_history:
+                        self.message_history.add_messages([answer_msg])
+                        log.info("已更新消息历史")
+                    
                     return parsed_result
                 
                 # 验证未通过
@@ -453,10 +495,11 @@ class BaseAgent(ABC):
             return await self.process_simple_mode(state, pre_tool_results)
                 
         # 2. 使用 DFState 作为子图状态（与现有代码一致）
+        log.critical(f"state: {state.agent_results}")
 
         subgraph = StateGraph(type(state))
         
-        # 3. 直接复用 create_assistant_node_func
+        # 3. 直接复用 create_assistant_node_func ， 这里没有写历史存储的代码；
         assistant_func = self.create_assistant_node_func(state, pre_tool_results)
         
         # 4. 添加节点
@@ -631,6 +674,14 @@ class BaseAgent(ABC):
         log.info(f"执行 {self.role_name} 简单模式...")
         
         messages = self.build_messages(state, pre_tool_results)
+        
+        # 消息历史管理
+        if not self.ignore_history:
+            history_messages = self.message_history.get_messages()
+            if history_messages:
+                messages = self.message_history.merge_histories(history_messages, messages)
+                log.info(f"合并了 {len(history_messages)} 条历史消息")
+        
         llm = self.create_llm(state, bind_post_tools=False)
         
         try:
@@ -638,6 +689,12 @@ class BaseAgent(ABC):
             answer_text = answer_msg.content
             log.info(f'LLM原始输出：{answer_text}')
             log.info("LLM调用成功，开始解析结果")
+            
+            # 更新消息历史
+            if not self.ignore_history:
+                self.message_history.add_messages([answer_msg])
+                log.info("已更新消息历史")
+                
         except Exception as e:
             log.exception("LLM调用失败: %s", e)
             return {"error": str(e)}
@@ -688,6 +745,21 @@ class BaseAgent(ABC):
         Returns:
             更新后的DFState
         """
+        # 如果配置了执行策略，优先使用
+        if self._execution_strategy:
+            log.info(f"使用策略模式执行: {self._execution_strategy.__class__.__name__}")
+            try:
+                pre_tool_results = await self.execute_pre_tools(state)
+                result = await self._execution_strategy.execute(state, **kwargs)
+                self.update_state_result(state, result, pre_tool_results)
+                return state
+            except Exception as e:
+                log.exception(f"策略执行失败: {e}")
+                error_result = {"error": str(e)}
+                self.update_state_result(state, error_result, {})
+                return state
+            
+        # ================之前的代码，非策略支持部分 ========================
         log.info(f"开始执行 {self.role_name} (ReAct模式: {self.react_mode}, 图模式: {use_agent})")
         # 获取一些状态信息，方便验证器/或者别的地方可以读取state的一些参数；
         self.state = state
@@ -710,7 +782,8 @@ class BaseAgent(ABC):
                 state.temp_data['pre_tool_results'] = pre_tool_results
             except Exception:
                 pass
-            
+            # 合并 kwargs 到前置工具结果中， 这一步是 agent as tool 时，需要将 kwargs 作为前置工具的输入； 也可以在正常调用时，将 kwargs 作为前置工具的结果，比如 {"content": "xxxx报告"}
+            pre_tool_results.update(kwargs)
             # 2. 检查是否有后置工具
             post_tools = self.get_post_tools()
             
@@ -720,6 +793,9 @@ class BaseAgent(ABC):
                 result = await self._execute_react_graph(state, pre_tool_results)
                 self.update_state_result(state, result, pre_tool_results)
                 log.info(f"[子图新模式] {self.role_name} 子图模式执行完成")
+                if not hasattr(state, 'temp_data'):
+                    state.temp_data = {}
+                state.temp_data['pre_tool_results'] = pre_tool_results
                 state.temp_data[f'{self.role_name}_instance'] = self
                 
             elif self.react_mode:

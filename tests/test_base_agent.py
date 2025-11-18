@@ -21,6 +21,8 @@ from dataflow_agent.toolkits.tool_manager import ToolManager
 import pickle
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
+from dataflow_agent.agentroles.cores.strategies import ExecutionStrategy
+
 PROJDIR = get_project_root()
 
 log = get_logger(__name__)
@@ -56,7 +58,10 @@ class BaseAgent(ABC):
                  use_vlm: bool = False,
                  vlm_config: Optional[Dict[str, Any]] = None,
                  ignore_history: bool = True,
-                 message_history: Optional[AdvancedMessageHistory] = None
+                 message_history: Optional[AdvancedMessageHistory] = None,
+
+                # 新增参数，用于策略控制； 
+                 execution_config: Optional[Any] = None
                  ):
         """
         Args:
@@ -66,6 +71,7 @@ class BaseAgent(ABC):
             vlm_config: VLM配置字典
             ignore_history: 是否忽略历史消息
             message_history: 消息历史管理器
+            execution_config: 执行配置，用于策略控制
         """
         self.tool_manager = tool_manager
         self.model_name = model_name
@@ -87,6 +93,16 @@ class BaseAgent(ABC):
         # 消息历史配置
         self.ignore_history = ignore_history
         self.message_history = message_history or AdvancedMessageHistory()
+
+        # ========== 新增：策略模式支持 ==========
+        self._execution_strategy: Optional[ExecutionStrategy] = None
+        if execution_config:
+            from dataflow_agent.agentroles.cores.strategies import StrategyFactory
+            self._execution_strategy = StrategyFactory.create(
+                execution_config.mode.value,
+                self,
+                execution_config
+            )
 
     def get_llm_caller(self, state: MainState) -> BaseLLMCaller:
         """根据配置返回对应的LLM Caller"""
@@ -728,6 +744,21 @@ class BaseAgent(ABC):
         Returns:
             更新后的DFState
         """
+        # 如果配置了执行策略，优先使用
+        if self._execution_strategy:
+            log.info(f"使用策略模式执行: {self._execution_strategy.__class__.__name__}")
+            try:
+                pre_tool_results = await self.execute_pre_tools(state)
+                result = await self._execution_strategy.execute(state, **kwargs)
+                self.update_state_result(state, result, pre_tool_results)
+                return state
+            except Exception as e:
+                log.exception(f"策略执行失败: {e}")
+                error_result = {"error": str(e)}
+                self.update_state_result(state, error_result, {})
+                return state
+            
+        # ================之前的代码，非策略支持部分 ========================
         log.info(f"开始执行 {self.role_name} (ReAct模式: {self.react_mode}, 图模式: {use_agent})")
         # 获取一些状态信息
         self.state = state
@@ -743,6 +774,9 @@ class BaseAgent(ABC):
         try:
             # 1. 执行前置工具
             pre_tool_results = await self.execute_pre_tools(state)
+
+            # 合并 kwargs 到前置工具结果中， 这一步是 agent as tool 时，需要将 kwargs 作为前置工具的输入； 也可以在正常调用时，将 kwargs 作为前置工具的结果，比如 {"content": "xxxx报告"}
+            pre_tool_results.update(kwargs)
             
             # 2. 检查是否有后置工具
             post_tools = self.get_post_tools()
