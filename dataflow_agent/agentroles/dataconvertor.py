@@ -17,6 +17,7 @@ from pathlib import Path
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
 from langchain_core.tools import Tool
+from langgraph.graph import StateGraph, START, END
 from dataflow_agent.promptstemplates.prompt_template import PromptsTemplateGenerator
 from dataflow_agent.state import DataCollectionState
 from dataflow_agent.utils import robust_parse_json
@@ -208,9 +209,13 @@ class DataConvertor:
 
     FIELD_TOKEN_PATTERN = re.compile(r"([^\[\]]+)(?:\[(.*?)\])?")
 
-    def _field_exists_in_columns(self, field_spec: Optional[str], column_names: List[str]) -> bool:
-        if not field_spec:
+    def _field_exists_in_columns(self, field_spec: Optional[Any], column_names: List[str]) -> bool:
+        if field_spec is None:
             return False
+        if isinstance(field_spec, list):
+            if not field_spec:
+                return False
+            return all(self._field_exists_in_columns(spec, column_names) for spec in field_spec)
         token = field_spec.split(".")[0]
         token = token.split("[")[0]
         return token in column_names
@@ -236,6 +241,8 @@ class DataConvertor:
                 for item in current:
                     results.extend(self._traverse_field_tokens(item, []))
                 return results
+            if isinstance(current, dict):
+                return list(current.items())
             return [current]
 
         token = tokens[0]
@@ -253,6 +260,16 @@ class DataConvertor:
             return self._traverse_field_tokens(next_value, tokens[1:])
 
         if not isinstance(next_value, list):
+            if isinstance(next_value, dict):
+                results: List[Any] = []
+                for key, item in next_value.items():
+                    child_results = self._traverse_field_tokens(item, tokens[1:])
+                    if not child_results:
+                        results.append((key, item))
+                        continue
+                    for child in child_results:
+                        results.append((key, child))
+                return results
             return []
 
         results: List[Any] = []
@@ -268,6 +285,35 @@ class DataConvertor:
                 return []
         return results
 
+    def _stringify_structure(self, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            parts: List[str] = []
+            for key, sub_value in value.items():
+                key_str = self._normalize_field_value(key) or str(key)
+                sub_str = self._stringify_structure(sub_value)
+                if sub_str:
+                    parts.append(f"{key_str}. {sub_str}")
+                else:
+                    parts.append(key_str)
+            return "; ".join(part for part in parts if part) if parts else None
+        if isinstance(value, (list, tuple, set)):
+            parts: List[str] = []
+            for item in value:
+                sub_str = self._stringify_structure(item)
+                if sub_str:
+                    parts.append(sub_str)
+            return "; ".join(part for part in parts if part) if parts else None
+        return self._normalize_field_value(value)
+
+    def _format_mapping_entry(self, key: Any, content: Any) -> Optional[str]:
+        key_str = self._normalize_field_value(key) or str(key)
+        content_str = self._stringify_structure(content)
+        if content_str:
+            return f"{key_str}. {content_str}"
+        return key_str
+
     def _extract_field_values(self, row: Dict[str, Any], field_spec: Optional[str]) -> List[str]:
         if not field_spec:
             return []
@@ -278,10 +324,44 @@ class DataConvertor:
         raw_values = self._traverse_field_tokens(row, tokens)
         normalized: List[str] = []
         for value in raw_values:
+            if isinstance(value, tuple) and len(value) == 2:
+                entry = self._format_mapping_entry(value[0], value[1])
+                if entry:
+                    normalized.append(entry)
+                continue
+            if isinstance(value, dict):
+                for key, sub_value in value.items():
+                    entry = self._format_mapping_entry(key, sub_value)
+                    if entry:
+                        normalized.append(entry)
+                continue
             normalized_value = self._normalize_field_value(value)
             if normalized_value is not None:
                 normalized.append(normalized_value)
         return normalized
+
+    def _sanitize_field_spec(self, field_spec: Optional[Any], column_names: List[str]) -> Optional[Any]:
+        if field_spec is None:
+            return None
+        if isinstance(field_spec, list):
+            sanitized = [
+                spec for spec in field_spec if self._field_exists_in_columns(spec, column_names)
+            ]
+            return sanitized if sanitized else None
+        return field_spec if self._field_exists_in_columns(field_spec, column_names) else None
+
+    def _extract_text_values(self, row: Dict[str, Any], field_spec: Optional[Any]) -> List[str]:
+        if field_spec is None:
+            return []
+        if isinstance(field_spec, list):
+            pieces: List[str] = []
+            for spec in field_spec:
+                values = self._extract_field_values(row, spec)
+                if values:
+                    pieces.extend(values)
+            combined = "\n".join(v for v in pieces if v)
+            return [combined] if combined else []
+        return self._extract_field_values(row, field_spec)
 
     def build_messages(self, state: DataCollectionState, column_names: List[str], sample_record: Dict[str, Any], dataset: Any = None) -> List[BaseMessage]:
         """(数据映射) 构建消息列表"""
@@ -715,7 +795,7 @@ class UniversalDataConvertor(DataConvertor):
         
         for root, dirs, files in os.walk(download_dir):
             # 跳过临时目录和输出目录
-            dirs[:] = [d for d in dirs if d not in ('.tmp', 'processed_output', '.cache', 'rag_db')]
+            dirs[:] = [d for d in dirs if d not in ('.tmp', 'processed_output', '.cache', 'rag_db', 'web_get')]
             
             for f in files:
                 # 清理 conda 包缓存文件
@@ -832,7 +912,7 @@ class UniversalDataConvertor(DataConvertor):
             dirs[:] = [
                 d for d in dirs
                 if not d.startswith(('.', '__'))
-                and d not in ('.cache', 'processed_output', '.tmp', 'rag_db')
+                and d not in ('.cache', 'processed_output', '.tmp', 'rag_db', 'web_get')
                 and not d.startswith(('datasets_cache_', 'dataflow_extract_', 'hf_cache_', 'kaggle_cache_'))
             ]
             files = [f for f in files if not f.startswith(('.', '__'))]
@@ -1280,14 +1360,15 @@ class UniversalDataConvertor(DataConvertor):
             try:
                 if category == 'PT':
                     text_field = annotation_result.get('text') if annotation_result else None
-                    if text_field and not self._field_exists_in_columns(text_field, column_names):
+                    text_field = self._sanitize_field_spec(text_field, column_names)
+                    if not text_field:
                         log.warning(
                             f"未在 {file_name} ({split_name}) 中找到有效的文本字段 (来自 LLM: {annotation_result})，跳过。"
                         )
                         continue
 
                     for row in data_content:
-                        text_values = self._extract_field_values(row, text_field)
+                        text_values = self._extract_text_values(row, text_field)
                         if not text_values:
                             continue
                         for text in text_values:
@@ -1306,20 +1387,28 @@ class UniversalDataConvertor(DataConvertor):
                     q_field = annotation_result.get('question') if annotation_result else None
                     a_field = annotation_result.get('answer') if annotation_result else None
 
-                    if q_field and not self._field_exists_in_columns(q_field, column_names):
+                    q_field = self._sanitize_field_spec(q_field, column_names)
+                    if q_field is None and annotation_result and annotation_result.get('question'):
                         log.warning(
-                            f"未在 {file_name} ({split_name}) 中找到有效的 'question' 字段 (来自 LLM: {q_field})，将其置为 null。"
+                            f"未在 {file_name} ({split_name}) 中找到有效的 'question' 字段 (来自 LLM: {annotation_result.get('question')})，将其置为 null。"
                         )
-                        q_field = None
-                    if a_field and not self._field_exists_in_columns(a_field, column_names):
+                    a_field = self._sanitize_field_spec(a_field, column_names)
+                    if a_field is None and annotation_result and annotation_result.get('answer'):
                         log.warning(
-                            f"未在 {file_name} ({split_name}) 中找到有效的 'answer' 字段 (来自 LLM: {a_field})，将其置为 null。"
+                            f"未在 {file_name} ({split_name}) 中找到有效的 'answer' 字段 (来自 LLM: {annotation_result.get('answer')})，将其置为 null。"
                         )
-                        a_field = None
+
+                    # 检查两个字段是否都为 null
+                    if q_field is None and a_field is None:
+                        log.warning(
+                            f"LLM 返回的 'question' 和 'answer' 字段都为 null 或不存在于列名中，跳过 {file_name} ({split_name})。"
+                            f" LLM 映射结果: {annotation_result}"
+                        )
+                        continue
 
                     for row in data_content:
-                        questions = self._extract_field_values(row, q_field) if q_field else []
-                        answers = self._extract_field_values(row, a_field) if a_field else []
+                        questions = self._extract_text_values(row, q_field) if q_field else []
+                        answers = self._extract_text_values(row, a_field) if a_field else []
 
                         if not questions and not answers:
                             continue
@@ -1616,6 +1705,267 @@ class UniversalDataConvertor(DataConvertor):
         log.info(f"========================================")
         return state
 
+    async def execute_with_langgraph(self, state: DataCollectionState, **kwargs) -> DataCollectionState:
+        """
+        使用 LangGraph 实现的数据转换流程（功能与 execute() 完全一致）
+        """
+        log.info(f"{self.role_name} (Universal, LangGraph版本) 开始执行...")
+        _ensure_hf_cache_env(state.request.download_dir)
+        category = state.request.category.upper()
+        
+        inputs = {
+            "role_name": self.role_name,
+            "category": category,
+            "download_dir": state.request.download_dir
+        }
+        log.info(f"[Agent Input] {self.role_name}.execute_with_langgraph: {json.dumps(inputs, indent=2, ensure_ascii=False)}")
+        
+        if category not in ['PT', 'SFT']:
+            log.error(f"不支持的数据类别: {category}")
+            return state
+
+        data_root = state.request.download_dir
+        try:
+            controlled_tmp = os.getenv("DF_TEMP_DIR") or os.path.join(data_root, ".tmp")
+            os.makedirs(controlled_tmp, exist_ok=True)
+            os.environ.setdefault("TMPDIR", controlled_tmp)
+        except Exception as e:
+            log.warning(f"设置受控临时目录失败（可忽略）: {e}")
+
+        if not os.path.exists(data_root):
+            log.error(f"下载目录 {data_root} 不存在")
+            return state
+
+        # 使用闭包变量存储临时数据，而不是 state 的临时字段
+        data_file_list: List[str] = []
+        processed_sources_list: List[Tuple[str, int]] = []
+        current_file_index: int = 0
+        output_jsonl_prefix: str = ""
+
+        async def file_discovery_node(state: DataCollectionState) -> DataCollectionState:
+            """文件发现节点"""
+            nonlocal data_file_list, output_jsonl_prefix, current_file_index
+            
+            log.info("=== [LangGraph] 文件发现节点 ===")
+            log.info(f"正在扫描整个下载目录: {data_root}")
+            exclude_files = ['PT.jsonl', 'SFT.jsonl', 'summary.txt','chroma.sqlite3','data_level0.bin','header.bin','length.bin','link_lists.bin']
+            file_list_str = self._get_file_list_string(data_root, exclude_files=exclude_files)
+            
+            if file_list_str == "This directory is empty.":
+                log.warning(f"目录 {data_root} 为空，无文件可处理。")
+                data_file_list = []
+                return state
+            
+            log.debug(f"文件列表:\n{file_list_str}")
+            chunked_file_lists = self._chunk_file_list_for_llm(file_list_str)
+            total_chunks = len(chunked_file_lists)
+            log.info(f"文件列表将拆分为 {total_chunks} 个分块提交给 LLM 进行文件发现。")
+
+            discovered_files: List[str] = []
+            seen_paths: Set[str] = set()
+            failed_chunks = 0
+
+            for idx, chunk_str in enumerate(chunked_file_lists, start=1):
+                log.info(f"正在处理文件发现分块 {idx}/{total_chunks}，字符数约 {len(chunk_str)}。")
+                try:
+                    chunk_result = await self._invoke_file_discovery(state, chunk_str)
+                    log.info(f"分块 {idx}/{total_chunks} 返回 {len(chunk_result)} 个候选文件。")
+                    for candidate in chunk_result:
+                        if isinstance(candidate, str) and candidate not in seen_paths:
+                            seen_paths.add(candidate)
+                            discovered_files.append(candidate)
+                except Exception as e:
+                    failed_chunks += 1
+                    log.error(f"LLM 文件发现分块 {idx}/{total_chunks} 失败: {e}")
+
+            if not discovered_files:
+                if failed_chunks == total_chunks:
+                    log.error("所有文件发现分块均失败，无法继续执行。")
+                else:
+                    log.warning(f"LLM 未在 {data_root} 中找到任何数据文件。")
+                data_file_list.clear()
+                return state
+
+            if failed_chunks:
+                log.warning(f"文件发现过程中有 {failed_chunks}/{total_chunks} 个分块失败，结果可能不完整。")
+            
+            log.info(f"LLM 识别出 {len(discovered_files)} 个数据文件: {discovered_files}")
+            # 更新闭包变量
+            data_file_list.clear()
+            data_file_list.extend(discovered_files)
+
+            # 创建输出目录
+            output_dir = os.path.join(data_root, "processed_output")
+            os.makedirs(output_dir, exist_ok=True)
+            log.info(f"输出目录: {os.path.abspath(output_dir)}")
+            output_jsonl_prefix = os.path.join(output_dir, f"{category.upper()}")
+            log.info(f"========================================")
+            log.info(f"输出文件前缀（绝对路径），将每10000条切分一个文件:")
+            log.info(f"   {os.path.abspath(output_jsonl_prefix)}_00001.jsonl ...")
+            log.info(f"========================================")
+            current_file_index = 0
+
+            return state
+
+        async def check_has_files(state: DataCollectionState) -> str:
+            """检查是否还有文件需要处理"""
+            nonlocal current_file_index, data_file_list
+            if current_file_index >= len(data_file_list):
+                return "finalize"
+            return "process_file"
+
+        async def process_file_node(state: DataCollectionState) -> DataCollectionState:
+            """处理单个文件节点"""
+            nonlocal current_file_index, data_file_list, data_root, category, output_jsonl_prefix, processed_sources_list
+            
+            log.info("=== [LangGraph] 处理文件节点 ===")
+            if current_file_index >= len(data_file_list):
+                return state
+
+            relative_file_path = data_file_list[current_file_index]
+            absolute_file_path = os.path.join(data_root, relative_file_path)
+            
+            if not os.path.exists(absolute_file_path):
+                log.warning(f"LLM 返回了不存在的文件路径 '{relative_file_path}'，跳过。")
+                current_file_index += 1
+                return state
+
+            log.info(f"--- 正在处理文件: {absolute_file_path} ---")
+            files_to_process = []
+
+            if self._is_compressed_file(absolute_file_path):
+                log.info(f"检测到压缩文件: {absolute_file_path}")
+                extracted_dir = self._extract_compressed_file(absolute_file_path)
+                
+                if not extracted_dir:
+                    log.error(f"解压失败，跳过文件: {absolute_file_path}")
+                    current_file_index += 1
+                    return state
+                
+                for root, dirs, files in os.walk(extracted_dir):
+                    for f in files:
+                        full_path = os.path.join(root, f)
+                        if any(full_path.lower().endswith(ext) for ext in 
+                               ['.json', '.jsonl', '.csv', '.parquet', '.arrow', '.txt']):
+                            files_to_process.append(full_path)
+                
+                if not files_to_process:
+                    log.warning(f"解压后未找到数据文件: {absolute_file_path}")
+                    current_file_index += 1
+                    return state
+                
+                log.info(f"解压后找到 {len(files_to_process)} 个数据文件")
+            else:
+                files_to_process = [absolute_file_path]
+
+            for file_path in files_to_process:
+                log.info(f"--- 正在处理数据文件: {file_path} ---")
+                builder_type = self._get_builder_type(file_path)
+                if not builder_type:
+                    log.warning(f"无法确定 builder type，跳过文件: {file_path}")
+                    continue
+                
+                data = None
+                load_strategies = [
+                    {"name": "load_dataset", "func": self._load_with_datasets},
+                    {"name": "备用方法", "func": self._load_with_fallback},
+                ]
+                
+                for strategy in load_strategies:
+                    try:
+                        log.info(f"尝试加载策略: {strategy['name']}")
+                        data = await strategy['func'](builder_type, file_path)
+                        if data is not None:
+                            log.info(f"加载策略 '{strategy['name']}' 成功!")
+                            break
+                    except Exception as e:
+                        log.warning(f"加载策略 '{strategy['name']}' 失败: {e}")
+                        continue
+                
+                if data is None:
+                    log.error(f"所有加载策略都失败，跳过文件: {file_path}")
+                    continue
+
+                await self._process_dataset(
+                    data, file_path, state, category, 
+                    output_jsonl_prefix, processed_sources_list
+                )
+
+            current_file_index += 1
+            return state
+
+        async def finalize_node(state: DataCollectionState) -> DataCollectionState:
+            """最终化节点"""
+            nonlocal processed_sources_list, output_jsonl_prefix, category, data_root
+            
+            log.info("=== [LangGraph] 最终化节点 ===")
+            total_records_processed = sum(count for _, count in processed_sources_list)
+            log.info(f"整个下载目录处理完毕。总计提取 {total_records_processed} 条记录。")
+            
+            if total_records_processed > 0:
+                log.info(f"========================================")
+                log.info(f"数据已成功写入多个分片文件，前缀如下:")
+                log.info(f"前缀路径: {os.path.abspath(output_jsonl_prefix)}_*.jsonl")
+                log.info(f"记录总数: {total_records_processed}")
+                log.info(f"========================================")
+            else:
+                log.warning(f"未提取到任何有效记录，输出文件可能为空或不存在。")
+            
+            state.sources["all"] = {category: processed_sources_list}
+            if not state.keywords:
+                state.keywords = ["all"]
+
+            output_dir = os.path.join(data_root, "processed_output")
+            log.info("正在清理临时解压目录...")
+            self._cleanup_temp_dirs()
+            log.info("正在清理下载目录中的残留缓存文件...")
+            self._cleanup_download_dir_cache_files(data_root)
+            log.info("所有文件处理完毕，正在生成总结报告...")
+            # 直接调用父类方法，因为 super() 在闭包中可能无法正确工作
+            DataConvertor.record_summary(self, state, output_dir=output_dir)
+            
+            outputs = {
+                "total_records_processed": total_records_processed,
+                "processed_sources_count": len(processed_sources_list),
+                "output_dir": os.path.abspath(output_dir)
+            }
+            log.info(f"[Agent Output] {self.role_name}.execute_with_langgraph: {json.dumps(outputs, indent=2, ensure_ascii=False)}")
+            log.info(f"========================================")
+            log.info(f"{self.role_name} (Universal, LangGraph版本) 执行完成")
+            log.info(f"所有输出文件位于: {os.path.abspath(output_dir)}")
+            log.info(f"========================================")
+
+            return state
+
+        # 构建 LangGraph 工作流
+        graph_builder = StateGraph(DataCollectionState)
+        graph_builder.add_node("file_discovery", file_discovery_node)
+        graph_builder.add_node("process_file", process_file_node)
+        graph_builder.add_node("finalize", finalize_node)
+
+        graph_builder.add_edge(START, "file_discovery")
+        graph_builder.add_conditional_edges(
+            "file_discovery",
+            check_has_files,
+            {
+                "finalize": "finalize",
+                "process_file": "process_file"
+            }
+        )
+        graph_builder.add_conditional_edges(
+            "process_file",
+            check_has_files,
+            {
+                "finalize": "finalize",
+                "process_file": "process_file"
+            }
+        )
+        graph_builder.add_edge("finalize", END)
+
+        graph = graph_builder.compile()
+        state = await graph.ainvoke(state)
+        return state
+
 
 async def data_conversion(
     state: DataCollectionState,
@@ -1658,6 +2008,7 @@ async def universal_data_conversion(
 ) -> DataCollectionState:
     """
     调用新的 UniversalDataConvertor，处理原始下载目录。
+    使用 LangGraph 版本实现。
     
     Args:
         state: 数据收集状态
@@ -1674,4 +2025,5 @@ async def universal_data_conversion(
         max_sample_length=max_sample_length,
         num_sample_records=num_sample_records,
     )
-    return await data_collector.execute(state, **kwargs)
+    # 使用 LangGraph 版本
+    return await data_collector.execute_with_langgraph(state, **kwargs)

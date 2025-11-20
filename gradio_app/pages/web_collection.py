@@ -382,6 +382,7 @@ def create_web_collection():
                 f"  - 启用 RAG: {'是' if enable_rag_val else '否'}",
                 f"  - 并行页面数: {concurrent_pages_val}",
                 f"  - 禁用缓存: {'是' if disable_cache_val else '否'}",
+                f"  - 网页结构化输出: {os.path.join(req.download_dir, 'web_get', 'structured_pages.jsonl')}",
                 "\n【数据转换配置】",
                 f"  - 模型温度: {conversion_temperature_val}",
                 f"  - 最大 Token 数: {conversion_max_tokens_val}",
@@ -476,6 +477,7 @@ def create_web_collection():
                 result_payload = {
                     "download_dir": req.download_dir,
                     "processed_output": os.path.join(req.download_dir, "processed_output"),
+                    "web_get_structured": os.path.join(req.download_dir, "web_get", "structured_pages.jsonl"),
                     "category": req.category,
                     "language": req.language,
                     "chat_model": req.model,

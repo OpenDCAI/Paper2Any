@@ -81,16 +81,30 @@ async def web_crawl_collection(
     
     # 运行网页爬取（自动搜索、分析并下载数据）
     log.info(f"启动 WebCrawlOrchestrator，用户需求: {request.target}")
-    web_state = await orchestrator.run(request.target)
+    # 使用 LangGraph 版本
+    web_state = await orchestrator.run_with_langgraph(request.target)
+    
+    # 确保 web_state 是 WebCrawlState 对象
+    from dataflow_agent.state import WebCrawlState
+    if not isinstance(web_state, WebCrawlState):
+        log.error(f"web_state 类型错误: {type(web_state)}，期望 WebCrawlState")
+        # 如果返回的是字典，尝试提取 crawled_data
+        if isinstance(web_state, dict):
+            crawled_data = web_state.get('crawled_data', [])
+        else:
+            crawled_data = []
+    else:
+        crawled_data = web_state.crawled_data
     
     # 统计下载结果
-    downloaded_count = len([d for d in web_state.crawled_data 
+    downloaded_count = len([d for d in crawled_data 
                            if d.get('type') in ['file', 'huggingface_dataset']])
     
     log.info("=" * 60)
     log.info(f"【步骤1完成】网页爬取完成")
     log.info(f"  - 下载文件/数据集数量: {downloaded_count}")
     log.info(f"  - 数据保存目录: {request.download_dir}")
+    log.info(f"  - 网页结构化输出: {os.path.join(request.download_dir, 'web_get', 'structured_pages.jsonl')}")
     log.info("=" * 60)
     
 
@@ -104,13 +118,13 @@ async def main() -> None:
     
     # 配置数据收集请求
     req = DataCollectionRequest(
-        target="收集金融领域问答数据集用于大模型微调",  # 输入的自然语言指令
+        target="我在执行代码大模型优化项目，这是分析报告，根据这个报告去寻找相关的微调数据：1. 重点优化语法错误，特别是那些导致模型无法通过测试的语法问题。2. 检查并修正与名称相关的逻辑或处理方式，确保模型能正确识别和使用名称。3. 调研并解决类型相关的问题，提高模型在不同类型数据处理上的准确性。",  # 输入的自然语言指令
         category="SFT",  # 数据类别：PT(预训练) 或 SFT(指令微调)
         dataset_num_limit=5,  # HuggingFace 搜索时每个关键词的数据集数量上限
         dataset_size_category='1K<n<10K',  # HuggingFace 数据集大小范围
         download_dir=r'downloaded_data_finally2',  # 下载目录
         max_dataset_size=None,  #1T 数据集大小限制（字节数），None表示不限制，例如：10*1024*1024*1024 表示10GB
-        max_download_subtasks=5,  # 下载子任务执行上限
+        max_download_subtasks=20,  # 下载子任务执行上限
         
         # API 配置（用于 LLM 调用）
         chat_api_url=os.getenv("CHAT_API_URL"),
@@ -134,6 +148,7 @@ async def main() -> None:
     print(f"  数据类别: {req.category} (PT=预训练, SFT=指令微调)")
     print(f"  下载目录: {req.download_dir}")
     print(f"  HF数据集大小: {req.dataset_size_category}")
+    print(f"  网页结构化输出: {os.path.join(req.download_dir, 'web_get', 'structured_pages.jsonl')}")
     print("=" * 60)
     print("\n流程说明:")
     print("  【步骤1】web_crawl_collection:")
@@ -176,6 +191,7 @@ async def main() -> None:
     print("流程执行完成！")
     print(f"原始数据: {req.download_dir}")
     print(f"处理结果: {req.download_dir}/processed_output/")
+    print(f"网页结构化信息: {os.path.join(req.download_dir, 'web_get', 'structured_pages.jsonl')}")
     print(f"   - {req.category}.jsonl (标准化数据)")
     print(f"   - summary.txt (处理摘要)")
     print("=" * 60)

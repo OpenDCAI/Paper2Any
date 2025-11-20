@@ -1080,13 +1080,19 @@ Sample Data: {first_row}
 2. **Read the Values, Not Just Names**: Inspect the actual sample content. Ignore misleading field names; pick the field whose values truly contain long-form text useful for pretraining.
 3. **Support Nested Structures**: If the textual content lives inside lists or dictionaries, return a path using dot/bracket notation (e.g., `posts[*].body`, `metadata.description`, `paragraphs[0]`).
 4. **Prefer Real Text**: If multiple candidates exist, choose the one with the richest natural-language content. Lists of strings are acceptable; numeric-only fields should only be picked when no textual option exists.
-5. **Avoid Unnecessary null**: Only output null when there is genuinely no suitable textual field. If a field looks usable (even if short, structured, or slightly noisy), return its path.
+5. **Support Multi-field Concatenation**: 当需要将题干、选项等多个字段拼接为完整语料时，请返回字段路径数组，数组中的字段将按顺序通过换行符连接成最终文本（示例见下）。
+6. **Avoid Unnecessary null**: Only output null when there is genuinely no suitable textual field. If a field looks usable (even if short, structured, or slightly noisy), return its path.
 
 [Few-shot Examples]
 Example 1 (should pick nested list):
 Columns: ["articles"]
 Sample: {"articles": [{"title": "Top 10 tips", "body": "Write clearly..."}]}
 Answer: {"text": "articles[*].body"}
+
+Example 1b (multi-field concatenation):
+Columns: ["stem", "options"]
+Sample: {"stem": "下列哪项...", "options": ["A. ...", "B. ..."]}
+Answer: {"text": ["stem", "options[*]"]}
 
 Example 2 (numeric only → null):
 Columns: ["values"]
@@ -1101,7 +1107,7 @@ Answer: {"text": "content"}
 [OUTPUT]
 Return a JSON object in ```json block:
 {
-  "text": "field_path"
+  "text": "field_path 或 字段路径数组"
 }
 If truly no textual field exists, return {"text": null}.
 """
@@ -1119,8 +1125,9 @@ Sample Data: {first_row}
 1. **Relevance**: Confirm the dataset relates to {user_target}. Only return null/null when the dataset is clearly off-topic.
 2. **Read Actual Values**: Examine the sample content carefully—do not rely solely on field names. Pick the fields whose values actually represent questions/instructions and answers/responses, even if the names differ.
 3. **Nested Paths**: When data is nested, return paths using dot/bracket notation (e.g., `items[*].question`, `dialogues[*].turns[0].text`). Lists of strings, numbers, or dictionaries are acceptable; the downstream system will handle serialization.
-4. **Avoid Unnecessary null**: If only one side is obvious and the other is ambiguous but still usable (e.g., list of answers, numeric outputs), return the corresponding path rather than null. Only set a field to null when there is genuinely no meaningful content for that side.
-5. **Graceful Degradation with Explanation**: If you can only find one field that is suitable, and the other field is truly missing, then set the missing field to null and add a `reason` field to explain why it's missing. For example, if you find a field that contains answers but not questions, you might return `"reason": "question field missing in sample"` in the JSON response.
+4. **Support Multi-field Concatenation**: 若题干、选项、解析分散在多个字段中，可为 question 或 answer 返回字段路径数组（例如 `["stem", "options[*]"]`）。系统会按数组顺序以换行符拼接这些字段形成最终文本。
+5. **Avoid Unnecessary null**: If only one side is obvious and the other is ambiguous but still usable (e.g., list of answers, numeric outputs), return the corresponding path rather than null. Only set a field to null when there is genuinely no meaningful content for that side.
+6. **Graceful Degradation with Explanation**: If you can only find one field that is suitable, and the other field is truly missing, then set the missing field to null and add a `reason` field to explain why it's missing. For example, if you find a field that contains answers but not questions, you might return `"reason": "question field missing in sample"` in the JSON response.
 
 [Few-shot Examples]
 Example A (classic QA list):
@@ -1133,6 +1140,11 @@ Columns: ["prompts", "solutions"]
 Sample: {"prompts": ["Solve..."], "solutions": [["x=2", "Check"]]}
 Answer: {"question": "prompts[*]", "answer": "solutions[*]", "reason": null}
 
+Example B2 (question + options concatenation):
+Columns: ["stem", "options", "analysis"]
+Sample: {"stem": "以下哪项正确？", "options": ["A. ...", "B. ..."], "analysis": "选B"}
+Answer: {"question": ["stem", "options[*]"], "answer": ["analysis"], "reason": null}
+
 Example C (only questions, explain null):
 Columns: ["queries"]
 Sample: {"queries": ["Explain GDP?"]}
@@ -1141,8 +1153,8 @@ Answer: {"question": "queries[*]", "answer": null, "reason": "answers not presen
 [OUTPUT]
 Return JSON in ```json block:
 {
-  "question": "question_path",
-  "answer": "answer_path",
+  "question": "question_path 或 字段路径数组",
+  "answer": "answer_path 或 字段路径数组",
   "reason": null or "text explanation when any field is null"
 }
 If only one side exists, set the other to null and provide a concise explanation in `reason`. If the dataset is irrelevant to the request, return {"question": null, "answer": null, "reason": "dataset irrelevant"}.
@@ -1198,9 +1210,16 @@ class WebAgentPrompts:
 }
 """
     
-    task_prompt_for_download_method_decision = """用户目标: {objective}
+    task_prompt_for_download_method_decision = """用户原始需求: {user_original_request}
+当前子任务目标: {current_task_objective}
 搜索关键词: {keywords}
-请根据上述策略生成用于HF的关键词，并按要求返回JSON（method固定为huggingface，fallback_method固定为web_crawl）。"""
+
+请根据用户的原始需求和当前子任务目标，生成用于HF的关键词。决策时应考虑：
+1. 用户的整体目标是什么（原始需求）
+2. 当前子任务的具体目标是什么
+3. 如何生成最有效的搜索关键词来满足用户的整体目标
+
+请按要求返回JSON（method固定为huggingface，fallback_method固定为web_crawl）。"""
     
     # HuggingFace 决策器
     system_prompt_for_huggingface_decision = """
@@ -1299,6 +1318,123 @@ class WebAgentPrompts:
 ```
 
 请分析该数据集的详细信息，并检查是否符合大小限制。
+"""
+    
+    system_prompt_for_web_structured_qa = """
+You are a web content extraction assistant. Please read the given web page content and extract highly relevant domain knowledge Q&A pairs based on user requirements.
+
+Requirements:
+1. The output must be a JSON array, where each element contains "question" and "answer" fields, with an optional "confidence" field to indicate relevance.
+2. If the web page content is unrelated to user requirements or cannot extract valid Q&A pairs, return an empty array [].
+3. All questions and answers must be in {language}, expressed clearly, accurately, and concisely, avoiding lengthy verbatim copying of the original text.
+4. Ignore irrelevant information such as navigation, ads, copyright, footnotes, etc., and focus on knowledge points or steps that meet user requirements.
+
+5. **Quality Filters - CRITICAL**: Apply strict quality filters to avoid low-quality data:
+   a. **Reject "Non-Answers"**: Do NOT extract answers that indicate missing information, such as:
+      - "...though the specific definition is not provided in detail in this context."
+      - "...though the exact reasons are not elaborated in this context."
+      - "...though the specific answer is not provided in this context."
+      - "...though the exact numerical answer is not provided in this excerpt."
+      - Any answer that essentially says "I don't know" or "information is missing"
+      If the source cannot provide a substantive answer, skip that Q&A pair entirely.
+   
+   b. **Avoid Overly Specific Context-Dependent Knowledge**: Prioritize generalizable domain knowledge over extremely specific facts that lack broader value:
+      - Prefer: "How do stock options affect company valuation?" (general principle)
+      - Avoid: "What was the expected volatility assumption for Company X's options granted in 2006?" (too specific, low generalization value)
+      - Prefer: "What is the sentiment score and how is it calculated?" (general concept)
+      - Avoid: "What is the sentiment score for Tesco in 2020?" (specific instance with no context)
+      Extract knowledge that teaches principles, concepts, and general understanding, not isolated facts about specific companies/dates without broader context.
+   
+   c. **Exclude Metadata and Technical Implementation Details**: Do NOT extract information about datasets, evaluation metrics, or technical implementation:
+      - Do NOT extract: "What is FinQA?" / "What is FiQA dataset?" / "What is FinBERT?"
+      - Do NOT extract: Questions about evaluation metrics (e.g., "What are the evaluation metrics used for..."), data sources for models (e.g., "What types of financial data sources are used for opinion-based question answering?"), or model architecture details
+      - Do NOT extract: How to build models, how to evaluate models, or technical methodology descriptions
+      - DO extract: How technology is applied in the domain (e.g., "How does NLP help in financial credit risk assessment?" is good)
+      - Focus on the actual domain knowledge (financial concepts, applications, principles), NOT on the technical implementation or evaluation of systems that analyze the domain
+      - Distinction:
+        * ✅ GOOD: "How does NLP help in financial credit risk assessment?" (application of technology in domain)
+        * ✅ GOOD: "What is the key difference between general sentiment analysis and financial sentiment analysis?" (domain-specific concept)
+        * ❌ BAD: "What are the evaluation metrics used for financial sentiment analysis systems?" (technical implementation detail)
+        * ❌ BAD: "What types of financial data sources are used for opinion-based question answering?" (technical methodology)
+   
+   d. **Verify Factual Accuracy - CRITICAL**: Be extremely cautious about factual claims, especially regarding well-known companies and common financial facts:
+      - DO NOT extract information that contradicts well-known, verifiable facts (e.g., claiming Apple is not in DJIA when it has been included since 2015)
+      - If the source contains information that might be outdated or incorrect, SKIP IT entirely rather than propagating false facts
+      - If extracting time-sensitive information, ensure it's clearly dated or presented as historical context WITH the date specified
+      - When in doubt about a factual claim, especially regarding major companies, financial indices, or established facts, skip that Q&A pair
+      - Examples of claims to be extremely cautious about:
+        * Membership in major indices (DJIA, S&P 500, etc.)
+        * Well-known company histories or facts
+        * Established financial regulations or standards
+      - Better to skip potentially incorrect information than to include false facts that could mislead users
+
+6. **Context Requirement**: Each answer must be self-contained and include all necessary context from the source material:
+   - If a question refers to a specific entity (company, person, location, time period, etc.), the answer must include that entity's name or identifier.
+   - If a question involves numerical data, include the relevant context (time period, entity, conditions, etc.) AND explain its meaning or significance.
+   - If a question requires background information to be understood, incorporate that background into the answer.
+   - Answers should be complete enough to be understood independently, without needing to refer back to the original question's implicit context.
+   - Example: Instead of "Asset Turnover Ratio is 11.04%", use "The Asset Turnover Ratio for [Company Name] in [Time Period] is 11.04%, which indicates [meaning/context and comparison if available]."
+
+7. **Deduplication - MANDATORY**: Before returning the array, rigorously check for duplicates:
+   - If you've already extracted a Q&A pair with the SAME question or VERY SIMILAR meaning, skip ALL duplicates
+   - Variations of the same question with minor wording differences (e.g., "What are the evaluation metrics..." vs "What are the key evaluation metrics...") should be consolidated into ONE Q&A pair - keep only the best/clearest version
+   - Check the ENTIRE array before returning - do not include multiple versions of the same question
+   - If you extract a question that is semantically equivalent to one already in the array, skip it completely
+
+8. **Focus on Domain Knowledge**: Extract the domain knowledge itself mentioned in user requirements (e.g., financial knowledge, technical knowledge, etc.). 
+   - If the web page contains actual domain knowledge content or Q&A examples from datasets (even if the page is about a dataset paper), extract those knowledge points.
+   - Only return an empty array [] if the page contains ONLY metadata about datasets (e.g., download links, dataset statistics, training methodology descriptions) without any actual domain knowledge or Q&A examples.
+   - For papers about datasets, if they include actual Q&A examples or domain knowledge snippets that meet the quality filters above, extract those.
+"""
+
+    task_prompt_for_web_structured_qa = """
+User requirement: {objective}
+Maximum extraction: {max_items} Q&A pairs (fewer if content is insufficient)
+
+**CRITICAL Quality Requirements**:
+1. **No "Non-Answers"**: Do NOT extract any answer that indicates missing information or says "not provided/not available/not detailed in this context". If the source lacks substantive information, skip that Q&A entirely. Each answer must provide real, complete information.
+
+2. **Prioritize Generalizable Knowledge**: Focus on extracting:
+   - General principles, concepts, and explanations (e.g., "How does asset turnover ratio work?")
+   - Educational content that teaches understanding (e.g., "Why do companies have different fiscal years?")
+   - Technology applications in the domain (e.g., "How does NLP help in financial credit risk assessment?" - GOOD)
+   - Avoid: Overly specific facts about individual companies/dates that lack broader educational value (e.g., "What was Company X's volatility in 2006?")
+
+3. **Exclude Technical Metadata and Implementation Details**: Do NOT extract:
+   - Questions about datasets themselves (e.g., "What is FinQA?", "What is the FinBERT dataset?")
+   - Questions about evaluation metrics, model architecture, or technical methodology (e.g., "What are the evaluation metrics used for...?", "What types of data sources are used for...?")
+   - Descriptions of how to build, train, or evaluate models
+   - Extract only the actual domain knowledge content and technology applications, NOT technical implementation details
+
+4. **Verify Factual Accuracy - EXTREMELY IMPORTANT**: 
+   - DO NOT extract information that contradicts well-known, verifiable facts (e.g., claiming major companies are not in major indices when they clearly are)
+   - If a fact seems questionable, especially regarding major companies, financial indices, or established facts, SKIP IT
+   - If the source contains outdated information, skip it rather than propagating false facts
+   - When in doubt, skip the Q&A pair entirely
+
+5. **Verify and Include Context**: Each answer must be self-contained:
+   - Include specific entities (company names, time periods, locations) when mentioned
+   - Include relevant background and explanation of significance
+   - Make answers independently understandable
+   - If context is missing from the source, skip the Q&A pair rather than creating a vague answer
+
+6. **Deduplication - MANDATORY**: 
+   - Do NOT extract duplicate or near-duplicate questions (check the entire array before returning)
+   - If similar questions exist, extract ONLY the best/clearest one
+   - Questions that are semantically equivalent (even with different wording) should be consolidated into one Q&A pair
+   - Multiple versions of the same question are NOT acceptable
+
+7. Extract actual domain knowledge or Q&A examples from the web page. Even if the page is about a dataset paper, if it contains actual domain knowledge or Q&A examples that meet the above quality standards, extract those. Only return an empty array [] if the page contains ONLY metadata (download links, statistics, methodology) without any actual knowledge content, or if all potential Q&A pairs fail the quality filters above.
+
+Web page content (truncated):
+------------------------
+{markdown}
+------------------------
+
+Please return only the JSON array that meets ALL quality requirements above, for example:
+[{{"question": "What is the Asset Turnover Ratio and how is it interpreted?", "answer": "The Asset Turnover Ratio measures how efficiently a company uses its assets to generate revenue. It is calculated by dividing net sales by average total assets. A ratio of 11.04% means the company generates $0.11 in revenue for every dollar of assets. Higher ratios generally indicate better asset efficiency, with industry averages varying by sector (typically 15-25% for retail, lower for capital-intensive industries)."}}]
+
+**Remember**: Quality over quantity. Better to return fewer high-quality Q&A pairs than many low-quality ones.
 """
     
     # 子任务精炼与去重
@@ -1477,11 +1613,12 @@ Please analyze the following text snippets and generate specific download subtas
     # 网页阅读器
     system_prompt_for_webpage_reader = """
 You are a highly focused web analysis agent.here's two kinds of tasks, research or download. Your goal is to find ALL relevant direct download links on this page that satisfy the subtask objective in download task, and find more useful information url about current research goal in research task.
+You must also judge whether the webpage content contains information relevant to the user's objective and output a boolean field `is_relevant`.
 Your action MUST be one of the following:
 1. 'download': If you find one or more suitable download links. Required keys: `urls` (a list of download URLs), `description`.
 2. 'navigate': If no direct download or useful information, find the single best hyperlink to navigate to next. Required keys: `url` (a single navigation URL), `description`.
 3. 'dead_end': If no links are promising. Required keys: `description`.
-Your output MUST be a JSON object.
+Your output MUST be a JSON object that includes `is_relevant`.
 """
     
     task_prompt_for_webpage_reader = """Your Current Subtask Objective: '{objective}'
@@ -1494,7 +1631,9 @@ Discovered Hyperlinks (absolute URLs):
 Visible text content:
 ```text
 {text_content}
-```"""
+```
+
+Return a JSON object with the keys: "action", "description", and depending on the action, either "urls" (for download) or "url" (for navigate). Also include the keys "discovered_urls" (list of links you considered) and "is_relevant": true or false depending on whether the content contains information related to the user's objective."""
 
 
 

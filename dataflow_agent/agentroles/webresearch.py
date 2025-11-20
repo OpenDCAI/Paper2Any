@@ -3,9 +3,12 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import sys
 import re
 import shutil
+import threading
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from urllib.parse import urljoin
 
@@ -30,6 +33,411 @@ if TYPE_CHECKING:  # pragma: no cover
     from dataflow_agent.agentroles.datacollector import LogManager
 
 log = get_logger(__name__)
+
+_WEB_GET_WRITE_LOCK = threading.Lock()
+
+
+def _append_structured_page_record(download_dir: str, record: Dict[str, Any]) -> None:
+    if not download_dir:
+        return
+    try:
+        web_get_dir = os.path.join(download_dir, "web_get")
+        os.makedirs(web_get_dir, exist_ok=True)
+        target_file = os.path.join(web_get_dir, "structured_pages.jsonl")
+        serialized = json.dumps(record, ensure_ascii=False)
+        with _WEB_GET_WRITE_LOCK:
+            with open(target_file, "a", encoding="utf-8") as fp:
+                fp.write(serialized + "\n")
+    except Exception as exc:  # pragma: no cover - 记录错误但不中断流程
+        log.info(f"[WebResearch] 写入结构化网页内容失败: {exc}")
+
+
+class WebStructuredDataExtractionNode:
+    """
+    从 download_dir/web_get/structured_pages.jsonl 提取结构化网页内容，
+    直接生成基础的 PT 或 SFT 数据文件，方便后续微调使用。
+
+    该节点暂未接入现有流程，可在需要时手动实例化并调用 execute。
+    """
+
+    def __init__(
+        self,
+        *,
+        target_category: str | None = None,
+        max_records: int | None = None,
+        output_subdir: str = "web_get_extracted",
+        model_name: str | None = None,
+        temperature: float = 0.1,
+        max_tokens: int = 10240,
+        max_outputs_per_record: int | None = 5,
+        default_objective: str | None = None,
+        max_markdown_chars: int = 9000,
+        concurrent_tasks: int = 100,
+        api_base_url: str | None = None,
+        api_key: str | None = None,
+        language: str | None = None,
+    ) -> None:
+        self.target_category = target_category.upper() if target_category else None
+        self.max_records = max_records
+        self.output_subdir = output_subdir
+        self.max_outputs_per_record = max_outputs_per_record
+        self.default_objective = default_objective
+        self.max_markdown_chars = max(1000, max_markdown_chars)
+        self.concurrent_tasks = max(1, concurrent_tasks)
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self._model_name = model_name
+        self._api_base_url = api_base_url
+        self._api_key = api_key
+        self._language = language
+        self.qa_agent: Optional[StructuredWebQAAgent] = None
+
+    @staticmethod
+    def _normalize_category(category: Optional[str]) -> str:
+        if not category:
+            return "PT"
+        upper = category.upper()
+        return upper if upper in {"PT", "SFT"} else "PT"
+
+    @staticmethod
+    def _extract_instruction(structured: Dict[str, Any]) -> str:
+        title = (structured or {}).get("title", "").strip()
+        if title:
+            return title
+        warning = (structured or {}).get("warning", "").strip()
+        if warning:
+            return warning[:200]
+        markdown = (structured or {}).get("markdown", "").strip()
+        if markdown:
+            return markdown.splitlines()[0][:200]
+        return "请阅读以下网页内容并输出关键信息摘要。"
+
+    @staticmethod
+    def _resolve_objective(state: WebCrawlState, override: Optional[str], default: Optional[str]) -> str:
+        candidates = [
+            override,
+            default,
+            getattr(state, "initial_request", "") if isinstance(getattr(state, "initial_request", ""), str) else "",
+            getattr(getattr(state, "request", None), "initial_request", "")
+            if getattr(state, "request", None)
+            else "",
+        ]
+        for candidate in candidates:
+            if candidate and isinstance(candidate, str) and candidate.strip():
+                return candidate.strip()
+        return "根据网页内容生成与用户需求相关的问答对。"
+
+    @staticmethod
+    def _strip_code_fence(content: str) -> str:
+        content = content.strip()
+        if content.startswith("```"):
+            content = re.sub(r"^```(?:json)?", "", content, flags=re.IGNORECASE).strip()
+            if content.endswith("```"):
+                content = content[: -3].strip()
+        return content
+
+    async def _generate_qa_pairs(
+        self, markdown: str, objective: str, state: WebCrawlState
+    ) -> List[Dict[str, str]]:
+        if self.qa_agent is None:
+            api_base = (
+                self._api_base_url
+                or getattr(getattr(state, "request", None), "chat_api_url", None)
+                or os.getenv("CHAT_API_URL")
+            )
+            api_key = (
+                self._api_key
+                or getattr(getattr(state, "request", None), "api_key", None)
+                or os.getenv("CHAT_API_KEY")
+            )
+            resolved_model = (
+                self._model_name
+                or getattr(getattr(state, "request", None), "model", None)
+                or os.getenv("CHAT_MODEL")
+                or "gpt-4o"
+            )
+            language = (
+                self._language
+                or getattr(getattr(state, "request", None), "language", None)
+                or os.getenv("DF_WEB_GET_LANGUAGE")
+                or "zh"
+            )
+
+            if not api_base or not api_key:
+                log.warning(
+                    "[WebStructuredDataExtractionNode] 缺少模型调用配置，无法提炼问答。"
+                )
+                return []
+
+            self.qa_agent = StructuredWebQAAgent(
+                model_name=resolved_model,
+                api_base_url=api_base,
+                api_key=api_key,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                language=language,
+            )
+
+        snippet = markdown.strip()
+        original_length = len(snippet)
+        if len(snippet) > self.max_markdown_chars:
+            snippet = snippet[: self.max_markdown_chars]
+
+        log.info(
+            "[WebStructuredDataExtractionNode] 发送给模型 - 用户需求: %s | 网页内容长度: %d 字符 (截断后: %d 字符) | 前200字符: %s",
+            objective,
+            original_length,
+            len(snippet),
+            snippet[:200] if snippet else "<空>",
+        )
+
+        try:
+            content = await self.qa_agent.execute(
+                objective=objective,
+                markdown=snippet,
+                max_items=self.max_outputs_per_record,
+            )
+        except Exception as exc:
+            log.warning(f"[WebStructuredDataExtractionNode] 调用模型提炼问答失败: {exc}")
+            return []
+
+        if not isinstance(content, str) or not content.strip():
+            log.warning("[WebStructuredDataExtractionNode] 模型响应为空或非字符串。")
+            return []
+
+        log.info(
+            "[WebStructuredDataExtractionNode] 模型原始响应 (前500字符): %s",
+            content[:500] if content else "<空>",
+        )
+
+        raw_text = self._strip_code_fence(content)
+
+        try:
+            parsed = json.loads(raw_text)
+        except json.JSONDecodeError as exc:
+            log.warning(
+                "[WebStructuredDataExtractionNode] 无法解析模型响应为 JSON: %s | 原始响应: %s",
+                exc,
+                raw_text[:500],
+            )
+            return []
+
+        if isinstance(parsed, dict):
+            for key in ("pairs", "qa_pairs", "data", "items"):
+                if key in parsed and isinstance(parsed[key], list):
+                    parsed = parsed[key]
+                    break
+
+        if not isinstance(parsed, list):
+            log.warning(
+                "[WebStructuredDataExtractionNode] 模型返回结果不是列表，忽略。响应: %s",
+                str(parsed)[:200],
+            )
+            return []
+
+        if isinstance(parsed, list) and len(parsed) == 0:
+            log.info(
+                "[WebStructuredDataExtractionNode] 模型返回空数组 []，表示未找到相关问答对。原始响应: %s",
+                raw_text[:500],
+            )
+            return []
+
+        results: List[Dict[str, str]] = []
+        seen_questions: set[str] = set()
+        for item in parsed:
+            if not isinstance(item, dict):
+                continue
+            question = item.get("question") or item.get("input") or ""
+            answer = item.get("answer") or item.get("output") or ""
+            if not isinstance(question, str) or not isinstance(answer, str):
+                continue
+            question = question.strip()
+            answer = answer.strip()
+            if not question or not answer:
+                continue
+            if question in seen_questions:
+                continue
+            seen_questions.add(question)
+            results.append({"question": question, "answer": answer})
+            if self.max_outputs_per_record and len(results) >= self.max_outputs_per_record:
+                break
+
+        if len(results) == 0 and len(parsed) > 0:
+            log.info(
+                "[WebStructuredDataExtractionNode] 解析了 %d 个项，但没有有效的问答对。解析后的数据: %s",
+                len(parsed),
+                str(parsed)[:500],
+            )
+
+        return results
+
+    async def execute(
+        self,
+        state: WebCrawlState,
+        *,
+        target_category: Optional[str] = None,
+        output_dir: Optional[str] = None,
+        user_objective: Optional[str] = None,
+    ) -> WebCrawlState:
+        download_dir = getattr(state, "download_dir", None) or getattr(
+            getattr(state, "request", None), "download_dir", None
+        )
+        if not download_dir:
+            log.info("[WebStructuredDataExtractionNode] 缺少 download_dir，跳过处理。")
+            return state
+
+        structured_path = os.path.join(download_dir, "web_get", "structured_pages.jsonl")
+        if not os.path.exists(structured_path):
+            log.info(
+                "[WebStructuredDataExtractionNode] 未找到结构化网页数据文件，路径: %s",
+                structured_path,
+            )
+            return state
+
+        category = self._normalize_category(
+            target_category
+            or self.target_category
+            or getattr(getattr(state, "request", None), "category", None)
+        )
+        output_root = output_dir or os.path.join(
+            download_dir, "processed_output", self.output_subdir
+        )
+        os.makedirs(output_root, exist_ok=True)
+
+        output_file = os.path.join(output_root, f"{category}.jsonl")
+        records_written = 0
+        records_skipped = 0
+        objective = self._resolve_objective(state, user_objective, self.default_objective)
+
+        log.debug(
+            "[WebStructuredDataExtractionNode] 开始提取结构化网页数据 -> %s (类别: %s)",
+            output_file,
+            category,
+        )
+
+        with open(structured_path, "r", encoding="utf-8") as fp:
+            lines = fp.readlines()
+
+        semaphore = asyncio.Semaphore(self.concurrent_tasks)
+        progress_total = len(lines)
+        progress_enabled = sys.stdout.isatty() and progress_total > 0
+        completed_tasks = 0
+
+        async def process_line(idx: int, line: str) -> tuple[int, List[Dict[str, str]]]:
+            nonlocal records_skipped
+            async with semaphore:
+                payloads: List[Dict[str, str]] = []
+                stripped = line.strip()
+                if not stripped:
+                    return idx, payloads
+                try:
+                    record = json.loads(stripped)
+                except json.JSONDecodeError:
+                    records_skipped += 1
+                    return idx, payloads
+
+                structured = (record or {}).get("structured_content") or {}
+                markdown = structured.get("markdown") or record.get("text_content") or ""
+                markdown = (markdown or "").strip()
+                if not markdown:
+                    records_skipped += 1
+                    return idx, payloads
+
+                if category == "PT":
+                    payloads.append({"text": markdown})
+                else:
+                    source_url = record.get("source_url", "") or structured.get("url_source", "") or ""
+                    page_title = structured.get("title", "") or ""
+                    page_info = f" (URL: {source_url[:60]}...)" if source_url else (
+                        f" (标题: {page_title[:40]}...)" if page_title else f" (索引: {idx})"
+                    )
+                    
+                    qa_pairs = await self._generate_qa_pairs(markdown, objective, state)
+                    if not qa_pairs:
+                        log.info(
+                            "[WebStructuredDataExtractionNode] 未从网页提炼到问答对，可能与需求不相关或模型未能提取。%s",
+                            page_info,
+                        )
+                        records_skipped += 1
+                        return idx, payloads
+                    
+                    log.info(
+                        "[WebStructuredDataExtractionNode] 从网页提取了 %d 个问答对%s",
+                        len(qa_pairs),
+                        page_info,
+                    )
+                    for pair in qa_pairs:
+                        payloads.append(
+                            {
+                                "input": pair["question"],
+                                "output": pair["answer"],
+                            }
+                        )
+                return idx, payloads
+
+        tasks = [
+            asyncio.create_task(process_line(idx, line))
+            for idx, line in enumerate(lines)
+        ]
+
+        results_map: Dict[int, List[Dict[str, str]]] = {}
+        collected = 0
+
+        try:
+            for task in asyncio.as_completed(tasks):
+                idx, payloads = await task
+                if payloads:
+                    results_map[idx] = payloads
+                    collected += len(payloads)
+                if progress_enabled:
+                    completed_tasks += 1
+                    filled = int(30 * completed_tasks / progress_total)
+                    bar = "█" * filled + "-" * (30 - filled)
+                    print(
+                        f"\r提炼网页问答 [{bar}] {completed_tasks}/{progress_total}",
+                        end="",
+                        flush=True,
+                    )
+                if self.max_records and collected >= self.max_records:
+                    break
+        finally:
+            if progress_enabled:
+                print()
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+        with open(output_file, "w", encoding="utf-8") as out_fp:
+            for idx in sorted(results_map.keys()):
+                for payload in results_map[idx]:
+                    if self.max_records and records_written >= self.max_records:
+                        break
+                    json.dump(payload, out_fp, ensure_ascii=False)
+                    out_fp.write("\n")
+                    records_written += 1
+                if self.max_records and records_written >= self.max_records:
+                    break
+
+        log.info(
+            "[WebStructuredDataExtractionNode] 提炼完成：写入 %d 条记录，跳过 %d 条。输出: %s",
+            records_written,
+            records_skipped,
+            output_file,
+        )
+
+        state.crawled_data.append(
+            {
+                "type": "structured_web_dataset",
+                "category": category,
+                "source_file": structured_path,
+                "output_file": output_file,
+                "records_written": records_written,
+                "records_skipped": records_skipped,
+                "objective": objective,
+            }
+        )
+        return state
 
 
 class BaseAgent(ABC):
@@ -72,6 +480,57 @@ class BaseAgent(ABC):
             SystemMessage(content=system_prompt),
             HumanMessage(content=human_prompt),
         ]
+
+
+class StructuredWebQAAgent(BaseAgent):
+    def __init__(
+        self,
+        *,
+        model_name: str,
+        api_base_url: str,
+        api_key: str,
+        temperature: float,
+        max_tokens: int,
+        language: str,
+    ):
+        super().__init__(model_name=model_name, api_base_url=api_base_url, api_key=api_key)
+        self.llm = ChatOpenAI(
+            model=model_name,
+            temperature=temperature,
+            openai_api_base=api_base_url,
+            openai_api_key=api_key,
+            max_tokens=max_tokens,
+        )
+        self.language = language
+
+    async def extract(self, objective: str, markdown: str, max_items: Optional[int]) -> str:
+        system_prompt = self.prompt_gen.render(
+            "system_prompt_for_web_structured_qa", language=self.language
+        )
+        max_items_desc = str(max_items) if max_items and max_items > 0 else "尽可能多"
+        human_prompt = self.prompt_gen.render(
+            "task_prompt_for_web_structured_qa",
+            objective=objective,
+            markdown=markdown,
+            max_items=max_items_desc,
+            language=self.language,
+        )
+        log.info(
+            "[StructuredWebQAAgent] System Prompt (前500字符): %s",
+            system_prompt[:500] if system_prompt else "<空>",
+        )
+        log.info(
+            "[StructuredWebQAAgent] Human Prompt (前1000字符): %s",
+            human_prompt[:1000] if human_prompt else "<空>",
+        )
+        messages = self._create_messages(system_prompt, human_prompt)
+        response = await self.llm.ainvoke(messages)
+        return getattr(response, "content", "") if response else ""
+
+    async def execute(
+        self, objective: str, markdown: str, max_items: Optional[int] = None
+    ) -> str:
+        return await self.extract(objective, markdown, max_items)
 
 
 class ToolManager:
@@ -956,24 +1415,7 @@ class WebPageReader(BaseAgent):
         logger.log_data(safe_url_filename, page_data, is_json=True)
 
         text_content = page_data.get("text", "")
-        if text_content:
-            crawl_entry: Dict[str, Any] = {"source_url": url, "text_content": text_content}
-            if "structured_content" in page_data and page_data["structured_content"]:
-                crawl_entry["structured_content"] = page_data["structured_content"]
-            state.crawled_data.append(crawl_entry)
-
-            if is_research and state.enable_rag and state.rag_manager:
-                await state.rag_manager.add_webpage_content(
-                    url=url,
-                    text_content=text_content,
-                    metadata={
-                        "objective": current_objective,
-                        "extraction_method": (
-                            "jina_reader" if state.use_jina_reader else "playwright"
-                        ),
-                    },
-                )
-
+        structured_content = page_data.get("structured_content")
         system_prompt = self.prompt_gen.render("system_prompt_for_webpage_reader")
         compact_text = page_data.get("text", "")[:16000]
         discovered_urls = page_data.get("urls", [])[:100]
@@ -995,6 +1437,40 @@ class WebPageReader(BaseAgent):
             )
             action_plan = json.loads(clean_response)
             action_plan["discovered_urls"] = discovered_urls
+            is_relevant = bool(action_plan.get("is_relevant", True))
+            action_plan["is_relevant"] = is_relevant
+            if is_relevant and text_content:
+                crawl_entry: Dict[str, Any] = {"source_url": url, "text_content": text_content}
+                if structured_content:
+                    crawl_entry["structured_content"] = structured_content
+                    await asyncio.to_thread(
+                        _append_structured_page_record,
+                        state.download_dir,
+                        {
+                            "source_url": url,
+                            "objective": current_objective,
+                            "timestamp": datetime.utcnow().isoformat() + "Z",
+                            "structured_content": structured_content,
+                        },
+                    )
+                state.crawled_data.append(crawl_entry)
+
+                if is_research and state.enable_rag and state.rag_manager:
+                    await state.rag_manager.add_webpage_content(
+                        url=url,
+                        text_content=text_content,
+                        metadata={
+                            "objective": current_objective,
+                            "extraction_method": (
+                                "jina_reader" if state.use_jina_reader else "playwright"
+                            ),
+                        },
+                    )
+            else:
+                log.debug(
+                    "[WebPageReader] 页面内容与目标关联度低，未保存结构化数据。URL: %s",
+                    url,
+                )
             log.info(
                 f"页面分析完毕。计划行动: {action_plan.get('action')}, 描述: {action_plan.get('description')}"
             )

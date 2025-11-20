@@ -5,6 +5,7 @@
 """
 
 import argparse
+import asyncio
 import json
 import os
 import re
@@ -132,6 +133,12 @@ def main() -> None:
         default=os.environ.get("DF_MODEL", "deepseek-v3.1-250821"),
         help="调用的模型名称，默认 deepseek-v3.1-250821，可通过 DF_MODEL 环境变量覆盖。",
     )
+    parser.add_argument(
+        "--mode",
+        choices=["preview", "full"],
+        default="preview",
+        help="执行模式：preview 仅打印 LLM 采样与响应；full 将执行 UniversalDataConvertor 的完整后处理流程。",
+    )
     args = parser.parse_args()
 
     dataset_path = os.path.abspath(args.dataset_path)
@@ -168,6 +175,21 @@ def main() -> None:
         args.api_key,
         args.model,
     )
+
+    if args.mode == "full":
+        state.keywords = ["manual"]
+        result_state = asyncio.run(convertor.execute(state))
+        print("=== 完整后处理执行完成 ===")
+        print(
+            format_json(
+                {
+                    "download_dir": result_state.request.download_dir,
+                    "category": result_state.request.category,
+                    "sources": result_state.sources,
+                }
+            )
+        )
+        return
 
     if args.seed is not None:
         import random

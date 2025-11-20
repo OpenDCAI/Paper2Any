@@ -23,6 +23,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
+from langgraph.graph import StateGraph, START, END
 from dataflow_agent.state import WebCrawlState
 from dataflow_agent.logger import get_logger
 from dataflow_agent.agentroles.webresearch import (
@@ -805,11 +806,12 @@ class PaddleDatasetManager:
         return None
 class DownloadMethodDecisionAgent(BaseAgent):
     """下载方法决策器 - 决定使用哪种方法下载数据"""
-    async def execute(self, state: WebCrawlState, logger: LogManager, current_objective: str, search_keywords: str) -> Dict[str, Any]:
+    async def execute(self, state: WebCrawlState, logger: LogManager, user_original_request: str, current_task_objective: str, search_keywords: str) -> Dict[str, Any]:
         log.info("\n--- 下载方法决策器 ---")
         # 记录输入
         inputs = {
-            "current_objective": current_objective,
+            "user_original_request": user_original_request,
+            "current_task_objective": current_task_objective,
             "search_keywords": search_keywords,
             "state_initial_request": state.initial_request
         }
@@ -817,7 +819,8 @@ class DownloadMethodDecisionAgent(BaseAgent):
         
         system_prompt = self.prompt_gen.render("system_prompt_for_download_method_decision")
         human_prompt = self.prompt_gen.render("task_prompt_for_download_method_decision", 
-                                              objective=current_objective, 
+                                              user_original_request=user_original_request,
+                                              current_task_objective=current_task_objective,
                                               keywords=search_keywords)
         messages = self._create_messages(system_prompt, human_prompt)
         response = await self.llm.ainvoke(messages)
@@ -1007,6 +1010,10 @@ class WebCrawlOrchestrator:
         self.api_base_url = api_base_url
         self.api_key = api_key
         self.model_name = model_name
+        if isinstance(download_dir, str) and download_dir.startswith("\\\\?\\"):
+            cleaned_download_dir = download_dir[4:]
+            log.info(f"[Orchestrator] 检测到下载目录存在 '\\\\?\\' 前缀，已自动移除: {cleaned_download_dir}")
+            download_dir = cleaned_download_dir
         self.download_dir = download_dir
         self.max_crawl_cycles_per_task = max_crawl_cycles_per_task
         self.max_crawl_cycles_for_research = max_crawl_cycles_for_research
@@ -1349,8 +1356,10 @@ class WebCrawlOrchestrator:
 
                     if task_type == "download":
                         log.info("正在获取 HuggingFace 搜索关键词（默认优先HF）...")
+                        # 传入用户的原始需求和当前子任务信息
+                        user_original_request = getattr(state, "user_message", None) or state.initial_request
                         decision = await self.download_decision_agent.execute(
-                            state, self.logger, task_objective, search_keywords
+                            state, self.logger, user_original_request, task_objective, search_keywords
                         )
                         hf_keywords = decision.get("keywords_for_hf", []) or []
                         if not hf_keywords:
@@ -1498,6 +1507,464 @@ class WebCrawlOrchestrator:
                 final_state_log[k] = v
         
         self.logger.log_data("7_final_state", final_state_log, is_json=True)
+        return state
+
+    async def run_with_langgraph(self, initial_request: str):
+        """
+        使用 LangGraph 实现的网页爬取流程（功能与 run() 完全一致）
+        """
+        self.logger.new_run()
+        log.info("启动多阶段数据爬取流程（LangGraph版本）...")
+        log.info(f"搜索引擎: {self.search_engine.upper()}")
+        log.info(f"Jina Reader: {'启用' if self.use_jina_reader else '禁用'}")
+        log.info(f"RAG 增强: {'启用' if self.rag_manager else '禁用'}")
+        
+        state = WebCrawlState(
+            initial_request=initial_request, 
+            download_dir=self.download_dir,
+            search_engine=self.search_engine,
+            use_jina_reader=self.use_jina_reader,
+            rag_manager=self.rag_manager,
+            enable_rag=self.enable_rag,
+            max_crawl_cycles_per_task=self.max_crawl_cycles_per_task,
+            max_crawl_cycles_for_research=self.max_crawl_cycles_for_research,
+            max_dataset_size=self.max_dataset_size,
+            max_download_subtasks=self.max_download_subtasks
+        )
+        state.request.max_download_subtasks = self.max_download_subtasks
+        self.logger.log_data("0_initial_request", {
+            "request": initial_request,
+            "search_engine": self.search_engine,
+            "use_jina_reader": self.use_jina_reader,
+            "enable_rag": self.enable_rag
+        }, is_json=True)
+
+        # 使用闭包变量存储 playwright context 和当前任务信息（避免 LangGraph 传递 state 时丢失）
+        playwright_context: Optional[Any] = None
+        playwright_browser: Optional[Any] = None
+        current_task_info: Optional[Dict[str, Any]] = None
+        skip_routing: bool = False
+
+        async def task_decomposition_node(state: WebCrawlState) -> WebCrawlState:
+            """任务分解节点"""
+            log.info("=== [LangGraph] 任务分解节点 ===")
+            state = await self.task_decomposer.execute(state, self.logger)
+            if not state.sub_tasks:
+                log.info("未能生成任何子任务，流程终止。")
+                state.is_finished = True
+            return state
+
+        async def check_has_tasks(state: WebCrawlState) -> str:
+            """检查是否还有任务需要处理"""
+            nonlocal skip_routing
+            
+            if state.is_finished or not state.sub_tasks:
+                return "end"
+            # 如果设置了跳过路由标记，直接回到 process_task（用于处理任务替换的情况）
+            if skip_routing:
+                skip_routing = False
+                return "process_task"
+            return "process_task"
+
+        async def process_task_node(state: WebCrawlState) -> WebCrawlState:
+            """处理单个子任务节点"""
+            nonlocal current_task_info
+            
+            if not state.sub_tasks:
+                state.is_finished = True
+                current_task_info = None
+                return state
+
+            current_task = state.sub_tasks.pop(0)
+            task_type = current_task.get("type")
+            task_objective = current_task.get("objective")
+            search_keywords = current_task.get("search_keywords", task_objective)
+
+            log.info(f"\n\n{'='*50}\n开始执行子任务: [{task_type.upper()}] - {task_objective}\n{'='*50}")
+            state.reset_for_new_task()
+
+            # 处理 research 任务生成的新下载任务
+            if task_type == "download" and state.research_summary.get("new_sub_tasks"):
+                new_tasks = state.research_summary.pop("new_sub_tasks", [])
+                if new_tasks:
+                    log.info(f"根据研究总结，将泛化下载任务替换为 {len(new_tasks)} 个具体任务。")
+                    remaining_after_fallback: List[Dict[str, Any]] = []
+                    removed = False
+                    for task in state.sub_tasks:
+                        if not removed and task.get("type") == "download":
+                            removed = True
+                            continue
+                        remaining_after_fallback.append(task)
+                    state.sub_tasks = new_tasks + remaining_after_fallback
+                    self._apply_download_limit_to_state(state)
+                    # 清除当前任务信息，因为当前任务被跳过
+                    current_task_info = None
+                    skip_routing = True
+                    return state
+                else:
+                    log.info(f"研究阶段未发现具体下载目标，执行默认的下载任务作为兜底。")
+
+            # 存储当前任务信息到闭包变量（这样不会被 LangGraph 丢失）
+            current_task_info = {
+                "task": current_task,
+                "type": task_type,
+                "objective": task_objective,
+                "search_keywords": search_keywords
+            }
+
+            return state
+
+        async def route_task_type(state: WebCrawlState) -> str:
+            """根据任务类型路由"""
+            nonlocal current_task_info
+            
+            if current_task_info is None:
+                log.warning("[LangGraph] route_task_type: current_task_info 未设置，返回 complete_task")
+                return "complete_task"
+            
+            task_type = current_task_info["type"]
+            if task_type == "research":
+                return "research_task"
+            elif task_type == "download":
+                return "download_task"
+            else:
+                return "complete_task"
+
+        async def research_task_node(state: WebCrawlState) -> WebCrawlState:
+            """Research 任务处理节点"""
+            nonlocal current_task_info, playwright_context
+            
+            log.info("=== [LangGraph] Research 任务节点 ===")
+            
+            if current_task_info is None:
+                log.error("[LangGraph] research_task_node: current_task_info 未设置，跳过")
+                return state
+            
+            if playwright_context is None:
+                log.error("[LangGraph] research_task_node: playwright_context 未设置，跳过")
+                return state
+            
+            context = playwright_context
+            await self.web_research_agent.execute(
+                state,
+                context=context,
+                logger=self.logger,
+                objective=current_task_info["objective"],
+                search_keywords=current_task_info["search_keywords"],
+            )
+            new_download_tasks = state.research_summary.get("new_sub_tasks", []) or []
+            if new_download_tasks:
+                log.info(f"[Research] 添加 {len(new_download_tasks)} 个新下载子任务，并移除默认兜底任务。")
+                remaining_after_fallback: List[Dict[str, Any]] = []
+                removed = False
+                for task in state.sub_tasks:
+                    if not removed and task.get("type") == "download":
+                        removed = True
+                        continue
+                    remaining_after_fallback.append(task)
+                state.sub_tasks = new_download_tasks + remaining_after_fallback
+                state.research_summary["new_sub_tasks"] = []
+            
+            # 更新任务状态并添加到完成列表
+            if current_task_info:
+                current_task_info["task"]["status"] = "completed"
+                self._apply_download_limit_to_state(state)
+                state.completed_sub_tasks.append(current_task_info["task"])
+                log.info(f"子任务 [RESEARCH] 完成。状态: {current_task_info['task'].get('status', 'completed')}")
+            return state
+
+        async def download_task_node(state: WebCrawlState) -> WebCrawlState:
+            """Download 任务处理节点"""
+            nonlocal current_task_info, playwright_context
+            
+            log.info("=== [LangGraph] Download 任务节点 ===")
+            
+            if current_task_info is None:
+                log.error("[LangGraph] download_task_node: current_task_info 未设置，跳过")
+                return state
+            
+            if playwright_context is None:
+                log.error("[LangGraph] download_task_node: playwright_context 未设置，跳过")
+                return state
+            
+            context = playwright_context
+            task_objective = current_task_info["objective"]
+            search_keywords = current_task_info["search_keywords"]
+
+            log.info("正在获取 HuggingFace 搜索关键词（默认优先HF）...")
+            user_original_request = getattr(state, "user_message", None) or state.initial_request
+            decision = await self.download_decision_agent.execute(
+                state, self.logger, user_original_request, task_objective, search_keywords
+            )
+            hf_keywords = decision.get("keywords_for_hf", []) or []
+            if not hf_keywords:
+                if isinstance(search_keywords, (list, tuple)):
+                    hf_keywords = [
+                        kw
+                        for kw in search_keywords
+                        if isinstance(kw, str) and kw.strip()
+                    ] or [task_objective]
+                else:
+                    if isinstance(search_keywords, str) and search_keywords.strip():
+                        hf_keywords = [search_keywords]
+                    else:
+                        hf_keywords = [task_objective]
+
+            state.download_successful_for_current_task = False
+            manager_outcome = await self.download_manager.execute(
+                state,
+                context=context,
+                task_objective=task_objective,
+                search_keywords=search_keywords,
+                hf_keywords=hf_keywords,
+            )
+            download_success = manager_outcome.success
+            abort_download_task = manager_outcome.abort_due_to_size
+            state.download_successful_for_current_task = download_success
+
+            # 如果下载失败且未因大小限制中止，进行网页爬取
+            if not download_success and not abort_download_task:
+                log.info(f"使用关键词进行搜索: '{search_keywords}'")
+                query_kw = (
+                    ", ".join(search_keywords)
+                    if isinstance(search_keywords, (list, tuple))
+                    else search_keywords
+                )
+                search_results = await ToolManager.search_web(
+                    query_kw, search_engine=state.search_engine
+                )
+                state.search_results_text = search_results
+                self.logger.log_data(
+                    f"2_search_results_{task_objective.replace(' ', '_')}",
+                    search_results,
+                )
+
+                state = await self.url_filter.execute(
+                    state, logger=self.logger, is_research=False
+                )
+
+                max_cycles = state.max_crawl_cycles_per_task
+
+                while state.url_queue and state.current_cycle < max_cycles:
+                    batch_urls: List[str] = []
+                    while (
+                        len(batch_urls) < self.concurrent_pages and state.url_queue
+                    ):
+                        current_url = state.url_queue.pop(0)
+                        if current_url not in state.visited_urls:
+                            batch_urls.append(current_url)
+                            state.visited_urls.add(current_url)
+
+                    if not batch_urls:
+                        break
+
+                    log.info(f"\n[并行处理] 开始处理 {len(batch_urls)} 个网页...")
+
+                    results = await self._process_urls_parallel(
+                        context,
+                        batch_urls,
+                        state,
+                        task_objective,
+                        getattr(state, '_task_type', 'download'),  # 使用 getattr 确保安全
+                        False,
+                    )
+                    for result in results:
+                        if result["success"]:
+                            crawled_entry = result.get("crawled_entry")
+                            if crawled_entry:
+                                if "multiple_entries" in crawled_entry:
+                                    state.crawled_data.extend(
+                                        crawled_entry["multiple_entries"]
+                                    )
+                                else:
+                                    state.crawled_data.append(crawled_entry)
+
+                            for new_url in result.get("new_urls", []):
+                                if (
+                                    new_url not in state.visited_urls
+                                    and new_url not in state.url_queue
+                                ):
+                                    state.url_queue.append(new_url)
+                            if result.get("download_successful"):
+                                state.download_successful_for_current_task = True
+
+                    state = await self.supervisor.execute(
+                        state,
+                        self.logger,
+                        current_objective=task_objective,
+                        is_research=False,
+                    )
+                    if state.download_successful_for_current_task:
+                        log.info(
+                            f"子任务 '{task_objective}' 的下载目标已完成，提前结束爬取循环。"
+                        )
+                        break
+                    log.info(
+                        f"[并行处理] 批次完成，剩余 {len(state.url_queue)} 个URL待处理"
+                    )
+
+            # 更新任务状态
+            if current_task_info:
+                if state.download_successful_for_current_task:
+                    current_task_info["task"]['status'] = 'completed_successfully'
+                else:
+                    current_task_info["task"]['status'] = 'failed_due_to_size_limit' if abort_download_task else 'failed_to_download'
+                state.completed_download_tasks += 1
+                self._apply_download_limit_to_state(state)
+                state.completed_sub_tasks.append(current_task_info["task"])
+                log.info(f"子任务 [DOWNLOAD] 完成。状态: {current_task_info['task'].get('status', 'N/A')}")
+            return state
+
+
+        async def complete_task_node(state: WebCrawlState) -> WebCrawlState:
+            """完成任务节点（处理未知任务类型）"""
+            nonlocal current_task_info
+            
+            if current_task_info is None:
+                log.warning("[LangGraph] complete_task_node: current_task_info 未设置，无法完成任务")
+                return state
+            
+            current_task_info["task"]['status'] = 'completed'
+            state.completed_sub_tasks.append(current_task_info["task"])
+            task_type = current_task_info.get("type", 'UNKNOWN')
+            log.info(f"子任务 [{task_type.upper()}] 完成。状态: {current_task_info['task'].get('status', 'N/A')}")
+            return state
+
+        async def finalize_node(state: WebCrawlState) -> WebCrawlState:
+            """最终化节点"""
+            log.info("\n任务执行完毕!")
+            downloaded_files = [d for d in state.crawled_data if d.get('type') == 'file' or d.get('type') == 'huggingface_dataset']
+            log.info(f"最终收集到的文件 ({len(downloaded_files)} 个): {json.dumps(downloaded_files, indent=2, ensure_ascii=False)}")
+            
+            final_state_log = {}
+            for k, v in state.__dict__.items():
+                if k.startswith('_'):
+                    continue  # 跳过临时字段
+                if isinstance(v, set):
+                    final_state_log[k] = list(v)
+                elif k == 'rag_manager':
+                    if v:
+                        final_state_log['rag_statistics'] = v.get_statistics()
+                    else:
+                        final_state_log['rag_statistics'] = None
+                elif hasattr(v, '__dict__') and not isinstance(v, (str, int, float, bool, list, dict, tuple)):
+                    final_state_log[k] = f"<{v.__class__.__name__} object>"
+                else:
+                    final_state_log[k] = v
+            
+            self.logger.log_data("7_final_state", final_state_log, is_json=True)
+            return state
+
+        # 构建 LangGraph 工作流
+        graph_builder = StateGraph(WebCrawlState)
+        
+        # 添加节点
+        graph_builder.add_node("task_decomposition", task_decomposition_node)
+        graph_builder.add_node("process_task", process_task_node)
+        graph_builder.add_node("research_task", research_task_node)
+        graph_builder.add_node("download_task", download_task_node)
+        graph_builder.add_node("complete_task", complete_task_node)
+        graph_builder.add_node("finalize", finalize_node)
+
+        # 添加边
+        graph_builder.add_edge(START, "task_decomposition")
+        graph_builder.add_conditional_edges(
+            "task_decomposition",
+            check_has_tasks,
+            {
+                "end": "finalize",
+                "process_task": "process_task"
+            }
+        )
+        async def route_after_process_task(state: WebCrawlState) -> str:
+            """在 process_task 之后的路由函数"""
+            nonlocal current_task_info, skip_routing
+            
+            # 如果设置了跳过路由标记，直接回到 process_task
+            if skip_routing:
+                skip_routing = False
+                return "process_task"
+            # 否则根据任务类型路由
+            return await route_task_type(state)
+
+        graph_builder.add_conditional_edges(
+            "process_task",
+            route_after_process_task,
+            {
+                "research_task": "research_task",
+                "download_task": "download_task",
+                "complete_task": "complete_task",
+                "process_task": "process_task"  # 允许直接回到 process_task
+            }
+        )
+        graph_builder.add_conditional_edges(
+            "research_task",
+            check_has_tasks,
+            {
+                "end": "finalize",
+                "process_task": "process_task"
+            }
+        )
+        graph_builder.add_conditional_edges(
+            "download_task",
+            check_has_tasks,
+            {
+                "end": "finalize",
+                "process_task": "process_task"
+            }
+        )
+        graph_builder.add_conditional_edges(
+            "complete_task",
+            check_has_tasks,
+            {
+                "end": "finalize",
+                "process_task": "process_task"
+            }
+        )
+        graph_builder.add_edge("finalize", END)
+
+        # 编译图
+        graph = graph_builder.compile()
+
+        # 执行工作流（在 playwright context 中）
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+            page = await context.new_page()
+            
+            try:
+                # 将 playwright context 和 browser 存储到闭包变量中
+                playwright_context = context
+                playwright_browser = browser
+                
+                result = await graph.ainvoke(state)
+                
+                # 确保返回的是 WebCrawlState 对象，而不是字典
+                if isinstance(result, WebCrawlState):
+                    state = result
+                elif isinstance(result, dict):
+                    # 如果返回的是字典，更新原始 state 对象
+                    log.warning("[LangGraph] graph.ainvoke 返回了字典，正在转换为 WebCrawlState")
+                    # 从字典中更新 state 的字段
+                    for key, value in result.items():
+                        if key.startswith('_'):
+                            continue  # 跳过临时字段
+                        if hasattr(state, key):
+                            # 特殊处理集合类型
+                            if key == 'visited_urls' and isinstance(value, list):
+                                setattr(state, key, set(value))
+                            else:
+                                setattr(state, key, value)
+                else:
+                    log.warning(f"[LangGraph] graph.ainvoke 返回了未知类型: {type(result)}，使用原始 state")
+            finally:
+                await browser.close()
+                # 清理闭包变量
+                playwright_context = None
+                playwright_browser = None
+                current_task_info = None
+                skip_routing = False
+
         return state
 
 async def main():
