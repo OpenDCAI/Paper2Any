@@ -88,12 +88,12 @@ class VLMStrategy(ExecutionStrategy):
         }
         
         # 临时注入配置
-        original_vlm_config = getattr(self.agent, 'vlm_config', {})
+        # original_vlm_config = getattr(self.agent, 'vlm_config', {})
         self.agent.vlm_config = vlm_config
         
         result = await self.agent._execute_vlm(state, **kwargs)
         
-        self.agent.vlm_config = original_vlm_config
+        # self.agent.vlm_config = original_vlm_config
         return result
     
 class StrategyFactory:

@@ -26,7 +26,9 @@ class VisionLLMCaller(BaseLLMCaller):
         """
         super().__init__(state, **kwargs)
         self.vlm_config = vlm_config
-        self.mode = vlm_config.get("mode", "understanding")
+        self.mode       = vlm_config.get("mode", "understanding")
+        self.temperature = kwargs.get("temperature", 0.1)
+        # self.max_tokens = kwargs.get("max_tokens", 16384)
     
     async def call(self, messages: List[BaseMessage], bind_post_tools: bool = False) -> AIMessage:
         """调用VLM"""
@@ -75,6 +77,7 @@ class VisionLLMCaller(BaseLLMCaller):
             "max_tokens": self.max_tokens,
         }
         response_data = await self._post_chat_completions(payload)
+        # log.critical(f"VisionLLM理解模式响应: {response_data}")
         content = response_data["choices"][0]["message"]["content"]
         return AIMessage(content=content)
     
@@ -170,23 +173,78 @@ class VisionLLMCaller(BaseLLMCaller):
         
         return b64, fmt
     
+    # async def _post_chat_completions(self, payload: dict) -> dict:
+    #     """调用chat completions API"""
+    #     import httpx
+        
+    #     url = f"{self.state.request.chat_api_url}/chat/completions".rstrip("/")
+
+    #     log.critical(f"[_post_chat_completions]>调用URL: {url}")
+    #     headers = {
+    #         "Authorization": f"Bearer {self.state.request.api_key}",
+    #         "Content-Type": "application/json",
+    #     }
+        
+    #     timeout = self.vlm_config.get("timeout", 120)
+    #     async with httpx.AsyncClient(timeout=httpx.Timeout(timeout)) as client:
+    #         resp = await client.post(url, headers=headers, json=payload)
+    #         resp.raise_for_status()
+    #         return resp.json()
+
     async def _post_chat_completions(self, payload: dict) -> dict:
         """调用chat completions API"""
         import httpx
         
-        url = f"{self.state.request.chat_api_url}/chat/completions".rstrip("/")
+        # 构建URL
+        base_url = self.state.request.chat_api_url.rstrip("/")
+        url = f"{base_url}/chat/completions"
+        
+        # 日志记录
+        log.critical(f"[调用URL]: {url}")
+        log.debug(f"[请求payload]: {payload}")
+        
         headers = {
             "Authorization": f"Bearer {self.state.request.api_key}",
             "Content-Type": "application/json",
         }
         
-        timeout = self.vlm_config.get("timeout", 120)
-        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout)) as client:
-            resp = await client.post(url, headers=headers, json=payload)
-            resp.raise_for_status()
-            return resp.json()
+        # 处理timeout参数
+        timeout_value = self.vlm_config.get("timeout", 120)
+        if isinstance(timeout_value, str):
+            try:
+                timeout = float(timeout_value)
+            except ValueError:
+                log.warning(f"timeout配置'{timeout_value}'无效，使用默认值120")
+                timeout = 120
+        else:
+            timeout = float(timeout_value)
         
-
+        log.info(f"[请求配置] timeout={timeout}s")
+        
+        try:
+            # 创建客户端时显式配置，避免环境变量干扰
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(timeout),
+                proxies=None,        # 禁用代理
+                trust_env=False,     # 不读取环境变量
+                follow_redirects=True
+            ) as client:
+                resp = await client.post(url, headers=headers, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                log.debug(f"[响应]: {data}")
+                return data
+                
+        except httpx.HTTPStatusError as e:
+            log.error(f"HTTP错误 {e.response.status_code}: {e.response.text}")
+            raise
+        except httpx.RequestError as e:
+            log.error(f"请求错误: {e}")
+            raise
+        except Exception as e:
+            log.error(f"未知错误: {e}")
+            raise
+        
 # ======================================================================
 # 快速自测：python vision.py <image_path>
 # ======================================================================

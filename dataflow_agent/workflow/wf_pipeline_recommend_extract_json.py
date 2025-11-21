@@ -191,6 +191,9 @@ def create_pipeline_graph() -> GenericGraphBuilder:
         return sg.compile()
 
     async def recommender_node(s: DFState) -> DFState:
+        from dataflow.utils.registry import OPERATOR_REGISTRY  
+        _NAME2CLS = {name: cls for name, cls in OPERATOR_REGISTRY}
+
         rec_graph = await build_recommender_subgraph(s)
         result = await rec_graph.ainvoke(s)
         if isinstance(result, dict):
@@ -204,14 +207,39 @@ def create_pipeline_graph() -> GenericGraphBuilder:
         if not ops_list:
             raise ValueError("Recommender 没有返回有效算子列表")
         from dataflow_agent.toolkits.optool.op_tools import get_operators_by_rag
-        # 这里得改，参考库帕斯的写法；
+        
+        # 直接使用公共索引进行RAG检索
         ops_list = get_operators_by_rag(search_queries=ops_list, 
                                         top_k=1, 
                                         faiss_index_path=f"{PROJDIR}/dataflow_agent/resources/faiss_cache/all_ops.index",
                                         base_url=f"{s.request.chat_api_url}embeddings" if s.request.chat_api_url_for_embeddings == "" else s.request.chat_api_url_for_embeddings,
                                         model_name = s.request.embedding_model_name)
+        ops_list = [item for sub in ops_list for item in sub]   # 展平
 
-        ops_list = [item for sub in ops_list for item in sub]
+        # 如果要求RAG实时更新，检测未注册的算子；如有则删除索引文件并重跑RAG
+        if s.request.update_rag_content:
+            missing_ops = [op for op in ops_list if op not in _NAME2CLS]
+            if missing_ops:
+                log.warning("[recommender] 检测到未注册算子 %s ，重新生成索引", missing_ops)
+
+                # 删除索引文件(.index & .meta)
+                index_path = f"{PROJDIR}/dataflow_agent/resources/faiss_cache/all_ops.index"
+                for suffix in (".index", ".index.meta"):
+                    p = pathlib.Path(index_path + suffix) if suffix.endswith(".meta") else pathlib.Path(index_path)
+                    if p.exists():
+                        try:
+                            p.unlink()
+                        except FileNotFoundError:
+                            pass
+
+                # 重新检索（此时 get_operators_by_rag 会自动重新构建索引）
+                ops_list = get_operators_by_rag(search_queries=ops_list, 
+                                        top_k=1, 
+                                        faiss_index_path=index_path,
+                                        base_url=f"{s.request.chat_api_url}embeddings" if s.request.chat_api_url_for_embeddings == "" else s.request.chat_api_url_for_embeddings,
+                                        model_name = s.request.embedding_model_name)
+                ops_list = [item for sub in ops_list for item in sub]
+
         log.warning(f"[recommender_node + RAG ] 推荐算子列表：{ops_list}")
         s["recommendation"] = ops_list
         s.agent_results['recommender']['results']['ops'] = ops_list

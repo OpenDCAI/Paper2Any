@@ -3,6 +3,12 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# 忽略所有以 _cache 结尾的目录
+*_cache/
+
+# 忽略所有以 _cache 结尾的文件
+*_cache
+
 # C extensions
 *.so
 

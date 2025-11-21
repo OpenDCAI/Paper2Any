@@ -61,7 +61,8 @@ class BaseAgent(ABC):
                  message_history: Optional[AdvancedMessageHistory] = None,
 
                 # 新增参数，用于策略控制； 
-                 execution_config: Optional[Any] = None
+                 execution_config: Optional[Any] = None,
+                 chat_api_url: Optional[str] = None
                  ):
         """
         Args:
@@ -80,6 +81,7 @@ class BaseAgent(ABC):
         self.tool_mode = tool_mode
         self.react_mode = react_mode
         self.react_max_retries = react_max_retries
+        self.chat_api_url = chat_api_url
         
         # 解析器配置
         self.parser_type = parser_type
@@ -641,10 +643,10 @@ class BaseAgent(ABC):
     def create_llm(self, state: MainState, bind_post_tools: bool = False) -> ChatOpenAI:
         """创建LLM实例"""
         actual_model = self.model_name or state.request.model
-        log.info(f"[create_llm:]创建LLM实例，模型: {actual_model}")
-        
+        actual_url = self.chat_api_url or state.request.chat_api_url
+        log.info(f"[create_llm:]创建LLM实例，温度: {self.temperature}, 最大token: {self.max_tokens}, 模型: {actual_model}, 接口URL: {actual_url}, API Key: {state.request.api_key}")
         llm = ChatOpenAI(
-            openai_api_base=state.request.chat_api_url,
+            openai_api_base=actual_url,
             openai_api_key=state.request.api_key,
             model_name=actual_model,
             temperature=self.temperature,
@@ -831,11 +833,11 @@ class BaseAgent(ABC):
         """
         # 1. 前置工具
         pre_tool_results = await self.execute_pre_tools(state)
-
+    
         # 2. 构建消息（若是图像生成/编辑仅用 prompt 就行，
         #    若是图像理解可和文本一样）——示例给两种典型写法:
         mode = self.vlm_config.get("mode", "understanding")
-
+    
         # if mode in {"generation", "edit"}:
         #     # 只需要最后一条 prompt
         #     messages = [
@@ -843,7 +845,7 @@ class BaseAgent(ABC):
         #     ]
         # else:
         messages = self.build_messages(state, pre_tool_results)
-
+    
         # 3. 调用 VisionLLMCaller
         from dataflow_agent.llm_callers import VisionLLMCaller
         vlm_caller = VisionLLMCaller(
@@ -856,13 +858,26 @@ class BaseAgent(ABC):
             tool_manager=self.tool_manager,
         )
         response = await vlm_caller.call(messages)
-
+        log.info(f"{self.role_name} 多模态原始响应: {response}")
+    
         # 4. 解析
         parsed = self.parse_result(response.content)
-
+    
         # 5. 如有附加信息（例如图像路径 / base64），一起返回
         if hasattr(response, "additional_kwargs"):
-            parsed.update(response.additional_kwargs)
+            log.info(f"{self.role_name} 多模态附加信息: {response.additional_kwargs}")
+            
+            if isinstance(parsed, dict):
+                parsed.update(response.additional_kwargs)
+            elif isinstance(parsed, list):
+                log.warning(f"{self.role_name} parsed 是列表类型，无法调用 update 方法，跳过附加参数合并")
+                log.info(f"parsed 类型: {type(parsed).__name__}, 内容: {parsed}")
+                log.info(f"additional_kwargs 内容: {response.additional_kwargs}")
+            else:
+                log.warning(f"{self.role_name} parsed 是 {type(parsed).__name__} 类型，无法调用 update 方法，跳过附加参数合并")
+                log.info(f"parsed 内容: {parsed}")
+                log.info(f"additional_kwargs 内容: {response.additional_kwargs}")
+        
         return parsed
 # 这个暂时用不到
     def build_generation_prompt(self, pre_tool_results: Dict[str, Any]) -> str:

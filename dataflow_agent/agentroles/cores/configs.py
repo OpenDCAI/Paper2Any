@@ -17,6 +17,7 @@ class BaseAgentConfig:
     """Agent基础配置"""
     # 核心参数
     model_name: Optional[str] = None
+    chat_api_url: Optional[str] = None  # 新增chat_api_url参数
     temperature: float = 0.0
     max_tokens: int = 16384
     
@@ -61,5 +62,5 @@ class VLMConfig(BaseAgentConfig):
     mode: ExecutionMode = field(default=ExecutionMode.VLM, init=False)
     vlm_mode: str = "understanding"  # understanding/generation/edit
     image_detail: str = "auto"       # low/high/auto
-    max_image_size: tuple = (2048, 2048)
+    max_image_size: tuple = (1024, 1024)
     additional_params: Dict[str, Any] = field(default_factory=dict)
