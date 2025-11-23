@@ -1,93 +1,33 @@
-# DataFlow-Agent
+<div align="center">
 
-
-
-
-<!-- Logo -->
 <p align="center">
-  <img src="static/LogoDataFlow_Agentlogo_image_1.png"
-       alt="DataFlow-Agent Logo"
+  <img src="static/LogoDataFlow_Agentlogo_image_1.png" 
+       alt="DataFlow-Agent Logo" 
        width="220">
 </p>
 
-<!-- Badges -->
-<p align="center">
-  <!-- License -->
-  <a href="LICENSE" title="Apache 2.0 License">
-    <img src="https://img.shields.io/badge/License-Apache_2.0-007ec6?style=for-the-badge&logo=open-source-initiative&logoColor=white"
-         alt="License: Apache 2.0">
-  </a>
-  <!-- Python -->
-  <a href="https://www.python.org/downloads/" title="Python ≥ 3.12">
-    <img src="https://img.shields.io/badge/Python-3.12%2B-blue?style=for-the-badge&logo=python&logoColor=white"
-         alt="Python 3.12+">
-  </a>
-  <!-- Docs -->
-  <a href="https://your-docs-url" title="项目文档">
-    <img src="https://img.shields.io/badge/Docs-latest-brightgreen?style=for-the-badge&logo=readthedocs&logoColor=white"
-         alt="Documentation">
-  </a>
-  <!-- Upstream repo -->
-  <a href="https://github.com/OpenDCAI/DataFlow" title="上游仓库 OpenDCAI/DataFlow">
-    <img src="https://img.shields.io/badge/Upstream-OpenDCAI%2FDataFlow-181717?style=for-the-badge&logo=github&logoColor=white"
-         alt="Upstream Repository">
-  </a>
-</p>
+# 🌊 DataFlow-Agent
 
-<!-- 快捷导航 -->
-<p align="center">
-  <a href="#快速开始">快速开始</a> •
-  <a href="#功能特性">功能特性</a> •
-  <a href="#贡献指南">贡献指南</a> •
-  <a href="https://your-docs-url">文档</a> •
-  <a href="https://github.com/OpenDCAI/DataFlow">上游仓库</a>
-</p>
+**AI驱动的数据处理管线智能编排平台**
+
+[![License](https://img.shields.io/badge/License-Apache_2.0-007ec6?style=flat-square)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.12+-blue?style=flat-square&logo=python)](https://www.python.org)
+[![Upstream](https://img.shields.io/badge/Upstream-OpenDCAI%2FDataFlow-181717?style=flat-square&logo=github)](https://github.com/OpenDCAI/DataFlow)
+
+[快速开始](#-快速开始) • [核心功能](#-核心功能) • [文档](docs/) • [贡献指南](#-贡献指南)
+
+</div>
 
 ---
-<!-- 更新通知 -->
-> **🎉 最新更新 (2025-11-04)**  
-> - 新增手动编排管线，管线推荐以及算子编写；
-> - **llm_caller** 新增多模态API调用，支持视觉语言模型（VLM）
-> - **store_outputs** 新增Agent持久化存储功能
-> - 新增策略模式支持（Simple/ReAct/Graph/VLM）
 
----
-## ✨ 功能
+## 💡 核心亮点
 
-- **管线推荐** - 智能推荐算法处理管线配置
-  
-  ![管线推荐](static/imag_piperec.png)
-
-- **算子编写** - 支持自定义算子的编写和配置
-  
-  ![算子编写](static/image_opwrite.png)
-
-- **手动编排** - 灵活的手动编排工作流
-  
-  ![手动编排](static/image.png)
-
-- **算子复用/修改算子提示词优化** - 复用现有算子并优化提示词配置
-  
-  ![算子复用](static/promptagent.png)
-
-- **Web Search** - 网络搜索集成功能
-  
-  ![Web Search](static/web_collection.png)
-
-- **图标/图生图生成与优化** - 支持论文图标/模型图生成和编辑
-  
-  ![图生图](static/icon_refine.png)
-  ![图生图](static/paper_icon_2589319.png)
-  ![图生图](static/paper_icon_2639547.png)
----
-
-## ✨ 特性
-
-- 🔧 **模块化设计**：Agent 和 Workflow 插件式注册，开箱即用
-- 🎨 **可视化界面**：基于 Gradio 的交互式 Web 前端
-- 🛠️ **CLI 脚手架**：一键生成 Agent、Workflow、Prompt 模板代码
-- 📦 **工具管理**：统一的工具注册与调用机制
-- 🔄 **工作流编排**：基于 StateGraph 的灵活流程控制
+🎯 **智能推荐** - 基于任务描述自动推荐最优数据处理管线  
+🔧 **算子编写** - AI辅助生成自定义算子，支持调试与优化  
+🎨 **可视化编排** - 拖拽式手动编排工作流，所见即所得  
+🔄 **Prompt优化** - 智能复用与优化算子提示词，提升效果  
+🌐 **Web采集** - 自动化网页数据采集与结构化转换  
+🖼️ **图像生成** - 支持图标/模型图生成与迭代优化
 
 ---
 
@@ -96,63 +36,412 @@
 ### 安装
 
 ```bash
-# 克隆仓库
-git clone https://github.com/your-org/DataFlow-Agent.git
+git clone https://github.com/OpenDCAI/DataFlow-Agent.git
 cd DataFlow-Agent
-
-# 安装依赖
 pip install -r requirements.txt
 pip install -e .
 ```
 
-### 启动 Web 界面
+### 启动Web界面
 
 ```bash
-# 方式一：直接运行
 python gradio_app/app.py
 ```
 
-访问 `http://127.0.0.1:7860` 即可使用。
+访问 `http://127.0.0.1:7860` 开始使用
 
-<div align="center">
-  <figure style="display: inline-block; margin: 10px; text-align: center;">
-    <img src="static/imag_piperec.png" width="260" alt="管线推荐界面"/>
-    <figcaption>管线推荐</figcaption>
-  </figure>
-  <figure style="display: inline-block; margin: 10px; text-align: center;">
-    <img src="static/image_opwrite.png" width="260" alt="算子编写界面"/>
-    <figcaption>算子编写</figcaption>
-  </figure>
-  <figure style="display: inline-block; margin: 10px; text-align: center;">
-    <img src="static/image.png" width="260" alt="手动编排界面"/>
-    <figcaption>手动编排</figcaption>
-  </figure>
-</div>
+### 🛠️ CLI脚手架
 
-<div align="center">
-  <figure style="display: inline-block; margin: 10px; text-align: center;">
-    <img src="static/promptagent.png" width="260" alt="算子复用/修改算子提示词"/>
-    <figcaption>算子复用/修改算子提示词</figcaption>
-  </figure>
-  <figure style="display: inline-block; margin: 10px; text-align: center;">
-    <img src="static/Icongen_refine.png" width="260" alt="图标生成与优化界面"/>
-    <figcaption>图标/抠图生成与优化</figcaption>
-  </figure>
-</div>
+DataFlow-Agent提供强大的代码生成工具，基于Jinja2模板自动创建标准化代码文件。
 
-<!-- ### 基础使用示例
+#### 支持的模板类型
 
+| 命令参数 | 功能说明 | 生成文件 | 自动集成 |
+|---------|---------|---------|---------|
+| `--agent_name` | 创建Agent角色 | `agentroles/{name}_agent.py` | ✅ @register装饰器 |
+| `--wf_name` | 创建Workflow | `workflow/wf_{name}.py` + `tests/test_{name}.py` | ✅ @register装饰器 |
+| `--gradio_name` | 创建Gradio页面 | `gradio_app/pages/page_{name}.py` | ✅ 自动发现 |
+| `--prompt_name` | 创建Prompt模板 | `promptstemplates/resources/pt_{name}_repo.py` | 手动引用 |
+| `--state_name` | 创建自定义State | `states/{name}_state.py` | 手动引用 |
+| `--agent_as_tool_name` | 创建Agent工具 | `agentroles/{name}_agent.py` | ✅ @register + as_tool |
+
+#### 快速开始
+
+```bash
+# 1. 创建一个数据清洗Agent
+dfa create --agent_name data_cleaner
+
+# 2. 创建对应的Workflow（自动生成测试文件）
+dfa create --wf_name data_cleaning_pipeline
+
+# 3. 创建Web界面页面
+dfa create --gradio_name data_cleaner_ui
+
+# 4. 创建Prompt模板库
+dfa create --prompt_name data_cleaning_prompts
+
+# 5. 创建自定义State对象
+dfa create --state_name data_cleaning_state
+
+# 6. 创建可作为工具调用的Agent
+dfa create --agent_as_tool_name text_analyzer
+```
+
+#### 详细示例
+
+<details>
+<summary><b>📝 创建Agent</b></summary>
+
+```bash
+dfa create --agent_name sentiment_analyzer
+```
+
+**生成文件**: `dataflow_agent/agentroles/sentiment_analyzer_agent.py`
+
+**核心特性**:
+- ✅ 自动注册到Agent注册中心（`@register("sentiment_analyzer")`）
+- ✅ 包含完整的BaseAgent实现框架
+- ✅ 预置prompt模板配置接口
+- ✅ 支持多种执行策略（Simple/ReAct/Graph/VLM）
+- ✅ 提供异步执行函数和工厂函数
+
+**生成的代码结构**:
 ```python
-from dataflow_agent.workflow import run_workflow
-from dataflow_agent.utils.state import AgentState
+@register("sentiment_analyzer")
+class SentimentAnalyzer(BaseAgent):
+    @property
+    def system_prompt_template_name(self) -> str:
+        return "system_prompt_for_sentiment_analyzer"
+    
+    def get_task_prompt_params(self, pre_tool_results) -> Dict:
+        # TODO: 自定义参数映射
+        return {}
 
-# 创建任务状态
-state = AgentState(task="生成一个数据处理 Pipeline")
+# 便捷调用函数
+async def sentiment_analyzer(state, **kwargs) -> MainState:
+    agent = SentimentAnalyzer.create(**kwargs)
+    return await agent.execute(state)
+```
 
-# 运行工作流
-result = await run_workflow("pipeline_recommend", state)
-print(result)
-``` -->
+</details>
+
+<details>
+<summary><b>🔄 创建Workflow</b></summary>
+
+```bash
+dfa create --wf_name text_processing
+```
+
+**生成文件**: 
+- `dataflow_agent/workflow/wf_text_processing.py` - 工作流定义
+- `tests/test_text_processing.py` - 单元测试
+
+**核心特性**:
+- ✅ 自动注册到Workflow注册中心（`@register("text_processing")`）
+- ✅ 基于StateGraph的节点和边定义框架
+- ✅ 预置pre_tool和post_tool装饰器示例
+- ✅ 包含完整的测试用例模板
+- ✅ 支持多种Agent创建策略示例
+
+**生成的代码结构**:
+```python
+@register("text_processing")
+def create_text_processing_graph() -> GenericGraphBuilder:
+    builder = GenericGraphBuilder(state_model=xxState, entry_point="step1")
+    
+    # 定义前置工具
+    @builder.pre_tool("purpose", "step1")
+    def _purpose(state):
+        return "工具描述"
+    
+    # 定义节点
+    async def step1(state):
+        agent = create_simple_agent(name="your_agent", ...)
+        return await agent.execute(state)
+    
+    # 注册节点和边
+    builder.add_nodes({"step1": step1}).add_edges([("step1", "_end_")])
+    return builder
+```
+
+**运行测试**:
+```bash
+pytest tests/test_text_processing.py -v -s
+```
+
+</details>
+
+<details>
+<summary><b>🎨 创建Gradio页面</b></summary>
+
+```bash
+dfa create --gradio_name model_hub
+```
+
+**生成文件**: `gradio_app/pages/page_model_hub.py`
+
+**核心特性**:
+- ✅ 自动被`gradio_app/app.py`发现并加载
+- ✅ 函数名遵循`create_{page_name}`规范
+- ✅ 包含Gradio组件示例和工作流调用模板
+- ✅ 预置异步执行函数框架
+
+**生成的代码结构**:
+```python
+def create_model_hub() -> gr.Blocks:
+    with gr.Blocks() as page:
+        gr.Markdown("## Model Hub")
+        # TODO: 添加组件
+    return page
+
+async def run_xxx_pipeline(...):
+    # TODO: 调用workflow
+    state = await run_workflow("wf_xxx", state)
+    return state
+```
+
+**自动集成**: 重启`python gradio_app/app.py`后，新页面自动出现在Tab栏
+
+</details>
+
+<details>
+<summary><b>💬 创建Prompt模板</b></summary>
+
+```bash
+dfa create --prompt_name code_review
+```
+
+**生成文件**: `dataflow_agent/promptstemplates/resources/pt_code_review_repo.py`
+
+**生成的代码结构**:
+```python
+class CodeReview:
+    task_prompt_for_example = """
+    Your task description here.
+    Input: {input_data}
+    """
+    
+    system_prompt_for_example = """
+    You are an AI assistant for code review tasks.
+    """
+```
+
+**使用方式**:
+```python
+from dataflow_agent.promptstemplates.resources.pt_code_review_repo import CodeReview
+
+# 在Agent中引用
+@property
+def task_prompt_template_name(self) -> str:
+    return "task_prompt_for_example"
+```
+
+</details>
+
+<details>
+<summary><b>📦 创建自定义State</b></summary>
+
+```bash
+dfa create --state_name image_processing
+```
+
+**生成文件**: `dataflow_agent/states/image_processing_state.py`
+
+**生成的代码结构**:
+```python
+@dataclass
+class ImageProcessingRequest(MainRequest):
+    """自定义请求参数"""
+    pass
+
+@dataclass
+class ImageProcessingState(MainState):
+    """自定义状态对象"""
+    request: ImageProcessingRequest = field(default_factory=ImageProcessingRequest)
+```
+
+**使用方式**:
+```python
+from dataflow_agent.states.image_processing_state import ImageProcessingState
+
+state = ImageProcessingState(messages=[])
+```
+
+</details>
+
+<details>
+<summary><b>🔧 创建Agent-as-Tool</b></summary>
+
+```bash
+dfa create --agent_as_tool_name text_summarizer
+```
+
+**生成文件**: `dataflow_agent/agentroles/text_summarizer_agent.py`
+
+**核心特性**:
+- ✅ 可作为普通Agent使用
+- ✅ 可作为Tool被其他Agent调用
+- ✅ 支持自定义工具描述和参数Schema
+- ✅ 自动参数转换和映射
+
+**生成的代码结构**:
+```python
+@register("text_summarizer")
+class TextSummarizer(BaseAgent):
+    # 可重写以下方法自定义工具行为
+    def get_tool_description(self) -> str:
+        return "用于总结文本内容"
+    
+    def get_tool_args_schema(self) -> type[BaseModel]:
+        class SummarizerArgs(BaseModel):
+            content: str = Field(description="要总结的内容")
+            max_length: int = Field(default=500)
+        return SummarizerArgs
+```
+
+**作为工具使用**:
+```python
+# 在其他Agent的Workflow中
+agent = create_graph_agent(name="orchestrator", tool_mode="auto")
+# text_summarizer会自动作为可用工具
+```
+
+</details>
+
+#### 模板特性
+
+- 🕐 **时间戳**: 每个生成文件包含创建时间
+- 🔤 **智能命名**: 自动转换snake_case/CamelCase
+- 📝 **TODO标记**: 关键位置预留TODO注释
+- 🎯 **最佳实践**: 遵循项目编码规范
+- 🔗 **自动集成**: Agent/Workflow自动注册，Gradio页面自动发现
+
+#### 命名规范
+
+CLI工具会自动处理命名转换：
+
+```bash
+# 输入任意格式
+dfa create --agent_name "My Data Processor"
+dfa create --agent_name "my-data-processor"
+dfa create --agent_name "my_data_processor"
+
+# 统一转换为
+# - 文件名: my_data_processor_agent.py
+# - 类名: MyDataProcessor
+# - 注册名: "my_data_processor"
+```
+
+---
+
+## 🎯 核心功能
+
+<table>
+<tr>
+<td width="50%">
+
+### 📊 管线推荐
+智能分析任务需求，自动推荐最优算子组合
+
+**输入**: 任务描述 + 数据样本  
+**输出**: 可执行Python代码 + 处理结果
+
+<img src="static/imag_piperec.png" width="100%"/>
+
+</td>
+<td width="50%">
+
+### ✍️ 算子编写
+AI辅助编写自定义算子，支持实时调试
+
+**输入**: 功能描述 + 测试数据  
+**输出**: 算子代码 + 执行结果
+
+<img src="static/image_opwrite.png" width="100%"/>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 🎨 手动编排
+可视化拖拽编排工作流，灵活组合算子
+
+**输入**: 选择算子 + 配置参数  
+**输出**: Pipeline代码 + 可视化图
+
+<img src="static/image.png" width="100%"/>
+
+</td>
+<td width="50%">
+
+### 🔄 Prompt优化
+复用现有算子，智能优化提示词配置
+
+**输入**: 算子名称 + 优化目标  
+**输出**: 优化后的Prompt + 测试结果
+
+<img src="static/promptagent.png" width="100%"/>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 🌐 Web采集
+自动化网页数据采集与结构化转换
+
+**输入**: 目标描述 + 数据类别  
+**输出**: 结构化数据文件 + 处理日志
+
+<img src="static/web_collection.png" width="100%"/>
+
+</td>
+<td width="50%">
+
+### 🖼️ 图像生成
+图标/模型图生成与迭代优化
+
+**输入**: 关键词/论文内容 + 风格  
+**输出**: 高质量图像 + 编辑能力
+
+<img src="static/icon_refine.png" width="100%"/>
+
+</td>
+</tr>
+</table>
+
+---
+
+## 🏗️ 架构特色
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Gradio Web UI                        │
+│  管线推荐 | 算子编写 | 手动编排 | Prompt优化 | Web采集   │
+└─────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────┐
+│                  Workflow Engine                        │
+│  StateGraph编排 | 自动注册 | 流程控制 | 状态管理        │
+└─────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────┐
+│                   Agent Roles                           │
+│  Recommender | Writer | Executor | Optimizer | ...      │
+└─────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────┐
+│                   Tool Manager                          │
+│  LLM调用 | 文件操作 | Docker执行 | 图像处理 | ...       │
+└─────────────────────────────────────────────────────────┘
+```
+
+**核心优势**:
+- 🔌 **插件化**: Agent/Workflow自动注册，开箱即用
+- 🎯 **策略模式**: 支持Simple/ReAct/Graph/VLM多种执行策略
+- 💾 **持久化**: Agent结果自动存储，支持断点续传
+- 🖼️ **多模态**: 集成VLM能力，支持图像理解与生成
 
 ---
 
@@ -160,309 +449,130 @@ print(result)
 
 ```
 DataFlow-Agent/
-├── dataflow_agent/          # 核心业务代码
-│   ├── agentroles/         # Agent 定义（自动注册）
-│   ├── workflow/           # Workflow 定义（wf_*.py）
-│   ├── promptstemplates/   # 提示词模板
-│   ├── tools/              # 工具函数
-│   └── utils/              # 工具类（状态、工具管理器等）
-├── gradio_app/             # Gradio Web UI
+├── dataflow_agent/          # 核心代码
+│   ├── agentroles/         # Agent定义（@register自动注册）
+│   ├── workflow/           # Workflow定义（wf_*.py）
+│   ├── promptstemplates/   # Prompt模板库
+│   ├── toolkits/           # 工具集（LLM/Docker/Image等）
+│   └── graphbuilder/       # StateGraph构建器
+├── gradio_app/             # Web界面
 │   ├── app.py             # 主程序
 │   └── pages/             # 页面模块（自动发现）
-├── docs/                   # MkDocs 文档源文件
-├── tests/                  # 单元测试
+├── docs/                   # 文档
 └── script/                 # 脚本工具
 ```
 
-<!-- 详细说明请查看 [项目结构文档](docs/project-structure.md)。 -->
-
 ---
 
-## 🛠️ CLI 工具
+## 🤝 贡献指南
 
-使用 `dfa` 命令快速生成模板代码：
-
-```bash
-# 创建新 Agent
-dfa create --agent_name my_agent
-
-# 创建新 Workflow
-dfa create --wf_name my_workflow
-
-# 创建 Prompt Repo
-dfa create --prompt_name my_prompts
-
-# 创建 Gradio 页面
-dfa create --gradio_name my_page
-```
-
-详细用法请查看 [CLI 工具文档](docs/guides/cli-tool.md)。
-
----
-
-<!-- ## 🤝 贡献指南
-
-我们热烈欢迎各种形式的贡献！无论是报告 Bug、提出功能建议、改进文档还是提交代码。
-
-### 贡献流程
-
-#### 1️⃣ Fork 并克隆项目
+### 开发流程
 
 ```bash
+# 1. Fork并克隆
 git clone https://github.com/<your-username>/DataFlow-Agent.git
 cd DataFlow-Agent
-git checkout -b feature/your-feature-name
-```
 
-#### 2️⃣ 安装开发依赖
-
-```bash
+# 2. 安装开发依赖
 pip install -r requirements-dev.txt
 pip install -e .
-``` -->
 
-<!-- #### 3️⃣ 进行修改
+# 3. 创建分支
+git checkout -b feature/your-feature
 
-- **代码贡献**：遵循 [代码规范](#代码规范)
-- **文档贡献**：详见下方 [贡献文档](#贡献文档)
-
-#### 4️⃣ 运行测试与格式化
-
-```bash
-# 运行测试
+# 4. 运行测试
 pytest
 
-# 代码格式化
-black dataflow_agent/
-isort dataflow_agent/
-
-# 或使用 pre-commit
-pre-commit run --all-files
-``` -->
-
-<!-- #### 5️⃣ 提交 Pull Request
-
-```bash
-git add .
-git commit -m "feat: 添加 XXX 功能"
-git push origin feature/your-feature-name
+# 5. 提交PR
+git push origin feature/your-feature
 ```
 
-在 GitHub 上创建 Pull Request，并填写 PR 模板。 -->
-
----
-
-### 📝 贡献文档
-
-文档对项目至关重要！以下是如何贡献文档的详细步骤。
-
-#### 本地预览文档
-
-**1. 安装 MkDocs**
-
-```bash
-pip install mkdocs-material
-```
-
-**2. 启动文档服务**
-
-在项目根目录执行：
-
-```bash
-mkdocs serve
-```
-
-浏览器访问 `http://127.0.0.1:8000`，修改 Markdown 文件后会自动热重载。
-
-#### 添加新文档页面
-
-**步骤 1：创建 Markdown 文件**
-
-在 `docs/` 对应目录下创建文件：
-
-```bash
-# 示例：添加性能优化指南
-touch docs/guides/performance.md
-```
-
-**步骤 2：编写内容**
-
-```markdown
-# 性能优化指南
-
-本文介绍如何优化 DataFlow-Agent 的性能...
-
-## 缓存策略
-...
-```
-
-**步骤 3：更新导航配置**
-
-编辑根目录的 `mkdocs.yml`，在 `nav` 部分添加新页面：
-
-```yaml
-nav:
-  - 主页: index.md
-  - 快速开始: quickstart.md
-  - 开发指南:
-      - CLI 工具: guides/cli-tool.md
-      - 性能优化: guides/performance.md  # ← 新增
-```
-
-**步骤 4：预览效果**
-
-刷新浏览器（`http://127.0.0.1:8000`），新页面会出现在导航栏中。
-
-#### 文档文件存放规则
-
-| 文档类型 | 存放位置 | 示例 |
-|----------|----------|------|
-| 教程/指南 | `docs/guides/` | `guides/agent-development.md` |
-| API 参考 | `docs/api-reference/` | `api-reference/agent-api.md` |
-| 顶层文档 | `docs/` | `installation.md`、`faq.md` |
-| 图片资源 | `docs/assets/` | `assets/architecture.png` |
-
----
-
-## 贡献代码
-
-### Agent 注册机制
-
-Agent 通过 `@register` 装饰器自动注册：
+### 添加新Agent
 
 ```python
 from dataflow_agent.agentroles.base_agent import BaseAgent
 from dataflow_agent.agentroles.registry import register
 
-@register("data_cleaner")  # 注册名称
-class DataCleaner(BaseAgent):
-    """数据清洗 Agent"""
-    
+@register("my_agent")  # 自动注册
+class MyAgent(BaseAgent):
     @classmethod
     def create(cls, tool_manager=None, **kwargs):
         return cls(tool_manager=tool_manager, **kwargs)
 ```
 
-使用时通过注册名称调用：
+### 添加新Workflow
 
 ```python
-from dataflow_agent.agentroles import create_agent
-
-agent = create_agent("data_cleaner", tool_manager=tm)
-result = await agent.execute(state)
-```
-
-### Workflow 注册机制
-
-Workflow 文件必须以 `wf_` 开头，注册名为去掉前缀的部分：
-
-```python
-# 文件：dataflow_agent/workflow/wf_data_validation.py
+# 文件: dataflow_agent/workflow/wf_my_workflow.py
 from dataflow_agent.workflow.registry import register
 from dataflow_agent.graphbuilder import GraphBuilder
 
-@register("data_validation")  # 注册名为 "data_validation"
-def create_data_validation_graph():
+@register("my_workflow")  # 注册名 = 文件名去掉wf_前缀
+def create_my_workflow_graph():
     builder = GraphBuilder()
     # 定义节点和边...
     return builder
 ```
 
-运行 Workflow：
+### 添加Gradio页面
 
 ```python
-from dataflow_agent.workflow import run_workflow
-
-result = await run_workflow("data_validation", state)
-```
-
-### Gradio 页面自动发现
-
-在 `gradio_app/pages/` 下创建文件，函数名遵循 `create_<filename>` 规则：
-
-```python
-# 文件：gradio_app/pages/model_hub.py
+# 文件: gradio_app/pages/my_page.py
 import gradio as gr
 
-def create_model_hub():  # 函数名 = create_ + 文件名
+def create_my_page():  # 函数名 = create_ + 文件名
     with gr.Blocks() as page:
-        gr.Markdown("## 模型中心")
+        gr.Markdown("## 我的页面")
         # 添加组件...
     return page
 ```
 
-重启 `gradio_app/app.py`，页面自动出现在 Tab 栏。
+### 文档贡献
 
----
-## 新增
-- *llm_caller* 新增多模态的api调用；可以通过agent初始化的 use_vlm 参数开启；
-  - 目前图像编辑和生成，只支持gemini2.5+我们的api供应商；
-  - 支持多模态模型；
-- store_outputs 新增agent持久化存储；
-- 
+```bash
+# 本地预览
+pip install mkdocs-material
+mkdocs serve  # 访问 http://127.0.0.1:8000
+
+# 添加新页面
+# 1. 在docs/对应目录创建.md文件
+# 2. 在mkdocs.yml的nav中添加链接
+# 3. 提交PR
+```
 
 ---
 
 ## 🗓️ Roadmap
 
-- [ ] Paper系列agent集成
-  - [ ] paper2video
-  - [ ] paper2web
-  - [ ] paper2poster
-  - [ ] AutoPR
-  - [ ] paper2graph
-  - [ ] paperCiter
-  - [ ] paper2Code
-- [ ] DataAgent集成
-  - [ ] 多数据源深度分析 + 报告
-  - [ ] 智能取数
-- [ ] Trj Export
-   
-<!-- ---
+### 🎓 Paper系列
+- [ ] Paper2Video - 论文转视频讲解
+- [ ] Paper2Web - 论文转交互网页
+- [ ] Paper2Poster - 论文转学术海报
+- [ ] Paper2Graph - 论文转知识图谱
+- [ ] PaperCiter - 智能文献引用
+- [ ] Paper2Code - 论文转可执行代码
 
-## 📚 文档
+### 📊 Data系列
+- [ ] 多数据源深度分析 + 自动报告
+- [ ] 智能取数与数据血缘追踪
+- [ ] 轨迹数据导出与可视化
 
-- [完整文档]
-- [快速开始](docs/quickstart.md)
-- [CLI 工具使用](docs/guides/cli-tool.md)
-- [Agent 开发指南](docs/guides/agent-development.md)
-- [Workflow 开发指南](docs/guides/workflow-development.md)
-- [添加 Gradio 页面](docs/guides/add-gradio-page.md)
+### 🚀 平台增强
+- [ ] 分布式执行引擎
+- [ ] 实时监控与告警
+- [ ] 版本管理与回滚
 
---- -->
-
-<!-- ## 🧪 运行测试
-
-```bash
-# 运行所有测试
-pytest
-
-# 运行特定测试文件
-pytest tests/test_agent.py
-
-# 查看覆盖率
-pytest --cov=dataflow_agent --cov-report=html
-```
-
---- -->
+---
 
 ## 📄 License
 
-本项目采用 [Apache License 2.0](LICENSE) 开源协议。
+本项目采用 [Apache License 2.0](LICENSE) 开源协议
 
 ---
 
 ## 🙏 致谢
 
-感谢所有贡献者的辛勤付出！
-
----
-
-## 📞 联系我们
-
-- **Issue**: [提交问题]
-<!-- - **Discussions**: [参与讨论]
-- **邮件**: dev@example.com -->
+感谢所有贡献者！特别感谢 [OpenDCAI/DataFlow](https://github.com/OpenDCAI/DataFlow) 上游项目
 
 ---
 
@@ -470,10 +580,6 @@ pytest --cov=dataflow_agent --cov-report=html
 
 **如果这个项目对你有帮助，请给我们一个 ⭐️ Star！**
 
+[提交Issue](https://github.com/OpenDCAI/DataFlow-Agent/issues) • [查看文档](docs/) • [加入讨论](https://github.com/OpenDCAI/DataFlow-Agent/discussions)
+
 </div>
-
----
-
-## 📝 更新日志
-
-<!-- 查看 [CHANGELOG.md](CHANGELOG.md) 了解版本历史和更新内容。 -->
