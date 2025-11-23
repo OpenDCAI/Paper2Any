@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from abc import ABC, abstractmethod
 import datetime
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Callable, Tuple
 from dataflow_agent.llm_callers.base import BaseLLMCaller
@@ -60,7 +59,6 @@ class BaseAgent(ABC):
                  vlm_config: Optional[Dict[str, Any]] = None,
                  ignore_history: bool = True,
                  message_history: Optional[AdvancedMessageHistory] = None,
-                 chat_api_url: Optional[str] = None,
 
                 # 新增参数，用于策略控制； 
                  execution_config: Optional[Any] = None
@@ -82,7 +80,6 @@ class BaseAgent(ABC):
         self.tool_mode = tool_mode
         self.react_mode = react_mode
         self.react_max_retries = react_max_retries
-        self.chat_api_url = chat_api_url
         
         # 解析器配置
         self.parser_type = parser_type
@@ -100,13 +97,6 @@ class BaseAgent(ABC):
         # ========== 新增：策略模式支持 ==========
         self._execution_strategy: Optional[ExecutionStrategy] = None
         if execution_config:
-            # 如果提供了执行配置，则使用其中的值更新agent实例的属性
-            # 这解决了通过 create_simple_agent 等函数创建时参数不生效的问题
-            for f in execution_config.__dataclass_fields__:
-                config_value = getattr(execution_config, f)
-                if hasattr(self, f) and config_value is not None:
-                    setattr(self, f, config_value)
-
             from dataflow_agent.agentroles.cores.strategies import StrategyFactory
             self._execution_strategy = StrategyFactory.create(
                 execution_config.mode.value,
@@ -114,7 +104,6 @@ class BaseAgent(ABC):
                 execution_config
             )
 
-    # 暂时没用到这个LLM caller；还是create_llm；
     def get_llm_caller(self, state: MainState) -> BaseLLMCaller:
         """根据配置返回对应的LLM Caller"""
         if self.use_vlm:
@@ -127,8 +116,7 @@ class BaseAgent(ABC):
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
                 tool_mode=self.tool_mode,
-                tool_manager=self.tool_manager,
-                chat_api_url=self.chat_api_url
+                tool_manager=self.tool_manager
             )
         else:
             from dataflow_agent.llm_callers import TextLLMCaller
@@ -138,8 +126,7 @@ class BaseAgent(ABC):
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
                 tool_mode=self.tool_mode,
-                tool_manager=self.tool_manager,
-                chat_api_url=self.chat_api_url
+                tool_manager=self.tool_manager
             )
 
     @property
@@ -226,88 +213,7 @@ class BaseAgent(ABC):
     def get_default_pre_tool_results(self) -> Dict[str, Any]:
         """获取默认前置工具结果 - 子类可重写"""
         return {}
-
-    # ==================== 并行模式 ========================================================================================================================
-    async def process_parallel_mode(self, state: MainState, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        并行模式处理
-        
-        自动检测前置工具结果中的列表数据，进行并行LLM调用
-        不需要强制使用特定的字段名
-        """
-        import asyncio
-        log.info(f"执行 {self.role_name} 并行模式...")
-        
-        # 智能检测并行数据
-        parallel_items = []
-        
-        # 情况1: 如果pre_tool_results中直接包含列表类型的主要数据
-        if isinstance(pre_tool_results, list):
-            parallel_items = pre_tool_results
-        
-        # 情况2: 如果有明确的parallel_items字段
-        elif "parallel_items" in pre_tool_results:
-            parallel_items = pre_tool_results["parallel_items"]
-        
-        # 情况3: 检查是否有任何值为列表的字段（取第一个找到的非空列表）
-        elif isinstance(pre_tool_results, dict):
-            for key, value in pre_tool_results.items():
-                if isinstance(value, list) and value and all(isinstance(item, dict) for item in value):
-                    parallel_items = value
-                    break
-        
-        # 如果没有找到合适的并行数据
-        if not parallel_items:
-            log.warning("未找到合适的并行数据，回退到简单模式")
-            return await self.process_simple_mode(state, pre_tool_results)
-        
-        log.info(f"找到 {len(parallel_items)} 条数据用于并行处理")
-        
-        # 获取并发限制（从执行策略配置中获取）
-        concurrency_limit = 5  # 默认值
-        if hasattr(self, '_execution_strategy') and hasattr(self._execution_strategy, 'config'):
-            if hasattr(self._execution_strategy.config, 'concurrency_limit'):
-                concurrency_limit = self._execution_strategy.config.concurrency_limit
-        
-        # 创建信号量控制并发
-        semaphore = asyncio.Semaphore(concurrency_limit)
-        
-        # 定义单个并行任务处理函数
-        async def process_item(item: dict) -> tuple[int, dict]:
-            """处理单个并行项，返回索引和结果"""
-            async with semaphore:
-                try:
-                    # 为每个并行项创建独立的上下文
-                    item_pre_tool_results = {}
-                    
-                    # 如果是字典，将其所有键值对添加到前置工具结果
-                    if isinstance(item, dict):
-                        item_pre_tool_results.update(item)
-                    
-                    # 也保留原始前置工具结果中的非列表字段
-                    if isinstance(pre_tool_results, dict):
-                        for key, value in pre_tool_results.items():
-                            if not isinstance(value, list):
-                                item_pre_tool_results[key] = value
-                    
-                    # 使用简单模式处理单个项
-                    result = await self.process_simple_mode(state, item_pre_tool_results)
-                    return result
-                except Exception as e:
-                    log.error(f"并行处理单个项失败: {e}")
-                    return {"error": str(e)}
-        
-        # 并行执行所有任务
-        tasks = [process_item(item) for item in parallel_items]
-        results = await asyncio.gather(*tasks)
-        
-        log.info(f"并行模式执行完成，共处理 {len(results)} 个任务")
-        
-        # 返回结果列表
-        return {
-            "parallel_results": results,
-            "total_processed": len(results)
-        }
+    
     # ==================== Agent-as-Tool 功能 ========================================================================================================================
 
     def get_tool_name(self) -> str:
@@ -731,71 +637,19 @@ class BaseAgent(ABC):
         
         log.info("提示词消息构建完成")
         return messages
-
-    # def create_llm(self, state: MainState, bind_post_tools: bool = False) -> ChatOpenAI:
-    #     """创建LLM实例"""
-    #     actual_model = self.model_name or state.request.model
-    #     actual_url = self.chat_api_url or state.request.chat_api_url
-    #     log.info(f"[create_llm:]创建LLM实例，温度: {self.temperature}, 最大token: {self.max_tokens}, 模型: {actual_model}, 接口URL: {actual_url}, API Key: {state.request.api_key}")
-    #     llm = ChatOpenAI(
-    #         openai_api_base=actual_url,
-    #         openai_api_key=state.request.api_key,
-    #         model_name=actual_model,
-    #         temperature=self.temperature,
-    #         # max_tokens=self.max_tokens,
-    #     )
-        
-    #     if bind_post_tools and self.tool_manager:
-    #         post_tools = self.get_post_tools()
-    #         if post_tools:
-    #             llm = llm.bind_tools(post_tools, tool_choice=self.tool_mode)
-    #             log.info(f"[create_llm]:为LLM绑定了 {len(post_tools)} 个后置工具: {[t.name for t in post_tools]}")
-    #     return llm
-
+    
     def create_llm(self, state: MainState, bind_post_tools: bool = False) -> ChatOpenAI:
         """创建LLM实例"""
-        import httpx
         actual_model = self.model_name or state.request.model
-        actual_url = self.chat_api_url or state.request.chat_api_url
         log.info(f"[create_llm:]创建LLM实例，模型: {actual_model}")
         
-        log.info(f"[create_llm:]创建LLM实例，温度: {self.temperature}, 最大token: {self.max_tokens}, 模型: {actual_model}, 接口URL: {actual_url}, API Key: {state.request.api_key}")
-
-        # 1. 复用你之前的逻辑：配置超时和 SSL
-        # 注意：这里不需要 async with，因为 ChatOpenAI 会接管客户端的生命周期
-        timeout = 120.0 # 或者从 self.vlm_config 获取，保持一致性
-
-        # 2. 创建干净的异步客户端 (针对报错: _AsyncHttpxClientWrapper)
-        clean_async_client = httpx.AsyncClient(
-            timeout=httpx.Timeout(timeout),
-            proxies=None,        # === 关键修复：显式禁用代理 ===
-            trust_env=False,     # === 关键修复：忽略环境变量 ===
-            verify=False,        # 保持和你之前代码一致，关闭 SSL 验证（如需）
-            follow_redirects=True
-        )
-
-        # 3. 创建干净的同步客户端 (防止同步调用时出错)
-        clean_sync_client = httpx.Client(
-            timeout=httpx.Timeout(timeout),
-            proxies=None,
-            trust_env=False,
-            verify=False,
-            follow_redirects=True
-        )
-
         llm = ChatOpenAI(
-            base_url=actual_url,
-            api_key=state.request.api_key,
+            openai_api_base=state.request.chat_api_url,
+            openai_api_key=state.request.api_key,
             model_name=actual_model,
             temperature=self.temperature,
-            # === 注入修复后的客户端 ===
-            http_client=clean_sync_client,       # 覆盖同步调用
-            http_async_client=clean_async_client # 覆盖异步调用 (解决 AttributeError 问题)
-            # ========================
+            max_tokens=self.max_tokens,
         )
-
-
-        log.critical(f"ChatOpenAI创建完成！")
         
         if bind_post_tools and self.tool_manager:
             post_tools = self.get_post_tools()
@@ -890,8 +744,6 @@ class BaseAgent(ABC):
         Returns:
             更新后的DFState
         """
-        # 获取一些状态信息
-        self.state = state
         # 如果配置了执行策略，优先使用
         if self._execution_strategy:
             log.info(f"使用策略模式执行: {self._execution_strategy.__class__.__name__}")
@@ -908,6 +760,8 @@ class BaseAgent(ABC):
             
         # ================之前的代码，非策略支持部分 ========================
         log.info(f"开始执行 {self.role_name} (ReAct模式: {self.react_mode}, 图模式: {use_agent})")
+        # 获取一些状态信息
+        self.state = state
 
         if getattr(self, "use_vlm", False):
             # 直接走多模态链路
@@ -969,11 +823,11 @@ class BaseAgent(ABC):
         """
         # 1. 前置工具
         pre_tool_results = await self.execute_pre_tools(state)
-    
+
         # 2. 构建消息（若是图像生成/编辑仅用 prompt 就行，
         #    若是图像理解可和文本一样）——示例给两种典型写法:
         mode = self.vlm_config.get("mode", "understanding")
-    
+
         # if mode in {"generation", "edit"}:
         #     # 只需要最后一条 prompt
         #     messages = [
@@ -981,7 +835,7 @@ class BaseAgent(ABC):
         #     ]
         # else:
         messages = self.build_messages(state, pre_tool_results)
-    
+
         # 3. 调用 VisionLLMCaller
         from dataflow_agent.llm_callers import VisionLLMCaller
         vlm_caller = VisionLLMCaller(
@@ -994,26 +848,13 @@ class BaseAgent(ABC):
             tool_manager=self.tool_manager,
         )
         response = await vlm_caller.call(messages)
-        log.info(f"{self.role_name} 多模态原始响应: {response}")
-    
+
         # 4. 解析
         parsed = self.parse_result(response.content)
-    
+
         # 5. 如有附加信息（例如图像路径 / base64），一起返回
         if hasattr(response, "additional_kwargs"):
-            log.info(f"{self.role_name} 多模态附加信息: {response.additional_kwargs}")
-            
-            if isinstance(parsed, dict):
-                parsed.update(response.additional_kwargs)
-            elif isinstance(parsed, list):
-                log.warning(f"{self.role_name} parsed 是列表类型，无法调用 update 方法，跳过附加参数合并")
-                log.info(f"parsed 类型: {type(parsed).__name__}, 内容: {parsed}")
-                log.info(f"additional_kwargs 内容: {response.additional_kwargs}")
-            else:
-                log.warning(f"{self.role_name} parsed 是 {type(parsed).__name__} 类型，无法调用 update 方法，跳过附加参数合并")
-                log.info(f"parsed 内容: {parsed}")
-                log.info(f"additional_kwargs 内容: {response.additional_kwargs}")
-        
+            parsed.update(response.additional_kwargs)
         return parsed
 # 这个暂时用不到
     def build_generation_prompt(self, pre_tool_results: Dict[str, Any]) -> str:

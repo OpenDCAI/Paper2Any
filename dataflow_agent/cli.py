@@ -2,6 +2,7 @@ import click
 from pathlib import Path
 from datetime import datetime
 from jinja2 import Template
+from typing import Optional
 from dataflow_agent.logger import get_logger
 log = get_logger(__name__)
 TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -28,19 +29,25 @@ def cli():
 @click.option("--agent_name",   help="要创建的 agent 名称")
 @click.option("--gradio_name",  help="要创建的 gradio page 名称")
 @click.option("--prompt_name",  help="要创建的 prompt template 名称")
-def create_artifact(wf_name: str | None,
-                    agent_name: str | None,
-                    gradio_name: str | None,
-                    prompt_name: str | None):
+@click.option("--agent_as_tool_name", help="要创建的 agent-as-tool 名称")
+@click.option("--state_name",   help="要创建的 state 名称")
+def create_artifact(wf_name: Optional[str] = None,
+                    agent_name: Optional[str] = None,
+                    gradio_name: Optional[str] = None,
+                    prompt_name: Optional[str] = None,
+                    agent_as_tool_name: Optional[str] = None,
+                    state_name: Optional[str] = None):
     """
     dfa create --wf_name xxx
     dfa create --agent_name yyy
     dfa create --gradio_name zzz
     dfa create --prompt_name zzz
+    dfa create --agent_as_tool_name aaa
+    dfa create --state_name bbb
     """
-    opts = [bool(wf_name), bool(agent_name), bool(gradio_name), bool(prompt_name)]
+    opts = [bool(wf_name), bool(agent_name), bool(gradio_name), bool(prompt_name), bool(agent_as_tool_name), bool(state_name)]
     if sum(opts) != 1:
-        click.echo(" --wf_name / --agent_name / --gradio_name / --prompt_name 必须且只能选一个", err=True)
+        click.echo(" --wf_name / --agent_name / --gradio_name / --prompt_name / --agent_as_tool_name / --state_name 必须且只能选一个", err=True)
         raise SystemExit(1)
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -106,7 +113,7 @@ def create_artifact(wf_name: str | None,
     # ------------------------------------------------------------------
     # 4. Prompt Template
     # ------------------------------------------------------------------
-    else:
+    elif prompt_name:
         prompt_snake = to_snake(prompt_name)
         dest         = Path(__file__).parent / "promptstemplates" / "resources" / f"pt_{prompt_snake}_repo.py"
         tpl_path     = TEMPLATE_DIR / "prompt_repo.py.jinja"
@@ -117,6 +124,36 @@ def create_artifact(wf_name: str | None,
             timestamp=timestamp,
         )
         _generate_file(dest, tpl_path, ctx, "prompt template")
+
+    # ------------------------------------------------------------------
+    # 5. Agent-as-Tool
+    # ------------------------------------------------------------------
+    elif agent_as_tool_name:
+        agent_snake = to_snake(agent_as_tool_name)
+        dest        = Path(__file__).parent / "agentroles" / f"{agent_snake}_agent.py"
+        tpl_path    = TEMPLATE_DIR / "agent_as_tool_name.py.jinja"
+        ctx         = dict(
+            agent_name=agent_as_tool_name,
+            agent_name_snake=agent_snake,
+            agent_name_camel=to_camel(agent_as_tool_name),
+            timestamp=timestamp,
+        )
+        _generate_file(dest, tpl_path, ctx, "agent-as-tool")
+
+    # ------------------------------------------------------------------
+    # 6. State
+    # ------------------------------------------------------------------
+    else:
+        state_snake = to_snake(state_name)
+        dest        = Path(__file__).parent / "states" / f"{state_snake}_state.py"
+        tpl_path    = TEMPLATE_DIR / "state_name.py.jinja"
+        ctx         = dict(
+            state_name=state_name,
+            state_name_snake=state_snake,
+            state_name_camel=to_camel(state_name),
+            timestamp=timestamp,
+        )
+        _generate_file(dest, tpl_path, ctx, "state")
 
 
 # ---------- helper ----------
