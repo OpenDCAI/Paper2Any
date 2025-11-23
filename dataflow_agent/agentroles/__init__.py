@@ -17,7 +17,8 @@ from .cores.configs import (
     ReactConfig, 
     GraphConfig, 
     VLMConfig,
-    ExecutionMode
+    ExecutionMode,
+    ParallelConfig
 )
 
 # ==================== 核心函数（增强版） ====================
@@ -291,6 +292,44 @@ def create_vlm_agent(
     return create_agent(name, config=config, tool_manager=tool_manager)
 
 
+def create_parallel_agent(
+    name: str, 
+    concurrency_limit: int = 5,
+    tool_manager: Optional[ToolManager] = get_tool_manager(),
+    **kwargs
+):
+    """
+    创建并行模式 Agent
+
+    并行模式支持同时调用多个LLM，自动处理列表类型的前置工具结果，
+    适用于需要批量处理多条数据的场景。
+
+    Args:
+        name: 代理角色名称
+        concurrency_limit: 并行度限制，默认同时执行5个任务
+        tool_manager: 工具管理器实例，默认为全局工具管理器
+        **kwargs: 配置参数，支持以下参数：
+            - model_name: 模型名称
+            - temperature: 采样温度 (0.0-1.0)，默认0.0
+            - max_tokens: 最大生成token数，默认16384
+            - tool_mode: 工具调用模式 ("auto", "none", "required")，默认"auto"
+            - parser_type: 解析器类型 ("json", "xml", "text")，默认"json"
+            - parser_config: 解析器配置字典
+            - ignore_history: 是否忽略历史消息，默认True
+            - message_history: 消息历史管理器
+            - chat_api_url: 自定义Chat API URL
+
+    Returns:
+        Agent: 配置为并行模式的代理角色实例
+
+    Examples:
+        >>> agent = create_parallel_agent("processor", concurrency_limit=3)
+        >>> agent = create_parallel_agent("analyzer", model_name="gpt-4", max_tokens=4096)
+    """
+    config = ParallelConfig(concurrency_limit=concurrency_limit, **kwargs)
+    return create_agent(name, config=config, tool_manager=tool_manager)
+
+
 # ==================== 导出 ====================
 
 list_agents = AgentRegistry.all
@@ -306,6 +345,7 @@ __all__ = [
     "create_react_agent",
     "create_graph_agent",
     "create_vlm_agent",
+    "create_parallel_agent",  # 添加并行模式便捷函数
     
     # 配置类
     "BaseAgentConfig",
@@ -313,6 +353,7 @@ __all__ = [
     "ReactConfig",
     "GraphConfig",
     "VLMConfig",
+    "ParallelConfig",  # 添加并行模式配置类
     "ExecutionMode",
     
     # 注册表

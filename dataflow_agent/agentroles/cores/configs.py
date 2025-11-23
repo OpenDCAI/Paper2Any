@@ -9,6 +9,7 @@ class ExecutionMode(Enum):
     REACT = "react"             # ReAct模式：带验证的循环
     GRAPH = "graph"             # 图模式：子图+工具调用
     VLM = "vlm"                 # 视觉语言模型模式
+    PARALLEL = "parallel"       # 并行模式：同时调用多个LLM
     CUSTOM = "custom"           # 自定义模式（预留）
 
 
@@ -64,3 +65,10 @@ class VLMConfig(BaseAgentConfig):
     image_detail: str = "auto"       # low/high/auto
     max_image_size: tuple = (1024, 1024)
     additional_params: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ParallelConfig(BaseAgentConfig):
+    """并行模式配置"""
+    mode: ExecutionMode = field(default=ExecutionMode.PARALLEL, init=False)
+    concurrency_limit: int = 5  # 并行度限制，默认同时执行5个任务

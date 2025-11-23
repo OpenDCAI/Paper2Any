@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, TYPE_CHECKING
 from dataflow_agent.logger import get_logger
+import asyncio  # 添加导入
 
 if TYPE_CHECKING:
     from dataflow_agent.agentroles.base_agent import BaseAgent
@@ -89,13 +90,37 @@ class VLMStrategy(ExecutionStrategy):
         
         # 临时注入配置
         # original_vlm_config = getattr(self.agent, 'vlm_config', {})
-        self.agent.vlm_config = vlm_config
-        
+
+        self.agent.vlm_config.update(vlm_config)
+        self.agent.model_name = self.config.model_name
+        self.agent.temperature = self.config.temperature
+        self.agent.max_tokens = self.config.max_tokens
+
+        log.info(f"VLMStrategy 执行 {self.agent.role_name} VLM模式: {self.agent.vlm_config} + {kwargs},self.config={self.config}")
         result = await self.agent._execute_vlm(state, **kwargs)
+        log.critical(f"VLMStrategy 执行 {self.agent.role_name} VLM模式结果: {result}")
         
         # self.agent.vlm_config = original_vlm_config
         return result
+
+
+class ParallelStrategy(ExecutionStrategy):
+    """并行模式策略"""
     
+    async def execute(self, state: "MainState", **kwargs) -> Dict[str, Any]:
+        log.info(f"[ParallelStrategy] 执行 {self.agent.role_name}，并行度限制: {self.config.concurrency_limit}")
+        
+        # 执行前置工具获取结果
+        pre_tool_results = await self.agent.execute_pre_tools(state)
+        
+        # 检查是否有parallel_items，如果没有且pre_tool_results是列表，自动转换为parallel_items
+        if "parallel_items" not in pre_tool_results and isinstance(pre_tool_results, list):
+            pre_tool_results = {"parallel_items": pre_tool_results}
+        
+        # 执行并行模式
+        return await self.agent.process_parallel_mode(state, pre_tool_results)
+
+
 class StrategyFactory:
     """策略工厂"""
     
@@ -104,6 +129,7 @@ class StrategyFactory:
         "react": ReactStrategy,
         "graph": GraphStrategy,
         "vlm": VLMStrategy,
+        "parallel": ParallelStrategy,  # 注册并行策略
     }
     
     @classmethod
