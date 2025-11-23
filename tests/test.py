@@ -256,6 +256,7 @@ class BaseAgent(ABC):
                     parallel_items = value
                     break
         
+        log.critical(f"[process_parallel_mode 并行数据] : {pre_tool_results}")
         # 如果没有找到合适的并行数据
         if not parallel_items:
             log.warning("未找到合适的并行数据，回退到简单模式")
@@ -280,17 +281,18 @@ class BaseAgent(ABC):
                     # 为每个并行项创建独立的上下文
                     item_pre_tool_results = {}
                     
-                    # 如果是字典，将其所有键值对添加到前置工具结果
-                    if isinstance(item, dict):
-                        item_pre_tool_results.update(item)
-                    
-                    # 也保留原始前置工具结果中的非列表字段
+                    # 先保留原始前置工具结果中的非列表字段
                     if isinstance(pre_tool_results, dict):
                         for key, value in pre_tool_results.items():
                             if not isinstance(value, list):
                                 item_pre_tool_results[key] = value
                     
+                    # 然后用 item 的数据覆盖（item 优先级更高）
+                    if isinstance(item, dict):
+                        item_pre_tool_results.update(item)
+                    
                     # 使用简单模式处理单个项
+                    log.info(f"[process_item]开始处理并行项 {item_pre_tool_results}")
                     result = await self.process_simple_mode(state, item_pre_tool_results)
                     return result
                 except Exception as e:
@@ -673,11 +675,11 @@ class BaseAgent(ABC):
         
         results = await self.tool_manager.execute_pre_tools(self.role_name)
         
-        # 设置默认值
-        defaults = self.get_default_pre_tool_results()
-        for key, default_value in defaults.items():
-            if key not in results or results[key] is None:
-                results[key] = default_value
+        # 只有当 results 为空时才使用默认值
+        # 这样可以避免在并行模式下，默认值覆盖 parallel_items 中的数据
+        if not results:
+            log.info("前置工具无结果，使用默认值")
+            return self.get_default_pre_tool_results()
                 
         log.info(f"前置工具执行完成，获得: {list(results.keys())}")
         return results

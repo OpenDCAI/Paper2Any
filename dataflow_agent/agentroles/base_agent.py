@@ -59,10 +59,10 @@ class BaseAgent(ABC):
                  vlm_config: Optional[Dict[str, Any]] = None,
                  ignore_history: bool = True,
                  message_history: Optional[AdvancedMessageHistory] = None,
+                 chat_api_url: Optional[str] = None,
 
                 # 新增参数，用于策略控制； 
-                 execution_config: Optional[Any] = None,
-                 chat_api_url: Optional[str] = None
+                 execution_config: Optional[Any] = None
                  ):
         """
         Args:
@@ -255,6 +255,7 @@ class BaseAgent(ABC):
                     parallel_items = value
                     break
         
+        log.critical(f"[process_parallel_mode 并行数据] : {pre_tool_results}")
         # 如果没有找到合适的并行数据
         if not parallel_items:
             log.warning("未找到合适的并行数据，回退到简单模式")
@@ -279,17 +280,18 @@ class BaseAgent(ABC):
                     # 为每个并行项创建独立的上下文
                     item_pre_tool_results = {}
                     
-                    # 如果是字典，将其所有键值对添加到前置工具结果
-                    if isinstance(item, dict):
-                        item_pre_tool_results.update(item)
-                    
-                    # 也保留原始前置工具结果中的非列表字段
+                    # 先保留原始前置工具结果中的非列表字段
                     if isinstance(pre_tool_results, dict):
                         for key, value in pre_tool_results.items():
                             if not isinstance(value, list):
                                 item_pre_tool_results[key] = value
                     
+                    # 然后用 item 的数据覆盖（item 优先级更高）
+                    if isinstance(item, dict):
+                        item_pre_tool_results.update(item)
+                    
                     # 使用简单模式处理单个项
+                    log.info(f"[process_item]开始处理并行项 {item_pre_tool_results}")
                     result = await self.process_simple_mode(state, item_pre_tool_results)
                     return result
                 except Exception as e:
