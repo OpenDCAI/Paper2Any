@@ -19,7 +19,7 @@ log = get_logger()
 async def web_crawl_collection(
     state: DataCollectionState,
     max_crawl_cycles_per_task: int = 10,
-    max_crawl_cycles_for_research: int = 15,
+    max_crawl_cycles_for_research: int = 5,
     search_engine: str = "tavily",
     use_jina_reader: bool = True,
     enable_rag: bool = True,
@@ -124,7 +124,7 @@ async def main() -> None:
         dataset_size_category='1K<n<10K',  # HuggingFace 数据集大小范围
         download_dir=r'downloaded_data_finally2',  # 下载目录
         max_dataset_size=None,  #1T 数据集大小限制（字节数），None表示不限制，例如：10*1024*1024*1024 表示10GB
-        max_download_subtasks=20,  # 下载子任务执行上限
+        max_download_subtasks=10,  # 下载子任务执行上限
         
         # API 配置（用于 LLM 调用）
         chat_api_url=os.getenv("CHAT_API_URL"),

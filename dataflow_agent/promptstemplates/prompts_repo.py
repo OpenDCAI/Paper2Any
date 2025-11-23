@@ -1066,7 +1066,7 @@ class DataConvertor:
 You are an expert in dataset classification and analysis.
 """
     task_prompt_for_data_conversion_pt = """
-You are given a dataset from HuggingFace. Your task is to identify the most appropriate field (column or nested path) for language model pretraining.
+You are given a dataset from HuggingFace. Your task is to identify field mappings for language model pretraining, including the main text content and metadata fields.
 
 [User Requirements]
 User's original request: {user_target}
@@ -1074,45 +1074,140 @@ User's original request: {user_target}
 [Dataset Information]
 Dataset Columns: {column_names}
 Sample Data: {first_row}
+{sample_rows_info}
 
 [Instruction]
 1. **Relevance**: Determine whether the dataset content aligns with {user_target}. As long as the topic/semantics match, treat it as relevant—even if task types differ. Only output null when the sample clearly has nothing to do with the requested domain.
-2. **Read the Values, Not Just Names**: Inspect the actual sample content. Ignore misleading field names; pick the field whose values truly contain long-form text useful for pretraining.
-3. **Support Nested Structures**: If the textual content lives inside lists or dictionaries, return a path using dot/bracket notation (e.g., `posts[*].body`, `metadata.description`, `paragraphs[0]`).
-4. **Prefer Real Text**: If multiple candidates exist, choose the one with the richest natural-language content. Lists of strings are acceptable; numeric-only fields should only be picked when no textual option exists.
-5. **Support Multi-field Concatenation**: 当需要将题干、选项等多个字段拼接为完整语料时，请返回字段路径数组，数组中的字段将按顺序通过换行符连接成最终文本（示例见下）。
-6. **Avoid Unnecessary null**: Only output null when there is genuinely no suitable textual field. If a field looks usable (even if short, structured, or slightly noisy), return its path.
+
+2. **Text Field Mapping**: Identify the most appropriate field (column or nested path) containing long-form text useful for pretraining.
+   - Read the actual values, not just field names
+   - Support nested structures using dot/bracket notation (e.g., `posts[*].body`, `metadata.description`)
+   - Support multi-field concatenation: return an array of field paths (e.g., `["title", "body"]`) when multiple fields should be combined
+   - Prefer fields with rich natural-language content
+
+3. **Metadata Field Mapping**: Map metadata fields that provide context about the data:
+   - **source** (required if meta exists): Data source identifier. Can be:
+     * A field path: `"dataset_name"` or `"meta.source"`
+     * A direct string value: `"wikipedia"` (inferred from filename or content)
+     * `null` if cannot determine (system will infer from file path)
+   - **language** (recommended): Language code (ISO 639-1). Can be:
+     * A field path: `"lang"` or `"metadata.language"`
+     * A direct string value: `"zh"`, `"en"`, `"mix"` (inferred from content)
+     * `null` if cannot determine (system will use default)
+   - **timestamp** (optional): Time field path (e.g., `"created_at"`, `"meta.timestamp"`)
+   - **token_count** (optional): Pre-computed token count field path
+   - **quality_score** (optional): Quality score field path (0.0-1.0)
+   - **original_id** (optional): Original dataset ID field path
+
+4. **Field Path Syntax**:
+   - Top-level: `"field_name"`
+   - Nested: `"parent.child"`
+   - Array element: `"items[0]"` or `"items[*]"` (all elements)
+   - Mixed: `"dialogues[*].turns[0].text"`
 
 [Few-shot Examples]
-Example 1 (should pick nested list):
-Columns: ["articles"]
-Sample: {"articles": [{"title": "Top 10 tips", "body": "Write clearly..."}]}
-Answer: {"text": "articles[*].body"}
 
-Example 1b (multi-field concatenation):
-Columns: ["stem", "options"]
-Sample: {"stem": "下列哪项...", "options": ["A. ...", "B. ..."]}
-Answer: {"text": ["stem", "options[*]"]}
+Example 1 (simple text with metadata):
+Columns: ["content", "dataset_name", "lang", "id"]
+Sample: {{"content": "This is a long article...", "dataset_name": "wikipedia", "lang": "en", "id": "12345"}}
+Answer:
+```json
+{{
+  "text": "content",
+  "meta": {{
+    "source": "dataset_name",
+    "language": "lang",
+    "timestamp": null,
+    "token_count": null,
+    "quality_score": null,
+    "original_id": "id"
+  }}
+}}
+```
 
-Example 2 (numeric only → null):
+Example 2 (multi-field concatenation with inferred metadata):
+Columns: ["title", "body", "tags"]
+Sample: {{"title": "Article Title", "body": "Article body...", "tags": ["tag1", "tag2"]}}
+Answer:
+```json
+{{
+  "text": ["title", "body", "tags[*]"],
+  "meta": {{
+    "source": "wikipedia",
+    "language": "en",
+    "timestamp": null,
+    "token_count": null,
+    "quality_score": null,
+    "original_id": null
+  }}
+}}
+```
+
+Example 3 (nested structure):
+Columns: ["articles", "meta"]
+Sample: {{"articles": [{{"title": "Title", "body": "Content..."}}], "meta": {{"dataset": "news", "lang": "zh"}}}}
+Answer:
+```json
+{{
+  "text": "articles[*].body",
+  "meta": {{
+    "source": "meta.dataset",
+    "language": "meta.lang",
+    "timestamp": null,
+    "token_count": null,
+    "quality_score": null,
+    "original_id": null
+  }}
+}}
+```
+
+Example 4 (with quality score and timestamp):
+Columns: ["text", "source", "created_at", "quality", "article_id"]
+Sample: {{"text": "Long text content...", "source": "reddit", "created_at": "2024-01-01", "quality": 0.85, "article_id": "abc123"}}
+Answer:
+```json
+{{
+  "text": "text",
+  "meta": {{
+    "source": "source",
+    "language": null,
+    "timestamp": "created_at",
+    "token_count": null,
+    "quality_score": "quality",
+    "original_id": "article_id"
+  }}
+}}
+```
+
+Example 5 (irrelevant dataset):
 Columns: ["values"]
-Sample: {"values": [1.2, 3.4]}
-Answer: {"text": null}
-
-Example 3 (mixed content → choose actual text):
-Columns: ["meta", "content"]
-Sample: {"meta": {"notes": "draft"}, "content": "Detailed policy analysis"}
-Answer: {"text": "content"}
+Sample: {{"values": [1.2, 3.4, 5.6]}}
+Answer:
+```json
+{{
+  "text": null,
+  "meta": null
+}}
+```
 
 [OUTPUT]
-Return a JSON object in ```json block:
-{
-  "text": "field_path 或 字段路径数组"
-}
-If truly no textual field exists, return {"text": null}.
+Return a JSON object in ```json block following this structure:
+{{
+  "text": "field_path | [field_path, ...] | null",
+  "meta": {{
+    "source": "field_path | string_value | null",
+    "language": "field_path | string_value | null",
+    "timestamp": "field_path | null",
+    "token_count": "field_path | null",
+    "quality_score": "field_path | null",
+    "original_id": "field_path | null"
+  }}
+}}
+
+If the dataset is irrelevant, return {{"text": null, "meta": null}}.
 """
     task_prompt_for_data_conversion_sft = """
-You are given a dataset from HuggingFace. Your task is to identify two fields that form a question-answer pair for instruction tuning. Fields can be top-level columns or nested structures.
+You are given a dataset from HuggingFace. Your task is to identify field mappings for supervised fine-tuning, including conversation messages, system prompts, and metadata fields.
 
 [User Requirements]
 User's original request: {user_target}
@@ -1120,44 +1215,347 @@ User's original request: {user_target}
 [Dataset Information]
 Dataset Columns: {column_names}
 Sample Data: {first_row}
+{% if sample_rows %}
+Additional Sample Records:
+{% for row in sample_rows[1:3] %}
+- {{ row }}
+{% endfor %}
+{% endif %}
 
 [Instruction]
-1. **Relevance**: Confirm the dataset relates to {user_target}. Only return null/null when the dataset is clearly off-topic.
-2. **Read Actual Values**: Examine the sample content carefully—do not rely solely on field names. Pick the fields whose values actually represent questions/instructions and answers/responses, even if the names differ.
-3. **Nested Paths**: When data is nested, return paths using dot/bracket notation (e.g., `items[*].question`, `dialogues[*].turns[0].text`). Lists of strings, numbers, or dictionaries are acceptable; the downstream system will handle serialization.
-4. **Support Multi-field Concatenation**: 若题干、选项、解析分散在多个字段中，可为 question 或 answer 返回字段路径数组（例如 `["stem", "options[*]"]`）。系统会按数组顺序以换行符拼接这些字段形成最终文本。
-5. **Avoid Unnecessary null**: If only one side is obvious and the other is ambiguous but still usable (e.g., list of answers, numeric outputs), return the corresponding path rather than null. Only set a field to null when there is genuinely no meaningful content for that side.
-6. **Graceful Degradation with Explanation**: If you can only find one field that is suitable, and the other field is truly missing, then set the missing field to null and add a `reason` field to explain why it's missing. For example, if you find a field that contains answers but not questions, you might return `"reason": "question field missing in sample"` in the JSON response.
+1. **Relevance**: Confirm the dataset relates to {user_target}. Only return null when the dataset is clearly off-topic.
+
+2. **Messages Structure Mapping**: Identify conversation messages and map them to the messages array. Each message must have:
+   - **role** (required): One of `"user"`, `"assistant"`, `"system"`, or `"tool"`
+     * `"user"`: User input/instruction (fields like "question", "input", "prompt", "instruction")
+     * `"assistant"`: Model response (fields like "answer", "response", "output", "solution")
+     * `"system"`: System prompt/instruction (fields like "system", "instruction", "persona")
+     * `"tool"`: Tool call results (for Agent scenarios)
+     * Role identification strategy:
+       - If field name contains "question"/"input"/"prompt"/"instruction" → `"user"`
+       - If field name contains "answer"/"response"/"output"/"solution" → `"assistant"`
+       - If field name contains "system"/"instruction"/"persona" → `"system"`
+       - If multiple messages exist, first is usually `"user"`, then alternate
+   - **content** (required): Field path or array of field paths for the message content
+     * Support single field: `"question"`
+     * Support multi-field concatenation: `["stem", "options[*]"]`
+     * Support nested structures: `"dialogues[*].turns[0].text"`
+     * **IMPORTANT**: Different roles MUST map to DIFFERENT fields. For example:
+       - If `"user"` maps to `"messages[*].user"`, then `"assistant"` should map to `"messages[*].assistant"` or `"messages[*].answer"`, NOT `"messages[*].user"`
+       - If `"user"` maps to `"question"`, then `"assistant"` should map to `"answer"` or `"response"`, NOT `"question"`
+       - Each role must have its own distinct field path
+     * **Special Case - Messages List with Role Field**: When the data structure has a `messages` list where each element contains both `role` and `content` fields (e.g., `[{"role": "HUMAN", "content": "..."}, {"role": "ASSISTANT", "content": "..."}]`):
+       - Both `"user"` and `"assistant"` messages can map to the same field path `"messages[*].content"`
+       - The system will automatically match based on role: `"user"` role maps to elements with `role="HUMAN"` (or similar), `"assistant"` role maps to elements with `role="ASSISTANT"` (or similar)
+       - This is the ONLY exception where different roles can share the same field path
+       - See Example 8 for a detailed example
+   - **loss_mask** (optional): Boolean indicating if loss should be calculated
+     * Default: `true` for `"assistant"`, `false` for others
+     * Can be explicitly set: `true` or `false`
+
+3. **System Field Mapping** (optional): Global system prompt
+   - Can be a field path: `"system_prompt"` or `"meta.system"`
+   - Can be a direct string value: `"You are a helpful assistant."`
+   - If messages already contain a system role message, prefer that over this field
+   - Return `null` if not present
+
+4. **Metadata Field Mapping**: Same as PT mode (source, language, timestamp, token_count, quality_score, original_id)
+   - **source** (required if meta exists): Data source identifier
+   - **language** (recommended): Language code (ISO 639-1)
+   - Other fields are optional
+
+5. **Field Path Syntax**: Same as PT mode
+   - Top-level: `"field_name"`
+   - Nested: `"parent.child"`
+   - Array element: `"items[0]"` or `"items[*]"`
+   - Mixed: `"dialogues[*].turns[0].text"`
+
+6. **Multi-turn Conversations**: When data contains multiple conversation turns:
+   - Map each turn to separate messages in the array
+   - Maintain conversation order
+   - For nested structures like `dialogues[*].turns`, extract each turn as a separate message
 
 [Few-shot Examples]
-Example A (classic QA list):
-Columns: ["qa_pairs"]
-Sample: {"qa_pairs": [{"q": "Who?", "a": "Alice"}]}
-Answer: {"question": "qa_pairs[*].q", "answer": "qa_pairs[*].a", "reason": null}
 
-Example B (answers in list of strings):
-Columns: ["prompts", "solutions"]
-Sample: {"prompts": ["Solve..."], "solutions": [["x=2", "Check"]]}
-Answer: {"question": "prompts[*]", "answer": "solutions[*]", "reason": null}
+Example 1 (classic QA pair):
+Columns: ["question", "answer", "id", "source"]
+Sample: {{"question": "What is AI?", "answer": "AI is artificial intelligence.", "id": "123", "source": "alpaca"}}
+Answer:
+```json
+{{
+  "messages": [
+    {{
+      "role": "user",
+      "content": "question",
+      "loss_mask": false
+    }},
+    {{
+      "role": "assistant",
+      "content": "answer",
+      "loss_mask": true
+    }}
+  ],
+  "system": null,
+  "meta": {{
+    "source": "source",
+    "language": null,
+    "timestamp": null,
+    "token_count": null,
+    "quality_score": null,
+    "original_id": "id"
+  }}
+}}
+```
 
-Example B2 (question + options concatenation):
-Columns: ["stem", "options", "analysis"]
-Sample: {"stem": "以下哪项正确？", "options": ["A. ...", "B. ..."], "analysis": "选B"}
-Answer: {"question": ["stem", "options[*]"], "answer": ["analysis"], "reason": null}
+Example 2 (with system prompt):
+Columns: ["instruction", "input", "output", "dataset"]
+Sample: {{"instruction": "Answer the question", "input": "What is Python?", "output": "Python is a programming language.", "dataset": "alpaca"}}
+Answer:
+```json
+{{
+  "messages": [
+    {{
+      "role": "system",
+      "content": "instruction",
+      "loss_mask": false
+    }},
+    {{
+      "role": "user",
+      "content": "input",
+      "loss_mask": false
+    }},
+    {{
+      "role": "assistant",
+      "content": "output",
+      "loss_mask": true
+    }}
+  ],
+  "system": null,
+  "meta": {{
+    "source": "dataset",
+    "language": null,
+    "timestamp": null,
+    "token_count": null,
+    "quality_score": null,
+    "original_id": null
+  }}
+}}
+```
 
-Example C (only questions, explain null):
-Columns: ["queries"]
-Sample: {"queries": ["Explain GDP?"]}
-Answer: {"question": "queries[*]", "answer": null, "reason": "answers not present in sample"}
+Example 3 (multi-field concatenation):
+Columns: ["stem", "options", "analysis", "source", "lang"]
+Sample: {{"stem": "以下哪项正确？", "options": ["A. 选项1", "B. 选项2"], "analysis": "选B，因为...", "source": "exam", "lang": "zh"}}
+Answer:
+```json
+{{
+  "messages": [
+    {{
+      "role": "user",
+      "content": ["stem", "options[*]"],
+      "loss_mask": false
+    }},
+    {{
+      "role": "assistant",
+      "content": "analysis",
+      "loss_mask": true
+    }}
+  ],
+  "system": null,
+  "meta": {{
+    "source": "source",
+    "language": "lang",
+    "timestamp": null,
+    "token_count": null,
+    "quality_score": null,
+    "original_id": null
+  }}
+}}
+```
+
+Example 4 (multi-turn conversation):
+Columns: ["dialogues"]
+Sample: {{"dialogues": [{{"user": "Hello", "assistant": "Hi there!"}}, {{"user": "How are you?", "assistant": "I'm doing well."}}]}}
+Answer:
+```json
+{{
+  "messages": [
+    {{
+      "role": "user",
+      "content": "dialogues[*].user",
+      "loss_mask": false
+    }},
+    {{
+      "role": "assistant",
+      "content": "dialogues[*].assistant",
+      "loss_mask": true
+    }}
+  ],
+  "system": null,
+  "meta": {{
+    "source": null,
+    "language": null,
+    "timestamp": null,
+    "token_count": null,
+    "quality_score": null,
+    "original_id": null
+  }}
+}}
+```
+
+Example 5 (nested conversation structure):
+Columns: ["conversation"]
+Sample: {{"conversation": {{"system_instruction": "You are helpful", "turns": [{{"user_input": "Hi", "assistant_response": "Hello"}}]}}}}
+Answer:
+```json
+{{
+  "messages": [
+    {{
+      "role": "system",
+      "content": "conversation.system_instruction",
+      "loss_mask": false
+    }},
+    {{
+      "role": "user",
+      "content": "conversation.turns[*].user_input",
+      "loss_mask": false
+    }},
+    {{
+      "role": "assistant",
+      "content": "conversation.turns[*].assistant_response",
+      "loss_mask": true
+    }}
+  ],
+  "system": null,
+  "meta": {{
+    "source": null,
+    "language": null,
+    "timestamp": null,
+    "token_count": null,
+    "quality_score": null,
+    "original_id": null
+  }}
+}}
+```
+
+Example 6 (with global system field):
+Columns: ["system_prompt", "question", "answer", "source"]
+Sample: {{"system_prompt": "You are a math tutor.", "question": "Solve 2+2", "answer": "4", "source": "math_dataset"}}
+Answer:
+```json
+{{
+  "messages": [
+    {{
+      "role": "user",
+      "content": "question",
+      "loss_mask": false
+    }},
+    {{
+      "role": "assistant",
+      "content": "answer",
+      "loss_mask": true
+    }}
+  ],
+  "system": "system_prompt",
+  "meta": {{
+    "source": "source",
+    "language": null,
+    "timestamp": null,
+    "token_count": null,
+    "quality_score": null,
+    "original_id": null
+  }}
+}}
+```
+
+Example 7 (irrelevant dataset):
+Columns: ["values"]
+Sample: {{"values": [1, 2, 3]}}
+Answer:
+```json
+{{
+  "messages": null,
+  "system": null,
+  "meta": null
+}}
+```
+
+Example 8 (messages list with role field in each element):
+Columns: ["messages", "mid", "tags", "languages"]
+Sample: {{
+  "messages": [
+    {{
+      "role": "HUMAN",
+      "content": "# Write a comprehensive explanation function that outlines the practical applications of alternating sum\n# in data analysis and how it differs from a standard subsequence sum.\n\ndef explain_alternating_sum():\n    pass",
+      "index": null
+    }},
+    {{
+      "role": "ASSISTANT",
+      "content": "To create a comprehensive explanation function for the practical applications of alternating sum in data analysis, and to highlight how it differs from a standard subsequence sum, we can follow these steps:\n\n1. **Define the Purpose**: Explain what an alternating sum is and why it's used.\n2. **Contrast with Standard Subsequence Sum**: Illustrate how it differs from a typical subsequence sum.\n3. **List Practical Applications**: Provide real-world scenarios where this might be used.\n4. **Code Explanation**: Implement a simple code snippet demonstrating the difference.\n\nHere is the complete function with detailed explanations:\n\n```python\ndef explain_alternating_sum():\n    \"\"\"\n    This function explains the concept and practical applications of the alternating sum,\n    and compares it with the standard subsequence sum in data analysis.\n    \"\"\"\n    \n    # Introduction to Alternating Sum\n    explanation = \"\"\"\n    **Alternating Sum:**\n    An alternating sum of a sequence involves summing the elements of the sequence such \n    that the signs of the terms alternate. For example, for a sequence [a, b, c, d], \n    the alternating sum is calculated as: a - b + c - d.\n\n    **Contrast with Standard Subsequence Sum:**\n    A standard subsequence sum simply adds up all the elements present in the subsequence \n    without changing their signs. Using the same sequence [a, b, c, d], the standard subsequence \n    sum would be: a + b + c + d.\n\n    **Practical Applications:**\n\n    1. **Time Series Analysis:** In time series data, alternating sums can be used to highlight \n       trends by periodically adjusting the sign. This makes it easier to detect fluctuations over \n       fixed intervals.\n    \n    2. **Signal Processing:** Alternating sums can help filter out noise when processing signals, as \n       it counteracts the effect of continuously increasing or decreasing signals.\n    \n    3. **Financial Analysis:** When analyzing financial data, alternating sums can be beneficial for \n       balancing profit and loss to understand net volatility or market behavior fluctuations.\n    \n    **How It Differs:**\n    The alternating sum emphasizes the oscillating nature of the data, which can reveal underlying \n    patterns not visible with a straightforward summation.\n    \"\"\"\n    \n    print(explanation)\n\n# Use the function to print the explanation\nexplain_alternating_sum()\n```\n\n### Summary\n\n- **Purpose**: This function provides a detailed explanation of the alternating sum, highlighting its applications and differences from the standard sum.\n- **Key Logic**:\n  - **Alternating Sum**: Involves changing signs as we sum elements.\n  - **Contrast with Standard Sum**: Simple additive process without altering signs.\n- **Applications**: Used in fields like time series analysis, signal processing, and financial analysis to detect patterns, filter noise, and analyze data volatility.",
+      "index": null
+    }}
+  ],
+  "mid": "00002260-b6de-4761-ae4e-04df5fd049af",
+  "tags": [
+    {{"explanation": "The question asks for a function that provides an explanation.", "tag": "explanation function"}},
+    {{"explanation": "The question and answer focus on the concept of alternating sums.", "tag": "alternating sums"}},
+    {{"explanation": "The question and answer relate to practical applications in data analysis.", "tag": "data analysis"}}
+  ],
+  "languages": ["Python"]
+}}
+Answer:
+```json
+{{
+  "messages": [
+    {{
+      "role": "user",
+      "content": "messages[*].content",
+      "loss_mask": false
+    }},
+    {{
+      "role": "assistant",
+      "content": "messages[*].content",
+      "loss_mask": true
+    }}
+  ],
+  "system": null,
+  "meta": {{
+    "source": null,
+    "language": "languages[0]",
+    "timestamp": null,
+    "token_count": null,
+    "quality_score": null,
+    "original_id": "mid"
+  }}
+}}
+```
+
+**Note for Example 8**: When the `messages` list contains elements with both `role` and `content` fields, both `"user"` and `"assistant"` can map to the same field path `"messages[*].content"`. The system will automatically match:
+- Messages with `role="user"` in the mapping will extract content from elements where `role="HUMAN"` (or similar user role identifiers) in the original data
+- Messages with `role="assistant"` in the mapping will extract content from elements where `role="ASSISTANT"` (or similar assistant role identifiers) in the original data
+- This is the ONLY exception where different roles can share the same field path
 
 [OUTPUT]
-Return JSON in ```json block:
-{
-  "question": "question_path 或 字段路径数组",
-  "answer": "answer_path 或 字段路径数组",
-  "reason": null or "text explanation when any field is null"
-}
-If only one side exists, set the other to null and provide a concise explanation in `reason`. If the dataset is irrelevant to the request, return {"question": null, "answer": null, "reason": "dataset irrelevant"}.
+Return a JSON object in ```json block following this structure:
+{{
+  "messages": [
+    {{
+      "role": "user | assistant | system | tool",
+      "content": "field_path | [field_path, ...] | null",
+      "loss_mask": true | false | null
+    }}
+  ],
+  "system": "field_path | string_value | null",
+  "meta": {{
+    "source": "field_path | string_value | null",
+    "language": "field_path | string_value | null",
+    "timestamp": "field_path | null",
+    "token_count": "field_path | null",
+    "quality_score": "field_path | null",
+    "original_id": "field_path | null"
+  }}
+}}
+
+If the dataset is irrelevant, return {{"messages": null, "system": null, "meta": null}}.
 """
     system_prompt_for_file_discovery = """
 You are an expert data engineer. Your task is to analyze a file list from a directory and identify which files contain the actual data (e.g., text, tables, instructions).

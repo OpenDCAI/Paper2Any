@@ -1558,11 +1558,25 @@ class WebCrawlOrchestrator:
             """检查是否还有任务需要处理"""
             nonlocal skip_routing
             
-            if state.is_finished or not state.sub_tasks:
+            # 首先检查是否已完成
+            if state.is_finished:
+                log.info("[LangGraph] 检测到 is_finished=True，流程结束")
                 return "end"
+            
+            # 检查任务列表是否为空
+            if not state.sub_tasks:
+                log.info("[LangGraph] 任务列表为空，流程结束")
+                state.is_finished = True
+                return "end"
+            
             # 如果设置了跳过路由标记，直接回到 process_task（用于处理任务替换的情况）
             if skip_routing:
                 skip_routing = False
+                # 在返回之前，再次检查任务列表，如果为空则结束
+                if not state.sub_tasks:
+                    log.info("[LangGraph] 任务替换后列表为空，流程结束")
+                    state.is_finished = True
+                    return "end"
                 return "process_task"
             return "process_task"
 
@@ -1599,6 +1613,11 @@ class WebCrawlOrchestrator:
                     self._apply_download_limit_to_state(state)
                     # 清除当前任务信息，因为当前任务被跳过
                     current_task_info = None
+                    # 如果替换后任务列表为空，直接结束
+                    if not state.sub_tasks:
+                        log.info("[LangGraph] 任务替换后列表为空，流程结束")
+                        state.is_finished = True
+                        return state
                     skip_routing = True
                     return state
                 else:
@@ -1671,6 +1690,8 @@ class WebCrawlOrchestrator:
                 self._apply_download_limit_to_state(state)
                 state.completed_sub_tasks.append(current_task_info["task"])
                 log.info(f"子任务 [RESEARCH] 完成。状态: {current_task_info['task'].get('status', 'completed')}")
+                # 清理当前任务信息
+                current_task_info = None
             return state
 
         async def download_task_node(state: WebCrawlState) -> WebCrawlState:
@@ -1813,6 +1834,8 @@ class WebCrawlOrchestrator:
                 self._apply_download_limit_to_state(state)
                 state.completed_sub_tasks.append(current_task_info["task"])
                 log.info(f"子任务 [DOWNLOAD] 完成。状态: {current_task_info['task'].get('status', 'N/A')}")
+                # 清理当前任务信息
+                current_task_info = None
             return state
 
 
@@ -1822,12 +1845,20 @@ class WebCrawlOrchestrator:
             
             if current_task_info is None:
                 log.warning("[LangGraph] complete_task_node: current_task_info 未设置，无法完成任务")
+                # 如果没有任务信息，检查任务列表是否为空
+                if not state.sub_tasks:
+                    log.info("[LangGraph] complete_task_node: 任务列表为空，设置 is_finished=True")
+                    state.is_finished = True
                 return state
             
             current_task_info["task"]['status'] = 'completed'
             state.completed_sub_tasks.append(current_task_info["task"])
             task_type = current_task_info.get("type", 'UNKNOWN')
             log.info(f"子任务 [{task_type.upper()}] 完成。状态: {current_task_info['task'].get('status', 'N/A')}")
+            
+            # 清理当前任务信息
+            current_task_info = None
+            
             return state
 
         async def finalize_node(state: WebCrawlState) -> WebCrawlState:
@@ -1880,10 +1911,30 @@ class WebCrawlOrchestrator:
             """在 process_task 之后的路由函数"""
             nonlocal current_task_info, skip_routing
             
+            # 首先检查是否已完成
+            if state.is_finished:
+                log.info("[LangGraph] route_after_process_task: 检测到 is_finished=True，跳过路由")
+                # 如果已完成但没有当前任务，直接返回 complete_task（会被 check_has_tasks 路由到 finalize）
+                if current_task_info is None:
+                    return "complete_task"
+            
             # 如果设置了跳过路由标记，直接回到 process_task
             if skip_routing:
                 skip_routing = False
+                # 在返回之前，再次检查任务列表
+                if not state.sub_tasks:
+                    log.info("[LangGraph] route_after_process_task: skip_routing 后任务列表为空，设置 is_finished=True")
+                    state.is_finished = True
+                    current_task_info = None
+                    return "complete_task"
                 return "process_task"
+            
+            # 如果没有当前任务信息，说明所有任务已完成
+            if current_task_info is None:
+                log.info("[LangGraph] route_after_process_task: current_task_info 为 None，设置 is_finished=True")
+                state.is_finished = True
+                return "complete_task"
+            
             # 否则根据任务类型路由
             return await route_task_type(state)
 

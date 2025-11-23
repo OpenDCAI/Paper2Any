@@ -10,6 +10,8 @@ import bz2
 import lzma
 import shutil
 import tempfile
+import hashlib
+import uuid
 from abc import ABC, abstractmethod
 from collections import Counter
 from typing import Any, Dict, List, Optional, Set, Type, Tuple, TYPE_CHECKING
@@ -23,6 +25,7 @@ from dataflow_agent.state import DataCollectionState
 from dataflow_agent.utils import robust_parse_json
 from dataflow_agent.toolkits.tool_manager import ToolManager
 from dataflow_agent.logger import get_logger
+from dataflow_agent.schemas import validate_mapping
 
 if TYPE_CHECKING:
     from datasets import Dataset, DatasetDict
@@ -363,6 +366,627 @@ class DataConvertor:
             return [combined] if combined else []
         return self._extract_field_values(row, field_spec)
 
+    # ============================================================================
+    # 任务4-10: 中间格式构建相关方法
+    # ============================================================================
+    
+    def _generate_record_id(self, content: Any, file_path: str = "", record_index: int = 0) -> str:
+        """
+        任务4: 生成全局唯一记录ID
+        
+        Args:
+            content: 记录内容（用于生成hash）
+            file_path: 文件路径（用于生成唯一ID）
+            record_index: 记录索引
+            
+        Returns:
+            唯一ID字符串（32位hex）
+        """
+        # 构建ID的组成部分
+        parts = []
+        if file_path:
+            parts.append(str(file_path))
+        if record_index is not None:
+            parts.append(str(record_index))
+        
+        # 将content转换为字符串用于hash
+        if content is not None:
+            if isinstance(content, (dict, list)):
+                content_str = json.dumps(content, ensure_ascii=False, sort_keys=True)
+            else:
+                content_str = str(content)
+            parts.append(content_str)
+        
+        # 生成hash
+        combined = "|".join(parts)
+        hash_obj = hashlib.sha256(combined.encode('utf-8'))
+        return hash_obj.hexdigest()[:32]
+    
+    def _extract_field_value_raw(self, row: Dict[str, Any], field_spec: Optional[Any]) -> Any:
+        """
+        任务8: 扩展字段提取方法，支持提取非字符串类型的原始值
+        
+        Args:
+            row: 数据行
+            field_spec: 字段规范（字符串路径或数组路径）
+            
+        Returns:
+            原始值（保持类型）或None
+        """
+        if field_spec is None:
+            return None
+        
+        # 如果是数组路径，拼接后返回字符串
+        if isinstance(field_spec, list):
+            pieces: List[str] = []
+            for spec in field_spec:
+                values = self._extract_field_values(row, spec)
+                if values:
+                    pieces.extend(values)
+            combined = "\n".join(v for v in pieces if v)
+            return combined if combined else None
+        
+        # 单个字段路径
+        if not isinstance(field_spec, str):
+            return None
+        
+        field_spec = field_spec.strip()
+        if not field_spec:
+            return None
+        
+        tokens = field_spec.split(".")
+        raw_values = self._traverse_field_tokens(row, tokens)
+        
+        if not raw_values:
+            return None
+        
+        # 返回第一个原始值（不转换为字符串）
+        value = raw_values[0]
+        if isinstance(value, tuple) and len(value) == 2:
+            # 如果是(key, value)元组，返回value
+            return value[1]
+        return value
+    
+    def _extract_meta_fields(self, row: Dict[str, Any], meta_mapping: Optional[Dict[str, Any]], 
+                             file_path: str, state: DataCollectionState) -> Dict[str, Any]:
+        """
+        任务5: 提取meta字段
+        
+        Args:
+            row: 数据行
+            meta_mapping: LLM返回的meta字段映射
+            file_path: 文件路径（用于推断默认值）
+            state: 状态对象
+            
+        Returns:
+            meta字典
+        """
+        meta = {}
+        
+        if not meta_mapping:
+            # 如果没有映射，使用默认值
+            meta["source"] = self._infer_source_from_path(file_path)
+            meta["language"] = state.request.language if hasattr(state.request, 'language') else None
+            return meta
+        
+        # 提取source（任务22: 支持多字段拼接）
+        source_spec = meta_mapping.get("source")
+        if source_spec:
+            if isinstance(source_spec, str) and not self._is_field_path(source_spec):
+                # 直接字符串值
+                meta["source"] = source_spec
+            elif isinstance(source_spec, list):
+                # 多字段拼接
+                pieces: List[str] = []
+                for spec in source_spec:
+                    value = self._extract_field_value_raw(row, spec)
+                    if value is not None:
+                        pieces.append(str(value) if not isinstance(value, str) else value)
+                meta["source"] = "_".join(pieces) if pieces else self._infer_source_from_path(file_path)
+            else:
+                # 单个字段路径或可能是直接值
+                if isinstance(source_spec, str):
+                    # 先尝试作为字段路径提取
+                    source_value = self._extract_field_value_raw(row, source_spec)
+                    if source_value is not None:
+                        meta["source"] = str(source_value) if not isinstance(source_value, str) else source_value
+                    else:
+                        # 提取失败，检查是否是直接值
+                        # 如果包含点号或方括号，是真正的字段路径但字段不存在，使用默认值
+                        # 如果不包含点号和方括号，可能是直接值，使用原始值
+                        if "." in source_spec or "[" in source_spec:
+                            # 真正的字段路径但字段不存在，使用默认值
+                            meta["source"] = self._infer_source_from_path(file_path)
+                        else:
+                            # 不包含点号和方括号，可能是直接值，使用原始值
+                            meta["source"] = source_spec
+                else:
+                    # 非字符串类型，尝试提取
+                    source_value = self._extract_field_value_raw(row, source_spec)
+                    if source_value is not None:
+                        meta["source"] = str(source_value) if not isinstance(source_value, str) else source_value
+                    else:
+                        meta["source"] = self._infer_source_from_path(file_path)
+        else:
+            meta["source"] = self._infer_source_from_path(file_path)
+        
+        # 提取language（任务22: 支持多字段拼接）
+        language_spec = meta_mapping.get("language")
+        if language_spec:
+            if isinstance(language_spec, str) and not self._is_field_path(language_spec):
+                # 直接字符串值
+                meta["language"] = language_spec
+            elif isinstance(language_spec, list):
+                # 多字段拼接（较少见，但支持）
+                pieces: List[str] = []
+                for spec in language_spec:
+                    value = self._extract_field_value_raw(row, spec)
+                    if value is not None:
+                        pieces.append(str(value) if not isinstance(value, str) else value)
+                meta["language"] = "_".join(pieces) if pieces else (state.request.language if hasattr(state.request, 'language') else None)
+            else:
+                # 单个字段路径或可能是直接值
+                if isinstance(language_spec, str):
+                    # 先尝试作为字段路径提取
+                    language_value = self._extract_field_value_raw(row, language_spec)
+                    if language_value is not None:
+                        meta["language"] = str(language_value) if not isinstance(language_value, str) else language_value
+                    else:
+                        # 提取失败，检查是否是直接值
+                        # 如果包含点号或方括号，是真正的字段路径但字段不存在，使用默认值
+                        # 如果不包含点号和方括号，可能是直接值，使用原始值
+                        if "." in language_spec or "[" in language_spec:
+                            # 真正的字段路径但字段不存在，使用默认值
+                            meta["language"] = state.request.language if hasattr(state.request, 'language') else None
+                        else:
+                            # 不包含点号和方括号，可能是直接值，使用原始值
+                            meta["language"] = language_spec
+                else:
+                    # 非字符串类型，尝试提取
+                    language_value = self._extract_field_value_raw(row, language_spec)
+                    if language_value is not None:
+                        meta["language"] = str(language_value) if not isinstance(language_value, str) else language_value
+                    else:
+                        meta["language"] = state.request.language if hasattr(state.request, 'language') else None
+        else:
+            meta["language"] = state.request.language if hasattr(state.request, 'language') else None
+        
+        # 提取timestamp
+        timestamp_spec = meta_mapping.get("timestamp")
+        if timestamp_spec:
+            timestamp_value = self._extract_field_value_raw(row, timestamp_spec)
+            if timestamp_value is not None:
+                meta["timestamp"] = str(timestamp_value)
+        
+        # 提取token_count
+        token_count_spec = meta_mapping.get("token_count")
+        if token_count_spec:
+            token_count_value = self._extract_field_value_raw(row, token_count_spec)
+            if token_count_value is not None:
+                # 尝试转换为整数
+                try:
+                    meta["token_count"] = int(token_count_value) if not isinstance(token_count_value, int) else token_count_value
+                except (ValueError, TypeError):
+                    meta["token_count"] = None
+        
+        # 提取quality_score
+        quality_score_spec = meta_mapping.get("quality_score")
+        if quality_score_spec:
+            quality_score_value = self._extract_field_value_raw(row, quality_score_spec)
+            if quality_score_value is not None:
+                # 尝试转换为浮点数
+                try:
+                    meta["quality_score"] = float(quality_score_value) if not isinstance(quality_score_value, float) else quality_score_value
+                except (ValueError, TypeError):
+                    meta["quality_score"] = None
+        
+        # 提取original_id（任务18: 增强默认值推断）
+        original_id_spec = meta_mapping.get("original_id")
+        if original_id_spec:
+            original_id_value = self._extract_field_value_raw(row, original_id_spec)
+            if original_id_value is not None:
+                meta["original_id"] = str(original_id_value) if not isinstance(original_id_value, str) else original_id_value
+            else:
+                # 尝试从row中获取id字段
+                if "id" in row:
+                    meta["original_id"] = str(row["id"])
+                # 如果还是没有，可以使用record_index（但需要从外部传入，这里暂时不处理）
+        # 如果没有指定original_id_spec，尝试从row中获取id字段作为默认值
+        elif "original_id" not in meta and "id" in row:
+            meta["original_id"] = str(row["id"])
+        
+        # 任务18: 增强timestamp默认值（如果未指定且文件存在，使用文件修改时间）
+        if "timestamp" not in meta and file_path and os.path.exists(file_path):
+            try:
+                import time
+                mtime = os.path.getmtime(file_path)
+                meta["timestamp"] = str(int(mtime))
+            except Exception:
+                pass  # 忽略错误，保持timestamp为None
+        
+        return meta
+    
+    def _extract_system_field(self, row: Dict[str, Any], system_mapping: Optional[Any]) -> Optional[str]:
+        """
+        任务6: 提取system字段
+        
+        Args:
+            row: 数据行
+            system_mapping: LLM返回的system字段映射（字段路径或直接字符串值）
+            
+        Returns:
+            system字符串或None
+        """
+        if system_mapping is None:
+            return None
+        
+        # 如果是直接字符串值（不是字段路径）
+        if isinstance(system_mapping, str) and not self._is_field_path(system_mapping):
+            return system_mapping
+        
+        # 字段路径
+        system_value = self._extract_field_value_raw(row, system_mapping)
+        if system_value is not None:
+            return str(system_value) if not isinstance(system_value, str) else system_value
+        
+        return None
+    
+    def _extract_messages_structure(self, row: Dict[str, Any], messages_mapping: Optional[List[Dict[str, Any]]], 
+                                    column_names: List[str]) -> List[Dict[str, Any]]:
+        """
+        任务7: 提取messages结构
+        
+        Args:
+            row: 数据行
+            messages_mapping: LLM返回的messages映射列表
+            column_names: 列名列表（用于验证字段存在性）
+            
+        Returns:
+            messages列表，每个元素包含role, content, loss_mask
+        """
+        if not messages_mapping:
+            return []
+        
+        messages = []
+        valid_roles = {"user", "assistant", "system", "tool"}
+        
+        for idx, msg_mapping in enumerate(messages_mapping):
+            # 检查 msg_mapping 是否为字典类型
+            if not isinstance(msg_mapping, dict):
+                log.warning(f"消息 {idx} 不是字典类型（类型: {type(msg_mapping).__name__}），跳过该消息")
+                continue
+            
+            role = msg_mapping.get("role")
+            content_spec = msg_mapping.get("content")
+            loss_mask = msg_mapping.get("loss_mask")
+            
+            # 严格要求role必须由LLM明确指定，不进行推断
+            if not role:
+                log.warning(f"消息 {idx} 缺少role字段，LLM必须明确指定role，跳过该消息")
+                continue
+            
+            # 验证role是否有效
+            if role not in valid_roles:
+                log.warning(f"消息 {idx} 的role '{role}' 无效，必须是 {valid_roles} 之一，跳过该消息")
+                continue
+            
+            # 提取content（任务17: 支持嵌套对话结构）
+            # 注意：完全依赖LLM的映射，不进行规则推断
+            # 如果LLM返回嵌套路径（如dialogues[*].turns[*].user_input），
+            # _extract_text_values会自动展开并返回所有值
+            content = None
+            if content_spec:
+                if isinstance(content_spec, list):
+                    # 多字段拼接
+                    pieces: List[str] = []
+                    for spec in content_spec:
+                        values = self._extract_field_values(row, spec)
+                        if values:
+                            pieces.extend(values)
+                    content = "\n".join(v for v in pieces if v) if pieces else None
+                else:
+                    # 单个字段路径（支持嵌套结构，如dialogues[*].turns[*].user_input）
+                    # 特殊情况：处理 messages[*].content 模式，需要根据role进行匹配
+                    content_path = str(content_spec) if content_spec else ""
+                    if content_path and "messages[" in content_path and ".content" in content_path:
+                        # 检查原始数据中 messages 列表的每个元素是否有 role 字段
+                        messages_list = row.get("messages")
+                        if isinstance(messages_list, list) and len(messages_list) > 0:
+                            # 检查第一个元素是否有 role 字段
+                            first_msg = messages_list[0] if messages_list else None
+                            if isinstance(first_msg, dict) and "role" in first_msg:
+                                # 这是特殊情况：messages 列表中每个元素都有 role 字段
+                                # 需要根据映射消息的 role 和原始数据的 role 进行匹配
+                                matched_content = self._extract_content_by_role(
+                                    messages_list, role, content_spec
+                                )
+                                if matched_content:
+                                    content = matched_content
+                                else:
+                                    # 如果匹配失败，回退到原来的提取方式
+                                    values = self._extract_text_values(row, content_spec)
+                                    content = values[0] if values else None
+                            else:
+                                # 不是特殊情况，使用原来的提取方式
+                                values = self._extract_text_values(row, content_spec)
+                                content = values[0] if values else None
+                        else:
+                            # messages 不存在或为空，使用原来的提取方式
+                            values = self._extract_text_values(row, content_spec)
+                            content = values[0] if values else None
+                    else:
+                        # 不是 messages[*].content 模式，使用原来的提取方式
+                        values = self._extract_text_values(row, content_spec)
+                        # 如果提取到多个值（嵌套结构展开），取第一个
+                        # 注意：对于嵌套对话，LLM应该返回多个消息映射，每个对应一个turn
+                        content = values[0] if values else None
+            
+            if content is None:
+                log.warning(f"消息 {idx} (role={role}) 无法提取content，跳过该消息")
+                continue  # 跳过没有content的消息
+            
+            # 处理loss_mask：如果LLM未指定，使用默认值（assistant为true，其他为false）
+            if loss_mask is None:
+                loss_mask = (role == "assistant")
+            
+            messages.append({
+                "role": role,
+                "content": content,
+                "loss_mask": loss_mask
+            })
+        
+        return messages
+    
+    def _extract_content_by_role(self, messages_list: List[Dict[str, Any]], target_role: str, content_spec: str) -> Optional[str]:
+        """
+        从 messages 列表中根据 role 匹配提取 content
+        
+        Args:
+            messages_list: messages 列表，每个元素包含 role 和 content 字段
+            target_role: 目标 role（"user", "assistant", "system", "tool"）
+            content_spec: 字段路径（如 "messages[*].content"）
+            
+        Returns:
+            匹配的 content 字符串，如果未找到则返回 None
+        """
+        # role 映射：将标准 role 映射到可能的数据中的 role 值
+        role_mapping = {
+            "user": ["HUMAN", "human", "USER", "user", "User", "Human"],
+            "assistant": ["ASSISTANT", "assistant", "Assistant", "GPT", "gpt", "AI", "ai", "Ai"],
+            "system": ["SYSTEM", "system", "System"],
+            "tool": ["TOOL", "tool", "Tool", "FUNCTION", "function", "Function"]
+        }
+        
+        # 获取目标 role 可能的值
+        possible_roles = role_mapping.get(target_role, [target_role])
+        
+        # 遍历 messages 列表，找到匹配 role 的元素
+        matched_contents = []
+        for msg in messages_list:
+            if not isinstance(msg, dict):
+                continue
+            
+            msg_role = msg.get("role")
+            if msg_role and any(msg_role.upper() == r.upper() for r in possible_roles):
+                # 找到匹配的 role，提取 content
+                msg_content = msg.get("content")
+                if msg_content is not None:
+                    # 规范化 content 为字符串
+                    if isinstance(msg_content, str):
+                        matched_contents.append(msg_content)
+                    else:
+                        matched_contents.append(str(msg_content))
+        
+        # 如果有多个匹配的内容，用换行符连接（多轮对话场景）
+        if matched_contents:
+            return "\n".join(matched_contents)
+        
+        return None
+    
+    def _is_field_path(self, value: str) -> bool:
+        """
+        判断字符串是否是字段路径（包含点号或方括号）还是直接值
+        
+        Args:
+            value: 字符串值
+            
+        Returns:
+            True如果是字段路径，False如果是直接值
+        """
+        if not isinstance(value, str):
+            return False
+        
+        # 如果包含方括号，肯定是字段路径（数组索引）
+        if "[" in value:
+            return True
+        
+        # 如果包含点号，需要进一步判断
+        # 如果包含空格，很可能是直接值（完整句子），不是字段路径
+        if " " in value:
+            return False
+        
+        # 如果包含点号且没有空格，可能是嵌套字段路径（如"meta.field"）
+        if "." in value:
+            # 检查点号前后的部分是否都像字段名（字母数字下划线）
+            parts = value.split(".")
+            if all(part.replace("_", "").replace("-", "").isalnum() for part in parts if part):
+                return True
+            return False
+        
+        # 如果不包含点号和方括号，检查是否像字段名（字母数字下划线，不包含空格）
+        if value.replace("_", "").replace("-", "").isalnum():
+            return True
+        
+        return False
+    
+    def _infer_source_from_path(self, file_path: str) -> str:
+        """
+        从文件路径推断source
+        
+        Args:
+            file_path: 文件路径
+            
+        Returns:
+            source字符串
+        """
+        if not file_path:
+            return "unknown"
+        
+        # 获取文件名（不含扩展名）或目录名
+        path_obj = Path(file_path)
+        # 尝试从文件名推断
+        stem = path_obj.stem
+        if stem and stem != "":
+            return stem
+        
+        # 尝试从父目录名推断
+        parent = path_obj.parent.name
+        if parent and parent not in (".", ""):
+            return parent
+        
+        return "unknown"
+    
+    def _build_intermediate_format_pt(self, row: Dict[str, Any], annotation_result: Dict[str, Any], 
+                                     file_path: str, state: DataCollectionState, record_index: int) -> Optional[Dict[str, Any]]:
+        """
+        任务9: 构建PT模式的中间格式
+        
+        Args:
+            row: 数据行
+            annotation_result: LLM返回的映射结果
+            file_path: 文件路径
+            state: 状态对象
+            record_index: 记录索引
+            
+        Returns:
+            中间格式字典或None（如果数据无效）
+        """
+        # 任务19: 数据验证
+        text_field_spec = annotation_result.get("text")
+        if not text_field_spec:
+            log.warning(f"PT模式：未找到text字段映射，跳过记录")
+            return None
+        
+        text_values = self._extract_text_values(row, text_field_spec)
+        if not text_values:
+            log.warning(f"PT模式：无法从记录中提取text值，跳过")
+            return None
+        
+        # 构建结果（可能有多条记录，如果text_values有多个值）
+        results = []
+        for text in text_values:
+            if not text:
+                continue
+            
+            # 生成ID
+            record_id = self._generate_record_id(text, file_path, record_index)
+            
+            # 提取meta字段
+            meta_mapping = annotation_result.get("meta")
+            meta = self._extract_meta_fields(row, meta_mapping, file_path, state)
+            
+            # 构建中间格式
+            intermediate_record = {
+                "id": record_id,
+                "dataset_type": "pretrain",
+                "text": text,
+                "meta": meta
+            }
+            
+            # 任务19: 验证必填字段
+            if not intermediate_record.get("id"):
+                log.warning(f"PT模式：记录缺少id字段，跳过")
+                continue
+            if not intermediate_record.get("text"):
+                log.warning(f"PT模式：记录缺少text字段，跳过")
+                continue
+            if intermediate_record.get("dataset_type") != "pretrain":
+                log.warning(f"PT模式：dataset_type不正确，跳过")
+                continue
+            
+            results.append(intermediate_record)
+        
+        # 如果只有一条记录，直接返回；否则返回第一条（后续可能需要处理多条记录的情况）
+        return results[0] if results else None
+    
+    def _build_intermediate_format_sft(self, row: Dict[str, Any], annotation_result: Dict[str, Any], 
+                                      file_path: str, state: DataCollectionState, record_index: int) -> Optional[Dict[str, Any]]:
+        """
+        任务10: 构建SFT模式的中间格式
+        
+        Args:
+            row: 数据行
+            annotation_result: LLM返回的映射结果
+            file_path: 文件路径
+            state: 状态对象
+            record_index: 记录索引
+            
+        Returns:
+            中间格式字典或None（如果数据无效）
+        """
+        # 提取messages
+        messages_mapping = annotation_result.get("messages")
+        if not messages_mapping:
+            log.warning(f"SFT模式：未找到messages字段映射，跳过记录")
+            return None
+        
+        column_names = list(row.keys()) if isinstance(row, dict) else []
+        messages = self._extract_messages_structure(row, messages_mapping, column_names)
+        
+        if not messages:
+            log.warning(f"SFT模式：无法从记录中提取messages，跳过")
+            return None
+        
+        # 任务19: 验证messages结构
+        valid_roles = {"user", "assistant", "system", "tool"}
+        for idx, msg in enumerate(messages):
+            if not isinstance(msg, dict):
+                log.warning(f"SFT模式：消息 {idx} 不是字典类型，跳过记录")
+                return None
+            if "role" not in msg or msg["role"] not in valid_roles:
+                log.warning(f"SFT模式：消息 {idx} 的role无效，跳过记录")
+                return None
+            if "content" not in msg or not msg["content"]:
+                log.warning(f"SFT模式：消息 {idx} 缺少content或content为空，跳过记录")
+                return None
+        
+        # 提取system字段
+        system_mapping = annotation_result.get("system")
+        system = self._extract_system_field(row, system_mapping)
+        
+        # 提取meta字段
+        meta_mapping = annotation_result.get("meta")
+        meta = self._extract_meta_fields(row, meta_mapping, file_path, state)
+        
+        # 生成ID（基于messages内容）
+        content_for_id = json.dumps(messages, ensure_ascii=False, sort_keys=True)
+        record_id = self._generate_record_id(content_for_id, file_path, record_index)
+        
+        # 构建中间格式
+        intermediate_record = {
+            "id": record_id,
+            "dataset_type": "sft",
+            "messages": messages
+        }
+        
+        if system:
+            intermediate_record["system"] = system
+        
+        intermediate_record["meta"] = meta
+        
+        # 任务19: 验证必填字段
+        if not intermediate_record.get("id"):
+            log.warning(f"SFT模式：记录缺少id字段，跳过")
+            return None
+        if not intermediate_record.get("messages"):
+            log.warning(f"SFT模式：记录缺少messages字段，跳过")
+            return None
+        if intermediate_record.get("dataset_type") != "sft":
+            log.warning(f"SFT模式：dataset_type不正确，跳过")
+            return None
+        
+        return intermediate_record
+
     def build_messages(self, state: DataCollectionState, column_names: List[str], sample_record: Dict[str, Any], dataset: Any = None) -> List[BaseMessage]:
         """(数据映射) 构建消息列表"""
         log.info("构建(数据映射)提示词消息...")
@@ -374,10 +998,19 @@ class DataConvertor:
         if dataset is not None:
             sampled_records = self._sample_records(dataset)
             # 对于模板，我们仍然传 first_row，但现在是采样列表的第一个
+            # 格式化额外的示例记录用于提示词
+            sample_rows_info = ""
+            if len(sampled_records) > 1:
+                import json
+                additional_samples = sampled_records[1:min(3, len(sampled_records))]
+                sample_rows_info = "\nAdditional Sample Records:\n"
+                for idx, row in enumerate(additional_samples, start=2):
+                    sample_rows_info += f"- Record {idx}: {json.dumps(row, ensure_ascii=False)}\n"
+            
             task_params = {
                 'column_names': column_names, 
                 'first_row': sampled_records[0] if sampled_records else sample_record,
-                'sample_rows': sampled_records,  # 额外提供采样列表
+                'sample_rows_info': sample_rows_info,
                 'user_target': state.request.target  # 添加用户需求
             }
         else:
@@ -386,7 +1019,7 @@ class DataConvertor:
             task_params = {
                 'column_names': column_names, 
                 'first_row': truncated_record,
-                'sample_rows': [truncated_record],
+                'sample_rows_info': "",  # 没有额外示例
                 'user_target': state.request.target  # 添加用户需求
             }
         
@@ -445,8 +1078,74 @@ class DataConvertor:
 
             try:
                 annotation_result = json.loads(match)
-                # 记录输出
+                
+                # 任务11: 验证映射结果
+                category = state.request.category.upper()
+                is_valid = validate_mapping(annotation_result, category)
+                
+                if not is_valid:
+                    log.warning(f"LLM返回的映射结果验证失败 (category={category})")
+                    log.warning(f"映射结果: {json.dumps(annotation_result, indent=2, ensure_ascii=False)}")
+                    
+                    # 根据category给出具体的验证错误信息
+                    if category == "PT":
+                        if "text" not in annotation_result or annotation_result.get("text") is None:
+                            log.warning("PT模式：缺少text字段或text为null")
+                        if "meta" in annotation_result and annotation_result["meta"]:
+                            if "source" not in annotation_result["meta"] or annotation_result["meta"].get("source") is None:
+                                log.warning("PT模式：meta存在但缺少source字段或source为null")
+                    elif category == "SFT":
+                        if "messages" not in annotation_result or not annotation_result.get("messages"):
+                            log.warning("SFT模式：缺少messages字段或messages为空")
+                        else:
+                            messages = annotation_result.get("messages", [])
+                            for idx, msg in enumerate(messages):
+                                if not isinstance(msg, dict):
+                                    log.warning(f"SFT模式：消息 {idx} 不是字典类型")
+                                else:
+                                    if "role" not in msg:
+                                        log.warning(f"SFT模式：消息 {idx} 缺少role字段")
+                                    elif msg.get("role") not in {"user", "assistant", "system", "tool"}:
+                                        log.warning(f"SFT模式：消息 {idx} 的role '{msg.get('role')}' 无效")
+                                    if "content" not in msg:
+                                        log.warning(f"SFT模式：消息 {idx} 缺少content字段")
+                            
+                            # 检查是否有不同role映射到相同字段的问题
+                            role_content_pairs = []
+                            for idx, msg in enumerate(messages):
+                                if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                                    role = msg.get("role")
+                                    content = msg.get("content")
+                                    # 规范化content为字符串
+                                    if isinstance(content, list):
+                                        content_str = str(sorted(content))
+                                    else:
+                                        content_str = str(content) if content is not None else ""
+                                    role_content_pairs.append((idx, role, content_str))
+                            
+                            # 检查不同role是否映射到相同字段
+                            for i, (idx1, role1, content1) in enumerate(role_content_pairs):
+                                for j, (idx2, role2, content2) in enumerate(role_content_pairs):
+                                    if i != j and role1 != role2 and content1 == content2:
+                                        # 检查是否是特殊情况：messages[*].content 模式
+                                        content_path = content1 if isinstance(content1, str) else str(content1)
+                                        if content_path and ("messages[" in content_path and ".content" in content_path):
+                                            # 这是特殊情况，允许不同role映射到相同路径
+                                            log.debug(f"SFT模式：消息 {idx1} (role={role1}) 和消息 {idx2} (role={role2}) 映射到了相同的字段 '{content1}'，这是允许的（messages列表带role字段的特殊情况）")
+                                        else:
+                                            log.warning(f"SFT模式：消息 {idx1} (role={role1}) 和消息 {idx2} (role={role2}) 映射到了相同的字段 '{content1}'，不同role必须映射到不同的字段")
+                    
+                    # 不抛出异常，允许继续处理（可能部分字段可用）
+                    log.warning("继续处理，但可能产生不完整的数据")
+                
+                # 任务21: 更新日志输出，展示完整的映射结构
                 log.info(f"[Agent Output] {self.role_name}.invoke: {json.dumps(annotation_result, indent=2, ensure_ascii=False)}")
+                if category == "PT":
+                    log.debug(f"PT模式映射 - text: {annotation_result.get('text')}, meta: {annotation_result.get('meta')}")
+                elif category == "SFT":
+                    messages_count = len(annotation_result.get('messages', [])) if annotation_result.get('messages') else 0
+                    log.debug(f"SFT模式映射 - messages数量: {messages_count}, system: {annotation_result.get('system')}, meta: {annotation_result.get('meta')}")
+                
                 return annotation_result
             except json.JSONDecodeError as e:
                 log.exception(f"解析GPT(数据映射)响应为JSON失败: 内容为{match}")
@@ -599,46 +1298,40 @@ class DataConvertor:
                         annotation_result = await self.invoke(state, data_content.column_names, data_content[0], dataset=data_content)
 
                         if category == 'PT':
-                            text_field = annotation_result.get('text', None)
-                            if text_field is None or text_field not in data_content.column_names:
-                                log.info(f"数据集 {dataset_id}_{split} 标注结果中未包含有效的 'text' 字段，跳过该数据集")
-                                continue
-
+                            # 使用新的中间格式构建器
                             data_file = os.path.join(data_dir, 'PT.jsonl')
                             count = 0
+                            file_path = os.path.join(data_dir, 'tmp', dataset_id.replace("/", "_"))
+                            
                             with open(data_file, 'a', encoding='utf-8') as f:
-                                for row in data_content:
-                                    text = row.get(text_field)
-                                    if text and isinstance(text, str):
-                                        json_obj = {'text': text}
-                                        f.write(json.dumps(json_obj, ensure_ascii=False) + '\n')
+                                for record_index, row in enumerate(data_content):
+                                    intermediate_record = self._build_intermediate_format_pt(
+                                        row, annotation_result, file_path, state, record_index
+                                    )
+                                    if intermediate_record:
+                                        f.write(json.dumps(intermediate_record, ensure_ascii=False) + '\n')
                                         count += 1
+                            
                             data_sources['PT'].append((f'{dataset_id}_({split})', count))
-                            log.info(f"从数据集 {dataset_id}, split {split} 中提取了 {count} 条 PT 样本。")
+                            log.info(f"从数据集 {dataset_id}, split {split} 中提取了 {count} 条 PT 样本（中间格式：包含id, dataset_type, text, meta）。")
 
                         elif category == 'SFT':
-                            question_field = annotation_result.get('question', None)
-                            answer_field = annotation_result.get('answer', None)
-
-                            if question_field is None or question_field not in data_content.column_names or answer_field is None or answer_field not in data_content.column_names:
-                                log.info(f"数据集 {dataset_id}_{split} 标注结果中未包含有效的 'question'/'answer' 字段，跳过该数据集")
-                                continue
-
+                            # 使用新的中间格式构建器
                             data_file = os.path.join(data_dir, 'SFT.jsonl')
                             count = 0
+                            file_path = os.path.join(data_dir, 'tmp', dataset_id.replace("/", "_"))
+                            
                             with open(data_file, 'a', encoding='utf-8') as f:
-                                for row in data_content:
-                                    question = row.get(question_field)
-                                    answer = row.get(answer_field)
-                                    if question and isinstance(question, str) and answer and isinstance(answer, str):
-                                        json_obj = {
-                                            'question': question,
-                                            'answer': answer
-                                        }
-                                        f.write(json.dumps(json_obj, ensure_ascii=False) + '\n')
+                                for record_index, row in enumerate(data_content):
+                                    intermediate_record = self._build_intermediate_format_sft(
+                                        row, annotation_result, file_path, state, record_index
+                                    )
+                                    if intermediate_record:
+                                        f.write(json.dumps(intermediate_record, ensure_ascii=False) + '\n')
                                         count += 1
+                            
                             data_sources['SFT'].append((f'{dataset_id}_({split})', count))
-                            log.info(f"从数据集 {dataset_id}, split {split} 中提取了 {count} 条 SFT 样本。")
+                            log.info(f"从数据集 {dataset_id}, split {split} 中提取了 {count} 条 SFT 样本（中间格式：包含id, dataset_type, messages, system?, meta）。")
                             
                 except Exception as e:
                     log.error(f"处理数据集 {dataset_id} 时出错: {e}, 跳过该数据集")
@@ -669,10 +1362,15 @@ class UniversalDataConvertor(DataConvertor):
     def role_name(self) -> str:
         return "universal_data_convertor"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, max_concurrent_discovery: int = 7, max_concurrent_mapping: int = 50, **kwargs):
         super().__init__(*args, **kwargs)
         # 临时目录列表，用于清理
         self._temp_dirs = []
+        # 并发控制参数
+        self.max_concurrent_discovery = max_concurrent_discovery  # 文件发现并发数
+        self.max_concurrent_mapping = max_concurrent_mapping  # 文件映射并发数
+        # 文件写入锁，保证并发写入时的线程安全
+        self._write_lock = asyncio.Lock()
 
     def _is_compressed_file(self, file_path: str) -> bool:
         """
@@ -1326,24 +2024,67 @@ class UniversalDataConvertor(DataConvertor):
         file_name = os.path.basename(file_path)
         
         # 'data' 是一个 DatasetDict, e.g., {'train': Dataset, 'test': Dataset}
+        # 准备所有需要处理的 split
+        splits_to_process = []
         for split_name, data_content in data.items():
-            log.info(f"--- 正在处理 Split: '{split_name}' (来自 {file_name}) ---")
-            
             if len(data_content) == 0:
                 log.info(f"Split '{split_name}' 为空，跳过。")
                 continue
+            splits_to_process.append((split_name, data_content))
+        
+        if not splits_to_process:
+            return 0
+        
+        # 并发处理所有 split 的映射（使用 Semaphore 控制并发数）
+        semaphore_mapping = asyncio.Semaphore(self.max_concurrent_mapping)
+        mapping_results = {}  # {split_name: (annotation_result, error)}
+        
+        async def process_split_mapping(split_name: str, data_content: Any):
+            """处理单个 split 的映射"""
+            async with semaphore_mapping:
+                log.info(f"--- 正在处理 Split 映射: '{split_name}' (来自 {file_name}) ---")
+                column_names = data_content.column_names
+                sample_record = data_content[0]
                 
-            # 获取示例，调用 LLM (父类方法) 进行数据映射
-            column_names = data_content.column_names
-            sample_record = data_content[0]
+                try:
+                    # 显式调用父类方法，避免在嵌套函数中使用 super() 的问题
+                    annotation_result = await DataConvertor.invoke(self, state, column_names, sample_record, dataset=data_content)
+                    log.info(f"Split '{split_name}' LLM 映射成功")
+                    return (split_name, annotation_result, None)
+                except Exception as e:
+                    log.error(f"LLM 数据映射失败，跳过 Split '{split_name}': {e}")
+                    return (split_name, None, e)
+        
+        # 并发执行所有 split 的映射
+        if len(splits_to_process) > 1:
+            log.info(f"并发处理 {len(splits_to_process)} 个 Split 的映射（最大并发数: {self.max_concurrent_mapping}）")
+            tasks = [process_split_mapping(split_name, data_content) 
+                     for split_name, data_content in splits_to_process]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
             
-            try:
-                # 调用 DataConvertor.invoke()，传入完整 dataset 用于采样
-                annotation_result = await super().invoke(state, column_names, sample_record, dataset=data_content)
-                log.info(f"LLM 映射结果: {annotation_result}")
-            except Exception as e:
-                log.error(f"LLM 数据映射失败，跳过 Split '{split_name}': {e}")
-                continue # 跳过这个 split
+            for result in results:
+                if isinstance(result, Exception):
+                    log.error(f"Split 映射任务异常: {result}")
+                    continue
+                split_name, annotation_result, error = result
+                mapping_results[split_name] = (annotation_result, error)
+        else:
+            # 只有一个 split，直接处理
+            split_name, data_content = splits_to_process[0]
+            _, annotation_result, error = await process_split_mapping(split_name, data_content)
+            mapping_results[split_name] = (annotation_result, error)
+        
+        # 串行写入文件（保证写入顺序和线程安全）
+        for split_name, data_content in splits_to_process:
+            if split_name not in mapping_results:
+                continue
+                
+            annotation_result, error = mapping_results[split_name]
+            if error or annotation_result is None:
+                log.error(f"跳过 Split '{split_name}' 的文件写入（映射失败）")
+                continue
+            
+            log.info(f"--- 正在写入 Split: '{split_name}' (来自 {file_name}) ---")
                 
             # 格式化并写入统一的 jsonl 文件
             split_record_count = 0
@@ -1356,24 +2097,18 @@ class UniversalDataConvertor(DataConvertor):
                 chunk_path = f"{output_jsonl_prefix}_{index:05d}.jsonl"
                 return open(chunk_path, 'a', encoding='utf-8')
 
-            f_out = _open_chunk_file(current_chunk_index)
-            try:
-                if category == 'PT':
-                    text_field = annotation_result.get('text') if annotation_result else None
-                    text_field = self._sanitize_field_spec(text_field, column_names)
-                    if not text_field:
-                        log.warning(
-                            f"未在 {file_name} ({split_name}) 中找到有效的文本字段 (来自 LLM: {annotation_result})，跳过。"
-                        )
-                        continue
-
-                    for row in data_content:
-                        text_values = self._extract_text_values(row, text_field)
-                        if not text_values:
-                            continue
-                        for text in text_values:
-                            if text:
-                                json.dump({'text': text}, f_out, ensure_ascii=False)
+            # 使用锁保护文件写入（并发写入时需要）
+            async with self._write_lock:
+                f_out = _open_chunk_file(current_chunk_index)
+                try:
+                    if category == 'PT':
+                        # 使用新的中间格式构建器
+                        for record_index, row in enumerate(data_content):
+                            intermediate_record = self._build_intermediate_format_pt(
+                                row, annotation_result, file_path, state, record_index
+                            )
+                            if intermediate_record:
+                                json.dump(intermediate_record, f_out, ensure_ascii=False)
                                 f_out.write('\n')
                                 split_record_count += 1
                                 current_chunk_count += 1
@@ -1382,62 +2117,36 @@ class UniversalDataConvertor(DataConvertor):
                                     current_chunk_index += 1
                                     current_chunk_count = 0
                                     f_out = _open_chunk_file(current_chunk_index)
-                            
-                elif category == 'SFT':
-                    q_field = annotation_result.get('question') if annotation_result else None
-                    a_field = annotation_result.get('answer') if annotation_result else None
-
-                    q_field = self._sanitize_field_spec(q_field, column_names)
-                    if q_field is None and annotation_result and annotation_result.get('question'):
-                        log.warning(
-                            f"未在 {file_name} ({split_name}) 中找到有效的 'question' 字段 (来自 LLM: {annotation_result.get('question')})，将其置为 null。"
-                        )
-                    a_field = self._sanitize_field_spec(a_field, column_names)
-                    if a_field is None and annotation_result and annotation_result.get('answer'):
-                        log.warning(
-                            f"未在 {file_name} ({split_name}) 中找到有效的 'answer' 字段 (来自 LLM: {annotation_result.get('answer')})，将其置为 null。"
-                        )
-
-                    # 检查两个字段是否都为 null
-                    if q_field is None and a_field is None:
-                        log.warning(
-                            f"LLM 返回的 'question' 和 'answer' 字段都为 null 或不存在于列名中，跳过 {file_name} ({split_name})。"
-                            f" LLM 映射结果: {annotation_result}"
-                        )
-                        continue
-
-                    for row in data_content:
-                        questions = self._extract_text_values(row, q_field) if q_field else []
-                        answers = self._extract_text_values(row, a_field) if a_field else []
-
-                        if not questions and not answers:
-                            continue
-
-                        max_pairs = max(len(questions), len(answers), 1)
-                        for idx in range(max_pairs):
-                            question = questions[idx] if idx < len(questions) else None
-                            answer = answers[idx] if idx < len(answers) else None
-
-                            if question is None and answer is None:
-                                continue
-
-                            json.dump({'question': question, 'answer': answer}, f_out, ensure_ascii=False)
-                            f_out.write('\n')
-                            split_record_count += 1
-                            current_chunk_count += 1
-                            if current_chunk_count >= chunk_size:
-                                f_out.close()
-                                current_chunk_index += 1
-                                current_chunk_count = 0
-                                f_out = _open_chunk_file(current_chunk_index)
-            finally:
-                try:
-                    f_out.close()
-                except Exception:
-                    pass
+                                
+                    elif category == 'SFT':
+                        # 使用新的中间格式构建器
+                        for record_index, row in enumerate(data_content):
+                            intermediate_record = self._build_intermediate_format_sft(
+                                row, annotation_result, file_path, state, record_index
+                            )
+                            if intermediate_record:
+                                json.dump(intermediate_record, f_out, ensure_ascii=False)
+                                f_out.write('\n')
+                                split_record_count += 1
+                                current_chunk_count += 1
+                                if current_chunk_count >= chunk_size:
+                                    f_out.close()
+                                    current_chunk_index += 1
+                                    current_chunk_count = 0
+                                    f_out = _open_chunk_file(current_chunk_index)
+                finally:
+                    try:
+                        f_out.close()
+                    except Exception:
+                        pass
             
             if split_record_count > 0:
-                log.info(f"从 {file_name} ({split_name}) 提取了 {split_record_count} 条记录。")
+                log.info(f"从 {file_name} ({split_name}) 提取了 {split_record_count} 条记录（中间格式）。")
+                # 任务21: 记录中间格式详细信息
+                if category == 'PT':
+                    log.debug(f"PT模式中间格式包含: id, dataset_type='pretrain', text, meta={{source, language, ...}}")
+                elif category == 'SFT':
+                    log.debug(f"SFT模式中间格式包含: id, dataset_type='sft', messages=[{{role, content, loss_mask}}], system?, meta={{source, language, ...}}")
                 processed_sources_list.append((f"{file_name}_({split_name})", split_record_count))
                 total_count += split_record_count
         
@@ -1739,12 +2448,11 @@ class UniversalDataConvertor(DataConvertor):
         # 使用闭包变量存储临时数据，而不是 state 的临时字段
         data_file_list: List[str] = []
         processed_sources_list: List[Tuple[str, int]] = []
-        current_file_index: int = 0
         output_jsonl_prefix: str = ""
 
         async def file_discovery_node(state: DataCollectionState) -> DataCollectionState:
             """文件发现节点"""
-            nonlocal data_file_list, output_jsonl_prefix, current_file_index
+            nonlocal data_file_list, output_jsonl_prefix
             
             log.info("=== [LangGraph] 文件发现节点 ===")
             log.info(f"正在扫描整个下载目录: {data_root}")
@@ -1765,18 +2473,38 @@ class UniversalDataConvertor(DataConvertor):
             seen_paths: Set[str] = set()
             failed_chunks = 0
 
-            for idx, chunk_str in enumerate(chunked_file_lists, start=1):
-                log.info(f"正在处理文件发现分块 {idx}/{total_chunks}，字符数约 {len(chunk_str)}。")
-                try:
-                    chunk_result = await self._invoke_file_discovery(state, chunk_str)
-                    log.info(f"分块 {idx}/{total_chunks} 返回 {len(chunk_result)} 个候选文件。")
+            # 并发处理文件发现分块
+            semaphore = asyncio.Semaphore(self.max_concurrent_discovery)
+            
+            async def process_chunk(idx: int, chunk_str: str):
+                """处理单个文件发现分块"""
+                async with semaphore:
+                    log.info(f"正在处理文件发现分块 {idx}/{total_chunks}，字符数约 {len(chunk_str)}。")
+                    try:
+                        chunk_result = await self._invoke_file_discovery(state, chunk_str)
+                        log.info(f"分块 {idx}/{total_chunks} 返回 {len(chunk_result)} 个候选文件。")
+                        return (idx, chunk_result, None)
+                    except Exception as e:
+                        log.error(f"LLM 文件发现分块 {idx}/{total_chunks} 失败: {e}")
+                        return (idx, [], e)
+            
+            # 并发执行所有分块
+            tasks = [process_chunk(idx, chunk_str) for idx, chunk_str in enumerate(chunked_file_lists, start=1)]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 收集结果（按顺序处理，避免重复）
+            for result in results:
+                if isinstance(result, Exception):
+                    failed_chunks += 1
+                    continue
+                idx, chunk_result, error = result
+                if error:
+                    failed_chunks += 1
+                else:
                     for candidate in chunk_result:
                         if isinstance(candidate, str) and candidate not in seen_paths:
                             seen_paths.add(candidate)
                             discovered_files.append(candidate)
-                except Exception as e:
-                    failed_chunks += 1
-                    log.error(f"LLM 文件发现分块 {idx}/{total_chunks} 失败: {e}")
 
             if not discovered_files:
                 if failed_chunks == total_chunks:
@@ -1803,95 +2531,88 @@ class UniversalDataConvertor(DataConvertor):
             log.info(f"输出文件前缀（绝对路径），将每10000条切分一个文件:")
             log.info(f"   {os.path.abspath(output_jsonl_prefix)}_00001.jsonl ...")
             log.info(f"========================================")
-            current_file_index = 0
 
             return state
 
-        async def check_has_files(state: DataCollectionState) -> str:
-            """检查是否还有文件需要处理"""
-            nonlocal current_file_index, data_file_list
-            if current_file_index >= len(data_file_list):
-                return "finalize"
-            return "process_file"
-
-        async def process_file_node(state: DataCollectionState) -> DataCollectionState:
-            """处理单个文件节点"""
-            nonlocal current_file_index, data_file_list, data_root, category, output_jsonl_prefix, processed_sources_list
+        async def process_all_files_node(state: DataCollectionState) -> DataCollectionState:
+            """批量处理所有文件节点（一次性处理整个文件列表）"""
+            nonlocal data_file_list, data_root, category, output_jsonl_prefix, processed_sources_list
             
-            log.info("=== [LangGraph] 处理文件节点 ===")
-            if current_file_index >= len(data_file_list):
+            log.info("=== [LangGraph] 批量处理所有文件节点 ===")
+            log.info(f"开始批量处理 {len(data_file_list)} 个文件...")
+            
+            if not data_file_list:
+                log.warning("文件列表为空，跳过处理")
                 return state
 
-            relative_file_path = data_file_list[current_file_index]
-            absolute_file_path = os.path.join(data_root, relative_file_path)
-            
-            if not os.path.exists(absolute_file_path):
-                log.warning(f"LLM 返回了不存在的文件路径 '{relative_file_path}'，跳过。")
-                current_file_index += 1
-                return state
-
-            log.info(f"--- 正在处理文件: {absolute_file_path} ---")
-            files_to_process = []
-
-            if self._is_compressed_file(absolute_file_path):
-                log.info(f"检测到压缩文件: {absolute_file_path}")
-                extracted_dir = self._extract_compressed_file(absolute_file_path)
+            # 遍历所有文件并处理
+            for relative_file_path in data_file_list:
+                absolute_file_path = os.path.join(data_root, relative_file_path)
                 
-                if not extracted_dir:
-                    log.error(f"解压失败，跳过文件: {absolute_file_path}")
-                    current_file_index += 1
-                    return state
-                
-                for root, dirs, files in os.walk(extracted_dir):
-                    for f in files:
-                        full_path = os.path.join(root, f)
-                        if any(full_path.lower().endswith(ext) for ext in 
-                               ['.json', '.jsonl', '.csv', '.parquet', '.arrow', '.txt']):
-                            files_to_process.append(full_path)
-                
-                if not files_to_process:
-                    log.warning(f"解压后未找到数据文件: {absolute_file_path}")
-                    current_file_index += 1
-                    return state
-                
-                log.info(f"解压后找到 {len(files_to_process)} 个数据文件")
-            else:
-                files_to_process = [absolute_file_path]
-
-            for file_path in files_to_process:
-                log.info(f"--- 正在处理数据文件: {file_path} ---")
-                builder_type = self._get_builder_type(file_path)
-                if not builder_type:
-                    log.warning(f"无法确定 builder type，跳过文件: {file_path}")
+                if not os.path.exists(absolute_file_path):
+                    log.warning(f"LLM 返回了不存在的文件路径 '{relative_file_path}'，跳过。")
                     continue
-                
-                data = None
-                load_strategies = [
-                    {"name": "load_dataset", "func": self._load_with_datasets},
-                    {"name": "备用方法", "func": self._load_with_fallback},
-                ]
-                
-                for strategy in load_strategies:
-                    try:
-                        log.info(f"尝试加载策略: {strategy['name']}")
-                        data = await strategy['func'](builder_type, file_path)
-                        if data is not None:
-                            log.info(f"加载策略 '{strategy['name']}' 成功!")
-                            break
-                    except Exception as e:
-                        log.warning(f"加载策略 '{strategy['name']}' 失败: {e}")
+
+                log.info(f"--- 正在处理文件: {absolute_file_path} ---")
+                files_to_process = []
+
+                if self._is_compressed_file(absolute_file_path):
+                    log.info(f"检测到压缩文件: {absolute_file_path}")
+                    extracted_dir = self._extract_compressed_file(absolute_file_path)
+                    
+                    if not extracted_dir:
+                        log.error(f"解压失败，跳过文件: {absolute_file_path}")
                         continue
-                
-                if data is None:
-                    log.error(f"所有加载策略都失败，跳过文件: {file_path}")
-                    continue
+                    
+                    for root, dirs, files in os.walk(extracted_dir):
+                        for f in files:
+                            full_path = os.path.join(root, f)
+                            if any(full_path.lower().endswith(ext) for ext in 
+                                   ['.json', '.jsonl', '.csv', '.parquet', '.arrow', '.txt']):
+                                files_to_process.append(full_path)
+                    
+                    if not files_to_process:
+                        log.warning(f"解压后未找到数据文件: {absolute_file_path}")
+                        continue
+                    
+                    log.info(f"解压后找到 {len(files_to_process)} 个数据文件")
+                else:
+                    files_to_process = [absolute_file_path]
 
-                await self._process_dataset(
-                    data, file_path, state, category, 
-                    output_jsonl_prefix, processed_sources_list
-                )
+                for file_path in files_to_process:
+                    log.info(f"--- 正在处理数据文件: {file_path} ---")
+                    builder_type = self._get_builder_type(file_path)
+                    if not builder_type:
+                        log.warning(f"无法确定 builder type，跳过文件: {file_path}")
+                        continue
+                    
+                    data = None
+                    load_strategies = [
+                        {"name": "load_dataset", "func": self._load_with_datasets},
+                        {"name": "备用方法", "func": self._load_with_fallback},
+                    ]
+                    
+                    for strategy in load_strategies:
+                        try:
+                            log.info(f"尝试加载策略: {strategy['name']}")
+                            data = await strategy['func'](builder_type, file_path)
+                            if data is not None:
+                                log.info(f"加载策略 '{strategy['name']}' 成功!")
+                                break
+                        except Exception as e:
+                            log.warning(f"加载策略 '{strategy['name']}' 失败: {e}")
+                            continue
+                    
+                    if data is None:
+                        log.error(f"所有加载策略都失败，跳过文件: {file_path}")
+                        continue
 
-            current_file_index += 1
+                    await self._process_dataset(
+                        data, file_path, state, category, 
+                        output_jsonl_prefix, processed_sources_list
+                    )
+            
+            log.info(f"批量处理完成，共处理 {len(data_file_list)} 个文件")
             return state
 
         async def finalize_node(state: DataCollectionState) -> DataCollectionState:
@@ -1937,29 +2658,16 @@ class UniversalDataConvertor(DataConvertor):
 
             return state
 
-        # 构建 LangGraph 工作流
+        # 构建 LangGraph 工作流（简化结构：文件发现 -> 批量处理 -> 最终化）
         graph_builder = StateGraph(DataCollectionState)
         graph_builder.add_node("file_discovery", file_discovery_node)
-        graph_builder.add_node("process_file", process_file_node)
+        graph_builder.add_node("process_all_files", process_all_files_node)
         graph_builder.add_node("finalize", finalize_node)
 
+        # 简化的图结构：文件发现 -> 批量处理 -> 最终化
         graph_builder.add_edge(START, "file_discovery")
-        graph_builder.add_conditional_edges(
-            "file_discovery",
-            check_has_files,
-            {
-                "finalize": "finalize",
-                "process_file": "process_file"
-            }
-        )
-        graph_builder.add_conditional_edges(
-            "process_file",
-            check_has_files,
-            {
-                "finalize": "finalize",
-                "process_file": "process_file"
-            }
-        )
+        graph_builder.add_edge("file_discovery", "process_all_files")
+        graph_builder.add_edge("process_all_files", "finalize")
         graph_builder.add_edge("finalize", END)
 
         graph = graph_builder.compile()
