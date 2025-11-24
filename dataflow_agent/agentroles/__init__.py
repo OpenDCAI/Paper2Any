@@ -159,6 +159,10 @@ def create_simple_agent(name: str, tool_manager: Optional[ToolManager] = get_too
             - tool_mode: 工具调用模式 ("auto", "none", "required")，默认"auto"
             - parser_type: 解析器类型 ("json", "xml", "text")，默认"json"
             - parser_config: 解析器配置字典
+            - response_schema: JSON返回结构定义，如 {"code": "string", "files": "list"}
+            - response_schema_description: Schema的文字描述
+            - response_example: JSON返回示例
+            - required_fields: 必填字段列表
             - ignore_history: 是否忽略历史消息，默认True
             - message_history: 消息历史管理器
             - chat_api_url: 自定义Chat API URL
@@ -168,6 +172,9 @@ def create_simple_agent(name: str, tool_manager: Optional[ToolManager] = get_too
     Examples:
         >>> agent = create_simple_agent("writer", temperature=0.7)
         >>> agent = create_simple_agent("analyzer", model_name="gpt-4", max_tokens=4096)
+        >>> agent = create_simple_agent("coder", 
+        ...     response_schema={"code": "完整代码", "files": ["文件列表"]},
+        ...     required_fields=["code"])
     """
     config = SimpleConfig(**kwargs)
     return create_agent(name, config=config, tool_manager=tool_manager)
@@ -196,6 +203,10 @@ def create_react_agent(
             - tool_mode: 工具调用模式 ("auto", "none", "required")，默认"auto"
             - parser_type: 解析器类型 ("json", "xml", "text")，默认"json"
             - parser_config: 解析器配置字典
+            - response_schema: JSON返回结构定义
+            - response_schema_description: Schema的文字描述
+            - response_example: JSON返回示例
+            - required_fields: 必填字段列表
             - ignore_history: 是否忽略历史消息，默认True
             - message_history: 消息历史管理器
             - validators: 自定义验证器列表，用于验证执行结果是否符合预期

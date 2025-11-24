@@ -1,6 +1,6 @@
 # dataflow_agent/parsers.py
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, Optional, List
 import json
 import xml.etree.ElementTree as ET
 from dataflow_agent.logger import get_logger
@@ -22,7 +22,24 @@ class BaseParser(ABC):
 
 
 class JSONParser(BaseParser):
-    """JSON解析器 - 当前默认方式"""
+    """JSON解析器 - 支持 Schema 定义"""
+    
+    def __init__(self, 
+                 schema: Optional[Dict[str, Any]] = None,
+                 schema_description: Optional[str] = None,
+                 required_fields: Optional[List[str]] = None,
+                 example: Optional[Dict[str, Any]] = None):
+        """
+        Args:
+            schema: JSON Schema 定义，如 {"code": "string", "files": "list"}
+            schema_description: 对 schema 的文字描述
+            required_fields: 必填字段列表
+            example: 示例 JSON
+        """
+        self.schema = schema
+        self.schema_description = schema_description
+        self.required_fields = required_fields or []
+        self.example = example
     
     def parse(self, content: str) -> Dict[str, Any]:
         from dataflow_agent.utils import robust_parse_json
@@ -38,7 +55,22 @@ class JSONParser(BaseParser):
             return {"raw": content}
     
     def get_format_instruction(self) -> str:
-        return "请以JSON格式返回结果，不要包含其他文字说明。"
+        """生成详细的格式说明"""
+        instruction = "请以JSON格式返回结果，不要包含其他文字说明!!!直接返回json内容，不要```json进行包裹！！"
+        
+        if self.schema_description:
+            instruction += f"\n{self.schema_description}"
+        
+        if self.schema:
+            instruction += f"\n\n期望的JSON结构：\n```json\n{json.dumps(self.schema, indent=2, ensure_ascii=False)}\n```"
+        
+        if self.example:
+            instruction += f"\n\n示例：\n```json\n{json.dumps(self.example, indent=2, ensure_ascii=False)}\n```"
+        
+        if self.required_fields:
+            instruction += f"\n\n必填字段：{', '.join(self.required_fields)}"
+        
+        return instruction
 
 
 class XMLParser(BaseParser):

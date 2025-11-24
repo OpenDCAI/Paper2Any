@@ -146,7 +146,22 @@ class BaseAgent(ABC):
         """获取解析器实例（懒加载）"""
         if self._parser is None:
             from dataflow_agent.parsers import ParserFactory
-            self._parser = ParserFactory.create(self.parser_type, **self.parser_config)
+            
+            # 合并 parser_config 和快捷配置
+            config = self.parser_config.copy() if self.parser_config else {}
+            
+            # 如果是 JSON 解析器，合并 schema 相关配置
+            if self.parser_type == "json":
+                if hasattr(self, 'response_schema') and self.response_schema:
+                    config['schema'] = self.response_schema
+                if hasattr(self, 'response_schema_description') and self.response_schema_description:
+                    config['schema_description'] = self.response_schema_description
+                if hasattr(self, 'response_example') and self.response_example:
+                    config['example'] = self.response_example
+                if hasattr(self, 'required_fields') and self.required_fields:
+                    config['required_fields'] = self.required_fields
+            
+            self._parser = ParserFactory.create(self.parser_type, **config)
         return self._parser
     
     def parse_result(self, content: str) -> Dict[str, Any]:

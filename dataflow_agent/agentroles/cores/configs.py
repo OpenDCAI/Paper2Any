@@ -30,6 +30,12 @@ class BaseAgentConfig:
     parser_type: str = "json"
     parser_config: Optional[Dict[str, Any]] = None
     
+    # JSON Schema 快捷配置（用于 JSONParser）
+    response_schema: Optional[Dict[str, Any]] = None  # 期望的返回结构，如 {"code": "string", "files": "list"}
+    response_schema_description: Optional[str] = None  # Schema 的文字描述
+    response_example: Optional[Dict[str, Any]] = None  # 返回示例
+    required_fields: Optional[List[str]] = None       # 必填字段列表
+    
     # 消息历史
     ignore_history: bool = True
     message_history: Optional[Any] = None  # AdvancedMessageHistory
