@@ -346,6 +346,98 @@ async def my_node(state: MyWorkflowState) -> MyWorkflowState:
     return state
 ```
 
+### 5.6 并行模式 Agent
+
+适用于需要批量处理多条数据的场景：
+
+```python
+async def my_node(state: MyWorkflowState) -> MyWorkflowState:
+    """使用并行模式创建 Agent"""
+    agent = create_parallel_agent(
+        name="my_agent",
+        model_name="gpt-4o",
+        temperature=0.3,
+        concurrency_limit=3,           # 并行度限制，默认5
+        parser_type="json",
+    )
+    
+    state = await agent.execute(state)
+    return state
+```
+
+#### 并行模式的数据准备
+
+并行模式会自动检测前置工具结果中的列表数据，支持三种方式：
+
+**方式 1: 前置工具直接返回列表**
+
+```python
+@builder.pre_tool("items", "my_agent")
+def get_items(state: MyWorkflowState):
+    """返回需要并行处理的数据列表"""
+    return [
+        {"text": "第一条数据", "id": 1},
+        {"text": "第二条数据", "id": 2},
+        {"text": "第三条数据", "id": 3},
+    ]
+```
+
+**方式 2: 使用 parallel_items 字段**
+
+```python
+@builder.pre_tool("data", "my_agent")
+def get_data(state: MyWorkflowState):
+    """返回包含 parallel_items 的字典"""
+    return {
+        "parallel_items": [
+            {"text": "数据1"},
+            {"text": "数据2"},
+        ],
+        "context": "共享上下文信息"  # 会被所有并行任务共享
+    }
+```
+
+**方式 3: 任意列表字段（自动检测）**
+
+```python
+@builder.pre_tool("batch_data", "my_agent")
+def get_batch_data(state: MyWorkflowState):
+    """返回包含列表字段的字典"""
+    return {
+        "items": [  # 会被自动检测为并行数据
+            {"name": "item1"},
+            {"name": "item2"},
+        ],
+        "config": {"mode": "fast"}  # 会被所有并行任务共享
+    }
+```
+
+#### 并行结果处理
+
+并行模式执行后，结果会包含在 `parallel_results` 字段中：
+
+```python
+async def process_parallel_results(state: MyWorkflowState) -> MyWorkflowState:
+    """处理并行执行结果"""
+    result = state.agent_results.get("my_agent", {}).get("results", {})
+    
+    # 获取所有并行结果
+    parallel_results = result.get("parallel_results", [])
+    total_processed = result.get("total_processed", 0)
+    
+    log.info(f"共处理 {total_processed} 条数据")
+    
+    # 聚合结果
+    aggregated = {
+        "success_count": sum(1 for r in parallel_results if not r.get("error")),
+        "error_count": sum(1 for r in parallel_results if r.get("error")),
+        "results": parallel_results
+    }
+    
+    state.temp_data["aggregated_results"] = aggregated
+    return state
+```
+
 ### 5.6 使用配置对象
 
 也可以使用配置对象创建 Agent：
@@ -1011,6 +1103,270 @@ if __name__ == "__main__":
     asyncio.run(run_text_analysis_pipeline())
 ```
 
+### 9.2 场景：批量数据处理 Workflow（并行模式）
+
+创建一个批量处理多条数据的 Workflow，展示并行模式的使用。
+
+#### Step 1: 创建 State 和 Request
+
+```python
+# dataflow_agent/states/batch_process_state.py
+from dataclasses import dataclass, field
+from typing import List
+from dataflow_agent.state import MainState, MainRequest
+
+@dataclass
+class BatchProcessRequest(MainRequest):
+    """批量处理请求"""
+    items: List[dict] = field(default_factory=list)  # 待处理的数据列表
+    process_type: str = "summarize"  # 处理类型
+
+@dataclass
+class BatchProcessState(MainState):
+    """批量处理状态"""
+    request: BatchProcessRequest = field(default_factory=BatchProcessRequest)
+    
+    # 处理结果
+    processed_items: List[dict] = field(default_factory=list)
+    success_count: int = 0
+    error_count: int = 0
+    summary: str = ""
+```
+
+#### Step 2: 创建 Workflow
+
+```python
+# dataflow_agent/workflow/wf_batch_process.py
+"""
+batch_process workflow
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+功能：批量处理多条数据，使用并行模式提高效率
+"""
+
+from __future__ import annotations
+from dataflow_agent.states.batch_process_state import BatchProcessState
+from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
+from dataflow_agent.workflow.registry import register
+from dataflow_agent.agentroles import create_parallel_agent, create_simple_agent
+from dataflow_agent.logger import get_logger
+
+log = get_logger(__name__)
+
+@register("batch_process")
+def create_batch_process_graph() -> GenericGraphBuilder:
+    """创建批量处理工作流"""
+    builder = GenericGraphBuilder(
+        state_model=BatchProcessState,
+        entry_point="prepare"
+    )
+    
+    # ========== 前置工具 ==========
+    
+    # 为并行处理 Agent 准备数据
+    @builder.pre_tool("items", "batch_processor")
+    def get_items_for_parallel(state: BatchProcessState):
+        """返回需要并行处理的数据列表"""
+        # 将每个 item 包装成包含必要上下文的字典
+        return [
+            {
+                "item": item,
+                "process_type": state.request.process_type,
+                "index": idx
+            }
+            for idx, item in enumerate(state.request.items)
+        ]
+    
+    # 为汇总 Agent 准备数据
+    @builder.pre_tool("results", "summarizer")
+    def get_results_for_summary(state: BatchProcessState):
+        return state.processed_items
+    
+    @builder.pre_tool("stats", "summarizer")
+    def get_stats_for_summary(state: BatchProcessState):
+        return {
+            "total": len(state.request.items),
+            "success": state.success_count,
+            "error": state.error_count
+        }
+    
+    # ========== 节点定义 ==========
+    
+    async def prepare_node(state: BatchProcessState) -> BatchProcessState:
+        """准备节点：验证输入数据"""
+        items = state.request.items
+        
+        if not items:
+            log.warning("没有待处理的数据")
+            state.temp_data["skip_processing"] = True
+        else:
+            log.info(f"准备处理 {len(items)} 条数据")
+            state.temp_data["skip_processing"] = False
+        
+        return state
+    
+    async def parallel_process_node(state: BatchProcessState) -> BatchProcessState:
+        """并行处理节点：使用并行模式处理所有数据"""
+        
+        # 创建并行模式 Agent
+        agent = create_parallel_agent(
+            name="batch_processor",
+            model_name="gpt-4o",
+            temperature=0.3,
+            concurrency_limit=5,  # 同时处理5条数据
+            parser_type="json",
+        )
+        
+        # 执行并行处理
+        state = await agent.execute(state)
+        
+        # 提取并行结果
+        result = state.agent_results.get("batch_processor", {}).get("results", {})
+        parallel_results = result.get("parallel_results", [])
+        
+        # 统计结果
+        success_count = 0
+        error_count = 0
+        processed_items = []
+        
+        for idx, item_result in enumerate(parallel_results):
+            if item_result.get("error"):
+                error_count += 1
+                processed_items.append({
+                    "index": idx,
+                    "status": "error",
+                    "error": item_result.get("error")
+                })
+            else:
+                success_count += 1
+                processed_items.append({
+                    "index": idx,
+                    "status": "success",
+                    "result": item_result
+                })
+        
+        # 更新状态
+        state.processed_items = processed_items
+        state.success_count = success_count
+        state.error_count = error_count
+        
+        log.info(f"并行处理完成: 成功 {success_count}, 失败 {error_count}")
+        return state
+    
+    async def summarize_node(state: BatchProcessState) -> BatchProcessState:
+        """汇总节点：生成处理报告"""
+        
+        agent = create_simple_agent(
+            name="summarizer",
+            model_name="gpt-4o",
+            temperature=0.5,
+            parser_type="text",
+        )
+        
+        state = await agent.execute(state)
+        
+        # 保存汇总结果
+        result = state.agent_results.get("summarizer", {}).get("results", {})
+        state.summary = result.get("raw", "")
+        
+        log.info("汇总报告生成完成")
+        return state
+    
+    # ========== 条件判断 ==========
+    
+    def check_skip(state: BatchProcessState) -> str:
+        """检查是否跳过处理"""
+        if state.temp_data.get("skip_processing"):
+            return "_end_"
+        return "parallel_process"
+    
+    # ========== 图构建 ==========
+    
+    nodes = {
+        "prepare": prepare_node,
+        "parallel_process": parallel_process_node,
+        "summarize": summarize_node,
+        "_end_": lambda state: state,
+    }
+    
+    edges = [
+        ("parallel_process", "summarize"),
+        ("summarize", "_end_"),
+    ]
+    
+    conditional_edges = {
+        "prepare": check_skip,
+    }
+    
+    return (builder
+        .add_nodes(nodes)
+        .add_edges(edges)
+        .add_conditional_edges(conditional_edges)
+    )
+```
+
+#### Step 3: 创建测试文件
+
+```python
+# tests/test_batch_process.py
+"""
+测试 batch_process workflow
+"""
+
+import asyncio
+import pytest
+from dataflow_agent.states.batch_process_state import BatchProcessState, BatchProcessRequest
+from dataflow_agent.workflow import run_workflow
+
+async def run_batch_process_pipeline():
+    """执行批量处理工作流"""
+    # 构造请求
+    request = BatchProcessRequest(
+        items=[
+            {"title": "文章1", "content": "这是第一篇文章的内容..."},
+            {"title": "文章2", "content": "这是第二篇文章的内容..."},
+            {"title": "文章3", "content": "这是第三篇文章的内容..."},
+            {"title": "文章4", "content": "这是第四篇文章的内容..."},
+            {"title": "文章5", "content": "这是第五篇文章的内容..."},
+        ],
+        process_type="summarize",
+        language="zh",
+        model="gpt-4o",
+    )
+    
+    # 初始化状态
+    state = BatchProcessState(request=request)
+    
+    # 运行 workflow
+    final_state = await run_workflow("batch_process", state)
+    
+    return final_state
+
+@pytest.mark.asyncio
+async def test_batch_process_pipeline():
+    """测试批量处理工作流"""
+    final_state = await run_batch_process_pipeline()
+    
+    # 断言
+    assert final_state is not None
+    assert len(final_state.processed_items) == 5
+    assert final_state.success_count + final_state.error_count == 5
+    
+    # 打印结果
+    print(f"\n=== 处理统计 ===")
+    print(f"成功: {final_state.success_count}")
+    print(f"失败: {final_state.error_count}")
+    
+    print(f"\n=== 处理详情 ===")
+    for item in final_state.processed_items:
+        print(f"  [{item['index']}] {item['status']}")
+    
+    print(f"\n=== 汇总报告 ===")
+    print(final_state.summary)
+
+if __name__ == "__main__":
+    asyncio.run(run_batch_process_pipeline())
+```
+
 ---
 
 ## 10. 调试和测试
@@ -1252,6 +1608,258 @@ async def my_node(state: MyWorkflowState) -> MyWorkflowState:
     """
     # 实现
     pass
+```
+
+### 11.6 并行模式最佳实践
+
+**原则**: 合理使用并行模式提高效率
+
+#### 何时使用并行模式
+
+✅ **适合使用并行模式的场景**：
+- 需要处理多条独立的数据（如批量文本分析、图像处理）
+- 每条数据的处理逻辑相同
+- 数据之间没有依赖关系
+- 处理时间较长，并行可以显著提升效率
+
+❌ **不适合使用并行模式的场景**：
+- 数据之间有依赖关系（需要按顺序处理）
+- 数据量很小（并行开销大于收益）
+- 需要共享状态或累积结果
+- 处理逻辑复杂且需要大量上下文
+
+#### 并发度设置建议
+
+```python
+# 根据任务特点设置合适的并发度
+agent = create_parallel_agent(
+    name="processor",
+    concurrency_limit=5,  # 建议值：3-10
+)
+```
+
+**设置原则**：
+- **API 限流考虑**：如果 LLM API 有速率限制，设置较低的并发度（3-5）
+- **数据量考虑**：数据量大时可以适当提高并发度（5-10）
+- **资源限制**：考虑内存和网络带宽，避免过高并发导致系统负载过大
+- **成本控制**：并发度越高，API 调用成本越高
+
+#### 数据准备注意事项
+
+```python
+# ✅ 好的做法：为每个并行项提供完整上下文
+@builder.pre_tool("items", "batch_processor")
+def prepare_parallel_data(state: MyWorkflowState):
+    return [
+        {
+            "item": item,
+            "context": state.request.context,  # 共享上下文
+            "config": state.request.config,    # 共享配置
+            "index": idx                       # 用于追踪
+        }
+        for idx, item in enumerate(state.request.items)
+    ]
+
+# ❌ 不好的做法：只传递原始数据
+@builder.pre_tool("items", "batch_processor")
+def prepare_parallel_data(state: MyWorkflowState):
+    return state.request.items  # 缺少必要的上下文信息
+```
+
+#### 错误处理建议
+
+```python
+async def parallel_process_node(state: MyWorkflowState) -> MyWorkflowState:
+    """并行处理节点（带完善的错误处理）"""
+    
+    agent = create_parallel_agent(
+        name="batch_processor",
+        concurrency_limit=5,
+    )
+    
+    state = await agent.execute(state)
+    
+    # 提取结果
+    result = state.agent_results.get("batch_processor", {}).get("results", {})
+    parallel_results = result.get("parallel_results", [])
+    
+    # 分类处理结果
+    success_items = []
+    failed_items = []
+    
+    for idx, item_result in enumerate(parallel_results):
+        if item_result.get("error"):
+            # 记录失败项
+            failed_items.append({
+                "index": idx,
+                "error": item_result.get("error"),
+                "original_data": state.request.items[idx]
+            })
+            log.warning(f"项 {idx} 处理失败: {item_result.get('error')}")
+        else:
+            success_items.append({
+                "index": idx,
+                "result": item_result
+            })
+    
+    # 保存结果
+    state.temp_data["success_items"] = success_items
+    state.temp_data["failed_items"] = failed_items
+    
+    # 决定是否需要重试失败项
+    if failed_items and len(failed_items) < len(parallel_results) * 0.3:
+        # 如果失败率低于30%，可以考虑重试
+        log.info(f"将重试 {len(failed_items)} 个失败项")
+        state.temp_data["need_retry"] = True
+    else:
+        state.temp_data["need_retry"] = False
+    
+    return state
+```
+
+#### 结果聚合模式
+
+```python
+async def aggregate_results_node(state: MyWorkflowState) -> MyWorkflowState:
+    """聚合并行处理结果"""
+    
+    success_items = state.temp_data.get("success_items", [])
+    failed_items = state.temp_data.get("failed_items", [])
+    
+    # 模式 1: 统计聚合
+    stats = {
+        "total": len(success_items) + len(failed_items),
+        "success": len(success_items),
+        "failed": len(failed_items),
+        "success_rate": len(success_items) / (len(success_items) + len(failed_items))
+    }
+    
+    # 模式 2: 数据聚合
+    aggregated_data = {
+        "all_results": [item["result"] for item in success_items],
+        "summary": {
+            "key_metrics": calculate_metrics(success_items),
+            "common_patterns": find_patterns(success_items)
+        }
+    }
+    
+    # 模式 3: 分组聚合
+    grouped_results = {}
+    for item in success_items:
+        category = item["result"].get("category", "unknown")
+        if category not in grouped_results:
+            grouped_results[category] = []
+        grouped_results[category].append(item)
+    
+    state.temp_data["aggregated"] = {
+        "stats": stats,
+        "data": aggregated_data,
+        "grouped": grouped_results
+    }
+    
+    return state
+```
+
+#### 性能优化建议
+
+```python
+# 1. 使用合适的数据结构
+@builder.pre_tool("items", "batch_processor")
+def prepare_data(state: MyWorkflowState):
+    # ✅ 好：预处理数据，减少每个并行任务的工作量
+    return [
+        {
+            "text": item["text"].strip(),  # 预处理
+            "metadata": extract_metadata(item),  # 提前提取
+            "index": idx
+        }
+        for idx, item in enumerate(state.request.items)
+    ]
+
+# 2. 批量大小控制
+def split_into_batches(items: list, batch_size: int = 50):
+    """将大量数据分批处理"""
+    for i in range(0, len(items), batch_size):
+        yield items[i:i + batch_size]
+
+async def process_large_dataset(state: MyWorkflowState):
+    """处理大数据集"""
+    all_results = []
+    
+    for batch in split_into_batches(state.request.items, batch_size=50):
+        # 每批使用并行模式处理
+        batch_state = create_batch_state(batch)
+        result = await process_batch(batch_state)
+        all_results.extend(result)
+    
+    return all_results
+
+# 3. 监控和日志
+async def parallel_process_with_monitoring(state: MyWorkflowState):
+    """带监控的并行处理"""
+    import time
+    
+    start_time = time.time()
+    
+    agent = create_parallel_agent(
+        name="batch_processor",
+        concurrency_limit=5,
+    )
+    
+    state = await agent.execute(state)
+    
+    elapsed = time.time() - start_time
+    
+    # 记录性能指标
+    log.info(f"并行处理完成:")
+    log.info(f"  - 总数: {len(state.request.items)}")
+    log.info(f"  - 耗时: {elapsed:.2f}秒")
+    log.info(f"  - 平均: {elapsed/len(state.request.items):.2f}秒/项")
+    log.info(f"  - 吞吐: {len(state.request.items)/elapsed:.2f}项/秒")
+    
+    return state
+```
+
+#### 常见陷阱
+
+❌ **陷阱 1：忽略共享状态**
+```python
+# 错误：并行任务之间共享可变状态
+shared_counter = {"count": 0}
+
+@builder.pre_tool("items", "processor")
+def prepare_data(state):
+    return [{"data": item, "counter": shared_counter} for item in items]
+    # 问题：并发修改 shared_counter 会导致竞态条件
+```
+
+✅ **正确做法：每个任务独立**
+```python
+@builder.pre_tool("items", "processor")
+def prepare_data(state):
+    return [{"data": item, "index": idx} for idx, item in enumerate(items)]
+    # 每个任务有独立的 index，不共享可变状态
+```
+
+❌ **陷阱 2：过度并行**
+```python
+# 错误：对少量数据使用高并发
+agent = create_parallel_agent(
+    name="processor",
+    concurrency_limit=20,  # 只有5条数据却设置20并发
+)
+```
+
+✅ **正确做法：根据数据量调整**
+```python
+# 根据数据量动态调整并发度
+data_count = len(state.request.items)
+concurrency = min(data_count, 5)  # 最多5并发
+
+agent = create_parallel_agent(
+    name="processor",
+    concurrency_limit=concurrency,
+)
 ```
 
 ---
