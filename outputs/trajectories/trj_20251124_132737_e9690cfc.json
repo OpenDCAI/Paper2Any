@@ -1,0 +1,94 @@
+{
+  "trace_id": "trj_20251124_132737_e9690cfc",
+  "workflow_name": "test_workflow",
+  "timestamp": "2025-11-24T13:27:37.959101",
+  "status": "success",
+  "mode": "workflow",
+  "version": "1.0",
+  "inputs": {
+    "query": "帮我分析这份销售数据",
+    "model": "gpt-4o",
+    "language": "en"
+  },
+  "steps": [
+    {
+      "step_index": 0,
+      "node_name": "classifier",
+      "role": "agent",
+      "timestamp": "2025-11-24T13:27:37.958260",
+      "input_context": {
+        "query": "帮我分析这份销售数据"
+      },
+      "node_output": {
+        "category": "data_analysis"
+      },
+      "llm_calls": [
+        {
+          "model": "gpt-4o",
+          "messages_in": [
+            {
+              "role": "user",
+              "content": "分类任务"
+            }
+          ],
+          "response": "{\"category\": \"data_analysis\"}",
+          "timestamp": "2025-11-24T13:27:37.958245",
+          "duration_ms": 1200.5,
+          "token_usage": null,
+          "temperature": null
+        }
+      ],
+      "duration_ms": 0.02956390380859375
+    },
+    {
+      "step_index": 1,
+      "node_name": "recommender",
+      "role": "agent",
+      "timestamp": "2025-11-24T13:27:37.958286",
+      "node_output": {
+        "ops": [
+          "read_csv",
+          "analyze_data"
+        ]
+      },
+      "tool_calls": [
+        {
+          "tool_name": "get_operators",
+          "tool_args": {
+            "category": "data_analysis"
+          },
+          "tool_result": [
+            "read_csv",
+            "analyze_data",
+            "plot_chart"
+          ],
+          "timestamp": "2025-11-24T13:27:37.958278",
+          "duration_ms": 50.2,
+          "error": null
+        }
+      ],
+      "duration_ms": 0.011920928955078125
+    },
+    {
+      "step_index": 2,
+      "node_name": "builder",
+      "role": "system_node",
+      "timestamp": "2025-11-24T13:27:37.958297",
+      "node_output": {
+        "code": "pipeline code here"
+      },
+      "duration_ms": 0.00286102294921875
+    }
+  ],
+  "final_output": {
+    "code": "pipeline code here"
+  },
+  "statistics": {
+    "total_steps": 3,
+    "total_llm_calls": 1,
+    "total_tool_calls": 1,
+    "total_duration_ms": 0.044345855712890625,
+    "total_tokens": null
+  },
+  "session_id": "default_session"
+}
