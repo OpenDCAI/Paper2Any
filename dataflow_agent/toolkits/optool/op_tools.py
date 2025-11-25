@@ -449,10 +449,8 @@ class RAGOperatorSearch:
             ops = all_ops.get(self.category, [])
             log.info(f"✓ 加载类别 '{self.category}' 的算子: {len(ops)} 个")
         else:
-            # 读取全部类别
-            ops = []
-            for cat, op_list in all_ops.items():
-                ops.extend(op_list)
+            # 读取全部类别 - 直接使用 "Default" 避免重复加载
+            ops = all_ops.get("Default", [])
             log.info(f"✓ 加载全部算子: {len(ops)} 个")
         
         return ops

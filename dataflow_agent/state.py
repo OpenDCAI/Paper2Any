@@ -81,7 +81,7 @@ class DFRequest(MainRequest):
     # embeddings url
     chat_api_url_for_embeddings : str = ""
     embedding_model_name: str = "text-embedding-3-small"
-    update_rag_content: bool = True
+    update_rag_content: bool = False
 
 # ==================== 主流程 State ====================
 @dataclass
