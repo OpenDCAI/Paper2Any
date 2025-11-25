@@ -1,0 +1,11 @@
+0000000000000000000000000000000000000000 584b6daa0a5bb8e8c454a8caa70b1d5404964b50 145786190 <145786190+xubinrui@users.noreply.github.com> 1763017744 +0800	clone: from https://github.com/OpenDCAI/DataFlow-Agent.git
+584b6daa0a5bb8e8c454a8caa70b1d5404964b50 806caf7b27f7cf5b9f871075f940ae275c5eadc9 145786190 <145786190+xubinrui@users.noreply.github.com> 1763017955 +0800	checkout: moving from main to xbr/new_WF_WebAgent
+806caf7b27f7cf5b9f871075f940ae275c5eadc9 584b6daa0a5bb8e8c454a8caa70b1d5404964b50 145786190 <145786190+xubinrui@users.noreply.github.com> 1763017967 +0800	merge main: Fast-forward
+584b6daa0a5bb8e8c454a8caa70b1d5404964b50 1153b5323e540a5780c7d666dce5c7a2377ded01 145786190 <145786190+xubinrui@users.noreply.github.com> 1763019143 +0800	commit: split web search subgraph and download subgraph from webagent graph
+1153b5323e540a5780c7d666dce5c7a2377ded01 94f1b48903764c45a052564155366026ef70f86d pzp5700 <pzp0057@sjtu.edu.cn> 1763615167 +0800	commit: new websearch function(dev)
+94f1b48903764c45a052564155366026ef70f86d 1153b5323e540a5780c7d666dce5c7a2377ded01 pzp5700 <pzp0057@sjtu.edu.cn> 1763615232 +0800	reset: moving to HEAD^
+1153b5323e540a5780c7d666dce5c7a2377ded01 bec4a79298ed17fd6da48dd11bf1a1c8e33dafeb pzp5700 <pzp0057@sjtu.edu.cn> 1763615399 +0800	commit: add new websearch
+bec4a79298ed17fd6da48dd11bf1a1c8e33dafeb 1153b5323e540a5780c7d666dce5c7a2377ded01 pzp5700 <pzp0057@sjtu.edu.cn> 1763615505 +0800	reset: moving to HEAD^
+1153b5323e540a5780c7d666dce5c7a2377ded01 0e6c2774a4e0a968b4cc319660faf3d99fd23048 pzp5700 <pzp0057@sjtu.edu.cn> 1763615560 +0800	commit: add new websearch
+0e6c2774a4e0a968b4cc319660faf3d99fd23048 a7b616be09cc9f05bcd9835f295c5d2d9fa7705b pzp5700 <pzp0057@sjtu.edu.cn> 1763870585 +0800	commit: better postprocess
+a7b616be09cc9f05bcd9835f295c5d2d9fa7705b fb01a2dcf4678a792a916569fb21c2e201005122 pzp5700 <pzp0057@sjtu.edu.cn> 1763873661 +0800	pull: Fast-forward

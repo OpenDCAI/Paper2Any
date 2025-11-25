@@ -10,7 +10,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from dataflow_agent.state import DataCollectionRequest, DataCollectionState
-from dataflow_agent.agentroles.dataconvertor import universal_data_conversion
+from dataflow_agent.workflow.wf_data_convertor import universal_data_conversion
 from dataflow_agent.logger import get_logger
 
 log = get_logger()
@@ -215,6 +215,7 @@ async def main() -> None:
 if __name__ == "__main__":
     # 运行主函数
     asyncio.run(main())
+
 
 
 

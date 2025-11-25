@@ -1240,6 +1240,7 @@ Additional Sample Records:
      * Support single field: `"question"`
      * Support multi-field concatenation: `["stem", "options[*]"]`
      * Support nested structures: `"dialogues[*].turns[0].text"`
+     * **IMPORTANT - List Field Handling**: If a field contains a list of strings (e.g., `"src": ["I", "heard", "a", "sentence", ...]`), the system will automatically join the list elements with spaces to form a complete sentence. You should map to the field name directly (e.g., `"src"`), not to individual list elements.
      * **IMPORTANT**: Different roles MUST map to DIFFERENT fields. For example:
        - If `"user"` maps to `"messages[*].user"`, then `"assistant"` should map to `"messages[*].assistant"` or `"messages[*].answer"`, NOT `"messages[*].user"`
        - If `"user"` maps to `"question"`, then `"assistant"` should map to `"answer"` or `"response"`, NOT `"question"`
@@ -1533,6 +1534,43 @@ Answer:
 - Messages with `role="user"` in the mapping will extract content from elements where `role="HUMAN"` (or similar user role identifiers) in the original data
 - Messages with `role="assistant"` in the mapping will extract content from elements where `role="ASSISTANT"` (or similar assistant role identifiers) in the original data
 - This is the ONLY exception where different roles can share the same field path
+
+Example 9 (list field with string elements):
+Columns: ["id", "src", "tgt", "src_tag"]
+Sample: {{
+  "id": 4,
+  "src": ["I", "heard", "a", "sentence", "last", "night", "when", "I", "watched", "TV", "."],
+  "tgt": ["I", "heard", "a", "sentence", "last", "night", "when", "I", "was", "watching", "TV", "."],
+  "src_tag": ["equal", "equal", "equal", "equal", "equal", "equal", "equal", "equal", "replace", "replace", "equal", "equal"]
+}}
+Answer:
+```json
+{{
+  "messages": [
+    {{
+      "role": "user",
+      "content": "src",
+      "loss_mask": false
+    }},
+    {{
+      "role": "assistant",
+      "content": "tgt",
+      "loss_mask": true
+    }}
+  ],
+  "system": null,
+  "meta": {{
+    "source": null,
+    "language": null,
+    "timestamp": null,
+    "token_count": null,
+    "quality_score": null,
+    "original_id": "id"
+  }}
+}}
+```
+
+**Note for Example 9**: When a field contains a list of strings (e.g., `"src": ["I", "heard", "a", "sentence", ...]`), map directly to the field name (e.g., `"src"`). The system will automatically join the list elements with spaces to form a complete sentence. Do NOT use array indexing like `"src[0]"` or `"src[*]"` - just use the field name directly.
 
 [OUTPUT]
 Return a JSON object in ```json block following this structure:

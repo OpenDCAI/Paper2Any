@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import shutil
 from typing import Any, Dict, Optional
@@ -142,41 +143,61 @@ async def check_if_download_link(url: str) -> Dict[str, Any]:
 async def download_file(page: Page, url: str, save_dir: str) -> Optional[str]:
     """
     使用 Playwright 下载文件，返回保存路径。
+    整个下载流程最多等待10分钟，超时后自动退出。
     """
     log.info(f"[Playwright] 准备从 {url} 下载文件")
     os.makedirs(save_dir, exist_ok=True)
 
-    download_page = await page.context.new_page()
-    try:
-        async with download_page.expect_download(timeout=12000) as download_info:
+    async def _download_internal() -> Optional[str]:
+        """内部下载函数，用于超时控制"""
+        download_page = await page.context.new_page()
+        try:
+            # 增加 expect_download 超时到60秒
+            async with download_page.expect_download(timeout=60000) as download_info:
+                try:
+                    await download_page.goto(url, timeout=60000)
+                except PlaywrightError as exc:
+                    if "Download is starting" in str(exc) or "navigation" in str(exc):
+                        log.info("下载已通过导航或重定向触发。")
+                    else:
+                        raise exc
+            download = await download_info.value
             try:
-                await download_page.goto(url, timeout=60000)
-            except PlaywrightError as exc:
-                if "Download is starting" in str(exc) or "navigation" in str(exc):
-                    log.info("下载已通过导航或重定向触发。")
-                else:
-                    raise exc
-        download = await download_info.value
-        try:
-            await download_page.close()
-        except Exception as close_exc:  # pragma: no cover - 尽力关闭
-            log.info(f"关闭下载页面时出错（可忽略）: {close_exc}")
-        suggested_filename = download.suggested_filename
-        save_path = os.path.join(save_dir, suggested_filename)
-        log.info(f"文件 '{suggested_filename}' 正在保存中...")
-        temp_file_path = await download.path()
-        if not temp_file_path:
-            log.info("[Playwright] 下载失败，未能获取临时文件路径。")
-            await download.delete()
+                await download_page.close()
+            except Exception as close_exc:  # pragma: no cover - 尽力关闭
+                log.info(f"关闭下载页面时出错（可忽略）: {close_exc}")
+            suggested_filename = download.suggested_filename
+            save_path = os.path.join(save_dir, suggested_filename)
+            log.info(f"文件 '{suggested_filename}' 正在保存中...")
+            try:
+                # 等待下载完成，最多等待10分钟
+                temp_file_path = await asyncio.wait_for(download.path(), timeout=600.0)
+            except asyncio.TimeoutError:
+                log.info(f"[Playwright] 下载超时（超过10分钟）: {url}")
+                try:
+                    await download.delete()
+                except Exception:
+                    pass
+                return None
+            if not temp_file_path:
+                log.info("[Playwright] 下载失败，未能获取临时文件路径。")
+                await download.delete()
+                return None
+            shutil.move(temp_file_path, save_path)
+            log.info(f"[Playwright] 下载完成: {save_path}")
+            return save_path
+        except Exception as exc:  # pragma: no cover - 下载异常
+            log.info(f"[Playwright] 下载过程中发生意外错误 ({url}): {exc}")
+            try:
+                await download_page.close()
+            except Exception:
+                pass
             return None
-        shutil.move(temp_file_path, save_path)
-        log.info(f"[Playwright] 下载完成: {save_path}")
-        return save_path
-    except Exception as exc:  # pragma: no cover - 下载异常
-        log.info(f"[Playwright] 下载过程中发生意外错误 ({url}): {exc}")
-        try:
-            await download_page.close()
-        except Exception:
-            pass
+
+    # 整个下载流程最多等待10分钟（600秒）
+    try:
+        return await asyncio.wait_for(_download_internal(), timeout=600.0)
+    except asyncio.TimeoutError:
+        log.info(f"[Playwright] 下载流程总超时（超过10分钟）: {url}")
         return None
 

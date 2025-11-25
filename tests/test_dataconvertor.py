@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from dataflow_agent.agentroles.dataconvertor import DataConvertor, UniversalDataConvertor
+from dataflow_agent.agentroles.data_convertor import DataConvertor, UniversalDataConvertor
 from dataflow_agent.state import DataCollectionState, DataCollectionRequest
 from dataflow_agent.schemas.llm_mapping_schema import validate_pt_mapping, validate_sft_mapping, validate_mapping
 

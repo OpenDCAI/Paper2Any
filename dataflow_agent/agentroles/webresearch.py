@@ -30,7 +30,7 @@ except ImportError:  # pragma: no cover - optional dependency
     DuckDuckGoSearchRun = None  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
-    from dataflow_agent.agentroles.datacollector import LogManager
+    from dataflow_agent.toolkits.datatool import LogManager
 
 log = get_logger(__name__)
 
@@ -534,6 +534,20 @@ class StructuredWebQAAgent(BaseAgent):
 
 
 class ToolManager:
+    # 限制并发调用 jinareader 的信号量，防止并发过多导致卡死
+    _jina_reader_semaphore: Optional[asyncio.Semaphore] = None
+    _jina_reader_semaphore_lock = threading.Lock()
+    
+    @classmethod
+    def _get_jina_reader_semaphore(cls) -> asyncio.Semaphore:
+        """获取或创建 jinareader 信号量（延迟初始化）"""
+        if cls._jina_reader_semaphore is None:
+            with cls._jina_reader_semaphore_lock:
+                if cls._jina_reader_semaphore is None:
+                    # 最多同时3个并发请求
+                    cls._jina_reader_semaphore = asyncio.Semaphore(3)
+        return cls._jina_reader_semaphore
+    
     @staticmethod
     async def search_web(query: str, search_engine: str = "tavily") -> str:
         if isinstance(query, (list, tuple)):
@@ -697,70 +711,111 @@ class ToolManager:
     @staticmethod
     async def _read_with_jina_reader(url: str) -> Dict[str, Any]:
         log.info(f"[Jina Reader] 正在提取网页: {url}")
-        try:
+        
+        async def _fetch_with_jina() -> Dict[str, Any]:
             jina_url = f"https://r.jina.ai/{url}"
+            
+            # 设置详细的超时配置：连接超时10秒，读取超时50秒，总超时60秒
+            timeout_config = httpx.Timeout(
+                connect=10.0,  # 连接超时
+                read=50.0,     # 读取超时
+                write=10.0,    # 写入超时
+                pool=10.0,     # 连接池超时
+            )
+            
+            try:
+                async with httpx.AsyncClient(
+                    timeout=timeout_config,
+                    follow_redirects=True,
+                    limits=httpx.Limits(max_keepalive_connections=10, max_connections=20)
+                ) as client:
+                    resp = await client.get(
+                        jina_url,
+                        headers={
+                            "Accept": "text/plain",
+                            "User-Agent": (
+                                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                "AppleWebKit/537.36"
+                            ),
+                        },
+                    )
+                    resp.raise_for_status()
 
-            async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
-                resp = await client.get(
-                    jina_url,
-                    headers={
-                        "Accept": "text/plain",
-                        "User-Agent": (
-                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                            "AppleWebKit/537.36"
-                        ),
-                    },
-                )
-                resp.raise_for_status()
+                    text_response = resp.text
 
-                text_response = resp.text
+                    structured_content = ToolManager._parse_jina_text_format(
+                        text_response, url
+                    )
+                    markdown_content = structured_content.get("markdown", "")
 
-                structured_content = ToolManager._parse_jina_text_format(
-                    text_response, url
-                )
-                markdown_content = structured_content.get("markdown", "")
+                    warning = structured_content.get("warning", "")
+                    if warning:
+                        log.info(f"[Jina Reader] 警告: {warning}")
+                        if (
+                            "blocked" in warning.lower()
+                            or "403" in warning
+                            or "forbidden" in warning.lower()
+                        ):
+                            log.info("[Jina Reader] 网页被封禁，无法提取内容")
+                            return {
+                                "urls": [],
+                                "text": f"无法访问该页面: {warning}",
+                                "structured_content": structured_content,
+                            }
 
-                warning = structured_content.get("warning", "")
-                if warning:
-                    log.info(f"[Jina Reader] 警告: {warning}")
-                    if (
-                        "blocked" in warning.lower()
-                        or "403" in warning
-                        or "forbidden" in warning.lower()
-                    ):
-                        log.info("[Jina Reader] 网页被封禁，无法提取内容")
-                        return {
-                            "urls": [],
-                            "text": f"无法访问该页面: {warning}",
-                            "structured_content": structured_content,
-                        }
+                    urls = ToolManager._extract_urls_from_markdown(markdown_content)
 
-                urls = ToolManager._extract_urls_from_markdown(markdown_content)
+                    log.info(
+                        f"[Jina Reader] 提取成功: {len(markdown_content)} 字符, {len(urls)} 个链接"
+                    )
 
-                log.info(
-                    f"[Jina Reader] 提取成功: {len(markdown_content)} 字符, {len(urls)} 个链接"
-                )
-
+                    return {
+                        "urls": urls,
+                        "text": markdown_content,
+                        "structured_content": structured_content,
+                    }
+            except httpx.HTTPStatusError as e:  # pragma: no cover - HTTP 异常
+                log.info(f"[Jina Reader] HTTP错误 {e.response.status_code}: {e}")
                 return {
-                    "urls": urls,
-                    "text": markdown_content,
-                    "structured_content": structured_content,
+                    "urls": [],
+                    "text": f"HTTP错误: {e.response.status_code}",
+                    "structured_content": None,
                 }
-
-        except httpx.HTTPStatusError as e:  # pragma: no cover - HTTP 异常
-            log.info(f"[Jina Reader] HTTP错误 {e.response.status_code}: {e}")
-            return {
-                "urls": [],
-                "text": f"HTTP错误: {e.response.status_code}",
-                "structured_content": None,
-            }
-        except Exception as e:  # pragma: no cover - 网络异常
-            log.info(f"[Jina Reader] 提取失败: {e}")
-            return {
-                "urls": [],
-                "text": f"Jina Reader 错误: {str(e)}",
-                "structured_content": None,
-            }
+            except (httpx.TimeoutException, httpx.ConnectTimeout, httpx.ReadTimeout) as e:
+                log.info(f"[Jina Reader] 请求超时: {e}")
+                return {
+                    "urls": [],
+                    "text": f"Jina Reader 请求超时: {str(e)}",
+                    "structured_content": None,
+                }
+            except Exception as e:  # pragma: no cover - 网络异常
+                log.info(f"[Jina Reader] 提取失败: {e}")
+                return {
+                    "urls": [],
+                    "text": f"Jina Reader 错误: {str(e)}",
+                    "structured_content": None,
+                }
+        
+        # 使用信号量限制并发数量，防止并发过多导致卡死
+        # 同时使用 asyncio.wait_for 进行双重超时保护，总超时时间65秒（略大于httpx超时）
+        semaphore = ToolManager._get_jina_reader_semaphore()
+        async with semaphore:
+            try:
+                return await asyncio.wait_for(_fetch_with_jina(), timeout=65.0)
+            except asyncio.TimeoutError:
+                log.info(f"[Jina Reader] 整体操作超时（65秒）: {url}")
+                return {
+                    "urls": [],
+                    "text": "Jina Reader 操作超时（超过65秒）",
+                    "structured_content": None,
+                }
+            except Exception as e:  # pragma: no cover - 其他异常
+                log.info(f"[Jina Reader] 未预期的异常: {e}")
+                return {
+                    "urls": [],
+                    "text": f"Jina Reader 未预期的错误: {str(e)}",
+                    "structured_content": None,
+                }
 
     @staticmethod
     def _parse_jina_text_format(text: str, original_url: str) -> Dict[str, Any]:
@@ -955,41 +1010,64 @@ class ToolManager:
 
     @staticmethod
     async def download_file(page: Page, url: str, save_dir: str) -> Optional[str]:
+        """
+        使用 Playwright 下载文件，返回保存路径。
+        整个下载流程最多等待10分钟，超时后自动退出。
+        """
         log.info(f"[Playwright] 准备从 {url} 下载文件")
         os.makedirs(save_dir, exist_ok=True)
 
-        download_page = await page.context.new_page()
-        try:
-            async with download_page.expect_download(timeout=12000) as download_info:
+        async def _download_internal() -> Optional[str]:
+            """内部下载函数，用于超时控制"""
+            download_page = await page.context.new_page()
+            try:
+                # 增加 expect_download 超时到60秒
+                async with download_page.expect_download(timeout=60000) as download_info:
+                    try:
+                        await download_page.goto(url, timeout=60000)
+                    except PlaywrightError as e:
+                        if "Download is starting" in str(e) or "navigation" in str(e):
+                            log.info("下载已通过导航或重定向触发。")
+                        else:
+                            raise e
+                download = await download_info.value
                 try:
-                    await download_page.goto(url, timeout=60000)
-                except PlaywrightError as e:
-                    if "Download is starting" in str(e) or "navigation" in str(e):
-                        log.info("下载已通过导航或重定向触发。")
-                    else:
-                        raise e
-            download = await download_info.value
-            try:
-                await download_page.close()
-            except Exception as close_e:  # pragma: no cover - best effort
-                log.info(f"关闭下载页面时出错（可忽略）: {close_e}")
-            suggested_filename = download.suggested_filename
-            save_path = os.path.join(save_dir, suggested_filename)
-            log.info(f"文件 '{suggested_filename}' 正在保存中...")
-            temp_file_path = await download.path()
-            if not temp_file_path:
-                log.info("[Playwright] 下载失败，未能获取临时文件路径。")
-                await download.delete()
+                    await download_page.close()
+                except Exception as close_e:  # pragma: no cover - best effort
+                    log.info(f"关闭下载页面时出错（可忽略）: {close_e}")
+                suggested_filename = download.suggested_filename
+                save_path = os.path.join(save_dir, suggested_filename)
+                log.info(f"文件 '{suggested_filename}' 正在保存中...")
+                try:
+                    # 等待下载完成，最多等待10分钟
+                    temp_file_path = await asyncio.wait_for(download.path(), timeout=600.0)
+                except asyncio.TimeoutError:
+                    log.info(f"[Playwright] 下载超时（超过10分钟）: {url}")
+                    try:
+                        await download.delete()
+                    except Exception:
+                        pass
+                    return None
+                if not temp_file_path:
+                    log.info("[Playwright] 下载失败，未能获取临时文件路径。")
+                    await download.delete()
+                    return None
+                shutil.move(temp_file_path, save_path)
+                log.info(f"[Playwright] 下载完成: {save_path}")
+                return save_path
+            except Exception as e:  # pragma: no cover - 下载异常
+                log.info(f"[Playwright] 下载过程中发生意外错误 ({url}): {e}")
+                try:
+                    await download_page.close()
+                except Exception:
+                    pass
                 return None
-            shutil.move(temp_file_path, save_path)
-            log.info(f"[Playwright] 下载完成: {save_path}")
-            return save_path
-        except Exception as e:  # pragma: no cover - 下载异常
-            log.info(f"[Playwright] 下载过程中发生意外错误 ({url}): {e}")
-            try:
-                await download_page.close()
-            except Exception:
-                pass
+
+        # 整个下载流程最多等待10分钟（600秒）
+        try:
+            return await asyncio.wait_for(_download_internal(), timeout=600.0)
+        except asyncio.TimeoutError:
+            log.info(f"[Playwright] 下载流程总超时（超过10分钟）: {url}")
             return None
 
 

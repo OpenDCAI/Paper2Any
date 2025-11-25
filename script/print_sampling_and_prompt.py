@@ -19,7 +19,7 @@ if PROJECT_ROOT not in sys.path:
 
 from datasets import load_dataset  # type: ignore
 
-from dataflow_agent.agentroles.dataconvertor import UniversalDataConvertor
+from dataflow_agent.agentroles.data_convertor import UniversalDataConvertor
 from dataflow_agent.state import DataCollectionRequest, DataCollectionState
 
 
