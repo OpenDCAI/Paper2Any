@@ -99,7 +99,7 @@ async def main() -> None:
     # -------- 异步执行 -------- #
     final_state: DFState = await graph.ainvoke(state)
 
-    # -------- 保存最终 State -------- #
+    # -------- 保存最终 State -------- # kps用的json pickle 格式
     save_final_state_json(final_state=final_state, out_dir=SESSION_DIR)
 
     # -------- 输出执行 / 调试结果 -------- #
