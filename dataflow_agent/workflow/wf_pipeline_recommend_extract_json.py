@@ -14,6 +14,8 @@ from dataflow_agent.toolkits.optool.op_tools import (
     local_tool_for_get_purpose,
     get_operator_content_str,
     post_process_combine_pipeline_result,
+    get_operators_by_rag,
+    get_operators_info_by_names,
 )
 # from dataflow_agent.toolkits.pipetool.pipe_tools import parse_pipeline_file
 import dataflow_agent.toolkits.pipetool.pipe_tools as pt
@@ -80,7 +82,11 @@ def create_pipeline_graph() -> GenericGraphBuilder:
 
     @builder.pre_tool("operator", "recommender")
     def rec_get_operator(state: DFState):
-        # return get_operator_content_str(data_type=state.category.get("category", "text"))
+        # 使用 target_parser_node 中 RAG 检索出的算子作为候选集
+        split_ops = state.temp_data.get('split_ops', [])
+        if split_ops:
+            return get_operators_info_by_names(split_ops)
+        # 兜底：如果没有 RAG 结果，使用默认全量算子
         return get_operator_content_str(data_type="Default")
 
     class GetOpInput(BaseModel):
@@ -159,12 +165,30 @@ def create_pipeline_graph() -> GenericGraphBuilder:
         return s
 
     async def target_parser_node(s: DFState) -> DFState:
-        """目标意图理解节点 - 将 target 拆解为算子描述列表"""
+        """目标意图理解节点 - 将 target 拆解为算子描述列表，并进行 RAG 检索"""
         from dataflow_agent.toolkits.tool_manager import get_tool_manager
         
         parser = create_target_parser(tool_manager=get_tool_manager())
         s = await parser.execute(s, use_agent=False)
-        log.info(f"[target_parser_node] 拆解算子描述: {s.temp_data.get('operator_descriptions', [])}")
+        
+        operator_descriptions = s.temp_data.get('operator_descriptions', [])
+        log.info(f"[target_parser_node] 拆解算子描述: {operator_descriptions}")
+        
+        # 在意图解析后立即进行 RAG 检索，获取候选算子
+        if operator_descriptions:
+            s.temp_data['split_ops'] = get_operators_by_rag(
+                search_queries=operator_descriptions,
+                top_k=2,
+                faiss_index_path=f"{PROJDIR}/dataflow_agent/resources/faiss_cache/all_ops.index",
+                base_url=f"{s.request.chat_api_url}embeddings" if s.request.chat_api_url_for_embeddings == "" else s.request.chat_api_url_for_embeddings,
+                model_name=s.request.embedding_model_name
+            )
+            # 展平结果
+            s.temp_data['split_ops'] = [item for sub in s.temp_data['split_ops'] for item in sub]
+            log.info(f"[target_parser_node] RAG 检索结果: {s.temp_data['split_ops']}")
+        else:
+            s.temp_data['split_ops'] = []
+        
         return s
 
     # --- recommender 子图同原来 ---

@@ -11,7 +11,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage, AIMessage
 from langchain_core.tools import Tool
 from pydantic import BaseModel, Field
-from dataflow_agent.graghbuilder.message_history import AdvancedMessageHistory
+from dataflow_agent.graphbuilder.message_history import AdvancedMessageHistory
 
 
 from dataflow_agent.promptstemplates.prompt_template import PromptsTemplateGenerator

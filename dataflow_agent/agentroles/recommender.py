@@ -43,6 +43,7 @@ class DataPipelineRecommender(BaseAgent):
             "sample": pre_tool_results.get("sample", ""),
             "target": pre_tool_results.get("target", ""),
             "operator": pre_tool_results.get("operator", "[]"),
+            "op_nums": len(self.state.temp_data['split_ops'])/2,
         }
 
     # --- 默认前置工具结果（兜底）-------------------------------------------

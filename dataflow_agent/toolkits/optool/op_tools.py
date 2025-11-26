@@ -276,6 +276,62 @@ def get_prompt_sources_of_operator(op_name: str) -> Dict[str, str]:
             out[c.__name__] = "# 源码不可用（可能是C扩展/找不到源码/zip导入）"
     return out
 
+def get_operators_info_by_names(operator_names: List[str]) -> str:
+    """
+    根据算子名称列表获取基本信息（node, name, description, category）。
+    
+    Args:
+        operator_names: 算子名称列表，如 ['ExtractSmilesFromText', 'LLMLanguageFilter', ...]
+        
+    Returns:
+        包含所有指定算子基本信息的JSON字符串。
+        如果某个算子不存在，会在结果中标注 "error" 字段。
+    """
+    # 初始化 OPERATOR_REGISTRY
+    if hasattr(OPERATOR_REGISTRY, "_init_loaders"):
+        OPERATOR_REGISTRY._init_loaders()
+    if hasattr(OPERATOR_REGISTRY, "_get_all"):
+        OPERATOR_REGISTRY._get_all()
+    
+    # 构建名称到类的映射
+    name_to_cls = {name: cls for name, cls in OPERATOR_REGISTRY}
+    
+    # 收集结果
+    results = []
+    idx = 1
+    
+    for op_name in operator_names:
+        cls = name_to_cls.get(op_name)
+        if cls is None:
+            # 算子不存在
+            results.append({
+                "node": idx,
+                "name": op_name,
+                "error": f"算子 '{op_name}' 未在 OPERATOR_REGISTRY 中注册"
+            })
+        else:
+            # 获取分类
+            category = "unknown"
+            if hasattr(cls, "__module__"):
+                parts = cls.__module__.split(".")
+                if len(parts) >= 3 and parts[0] == "dataflow" and parts[1] == "operators":
+                    category = parts[2]
+            
+            # 获取描述
+            description = _call_get_desc_static(cls, lang="zh") or ""
+            
+            # 只返回基本信息
+            results.append({
+                "node": idx,
+                "name": op_name,
+                "description": description,
+                "category": category
+            })
+        idx += 1
+    
+    # 返回 JSON 字符串
+    return json.dumps(results, ensure_ascii=False, indent=2)
+
 def get_operator_source_by_name(operator_name: str) -> str:
     """
     根据算子名称获取算子的源码。

@@ -41,6 +41,148 @@ log = get_logger(__name__)
 #                              工具函数                                   #
 # ---------------------------------------------------------------------- #
 
+def generate_prompted_generator_prompts(
+    ops_list: List[str],
+    state: DFState
+) -> Dict[int, str]:
+    """
+    为 ops_list 中所有 PromptedGenerator 算子生成 system_prompt
+    
+    Args:
+        ops_list: 算子名称列表
+        state: DFState 对象，包含 target、API 配置等信息
+    
+    Returns:
+        Dict[int, str]: {算子索引: system_prompt} 的映射
+    """
+    from dataflow_agent.toolkits.basetool.file_tools import local_tool_for_sample
+    from dataflow_agent.utils import robust_parse_json
+    
+    # 找出所有 PromptedGenerator 的位置
+    prompted_gen_indices = [i for i, op in enumerate(ops_list) if op == "PromptedGenerator"]
+    
+    if not prompted_gen_indices:
+        log.info("[generate_prompted_generator_prompts] 无 PromptedGenerator，跳过")
+        return {}
+    
+    log.info(f"[generate_prompted_generator_prompts] 发现 {len(prompted_gen_indices)} 个 PromptedGenerator，位置: {prompted_gen_indices}")
+    
+    # 获取样本数据
+    sample = local_tool_for_sample(state.request, sample_size=1)["samples"]
+    
+    # 构建节点信息供 LLM 理解上下文
+    nodes_context = []
+    for i, op in enumerate(ops_list):
+        node_info = {
+            "index": i,
+            "name": op,
+            "is_prompted_generator": op == "PromptedGenerator"
+        }
+        nodes_context.append(node_info)
+    
+    # 调用 LLM 批量生成 prompts
+    system_prompt = """
+你是一个数据处理专家，擅长根据任务需求为多个 PromptedGenerator 算子生成精准的 system_prompt。
+你需要理解整体数据流的上下文，为每个 PromptedGenerator 生成符合其在流水线中位置和作用的提示词。
+"""
+    
+    task_prompt = f"""
+[输入信息]
+用户整体需求：{state.request.target}
+样本数据：{sample}
+推荐的算子列表：{json.dumps(ops_list, ensure_ascii=False)}
+
+当前流水线中所有 PromptedGenerator 的位置索引：{prompted_gen_indices}
+
+流水线节点概览：
+{json.dumps(nodes_context, ensure_ascii=False, indent=2)}
+
+[任务]
+根据用户的整体需求（target）和每个 PromptedGenerator 在流水线中的位置，
+为每个 PromptedGenerator 生成一个精确的 system_prompt。
+
+[分析要点]
+1. 从 target 中提取出不同的子任务需求
+2. 根据 PromptedGenerator 在算子序列中的位置判断其应该完成的功能
+3. 如果有多个 PromptedGenerator，它们的 prompts 应该相互协调，共同完成整体任务
+4. 每个 prompt 应该简洁明了，直接告诉模型要做什么
+
+[输出规则]
+严格返回 JSON 格式：
+{{
+  "prompts": [
+    {{
+      "index": 0,
+      "system_prompt": "你为索引 0 的 PromptedGenerator 生成的提示词"
+    }},
+    {{
+      "index": 2,
+      "system_prompt": "你为索引 2 的 PromptedGenerator 生成的提示词"
+    }}
+  ]
+}}
+
+注意：
+- index 必须与 PromptedGenerator 在 ops_list 中的实际索引完全一致
+- 必须为所有 PromptedGenerator 都生成 system_prompt
+- 不要返回其他任何内容，不要解释，不要注释
+"""
+    
+    # 准备 API 调用
+    api_url = state.request.chat_api_url
+    api_key = state.request.api_key
+    model = state.request.model
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": task_prompt}
+        ],
+        "temperature": 0.0,
+    }
+    
+    try:
+        log.info("[generate_prompted_generator_prompts] 调用 LLM 生成 prompts...")
+        
+        response = requests.post(
+            f"{api_url}chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=120
+        )
+        response.raise_for_status()
+        
+        result = response.json()
+        content = result["choices"][0]["message"]["content"]
+        
+        log.info(f"[generate_prompted_generator_prompts] LLM 返回: {content[:500]}...")
+        
+        parsed = robust_parse_json(content)
+        
+        # 构建 {index: system_prompt} 映射
+        prompts_map: Dict[int, str] = {}
+        prompts_list = parsed.get("prompts", [])
+        
+        for item in prompts_list:
+            idx = item.get("index")
+            prompt = item.get("system_prompt", "")
+            if idx is not None and prompt:
+                prompts_map[idx] = prompt
+                log.info(f"[generate_prompted_generator_prompts] 索引 {idx} 的 prompt: {prompt[:100]}...")
+        
+        return prompts_map
+        
+    except Exception as e:
+        log.error(f"[generate_prompted_generator_prompts] 生成失败: {e}")
+        # 返回空映射，后续会使用默认 prompt
+        return {}
+
+
 def export_nodes_with_llm(nodes_info: Any, state: DFState) -> Dict[str, Any]:
     """
     调用 LLM API 处理 nodes_info，自动连接 input_key 和 output_key
@@ -416,28 +558,55 @@ class DataPipelineBuilder(BaseAgent):
                     state.temp_data["origin_file_path"] = origin_file
                     log.info(f"[pipeline_builder] DEBUG mode , sample at {sample_path}")
 
-                # 2) 生成 pipeline 代码字符串
-                pipe_obj = pipeline_assembler(recommendation, state, **assembler_kwargs)
+                # 2) 提前为 PromptedGenerator 生成 system_prompt
+                prompted_generator_prompts = generate_prompted_generator_prompts(recommendation, state)
+                log.critical(f"[pipeline_builder] 预生成的 PromptedGenerator prompts: {prompted_generator_prompts}")
+                if prompted_generator_prompts:
+                    # 将预生成的 prompts 存入 state 供后续使用
+                    state.temp_data["prompted_generator_prompts"] = prompted_generator_prompts
+                
+                # 3) 生成 pipeline 代码字符串（传入预生成的 prompts）
+                pipe_obj = pipeline_assembler(
+                    recommendation, 
+                    state, 
+                    prompted_generator_prompts=prompted_generator_prompts,
+                    **assembler_kwargs
+                )
                 log.info(f"assembler_kwargs : {assembler_kwargs}")
                 code_str: str = pipe_obj["pipe_code"]
                 # 3) 写临时代码文件
                 file_path_obj = _ensure_py_file(code_str, file_name=file_path)
                 state.pipeline_file_path = str(file_path_obj)
                 file_path = str(file_path_obj)  # 供后续 _run_py 使用
-                # 4) LLM重新写code
+                # 4) LLM重新写code - 自动连接 input_key/output_key
                 import dataflow_agent.toolkits.pipetool.pipe_tools as pt
                 graph = pt.parse_pipeline_file(file_path)
                 nodes_info  = graph['nodes']
                 log.critical(f'测试nodes_info: {nodes_info}')
-                op_and_params = export_nodes_with_llm(nodes_info=nodes_info,state=state)
-                log.critical(f'测试op_and_params: {op_and_params}')
+                
+                # 调用 LLM 自动连接 input_key/output_key（只返回 run 参数）
+                llm_run_params = export_nodes_with_llm(nodes_info=nodes_info, state=state)
+                log.critical(f'测试 LLM 返回的 run 参数: {llm_run_params}')
+                
+                # 5) 合并 nodes_info 的 init 参数 与 LLM 返回的 run 参数
+                merged_op_and_params = []
+                for idx, (node_info, llm_result) in enumerate(zip(nodes_info, llm_run_params)):
+                    merged_item = {
+                        "op_name": llm_result["op_name"],
+                        "init_params": node_info.get("config", {}).get("init", {}),   # 从原始 nodes_info 获取 init 参数
+                        "run_params": llm_result.get("params", {})                     # 从 LLM 返回获取连接后的 run 参数
+                    }
+                    merged_op_and_params.append(merged_item)
+                
+                log.critical(f'合并后的 op_and_params: {merged_op_and_params}')
                 from dataflow_agent.toolkits.pipetool.pipe_tools import build_pipeline_code_with_run_params
-                pipeline_code = build_pipeline_code_with_run_params(opname_and_params=op_and_params,
+                pipeline_code = build_pipeline_code_with_run_params(opname_and_params=merged_op_and_params,
                                                                     state=state,
                                                                     cache_dir=state.request.cache_dir,
                                                                     chat_api_url=state.request.chat_api_url,
                                                                     model_name=state.request.model,
-                                                                    file_path=assembler_kwargs["file_path"]
+                                                                    file_path=assembler_kwargs["file_path"],
+                                                                    prompted_generator_prompts = prompted_generator_prompts,
                                                                     )
                 
                 log.critical(f'测试pipeline_code: {pipeline_code}')
@@ -519,3 +688,4 @@ def create_pipeline_builder(
     **kwargs,
 ) -> DataPipelineBuilder:
     return DataPipelineBuilder(tool_manager=tool_manager, **kwargs)
+
