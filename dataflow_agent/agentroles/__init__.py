@@ -9,7 +9,6 @@ from dataflow_agent.logger import get_logger
 
 log = get_logger(__name__)
 
-# 1) 自动 import 所有 .py 文件（仅当前目录）
 _pkg_path = Path(__file__).resolve().parent
 for py in _pkg_path.glob("*.py"):
     if py.stem not in {"__init__", "registry", "base_agent", "configs", "strategies"}:
@@ -48,7 +47,6 @@ from .cores import (
 )
 _auto_import_all_submodules()
 
-# 3) 导入其他子包，让顶层能访问所有子包内容
 from . import common_agents, data_agents, infra_agents, paper2any_agents
 
 # ==================== 核心函数（增强版） ====================
