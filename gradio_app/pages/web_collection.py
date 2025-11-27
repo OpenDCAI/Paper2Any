@@ -6,7 +6,7 @@ import gradio as gr
 from langgraph.graph import StateGraph, START, END
 
 from dataflow_agent.state import DataCollectionRequest, DataCollectionState
-from dataflow_agent.agentroles.dataconvertor import universal_data_conversion
+from dataflow_agent.agentroles.data_agents.dataconvertor import universal_data_conversion
 from script.run_dfa_web_collection import web_crawl_collection
 
 

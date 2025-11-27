@@ -2,6 +2,7 @@
 {{ agent_name_camel }} agent
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 生成时间: {{ timestamp }}
+生成位置: dataflow_agent/agentroles/common_agents/{{ agent_name_snake }}_agent.py
 
 本文件由 `dfa create --agent_name {{ agent_name }}` 自动生成。
 1. 填写 prompt-template 名称
@@ -15,8 +16,8 @@ from typing import Any, Dict, Optional
 from dataflow_agent.state import MainState
 from dataflow_agent.toolkits.tool_manager import ToolManager
 from dataflow_agent.logger import get_logger
-from dataflow_agent.agentroles.base_agent import BaseAgent
-from dataflow_agent.agentroles.registry import register
+from dataflow_agent.agentroles.cores.base_agent import BaseAgent
+from dataflow_agent.agentroles.cores.registry import register
 
 log = get_logger(__name__)
 

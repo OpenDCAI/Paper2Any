@@ -71,7 +71,49 @@ The fields are as follows:
 """
 
 # --------------------------------------------------------------------------- #
-# 2. 推理 / 推荐流水线                                                         #
+# 2. 目标意图解析                                                              #
+# --------------------------------------------------------------------------- #
+class TargetParsing:
+    system_prompt_for_target_parsing = """
+You are a data processing pipeline analysis expert. Your task is to decompose the user's data processing requirements into specific operator functionality descriptions.
+"""
+
+    task_prompt_for_target_parsing = """
+[ROLE] You are a data processing requirement analyzer.
+
+[TASK]
+Analyze the user's data processing requirement and decompose it into a series of specific operator functionality descriptions.
+
+Each description should:
+1. Clearly describe the functionality of a single operator
+2. Be arranged in the logical order of data processing
+3. Use concise language
+
+User requirement:
+{target}
+
+[OUTPUT RULES]
+Return a JSON object with the following structure:
+{{
+  "operator_descriptions": ["description1", "description2", "description3", ...]
+}}
+
+Each description should be a clear, concise statement of what one operator should do.
+
+[EXAMPLE]
+Input: "过滤掉长度小于10的文本，然后去重，最后提取关键词"
+Output:
+{{
+  "operator_descriptions": [
+    "过滤掉长度小于10个字符的文本数据",
+    "对文本数据进行去重处理，移除重复内容",
+    "从文本中提取关键词"
+  ]
+}}
+"""
+
+# --------------------------------------------------------------------------- #
+# 3. 推理 / 推荐流水线                                                         #
 # --------------------------------------------------------------------------- #
 class RecommendationInferencePipeline:
     system_prompt_for_recommendation_inference_pipeline = """
@@ -104,40 +146,54 @@ The list of available operators for each data type:
   Data generation must occur before data extraction
   Data extraction must occur before data validation
   Correct order: Filter → Generate → Extract → Validate
-  Incorrect order: Filter → Extract → Generate ❌
+  Incorrect order: Filter → Extract → Generate
 2 .Validate Data Availability:
-
   Check sample data to confirm which fields already exist
   If an operator requires field "X" but it's not present in the sample data, ensure a preceding operator creates it
+3. Important!!!
+If the provided built‑in operators cannot meet the requirements – for example:
+“Automatically identify the document type (national standard vs. local standard); extract the fire‑protection topic from the document content” –
+then these must be handled separately by using two custom operators, such as:
+  "name": "PromptedGenerator",
+  "description": "Generate data based on a user-provided prompt. Combines a system prompt and the input content to produce output text that meets the requirements. Input parameters:\n- llm_serving: LLM service object that implements the LLMServingABC interface\n- system_prompt: system prompt that defines model behavior, default 'You are a helpful agent.'\n- input_key: name of the input content field, default 'raw_content'\n- output_key: name of the output content field, default 'generated_content'\nOutput:\n- A DataFrame containing the generated content\n- The name of the output field, for downstream operators to reference",
+  {
+    "name": "system_prompt",
+    "default": "You are a legal expert in fire safety. Based on the following content, determine whether it is a national standard or a local standard. Answer only with “国家标准” or “地方标准”, and do not add any other content.",
+    "kind": "POSITIONAL_OR_KEYWORD"
+  }
+  ......
 
 [Common Error Patterns to Avoid]
-❌ Incorrect Example: ["FilterData", "ExtractAnswer", "GenerateAnswer"]
+Incorrect Example: ["FilterData", "ExtractAnswer", "GenerateAnswer"]
 Problem: Attempting to extract the answer before it is generated
 
-✅ Correct Example: ["FilterData", "GenerateAnswer", "ExtractAnswer"]
+Correct Example: ["FilterData", "GenerateAnswer", "ExtractAnswer"]
 Reason: Generate first, then extract
 
-❌ Incorrect Example: ["ValidateAnswer", "GenerateAnswer"]
+Incorrect Example: ["ValidateAnswer", "GenerateAnswer"]
 Problem: Validating an answer that does not exist yet
 
-✅ Correct Example: ["GenerateAnswer", "ExtractAnswer", "ValidateAnswer"]
+Correct Example: ["GenerateAnswer", "ExtractAnswer", "ValidateAnswer"]
 Reason: Complete data flow
 
-
 [OUTPUT RULES]
-1. Please select suitable operator nodes for each type and return them in the following JSON format:
+1. Please select suitable operator nodes for each type and return them in the following JSON format, more than {op_nums} operators:
 {{
   "ops": ["OperatorA", "OperatorB", "OperatorC"],
   "reason": "State your reasoning here. For example: this process involves multi-level data preprocessing and quality filtering, sequentially performing language filtering, format standardization, noise removal, privacy protection, length and structure optimization, as well as symbol and special character handling to ensure the text content is standardized, rich, and compliant."
 }}
-2 Only the names of the operators are needed.
-3. Please verify whether the selected operators and their order fully meet the requirements specified in {target}.
+2  Only the names of the operators are needed.
+3. Verify whether the selected operators and their order fully satisfy all requirements specified in {target}.If they do not, you must add a PromptedGenerator.
+4. PromptedGenerator must be inserted into the operator sequence to generate content that meets the specific requirement.
+You may have multiple PromptedGenerator operators, with one PromptedGenerator per requirement.
+
+
 [Question]
 Based on the above rules, what pipeline should be recommended???
 """
 
 # --------------------------------------------------------------------------- #
-# 3. 数据内容分类                                                               #
+# 4. 数据内容分类                                                               #
 # --------------------------------------------------------------------------- #
 class DataContentClassification:
     system_prompt_for_data_content_classification = """
@@ -158,7 +214,7 @@ Return the result in JSON format, for example:
 """
 
 # --------------------------------------------------------------------------- #
-# 4. 任务规划器                                                                 #
+# 5. 任务规划器                                                                 #
 # --------------------------------------------------------------------------- #
 class Planer:
     system_prompt_for_planer = """
@@ -241,7 +297,7 @@ User requirements: {query}.
 """
 
 # --------------------------------------------------------------------------- #
-# 5. 会话意图分析                                                               #
+# 6. 会话意图分析                                                               #
 # --------------------------------------------------------------------------- #
 class ChatIntent:
     system_prompt_for_chat = """
@@ -284,7 +340,7 @@ Current user request:
 """
 
 # --------------------------------------------------------------------------- #
-# 6. Pipeline Refine                                            #
+# 7. Pipeline Refine                                            #
 # --------------------------------------------------------------------------- #
 class PipelineRefinePrompts:
     # 步骤1：目标与现状分析
@@ -519,7 +575,7 @@ Output the UPDATED pipeline JSON ONLY.
 
 
 # --------------------------------------------------------------------------- #
-# 6. 执行推荐流水线                                                             #
+# 8. 执行推荐流水线                                                             #
 # --------------------------------------------------------------------------- #
 class ExecuteRecommendedPipeline:
     system_prompt_for_execute_the_recommended_pipeline = """
@@ -540,7 +596,7 @@ The result should contain two parts:
 """
 
 # --------------------------------------------------------------------------- #
-# 7. 代码执行 / 生成 / 调试                                                     #
+# 9. 代码执行 / 生成 / 调试                                                     #
 # --------------------------------------------------------------------------- #
 class Executioner:
     system_prompt_for_executioner = "You are an expert in Python programming."
@@ -644,7 +700,7 @@ JSON 输出示例：
 """
 
 # --------------------------------------------------------------------------- #
-# 8. 新写算子                                                                   #
+# 10. 新写算子                                                                   #
 # --------------------------------------------------------------------------- #
 class WriteOperator:
     system_prompt_for_write_the_operator = "You are a data operator development expert."
@@ -671,7 +727,7 @@ class WriteOperator:
 """
 
 # --------------------------------------------------------------------------- #
-# 9. 算子匹配                                                                   #
+# 11. 算子匹配                                                                   #
 # --------------------------------------------------------------------------- #
 class MatchOperator:
     system_prompt_for_match_operator = """
@@ -709,7 +765,7 @@ JSON output example:
 """
 
 # --------------------------------------------------------------------------- #
-# 10. 执行并调试算子                                                           #
+# 12. 执行并调试算子                                                           #
 # --------------------------------------------------------------------------- #
 class ExecuteAndDebugOperator:
     system_prompt_for_exe_and_debug_operator = """
@@ -728,7 +784,7 @@ and describe the entire process.
 """
 
 # --------------------------------------------------------------------------- #
-# 11. 调试pipeline                                                         #
+# 13. 调试pipeline                                                         #
 # --------------------------------------------------------------------------- #
 class DebugPipeline:
     system_prompt_for_code_debugging = """
@@ -756,7 +812,7 @@ Reply only with a valid JSON object, no markdown, no comments.
 """
 
 # --------------------------------------------------------------------------- #
-# 11. rewrite                                                         #
+# 14. rewrite                                                         #
 # --------------------------------------------------------------------------- #
 class CodeRewriter:
     system_prompt_for_code_rewriting = """
@@ -794,7 +850,7 @@ Double-check that your response is a valid JSON. Do not output anything else.
     """
 
 # --------------------------------------------------------------------------- #
-# 12. InfoRequester                                                         #
+# 15. InfoRequester                                                         #
 # --------------------------------------------------------------------------- #
 class InfoRequesterPrompt:
     system_prompt_for_other_info_request = """
@@ -846,7 +902,7 @@ Phase B (after the tool has returned the code):
 
 
 # --------------------------------------------------------------------------- #
-# 11. Oprewrite                                                         #
+# 16. Oprewrite                                                         #
 # --------------------------------------------------------------------------- #
 class OpRewriter:
     system_prompt_for_op_rewrite= """
@@ -903,7 +959,7 @@ Example of the required output format:
 
 
 # --------------------------------------------------------------------------- #
-# 12. LLM 注入 Serving                                                         #
+# 17. LLM 注入 Serving                                                         #
 # --------------------------------------------------------------------------- #
 class AppendLLMServing:
     system_prompt_for_llm_append_serving = """
@@ -937,7 +993,7 @@ Do not add any __main__ entry.
 """
 
 # --------------------------------------------------------------------------- #
-# 13. LLM 生成实例化入口                                                        #
+# 18. LLM 生成实例化入口                                                        #
 # --------------------------------------------------------------------------- #
 class InstantiateOperator:
     system_prompt_for_llm_instantiate = """
@@ -992,7 +1048,7 @@ No comments, no extra keys, no extra prints except:
 """
 
 # --------------------------------------------------------------------------- #
-# X. 语法检查（Operator 生成后的代码审查）                                      #
+# 19. 语法检查（Operator 生成后的代码审查）                                      #
 # --------------------------------------------------------------------------- #
 class GrammarCheck:
     system_prompt_for_grammar_check = """
@@ -1036,7 +1092,7 @@ class GrammarCheck:
 """
 
 # --------------------------------------------------------------------------- #
-# 13. data collection                                                         #
+# 20. data collection                                                         #
 # --------------------------------------------------------------------------- #
 class DataCollector:
     system_prompt_for_data_collection = """
@@ -1059,7 +1115,7 @@ Keywords:
 """
 
 # --------------------------------------------------------------------------- #
-# 13. data conversion                                                         #
+# 21. data conversion                                                         #
 # --------------------------------------------------------------------------- #
 class DataConvertor:
     system_prompt_for_data_conversion = """
@@ -1163,7 +1219,7 @@ Example format:
 """
 
 # --------------------------------------------------------------------------- #
-# WebAgent 相关 Prompts                                                       #
+# 22. WebAgent 相关 Prompts                                                       #
 # --------------------------------------------------------------------------- #
 class WebAgentPrompts:
     """WebAgent 系统的所有 Prompt 模板"""
@@ -1486,7 +1542,7 @@ Visible text content:
 
 
 # --------------------------------------------------------------------------- #
-# 14. NodesExporter                                                           #
+# 23. NodesExporter                                                           #
 # --------------------------------------------------------------------------- #
 class NodesExporter:
   system_prompt_for_nodes_export = """
@@ -1559,7 +1615,7 @@ You are an expert in data processing pipeline node extraction.
 
 
 # --------------------------------------------------------------------------- #
-# 15. icon_prompt_generator                                                           #
+# 24. icon_prompt_generator                                                           #
 # --------------------------------------------------------------------------- #
 
 class IconPromptGeneratorPrompts:

@@ -8,7 +8,7 @@ from typing import List, Literal
 from langchain_core.tools import Tool
 from pydantic import create_model
 from dataflow_agent.state import DFRequest, DFState
-from dataflow_agent.agentroles.recommender import create_recommender
+from dataflow_agent.agentroles.data_agents.recommender import create_recommender
 from dataflow_agent.toolkits.tool_manager import get_tool_manager
 from pydantic import BaseModel, Field
 from dataflow_agent.toolkits.basetool.file_tools import (

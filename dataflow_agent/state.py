@@ -81,7 +81,7 @@ class DFRequest(MainRequest):
     # embeddings url
     chat_api_url_for_embeddings : str = ""
     embedding_model_name: str = "text-embedding-3-small"
-    update_rag_content: bool = True
+    update_rag_content: bool = False
 
 # ==================== 主流程 State ====================
 @dataclass
@@ -226,3 +226,117 @@ class PromptWritingState(MainState):
     prompt_args: Dict[str, Any] = field(default_factory=dict)
     prompt_output_format: Dict[str, Any] = field(default_factory=dict)
     delete_test_files: bool = True
+
+
+# ==================== Planning Agent 相关 State ====================
+@dataclass
+class PlanningRequest(MainRequest):
+    """Planning Agent 的 Request"""
+    # 规划器配置
+    planner_model: Optional[str] = None
+    planner_temperature: float = 0.0
+    
+    # 执行器配置
+    executor_model: Optional[str] = None
+    executor_as_react: bool = True
+    
+    # 重规划器配置 (仅 Plan-and-Execute 模式)
+    replanner_model: Optional[str] = None
+    max_replanning_rounds: int = 3
+    
+    # Human-in-the-Loop 配置
+    require_plan_approval: bool = True      # 是否需要计划审批
+    interrupt_before_step: bool = True      # 每步执行前是否中断
+    interrupt_after_step: bool = False      # 每步执行后是否中断
+    
+    # 执行配置
+    max_plan_steps: int = 10
+    planning_mode: str = "plan_solve"       # "plan_solve" | "plan_execute"
+
+
+@dataclass
+class PlanStep:
+    """单个计划步骤"""
+    index: int                              # 步骤索引
+    description: str                        # 步骤描述
+    status: str = "pending"                 # pending | running | completed | failed | skipped
+    result: Optional[str] = None            # 执行结果
+    error: Optional[str] = None             # 错误信息
+    started_at: Optional[str] = None        # 开始时间
+    completed_at: Optional[str] = None      # 完成时间
+
+
+@dataclass
+class PlanningState(MainState):
+    """
+    Planning Agent 的状态类
+    
+    支持两种模式:
+    - Plan-and-Solve: 一次性生成计划，按顺序执行
+    - Plan-and-Execute (Replanning): 动态调整计划
+    """
+    request: PlanningRequest = field(default_factory=PlanningRequest)
+    
+    # ===== 计划相关 =====
+    plan: List[str] = field(default_factory=list)                    # 计划步骤列表 (简单字符串)
+    plan_steps: List[Dict[str, Any]] = field(default_factory=list)   # 详细计划步骤
+    current_step_index: int = 0                                       # 当前执行步骤索引
+    past_steps: List[tuple] = field(default_factory=list)            # [(步骤描述, 执行结果), ...]
+    
+    # ===== 状态控制 =====
+    plan_approved: bool = False                     # 计划是否已审批
+    is_replanning_needed: bool = False              # 是否需要重新规划
+    replanning_count: int = 0                       # 重规划次数
+    final_response: str = ""                        # 最终响应
+    is_finished: bool = False                       # 是否已完成
+    
+    # ===== Human-in-the-Loop 相关 =====
+    awaiting_human_input: bool = False              # 是否等待人类输入
+    human_feedback: Optional[str] = None            # 人类反馈
+    interrupt_reason: Optional[str] = None          # 中断原因
+    
+    # ===== 执行上下文 =====
+    original_task: str = ""                         # 原始任务描述
+    executor_tools: List[str] = field(default_factory=list)  # 可用工具列表
+    
+    def get_current_step(self) -> Optional[str]:
+        """获取当前待执行的步骤"""
+        if 0 <= self.current_step_index < len(self.plan):
+            return self.plan[self.current_step_index]
+        return None
+    
+    def get_remaining_steps(self) -> List[str]:
+        """获取剩余未执行的步骤"""
+        return self.plan[self.current_step_index:]
+    
+    def get_completed_steps(self) -> List[tuple]:
+        """获取已完成的步骤及结果"""
+        return self.past_steps
+    
+    def mark_step_complete(self, result: str):
+        """标记当前步骤完成"""
+        if self.current_step_index < len(self.plan):
+            step = self.plan[self.current_step_index]
+            self.past_steps.append((step, result))
+            self.current_step_index += 1
+    
+    def reset_plan(self):
+        """重置计划状态（用于重规划）"""
+        self.plan = []
+        self.plan_steps = []
+        self.current_step_index = 0
+        self.is_replanning_needed = False
+        # 保留 past_steps，因为重规划需要参考历史执行结果
+    
+    def to_planning_context(self) -> Dict[str, Any]:
+        """生成规划上下文（供 LLM 使用）"""
+        return {
+            "original_task": self.original_task or self.request.target,
+            "past_steps": [
+                {"step": step, "result": result} 
+                for step, result in self.past_steps
+            ],
+            "remaining_steps": self.get_remaining_steps(),
+            "replanning_count": self.replanning_count,
+            "available_tools": self.executor_tools,
+        }

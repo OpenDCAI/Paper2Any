@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 from dataflow_agent.state import DFRequest, DFState
-from dataflow_agent.agentroles.classifier import create_classifier
+from dataflow_agent.agentroles.data_agents.classifier import create_classifier
 from dataflow_agent.toolkits.tool_manager import get_tool_manager
 
 # file_tools 中的两个本地工具
