@@ -1,14 +1,35 @@
 # dataflow_agent/agentroles/__init__.py
 import importlib
+import pkgutil
 from pathlib import Path
 from typing import Optional
-from dataflow_agent.toolkits.tool_manager import get_tool_manager, ToolManager
 
-# 1) 自动 import 所有 .py 文件
+from dataflow_agent.toolkits.tool_manager import get_tool_manager, ToolManager
+from dataflow_agent.logger import get_logger
+
+log = get_logger(__name__)
+
+# 1) 自动 import 所有 .py 文件（仅当前目录）
 _pkg_path = Path(__file__).resolve().parent
 for py in _pkg_path.glob("*.py"):
     if py.stem not in {"__init__", "registry", "base_agent", "configs", "strategies"}:
         importlib.import_module(f"{__name__}.{py.stem}")
+
+
+def _auto_import_all_submodules():
+    """
+    递归导入 agentroles 包下所有子模块（排除部分内部实现模块），
+    以触发其中的 @register 装饰器。
+    """
+    prefix = __name__ + "."
+    for finder, name, ispkg in pkgutil.walk_packages(__path__, prefix):
+        if any(skip in name for skip in (".cores", ".configs", ".strategies")):
+            continue
+        try:
+            importlib.import_module(name)
+        except Exception as e:
+            # 不让单个模块导入失败影响整体初始化
+            log.warning(f"自动导入子模块失败: {name}: {e}")
 
 # 2) 导入 cores 子包中核心类型
 from .cores import (
@@ -23,8 +44,9 @@ from .cores import (
     ParallelConfig,
     ExecutionMode,
     strategies,
-    register,  # 新增：导入register装饰器
+    register,
 )
+_auto_import_all_submodules()
 
 # 3) 导入其他子包，让顶层能访问所有子包内容
 from . import common_agents, data_agents, infra_agents, paper2any_agents
@@ -351,6 +373,7 @@ def create_parallel_agent(
 # ==================== 导出 ====================
 
 list_agents = AgentRegistry.all
+log.critical(f'已经注册了的agent有：{list_agents().keys()}')
 
 __all__ = [
     # 核心函数
