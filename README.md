@@ -8,15 +8,144 @@
 
 # 🌊 DataFlow-Agent
 
-**AI驱动的数据处理管线智能编排平台**
+**AI驱动的数据处理与分析管线智能编排平台**
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-007ec6?style=flat-square)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.12+-blue?style=flat-square&logo=python)](https://www.python.org)
 [![Upstream](https://img.shields.io/badge/Upstream-OpenDCAI%2FDataFlow-181717?style=flat-square&logo=github)](https://github.com/OpenDCAI/DataFlow)
 
-[快速开始](#-快速开始) • [核心功能](#-核心功能) • [文档](docs/) • [贡献指南](#-贡献指南)
+[快速开始](#-快速开始) • [我们能做什么](#-我们能做什么) • [文档](docs/) • [贡献指南](#-贡献指南)
 
 </div>
+
+---
+
+## 🆕 最近更新
+
+<!-- > 完整版本历史见 [docs/changelog.md](docs/changelog.md) -->
+
+- `2024-09-01`：发布 `0.1.0` 首个版本 🎉（详见 `docs/changelog.md`）
+
+---
+
+## 💡 我们能做什么
+
+DataFlow-Agent 聚焦三大能力板块：
+
+1. **数据处理：数据治理管线的智能推荐与编排**
+2. **数据分析：多源数据分析与自动化洞察**
+3. **Paper 系列应用：面向论文工作流的一站式 Agent 能力**
+
+下面分别展开。
+
+---
+
+### 1️⃣ 数据处理：数据治理管线推荐与编排
+
+围绕「把原始数据加工成AI ready数据」，DataFlow-Agent 提供完整的数据治理能力，从管线推荐、算子编写、手动编排，到 Prompt 优化、Web 数据采集。
+
+---
+
+#### 📊 管线推荐：从任务描述到可执行管线代码
+
+智能分析任务需求，自动推荐最优算子组合，并生成可执行的 Python 管线代码。
+
+**输入**: 任务描述 + 数据样本  
+**输出**: 可执行Python代码 + 处理结果  
+
+<img src="static/imag_piperec.png" width="100%"/>
+
+---
+
+#### ✍️ 算子编写（Operator Writer）：AI 辅助写算子
+
+使用 LLM 辅助从功能描述自动生成算子代码，并在同一界面内完成测试与调试。
+
+**输入**: 功能描述 + 测试数据  
+**输出**: 算子代码 + 执行结果  
+
+<img src="static/image_opwrite.png" width="100%"/>
+
+---
+
+#### 🎨 手动编排（可视化 Workflow Builder）：拖拽式构建数据管线
+
+通过可视化界面拖拽组合算子，自由搭建数据处理流程。
+
+**输入**: 选择算子 + 配置参数  
+**输出**: Pipeline代码 + 可视化图  
+
+<img src="static/image.png" width="100%"/>
+
+---
+
+#### 🔄 Prompt 优化：复用算子与提示词自动调优
+
+复用现有算子，能自动书写dataflow的算子prompttemplate。
+
+**输入**: 算子名称 + 优化目标  
+**输出**: 优化后的Prompt + 测试结果  
+
+<img src="static/promptagent.png" width="100%"/>
+
+---
+
+#### 🌐 Web 采集：从网页到结构化数据
+
+自动化网页数据采集与结构化转换，可作为整个数据处理管线的起点，直接输出dataflow-ready数据。
+
+**输入**: 目标描述 + 数据类别  
+**输出**: 结构化数据文件 + 处理日志  
+
+<img src="static/web_collection.png" width="100%"/>
+
+---
+
+
+
+### 2️⃣ 数据分析：从多源数据到自动化洞察
+
+在数据处理之上，DataFlow-Agent 提供**数据分析工作流**，帮助你快速从多源数据中得到洞察：
+
+- 📥 **多数据源接入与清洗**  
+  - 通过工具集接入数据库 / 文件 / Web / API 等多种数据源  
+  - 使用推荐管线或自定义管线完成清洗、标准化与特征提取  
+
+- 🧾 **自动化分析报告生成**  
+  - 基于分析结果自动生成自然语言报告  
+  - 支持「管理摘要 + 详细分析 + 附图」的结构化输出  
+  - 可扩展为面向业务场景的模板（如运营报表、实验报告等）  
+
+<!-- - 📈 **高级可视化与交互式报表**  
+  - 通过 Gradio Web UI 或前端工作流项目（`frontend-workflow/`）构建交互界面  
+  - 将分析管线封装成交互式页面，支持参数调优与结果实时刷新   -->
+
+上述能力均可通过 **Agent + Workflow + Gradio 页面** 组合实现，你可以使用 CLI 脚手架快速创建相应模块。
+
+---
+
+### 3️⃣ Paper 系列应用：从论文到代码与多模态表达
+
+面向科研与论文工作流，DataFlow-Agent 计划/正在支持一系列 **Paper 系列 Agent 工作流**：
+
+- 🎬 **Paper2Video**：论文内容自动转讲解视频脚本与分镜描述  
+- 🕸 **Paper2Web**：把论文结构化为交互式网页（章节导航、图表联动、代码片段等）  
+- 📌 **Paper2Poster**：从论文自动生成学术海报草图（版式 + 要点提炼）  
+#### 🖼️ **Paper2Graph**图像生成：图标 / 模型图 / 论文配图生成
+
+基于关键词或论文内容自动生成图标、模型结构示意图等可视化素材，并支持迭代优化，是 Paper 系列工作流的重要补充。
+
+**输入**: 关键词/论文内容 + 风格  
+**输出**: 高质量图像 + 编辑能力  
+
+<img src="static/icon_refine.png" width="100%"/>
+
+
+
+- 📚 **PaperCiter**：辅助引用管理，推荐相关工作与引用格式  
+- 💻 **Paper2Code**：从论文方法部分抽取伪代码并转化为可执行代码草案  
+
+这些能力将基于同一套 **Agent / Workflow / Toolkits / Prompt 模板** 架构实现，方便你二次开发自己的 Paper 工作流。
 
 ---
 
@@ -95,7 +224,7 @@ dfa create --agent_as_tool_name text_analyzer
 dfa create --agent_name sentiment_analyzer
 ```
 
-**生成文件**: `dataflow_agent/agentroles/sentiment_analyzer_agent.py`
+**生成文件**: `dataflow_agent/agentroles/common_agents/sentiment_analyzer_agent.py`
 
 **核心特性**:
 - ✅ 自动注册到Agent注册中心（`@register("sentiment_analyzer")`）
@@ -292,7 +421,7 @@ class TextSummarizer(BaseAgent):
         return "用于总结文本内容"
     
     def get_tool_args_schema(self) -> type[BaseModel]:
-        class SummarizerArgs(BaseModel):
+        class SummarizerArgs(BaseModel]:
             content: str = Field(description="要总结的内容")
             max_length: int = Field(default=500)
         return SummarizerArgs
@@ -333,84 +462,6 @@ dfa create --agent_name "my_data_processor"
 
 ---
 
-## 🎯 核心功能
-
-<table>
-<tr>
-<td width="50%">
-
-### 📊 管线推荐
-智能分析任务需求，自动推荐最优算子组合
-
-**输入**: 任务描述 + 数据样本  
-**输出**: 可执行Python代码 + 处理结果
-
-<img src="static/imag_piperec.png" width="100%"/>
-
-</td>
-<td width="50%">
-
-### ✍️ 算子编写
-AI辅助编写自定义算子，支持实时调试
-
-**输入**: 功能描述 + 测试数据  
-**输出**: 算子代码 + 执行结果
-
-<img src="static/image_opwrite.png" width="100%"/>
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### 🎨 手动编排
-可视化拖拽编排工作流，灵活组合算子
-
-**输入**: 选择算子 + 配置参数  
-**输出**: Pipeline代码 + 可视化图
-
-<img src="static/image.png" width="100%"/>
-
-</td>
-<td width="50%">
-
-### 🔄 Prompt优化
-复用现有算子，智能优化提示词配置
-
-**输入**: 算子名称 + 优化目标  
-**输出**: 优化后的Prompt + 测试结果
-
-<img src="static/promptagent.png" width="100%"/>
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### 🌐 Web采集
-自动化网页数据采集与结构化转换
-
-**输入**: 目标描述 + 数据类别  
-**输出**: 结构化数据文件 + 处理日志
-
-<img src="static/web_collection.png" width="100%"/>
-
-</td>
-<td width="50%">
-
-### 🖼️ 图像生成
-图标/模型图生成与迭代优化
-
-**输入**: 关键词/论文内容 + 风格  
-**输出**: 高质量图像 + 编辑能力
-
-<img src="static/icon_refine.png" width="100%"/>
-
-</td>
-</tr>
-</table>
-
----
 
 ## 🏗️ 架构特色
 
@@ -564,7 +615,7 @@ mkdocs serve  # 访问 http://127.0.0.1:8000
 - [ ] Paper2Video - 论文转视频讲解
 - [ ] Paper2Web - 论文转交互网页
 - [ ] Paper2Poster - 论文转学术海报
-- [ ] Paper2Graph - 论文转知识图谱
+- [ ] Paper2Graph - 论文转可编辑图像
 - [ ] PaperCiter - 智能文献引用
 - [ ] Paper2Code - 论文转可执行代码
 
