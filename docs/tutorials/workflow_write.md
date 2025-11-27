@@ -74,7 +74,12 @@ dfa create --wf_name my_workflow
 dfa create --agent_name my_agent
 
 # 这将生成：
-# - dataflow_agent/agentroles/my_agent_agent.py
+# - dataflow_agent/agentroles/common_agents/my_agent_agent.py
+#
+# 说明：
+# - Agent 文件会统一放在 common_agents/ 子目录下
+# - 文件名会自动追加 `_agent` 后缀
+# - 源码来自 dataflow_agent/templates/agent.py.jinja 渲染生成
 ```
 
 ### 2.3 创建 State
@@ -85,6 +90,9 @@ dfa create --state_name my_workflow
 
 # 这将生成：
 # - dataflow_agent/states/my_workflow_state.py
+#
+# 若 dataflow_agent/states/ 目录不存在，会自动创建。
+# 文件内容基于 dataflow_agent/templates/state_name.py.jinja 渲染生成。
 ```
 
 ### 2.4 创建 Prompt Template
@@ -95,6 +103,9 @@ dfa create --prompt_name my_agent
 
 # 这将生成：
 # - dataflow_agent/promptstemplates/resources/pt_my_agent_repo.py
+#
+# 该文件由 dataflow_agent/templates/prompt_repo.py.jinja 渲染生成，
+# 用于集中管理与该 Agent 相关的一组 jinja prompt 模板。
 ```
 
 ### 2.5 其他创建选项
@@ -103,8 +114,19 @@ dfa create --prompt_name my_agent
 # 创建 Gradio 页面
 dfa create --gradio_name my_page
 
+# 这将生成：
+# - gradio_app/pages/page_my_page.py
+#
+# 生成内容基于 dataflow_agent/templates/gradio_page.py.jinja，
+# 默认使用 `page_<name>.py` 命名规范，便于自动发现。
+
 # 创建 Agent-as-Tool
 dfa create --agent_as_tool_name my_tool_agent
+
+# 这将生成：
+# - dataflow_agent/agentroles/common_agents/my_tool_agent_agent.py
+#
+# 生成内容基于 dataflow_agent/templates/agent_as_tool_name.py.jinja。
 ```
 
 ---
@@ -554,7 +576,7 @@ class MyAgent(BaseAgent):
         # 这里会获取到所有绑定到 "my_agent" 的前置工具
 ```
 
-在 Prompt 模板中使用：
+在 Prompt 模板中使用（通常存放在 `dataflow_agent/promptstemplates/...` 目录下，由 `pt_xxx_repo.py` 等 prompt repo 统一加载和渲染）：
 
 ```jinja2
 # task_prompt_for_my_agent.jinja

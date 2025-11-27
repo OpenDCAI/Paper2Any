@@ -112,7 +112,7 @@ python gradio_app/app.py
 dfa create --agent_name my_first_agent
 ```
 
-生成的代码位于 `dataflow_agent/agentroles/my_first_agent.py`：
+生成的代码位于 `dataflow_agent/agentroles/common_agents/my_first_agent_agent.py`：
 
 ```python
 from dataflow_agent.agentroles.base_agent import BaseAgent
@@ -149,7 +149,8 @@ result = await run_workflow("data_validation", state={
 dfa create --gradio_name analytics_dashboard
 ```
 
-在 `gradio_app/pages/analytics_dashboard.py` 中实现页面逻辑，重启应用后自动出现在 Tab 栏。
+CLI 会在 `gradio_app/pages/page_analytics_dashboard.py` 中生成脚手架文件，
+你可以在其中实现页面逻辑，重启应用后会自动出现在 Tab 栏。
 
 ---
 
@@ -168,12 +169,14 @@ dfa create --gradio_name analytics_dashboard
 ```
 DataFlow-Agent/
 ├── dataflow_agent/          # 核心业务模块
-│   ├── agentroles/         # Agent 角色定义（自动注册）
-│   ├── workflow/           # Workflow 流程定义（wf_*.py）
-│   ├── promptstemplates/   # 提示词模板库
-│   ├── templates/          # 脚手架jinja
-│   ├── tools/              # 工具函数集合
-│   └── utils/              # 工具类（状态管理、工具管理器等）
+│   ├── agentroles/          # Agent 角色定义（自动注册）
+│   ├── workflow/            # Workflow 流程定义（wf_*.py）
+│   ├── promptstemplates/    # 提示词模板库（基于 jinja 的 prompt）
+│   ├── templates/           # CLI 脚手架 jinja 模板（由 dfa create 使用）
+│   ├── toolkits/            # 工具集（文件/算子等工具）
+│   ├── state.py             # State / Request 定义
+│   ├── utils.py             # 通用工具函数
+│   └── ...                  # 其他模块（graphbuilder / llm_callers / parsers / trajectory / resources 等）
 ├── gradio_app/             # Gradio Web 应用
 │   ├── app.py             # 主应用入口
 │   └── pages/             # 页面模块（自动发现）
