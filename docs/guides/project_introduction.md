@@ -336,51 +336,66 @@ tool_manager.register_post_tool("PipelineBuilder", recommender_tool)
 ```
 dataflow_agent/
 ├── __init__.py              # 包入口
-├── cli.py                   # 命令行接口
+├── cli.py                   # 命令行接口（基于 templates/ 下的 jinja 模板生成代码）
 ├── logger.py                # 日志配置
-├── state.py                 # 状态定义
-├── utils.py                 # 工具函数
+├── state.py                 # 状态 / Request 定义
+├── utils.py                 # 通用工具函数
 │
 ├── agentroles/              # Agent 角色
+│   ├── __init__.py
 │   ├── base_agent.py        # Agent 基类
 │   ├── registry.py          # Agent 注册表
-│   ├── cores/               # 执行核心
-│   │   ├── configs.py       # 配置类
-│   │   └── strategies.py    # 策略类
-│   ├── classifier.py        # 分类器 Agent
-│   ├── recommender.py       # 推荐器 Agent
-│   ├── writer.py            # 写作 Agent
-│   └── ...                  # 其他 Agent
+│   ├── cores/               # 执行核心（配置 + 策略）
+│   │   ├── configs.py       # 配置类（Simple/React/Graph/VLM 等）
+│   │   └── strategies.py    # 策略类（不同执行模式）
+│   └── ...                  # 各类具体 Agent（classifier / recommender / writer 等）
+│
+├── workflow/                # 工作流定义
+│   ├── __init__.py
+│   ├── registry.py          # Workflow 注册表
+│   └── wf_*.py              # 具体工作流（文件名以 wf_ 开头）
+│
+├── graphbuilder/            # 图构建器
+│   ├── graph_builder.py     # 基于 StateGraph 的图构建封装
+│   └── message_history.py   # 消息历史管理
 │
 ├── llm_callers/             # LLM 调用器
-│   ├── base.py              # 基类
-│   ├── text.py              # 文本 LLM
-│   └── image.py             # 视觉 LLM
+│   └── ...                  # 文本 / 多模态 LLM 封装
 │
 ├── parsers/                 # 解析器
-│   └── parsers.py           # JSON/XML/Text 解析器
+│   └── parsers.py           # JSON / XML / Text 解析器
+│
+├── promptstemplates/        # 提示词模板与仓库
+│   ├── prompt_template.py   # 模板生成器
+│   ├── prompts_repo.py      # 模板仓库
+│   └── resources/           # 由 CLI 生成的 pt_xxx_repo.py 及 jinja prompt 模板
+│
+├── templates/               # CLI 脚手架 jinja 模板
+│   ├── workflow.py.jinja        # workflow 代码模板
+│   ├── test_workflow.py.jinja   # workflow 测试模板
+│   ├── agent.py.jinja           # Agent 模板
+│   ├── agent_as_tool_name.py.jinja  # Agent-as-Tool 模板
+│   ├── state_name.py.jinja      # State / Request 模板
+│   ├── gradio_page.py.jinja     # Gradio 页面模板
+│   └── prompt_repo.py.jinja     # Prompt Repo 模板
 │
 ├── toolkits/                # 工具集
 │   ├── tool_manager.py      # 工具管理器
-│   ├── basetool/            # 基础工具
-│   ├── optool/              # 操作工具
+│   ├── basetool/            # 基础工具（文件操作等）
+│   ├── optool/              # Operator 相关工具
 │   └── ...                  # 其他工具
 │
-├── workflow/                # 工作流
-│   ├── base.py              # 工作流基类
-│   ├── registry.py          # 工作流注册表
-│   └── wf_*.py              # 具体工作流
+├── trajectory/              # 轨迹记录 / 导出
+│   └── ...                  # TrajectoryBuilder / Exporter 等
 │
-├── promptstemplates/        # 提示词模板
-│   ├── prompt_template.py   # 模板生成器
-│   └── prompts_repo.py      # 模板仓库
+├── storage/                 # 存储服务
+│   └── storage_service.py
 │
-├── graphbuilder/            # 图构建器
-│   ├── graph_builder.py     # 图构建
-│   └── message_history.py   # 消息历史
+├── resources/               # 资源文件 / 示例数据等
+│   └── ...
 │
-└── storage/                 # 存储服务
-    └── storage_service.py
+└── tmps/                    # 运行时临时目录
+    └── ...
 ```
 
 ---

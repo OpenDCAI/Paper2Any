@@ -11,7 +11,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage, AIMessage
 from langchain_core.tools import Tool
 from pydantic import BaseModel, Field
-from dataflow_agent.graghbuilder.message_history import AdvancedMessageHistory
+from dataflow_agent.graphbuilder.message_history import AdvancedMessageHistory
 
 
 from dataflow_agent.promptstemplates.prompt_template import PromptsTemplateGenerator
@@ -39,7 +39,7 @@ class BaseAgent(ABC):
         try:
             tmp = cls(tool_manager=None)          # BaseAgent 的 __init__ 很轻
             name = tmp.role_name
-            from dataflow_agent.agentroles.registry import AgentRegistry
+            from dataflow_agent.agentroles.cores.registry import AgentRegistry
             AgentRegistry.register(name.lower(), cls)
         except Exception as e:
             pass

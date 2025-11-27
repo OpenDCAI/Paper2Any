@@ -440,17 +440,43 @@ def choose_prompt_template(op_name: str, state: DFState) -> str:
     return repr(str(default_val))
 
 
-def render_operator_blocks(op_names: List[str], op_classes: Dict[str, type], state :DFState) -> Tuple[str, str]:
+def render_operator_blocks(
+    op_names: List[str], 
+    op_classes: Dict[str, type], 
+    state: DFState,
+    prompted_generator_prompts: Dict[int, str] = None
+) -> Tuple[str, str]:
     """
     Render operator initialization lines and forward-run lines without leading indentation.
     Indentation will be applied by build_pipeline_code when inserting into the template.
+    
+    Args:
+        op_names: 算子名称列表
+        op_classes: 算子类字典
+        state: DFState 对象
+        prompted_generator_prompts: 预生成的 PromptedGenerator system_prompt 映射
+            格式: {算子索引: system_prompt}
     """
     init_lines: List[str] = []
     forward_lines: List[str] = []
+    prompted_generator_prompts = prompted_generator_prompts or {}
 
-    for name in op_names:
+    # 用于跟踪每个算子名称的出现次数
+    name_count: Dict[str, int] = {}
+
+    for i, name in enumerate(op_names):
         cls = op_classes[name]
-        var_name = snake_case(cls.__name__)
+        base_var_name = snake_case(cls.__name__)
+        
+        # 统计相同算子名称的出现次数
+        count = name_count.get(base_var_name, 0) + 1
+        name_count[base_var_name] = count
+        
+        # 如果出现多次，添加序号后缀
+        if count > 1:
+            var_name = f"{base_var_name}_{count}"
+        else:
+            var_name = base_var_name
 
         init_kwargs, run_kwargs, run_has_storage = extract_op_params(cls)
 
@@ -464,6 +490,15 @@ def render_operator_blocks(op_names: List[str], op_classes: Dict[str, type], sta
                 # 用LLM来选择
                 p_t = choose_prompt_template_by_llm(name, state)
                 rendered_init_args.append(f'{k}={p_t}')
+            elif k == "system_prompt":
+                # 检查是否是 PromptedGenerator 且有预生成的 prompt
+                if name == "PromptedGenerator" and i in prompted_generator_prompts:
+                    # 使用预生成的 system_prompt
+                    pre_prompt = prompted_generator_prompts[i]
+                    rendered_init_args.append(f'{k}={repr(pre_prompt)}')
+                    log.info(f"[render_operator_blocks] 使用预生成的 prompt 给索引 {i} 的 PromptedGenerator")
+                else:
+                    rendered_init_args.append(f"{k}={v}")
             else:
                 rendered_init_args.append(f"{k}={v}")
 
@@ -572,38 +607,170 @@ def group_import_for_full_params(op_names: List[str]) -> tuple:
     # imports.extend(sorted(EXTRA_IMPORTS))
     return imports, op_classes
 
+# def render_operator_blocks_with_full_params(
+#     opname_and_params: List[Dict[str, Any]], 
+#     op_classes: Dict[str, type]
+# ) -> tuple:
+#     """
+#     渲染算子初始化和调用代码（完整支持 init + run 参数）
+    
+#     Args:
+#         opname_and_params: [
+#             {
+#                 "op_name": "OperatorA",
+#                 "init_params": {"llm_serving": "...", "prompt_template": "..."},
+#                 "run_params": {"param1": "value1"}
+#             },
+#             ...
+#         ]
+    
+#     Returns:
+#         (init_code_block, forward_code_block)
+#     """
+#     import inspect
+    
+#     init_lines = []
+#     forward_lines = []
+#     # 记录同一算子类出现的次数，避免 self.xxx 被后面的覆盖
+#     name_count: Dict[str, int] = {}
+
+#     for item in opname_and_params:
+#         name = item["op_name"]
+#         custom_init_params = item.get("init_params", {})
+#         custom_run_params = item.get("run_params", {})
+        
+#         cls = op_classes[name]
+#         base_var_name = snake_case(cls.__name__)
+#         count = name_count.get(base_var_name, 0) + 1
+#         name_count[base_var_name] = count
+#         if count > 1:
+#             var_name = f"{base_var_name}_{count}"
+#         else:
+#             var_name = base_var_name
+
+#         # 检查 run 方法是否有 storage 参数
+#         run_has_storage = False
+#         if hasattr(cls, "run"):
+#             try:
+#                 run_sig = inspect.signature(cls.run)
+#                 run_has_storage = "storage" in run_sig.parameters
+#             except:
+#                 pass
+
+#         # -------- 渲染 __init__ 参数 --------
+#         init_args = []
+#         for k, v in custom_init_params.items():
+#             if k == "llm_serving":
+#                 init_args.append(f"{k}=self.llm_serving")
+#             elif k == "prompt_template":
+#                 # 用户已经选择了具体的 prompt 类
+#                 if v and v != "None":
+#                     # v 格式：module.ClassName
+#                     parts = v.rsplit(".", 1)
+#                     if len(parts) == 2:
+#                         module, classname = parts
+#                         EXTRA_IMPORTS.add(f"from {module} import {classname}")
+#                         init_args.append(f"{k}={classname}()")
+#                     else:
+#                         init_args.append(f"{k}={v}")
+#                 else:
+#                     init_args.append(f"{k}=None")
+#             else:
+#                 # 其他参数直接使用
+#                 if isinstance(v, str):
+#                     init_args.append(f"{k}={repr(v)}")
+#                 else:
+#                     init_args.append(f"{k}={v}")
+#         init_args.insert(0, 'llm_serving=self.llm_serving') #前端没传这个，直接塞进来；
+#         init_line = f"self.{var_name} = {cls.__name__}({', '.join(init_args)})"
+#         init_lines.append(init_line)
+
+#         # -------- 渲染 run() 调用参数 --------
+#         run_args = []
+#         if run_has_storage:
+#             run_args.append("storage=self.storage.step()")
+        
+#         for k, v in custom_run_params.items():
+#             if isinstance(v, str):
+#                 run_args.append(f"{k}={repr(v)}")
+#             else:
+#                 run_args.append(f"{k}={v}")
+
+#         if run_args:
+#             separator = ',\n            '
+#             call = (
+#                 f"self.{var_name}.run(\n"
+#                 f"            {separator.join(run_args)}\n"
+#                 f"        )"
+#             )
+#         else:
+#             call = f"self.{var_name}.run()"
+#         forward_lines.append(call)
+
+#     return "\n        ".join(init_lines), "\n        ".join(forward_lines)
+
 def render_operator_blocks_with_full_params(
     opname_and_params: List[Dict[str, Any]], 
-    op_classes: Dict[str, type]
+    op_classes: Dict[str, type],
+    prompted_generator_prompts: Optional[Dict[int, str]] = None  # ← 添加参数
 ) -> tuple:
     """
     渲染算子初始化和调用代码（完整支持 init + run 参数）
-    
-    Args:
-        opname_and_params: [
-            {
-                "op_name": "OperatorA",
-                "init_params": {"llm_serving": "...", "prompt_template": "..."},
-                "run_params": {"param1": "value1"}
-            },
-            ...
-        ]
-    
-    Returns:
-        (init_code_block, forward_code_block)
     """
     import inspect
     
     init_lines = []
     forward_lines = []
+    name_count: Dict[str, int] = {}
+    prompted_gen_counter = 0 
 
-    for item in opname_and_params:
+    for idx, item in enumerate(opname_and_params):  # ← 使用 enumerate 获取索引
         name = item["op_name"]
+        # 支持两种格式：1) init_params/run_params 分离  2) 统一的 params
         custom_init_params = item.get("init_params", {})
         custom_run_params = item.get("run_params", {})
         
+        # 如果没有 init_params/run_params，尝试从 params 中获取
+        if not custom_init_params and not custom_run_params:
+            all_params = item.get("params", {})
+            # 根据算子的 __init__ 和 run 签名自动分配参数
+            cls = op_classes[name]
+            init_param_names = set()
+            run_param_names = set()
+            
+            try:
+                init_sig = inspect.signature(cls.__init__)
+                init_param_names = {p.name for p in list(init_sig.parameters.values())[1:] 
+                                   if p.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)}
+            except:
+                pass
+            
+            try:
+                run_sig = inspect.signature(cls.run)
+                run_param_names = {p.name for p in list(run_sig.parameters.values())[1:] 
+                                  if p.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+                                  and p.name != "storage"}
+            except:
+                pass
+            
+            # 分配参数
+            for k, v in all_params.items():
+                if k in init_param_names:
+                    custom_init_params[k] = v
+                elif k in run_param_names:
+                    custom_run_params[k] = v
+                else:
+                    # 默认放到 run_params
+                    custom_run_params[k] = v
+        
         cls = op_classes[name]
-        var_name = snake_case(cls.__name__)
+        base_var_name = snake_case(cls.__name__)
+        count = name_count.get(base_var_name, 0) + 1
+        name_count[base_var_name] = count
+        if count > 1:
+            var_name = f"{base_var_name}_{count}"
+        else:
+            var_name = base_var_name
 
         # 检查 run 方法是否有 storage 参数
         run_has_storage = False
@@ -616,13 +783,21 @@ def render_operator_blocks_with_full_params(
 
         # -------- 渲染 __init__ 参数 --------
         init_args = []
+        
+        # 检查是否是 PromptedGenerator 且有预生成的 prompt
+        if name == "PromptedGenerator" and prompted_generator_prompts:
+            if prompted_gen_counter in prompted_generator_prompts:
+                pre_prompt = prompted_generator_prompts[prompted_gen_counter]
+                custom_init_params["system_prompt"] = pre_prompt
+                log.info(f"[render_operator_blocks_with_full_params] 使用预生成的 prompt (索引 {prompted_gen_counter})")
+        
         for k, v in custom_init_params.items():
             if k == "llm_serving":
                 init_args.append(f"{k}=self.llm_serving")
+            elif k == "system_prompt":
+                init_args.append(f"{k}={repr(v)}")
             elif k == "prompt_template":
-                # 用户已经选择了具体的 prompt 类
                 if v and v != "None":
-                    # v 格式：module.ClassName
                     parts = v.rsplit(".", 1)
                     if len(parts) == 2:
                         module, classname = parts
@@ -633,12 +808,16 @@ def render_operator_blocks_with_full_params(
                 else:
                     init_args.append(f"{k}=None")
             else:
-                # 其他参数直接使用
                 if isinstance(v, str):
                     init_args.append(f"{k}={repr(v)}")
                 else:
                     init_args.append(f"{k}={v}")
-        init_args.insert(0, 'llm_serving=self.llm_serving') #前端没传这个，直接塞进来；
+        
+        # ← 如果是 PromptedGenerator，递增计数器
+        if name == "PromptedGenerator":
+            prompted_gen_counter += 1
+        
+        init_args.insert(0, 'llm_serving=self.llm_serving')
         init_line = f"self.{var_name} = {cls.__name__}({', '.join(init_args)})"
         init_lines.append(init_line)
 
@@ -676,6 +855,7 @@ def build_pipeline_code_with_full_params(
     chat_api_url: str = "",
     model_name: str = "gpt-4o",
     file_path: str = "",
+    prompted_generator_prompts: Optional[Dict[int, str]] = None,
 ) -> str:
     """构建完整的 pipeline 代码（支持 init + run 参数）"""
     
@@ -695,37 +875,34 @@ def build_pipeline_code_with_full_params(
 
     # 3) 收集导入
     import_lines, op_classes = group_import_for_full_params(op_names)
-    import_section = "\n".join(import_lines)
 
-    # 4) 渲染算子代码
+    # 4) 渲染算子代码（传入 prompted_generator_prompts）
     ops_init_block, forward_block = render_operator_blocks_with_full_params(
-        opname_and_params, op_classes
+        opname_and_params, op_classes, prompted_generator_prompts=prompted_generator_prompts
     )
 
     # 汇总所有导入语句，去重排序
     all_imports = import_lines + sorted(EXTRA_IMPORTS)
     import_section = "\n".join(dict.fromkeys(all_imports)) 
 
-    # 5) LLM Serving
+    # 5) LLM Serving（生成无缩进的代码块）
     if llm_local:
-        llm_block = f'''
-        # -------- LLM Serving (Local) --------
-        self.llm_serving = LocalModelLLMServing_vllm(
-            hf_model_name_or_path="{local_model_path}",
-            vllm_tensor_parallel_size=1,
-            vllm_max_tokens=8192,
-            hf_local_dir="local",
-            model_name="{model_name}",
-        )'''
+        llm_block = f'''# -------- LLM Serving (Local) --------
+self.llm_serving = LocalModelLLMServing_vllm(
+    hf_model_name_or_path="{local_model_path}",
+    vllm_tensor_parallel_size=1,
+    vllm_max_tokens=8192,
+    hf_local_dir="local",
+    model_name="{model_name}",
+)'''
     else:
-        llm_block = f'''
-        # -------- LLM Serving (Remote) --------
-        self.llm_serving = APILLMServing_request(
-            api_url="{chat_api_url}chat/completions",
-            key_name_of_api_key="DF_API_KEY",
-            model_name="{model_name}",
-            max_workers=100,
-        )'''
+        llm_block = f'''# -------- LLM Serving (Remote) --------
+self.llm_serving = APILLMServing_request(
+    api_url="{chat_api_url}chat/completions",
+    key_name_of_api_key="DF_API_KEY",
+    model_name="{model_name}",
+    max_workers=100,
+)'''
 
     # 6) 模板
     template = '''"""
@@ -747,7 +924,7 @@ class RecommendPipeline(PipelineABC):
             file_name_prefix="dataflow_cache_step",
             cache_type="{cache_type}",
         )
-{llm_block}
+        {llm_block}
 
         # -------- Operators --------
         {ops_init_block}
@@ -794,13 +971,21 @@ def render_operator_blocks_with_params(
     """
     init_lines: List[str] = []
     forward_lines: List[str] = []
+    # 记录同一算子类出现的次数，避免 self.xxx 被后面的覆盖
+    name_count: Dict[str, int] = {}
 
     for item in opname_and_params:
         name = item["op_name"]
         custom_params = item.get("params", {})  # 获取自定义的 run 参数
         
         cls = op_classes[name]
-        var_name = snake_case(cls.__name__)
+        base_var_name = snake_case(cls.__name__)
+        count = name_count.get(base_var_name, 0) + 1
+        name_count[base_var_name] = count
+        if count > 1:
+            var_name = f"{base_var_name}_{count}"
+        else:
+            var_name = base_var_name
 
         init_kwargs, run_kwargs, run_has_storage = extract_op_params(cls)
 
@@ -868,9 +1053,14 @@ def build_pipeline_code_with_run_params(
     chat_api_url: str = "",
     model_name: str = "gpt-4o",
     file_path: str = "",
+    prompted_generator_prompts: Optional[Dict[int, str]] = None 
 ) -> str:
     """
     构建 pipeline 代码，支持为每个算子指定 run 函数的实际参数
+
+    注意：
+    - render_operator_blocks_with_full_params 返回的代码已经包含了内部缩进
+      （使用 "\n        ".join()），因此不需要再次使用 indent_block
     
     Args:
         opname_and_params: 算子名称和参数列表
@@ -887,6 +1077,7 @@ def build_pipeline_code_with_run_params(
         chat_api_url: API URL
         model_name: 模型名称
         file_path: 输入文件路径
+        prompted_generator_prompts: 预生成的 PromptedGenerator system_prompt 映射
     
     Returns:
         生成的 pipeline 代码字符串
@@ -909,9 +1100,12 @@ def build_pipeline_code_with_run_params(
     # 3) 收集导入与类
     import_lines, stub_blocks, op_classes = group_imports(op_names)
 
-    # 4) 渲染 operator 代码片段（使用自定义参数版本）
-    ops_init_block_raw, forward_block_raw = render_operator_blocks_with_params(
-        opname_and_params, op_classes, state
+    # 4) 渲染 operator 代码片段
+    # render_operator_blocks_with_full_params 返回的代码已经包含了正确的缩进
+    ops_init_block, forward_block = render_operator_blocks_with_full_params(
+        opname_and_params, 
+        op_classes,
+        prompted_generator_prompts=prompted_generator_prompts
     )
 
     import_lines.extend(sorted(EXTRA_IMPORTS))
@@ -942,10 +1136,8 @@ self.llm_serving = APILLMServing_request(
 )
 """
 
-    # 6) 统一缩进
+    # 6) 统一缩进 llm_block
     llm_block = indent_block(llm_block_raw, 8)
-    ops_init_block = indent_block(ops_init_block_raw, 8)
-    forward_block = indent_block(forward_block_raw, 8)
 
     # 7) 模板
     template = '''"""
@@ -970,11 +1162,11 @@ class RecommendPipeline(PipelineABC):
             cache_type="{cache_type}",
         )
 {llm_block}
-
-{ops_init_block}
+        # -------- Operators --------
+        {ops_init_block}
 
     def forward(self):
-{forward_block}
+        {forward_block}
 
 if __name__ == "__main__":
     pipeline = RecommendPipeline()
@@ -1037,6 +1229,7 @@ def build_pipeline_code(
     chat_api_url: str = "",
     model_name: str = "gpt-4o",
     file_path: str = "",
+    prompted_generator_prompts: Optional[Dict[int, str]] = None,  # ← 添加这个参数
 ) -> str:
     # 1) 根据 file_path 后缀判断 cache_type
     file_suffix = Path(file_path).suffix.lower() if file_path else ""
@@ -1053,8 +1246,13 @@ def build_pipeline_code(
     # 2) 收集导入与类
     import_lines, stub_blocks, op_classes = group_imports(op_names)
 
-    # 3) 渲染 operator 代码片段（无缩进）
-    ops_init_block_raw, forward_block_raw = render_operator_blocks(op_names, op_classes, state)
+    # 3) 渲染 operator 代码片段（传递 prompted_generator_prompts）
+    ops_init_block_raw, forward_block_raw = render_operator_blocks(
+        op_names, 
+        op_classes, 
+        state,
+        prompted_generator_prompts=prompted_generator_prompts
+    )
 
     import_lines.extend(sorted(EXTRA_IMPORTS))
     
@@ -1089,7 +1287,7 @@ self.llm_serving = APILLMServing_request(
     ops_init_block = indent_block(ops_init_block_raw, 8)
     forward_block = indent_block(forward_block_raw, 8)
 
-    # 6) 模板（使用 {cache_type} 占位符）
+    # 6) 模板
     template = '''"""
 Auto-generated by pipeline_assembler
 """

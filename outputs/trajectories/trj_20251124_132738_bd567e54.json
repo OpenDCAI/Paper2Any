@@ -1,0 +1,46 @@
+{
+  "trace_id": "trj_20251124_132738_bd567e54",
+  "workflow_name": "feedback_test",
+  "timestamp": "2025-11-24T13:27:38.004937",
+  "status": "success",
+  "mode": "workflow",
+  "version": "1.0",
+  "inputs": {
+    "query": "测试反馈",
+    "model": "gpt-4o",
+    "language": "en"
+  },
+  "steps": [
+    {
+      "step_index": 0,
+      "node_name": "test_node",
+      "role": "agent",
+      "timestamp": "2025-11-24T13:27:38.004115",
+      "node_output": {
+        "result": "success"
+      },
+      "duration_ms": 0.00858306884765625
+    }
+  ],
+  "final_output": {
+    "status": "completed"
+  },
+  "statistics": {
+    "total_steps": 1,
+    "total_llm_calls": 0,
+    "total_tool_calls": 0,
+    "total_duration_ms": 0.00858306884765625,
+    "total_tokens": null
+  },
+  "session_id": "default_session",
+  "feedback": {
+    "score": 5,
+    "comment": "非常好！",
+    "edited_response": null,
+    "labels": [
+      "accurate",
+      "helpful"
+    ],
+    "timestamp": "2025-11-24T13:27:38.005724"
+  }
+}

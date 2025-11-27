@@ -1,25 +1,53 @@
 # dataflow_agent/agentroles/__init__.py
 import importlib
+import pkgutil
 from pathlib import Path
 from typing import Optional
-from dataflow_agent.toolkits.tool_manager import get_tool_manager, ToolManager
 
-# 1) 自动 import 所有 .py 文件
+from dataflow_agent.toolkits.tool_manager import get_tool_manager, ToolManager
+from dataflow_agent.logger import get_logger
+
+log = get_logger(__name__)
+
 _pkg_path = Path(__file__).resolve().parent
 for py in _pkg_path.glob("*.py"):
     if py.stem not in {"__init__", "registry", "base_agent", "configs", "strategies"}:
         importlib.import_module(f"{__name__}.{py.stem}")
 
-from .registry import AgentRegistry
-from .cores.configs import (
-    BaseAgentConfig, 
-    SimpleConfig, 
-    ReactConfig, 
-    GraphConfig, 
+
+def _auto_import_all_submodules():
+    """
+    递归导入 agentroles 包下所有子模块（排除部分内部实现模块），
+    以触发其中的 @register 装饰器。
+    """
+    prefix = __name__ + "."
+    for finder, name, ispkg in pkgutil.walk_packages(__path__, prefix):
+        if any(skip in name for skip in (".cores", ".configs", ".strategies")):
+            continue
+        try:
+            importlib.import_module(name)
+        except Exception as e:
+            # 不让单个模块导入失败影响整体初始化
+            log.warning(f"自动导入子模块失败: {name}: {e}")
+
+# 2) 导入 cores 子包中核心类型
+from .cores import (
+    AgentRegistry,
+    registry,
+    BaseAgent,
+    BaseAgentConfig,
+    SimpleConfig,
+    ReactConfig,
+    GraphConfig,
     VLMConfig,
+    ParallelConfig,
     ExecutionMode,
-    ParallelConfig
+    strategies,
+    register,
 )
+_auto_import_all_submodules()
+
+from . import common_agents, data_agents, infra_agents, paper2any_agents
 
 # ==================== 核心函数（增强版） ====================
 
@@ -159,6 +187,10 @@ def create_simple_agent(name: str, tool_manager: Optional[ToolManager] = get_too
             - tool_mode: 工具调用模式 ("auto", "none", "required")，默认"auto"
             - parser_type: 解析器类型 ("json", "xml", "text")，默认"json"
             - parser_config: 解析器配置字典
+            - response_schema: JSON返回结构定义，如 {"code": "string", "files": "list"}
+            - response_schema_description: Schema的文字描述
+            - response_example: JSON返回示例
+            - required_fields: 必填字段列表
             - ignore_history: 是否忽略历史消息，默认True
             - message_history: 消息历史管理器
             - chat_api_url: 自定义Chat API URL
@@ -168,6 +200,9 @@ def create_simple_agent(name: str, tool_manager: Optional[ToolManager] = get_too
     Examples:
         >>> agent = create_simple_agent("writer", temperature=0.7)
         >>> agent = create_simple_agent("analyzer", model_name="gpt-4", max_tokens=4096)
+        >>> agent = create_simple_agent("coder", 
+        ...     response_schema={"code": "完整代码", "files": ["文件列表"]},
+        ...     required_fields=["code"])
     """
     config = SimpleConfig(**kwargs)
     return create_agent(name, config=config, tool_manager=tool_manager)
@@ -196,6 +231,10 @@ def create_react_agent(
             - tool_mode: 工具调用模式 ("auto", "none", "required")，默认"auto"
             - parser_type: 解析器类型 ("json", "xml", "text")，默认"json"
             - parser_config: 解析器配置字典
+            - response_schema: JSON返回结构定义
+            - response_schema_description: Schema的文字描述
+            - response_example: JSON返回示例
+            - required_fields: 必填字段列表
             - ignore_history: 是否忽略历史消息，默认True
             - message_history: 消息历史管理器
             - validators: 自定义验证器列表，用于验证执行结果是否符合预期
@@ -329,10 +368,10 @@ def create_parallel_agent(
     config = ParallelConfig(concurrency_limit=concurrency_limit, **kwargs)
     return create_agent(name, config=config, tool_manager=tool_manager)
 
-
 # ==================== 导出 ====================
 
 list_agents = AgentRegistry.all
+log.critical(f'已经注册了的agent有：{list_agents().keys()}')
 
 __all__ = [
     # 核心函数
@@ -345,17 +384,28 @@ __all__ = [
     "create_react_agent",
     "create_graph_agent",
     "create_vlm_agent",
-    "create_parallel_agent",  # 添加并行模式便捷函数
+    "create_parallel_agent",
+    "create_classifier",
+    "append_llm_serving",
     
-    # 配置类
+    # 配置类 & 基类
+    "BaseAgent",
     "BaseAgentConfig",
     "SimpleConfig",
     "ReactConfig",
     "GraphConfig",
     "VLMConfig",
-    "ParallelConfig",  # 添加并行模式配置类
+    "ParallelConfig",
     "ExecutionMode",
     
-    # 注册表
+    # 核心模块
     "AgentRegistry",
+    "register",  # 新增：导出register装饰器
+    "strategies",
+    
+    # 子包
+    "common_agents",
+    "data_agents",
+    "infra_agents",
+    "paper2any_agents",
 ]
