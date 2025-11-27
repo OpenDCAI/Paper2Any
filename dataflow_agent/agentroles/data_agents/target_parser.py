@@ -14,7 +14,7 @@ from dataflow_agent.logger import get_logger
 
 log = get_logger(__name__)
 
-from .base_agent import BaseAgent
+from dataflow_agent.agentroles.cores.base_agent import BaseAgent
 
 
 class TargetParser(BaseAgent):

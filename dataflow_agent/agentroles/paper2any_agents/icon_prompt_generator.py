@@ -11,11 +11,11 @@ from dataflow_agent.state import MainState
 from dataflow_agent.utils import robust_parse_json
 from dataflow_agent.toolkits.tool_manager import ToolManager
 from dataflow_agent.logger import get_logger
-from dataflow_agent.workflow.registry import register
+from dataflow_agent.agentroles import register
 
 log = get_logger(__name__)
 
-from .base_agent import BaseAgent
+from dataflow_agent.agentroles.cores.base_agent import BaseAgent
 
 @register("icon_prompt_generator")
 class IconPromptGenerator(BaseAgent):

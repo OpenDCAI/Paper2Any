@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from dataflow_agent.agentroles.base_agent import BaseAgent
+from dataflow_agent.agentroles.cores.base_agent import BaseAgent
 from dataflow_agent.state import DFState
 from dataflow_agent.toolkits.tool_manager import ToolManager
 

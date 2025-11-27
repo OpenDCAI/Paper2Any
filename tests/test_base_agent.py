@@ -39,7 +39,7 @@ class BaseAgent(ABC):
         try:
             tmp = cls(tool_manager=None)          # BaseAgent 的 __init__ 很轻
             name = tmp.role_name
-            from dataflow_agent.agentroles.registry import AgentRegistry
+            from dataflow_agent.agentroles.cores.registry import AgentRegistry
             AgentRegistry.register(name.lower(), cls)
         except Exception as e:
             pass

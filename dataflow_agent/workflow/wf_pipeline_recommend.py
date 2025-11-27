@@ -14,12 +14,13 @@ from dataflow_agent.toolkits.optool.op_tools import (
     get_operator_content_str,
     post_process_combine_pipeline_result,
 )
-from dataflow_agent.agentroles.classifier import create_classifier
-from dataflow_agent.agentroles.recommender import create_recommender
-from dataflow_agent.agentroles.pipelinebuilder import create_pipeline_builder
-from dataflow_agent.agentroles.debugger import create_code_debugger
-from dataflow_agent.agentroles.rewriter import create_rewriter
-from dataflow_agent.agentroles.inforequester import create_info_requester
+from dataflow_agent.agentroles.data_agents.classifier import create_classifier
+from dataflow_agent.agentroles.data_agents.recommender import create_recommender
+from dataflow_agent.agentroles.data_agents.pipelinebuilder import create_pipeline_builder
+from dataflow_agent.agentroles.data_agents.debugger import create_code_debugger
+from dataflow_agent.agentroles.data_agents.rewriter import create_rewriter
+from dataflow_agent.agentroles.data_agents.inforequester import create_info_requester
+
 
 from langchain.tools import tool
 from langgraph.graph import StateGraph

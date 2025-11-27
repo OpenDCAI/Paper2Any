@@ -19,14 +19,14 @@ from dataflow_agent.toolkits.optool.op_tools import (
 )
 # from dataflow_agent.toolkits.pipetool.pipe_tools import parse_pipeline_file
 import dataflow_agent.toolkits.pipetool.pipe_tools as pt
-from dataflow_agent.agentroles.classifier import create_classifier
-from dataflow_agent.agentroles.target_parser import create_target_parser
-from dataflow_agent.agentroles.recommender import create_recommender
-from dataflow_agent.agentroles.pipelinebuilder import create_pipeline_builder
-from dataflow_agent.agentroles.debugger import create_code_debugger
-from dataflow_agent.agentroles.rewriter import create_rewriter
-from dataflow_agent.agentroles.inforequester import create_info_requester
-from dataflow_agent.agentroles.exporter import create_exporter
+from dataflow_agent.agentroles.data_agents.classifier import create_classifier
+from dataflow_agent.agentroles.data_agents.target_parser import create_target_parser
+from dataflow_agent.agentroles.data_agents.recommender import create_recommender
+from dataflow_agent.agentroles.data_agents.pipelinebuilder import create_pipeline_builder
+from dataflow_agent.agentroles.data_agents.debugger import create_code_debugger
+from dataflow_agent.agentroles.data_agents.rewriter import create_rewriter
+from dataflow_agent.agentroles.data_agents.inforequester import create_info_requester
+from dataflow_agent.agentroles.data_agents.exporter import create_exporter
 
 
 from dataflow_agent.toolkits.tool_manager import get_tool_manager

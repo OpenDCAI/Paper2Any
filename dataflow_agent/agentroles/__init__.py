@@ -10,16 +10,24 @@ for py in _pkg_path.glob("*.py"):
     if py.stem not in {"__init__", "registry", "base_agent", "configs", "strategies"}:
         importlib.import_module(f"{__name__}.{py.stem}")
 
-from .registry import AgentRegistry
-from .cores.configs import (
-    BaseAgentConfig, 
-    SimpleConfig, 
-    ReactConfig, 
-    GraphConfig, 
+# 2) 导入 cores 子包中核心类型
+from .cores import (
+    AgentRegistry,
+    registry,
+    BaseAgent,
+    BaseAgentConfig,
+    SimpleConfig,
+    ReactConfig,
+    GraphConfig,
     VLMConfig,
+    ParallelConfig,
     ExecutionMode,
-    ParallelConfig
+    strategies,
+    register,  # 新增：导入register装饰器
 )
+
+# 3) 导入其他子包，让顶层能访问所有子包内容
+from . import common_agents, data_agents, infra_agents, paper2any_agents
 
 # ==================== 核心函数（增强版） ====================
 
@@ -340,7 +348,6 @@ def create_parallel_agent(
     config = ParallelConfig(concurrency_limit=concurrency_limit, **kwargs)
     return create_agent(name, config=config, tool_manager=tool_manager)
 
-
 # ==================== 导出 ====================
 
 list_agents = AgentRegistry.all
@@ -356,17 +363,28 @@ __all__ = [
     "create_react_agent",
     "create_graph_agent",
     "create_vlm_agent",
-    "create_parallel_agent",  # 添加并行模式便捷函数
+    "create_parallel_agent",
+    "create_classifier",
+    "append_llm_serving",
     
-    # 配置类
+    # 配置类 & 基类
+    "BaseAgent",
     "BaseAgentConfig",
     "SimpleConfig",
     "ReactConfig",
     "GraphConfig",
     "VLMConfig",
-    "ParallelConfig",  # 添加并行模式配置类
+    "ParallelConfig",
     "ExecutionMode",
     
-    # 注册表
+    # 核心模块
     "AgentRegistry",
+    "register",  # 新增：导出register装饰器
+    "strategies",
+    
+    # 子包
+    "common_agents",
+    "data_agents",
+    "infra_agents",
+    "paper2any_agents",
 ]

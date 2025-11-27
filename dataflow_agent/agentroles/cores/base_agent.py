@@ -172,7 +172,7 @@ class BaseAgent(ABC):
             tmp = cls(tool_manager=None)
             name = tmp.role_name
             # 注册到 AgentRegistry
-            from dataflow_agent.agentroles.registry import AgentRegistry
+            from dataflow_agent.agentroles.cores.registry import AgentRegistry
             AgentRegistry.register(name.lower(), cls)
         except Exception as e:
             # 静默失败，允许抽象子类

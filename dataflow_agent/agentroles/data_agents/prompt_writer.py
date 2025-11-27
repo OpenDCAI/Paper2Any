@@ -12,11 +12,11 @@ from dataflow_agent.state import PromptWritingState
 from dataflow_agent.toolkits.tool_manager import ToolManager
 from dataflow_agent.logger import get_logger
 from dataflow.utils.registry import PROMPT_REGISTRY, OPERATOR_REGISTRY
-from dataflow_agent.agentroles.registry import register
+from dataflow_agent.agentroles.cores.registry import register
 
 from dataflow_agent.toolkits.pipetool.pipe_tools import extract_op_params, indent_block, snake_case
 
-from dataflow_agent.agentroles.base_agent import BaseAgent
+from dataflow_agent.agentroles.cores.base_agent import BaseAgent
 from pydantic.type_adapter import P
 
 

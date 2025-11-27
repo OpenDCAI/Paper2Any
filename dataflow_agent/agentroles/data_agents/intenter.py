@@ -19,7 +19,7 @@ from dataflow_agent.utils import robust_parse_json
 log = get_logger(__name__)
 
 # 复用公共父类
-from .base_agent import BaseAgent
+from dataflow_agent.agentroles.cores.base_agent import BaseAgent
 
 
 class Intenter(BaseAgent):

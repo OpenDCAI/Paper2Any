@@ -2,7 +2,7 @@
 from typing import Dict, Type
 from importlib import import_module
 
-from dataflow_agent.agentroles.base_agent import BaseAgent
+from dataflow_agent.agentroles.cores.base_agent import BaseAgent
 class AgentRegistry:
     _agents: Dict[str, Type["BaseAgent"]] = {}
 
@@ -32,7 +32,7 @@ class AgentRegistry:
 def register(name: str):
     """装饰器：@register("writer")"""
     def _decorator(agent_cls: Type["BaseAgent"]):
-        from dataflow_agent.agentroles.base_agent import BaseAgent   # 规避循环引用
+        from dataflow_agent.agentroles.cores.base_agent import BaseAgent   # 规避循环引用
         if not issubclass(agent_cls, BaseAgent):
             raise TypeError("只允许注册 BaseAgent 的子类")
         AgentRegistry.register(name, agent_cls)

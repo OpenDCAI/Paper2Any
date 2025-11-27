@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
 from langchain_core.tools import Tool
@@ -14,62 +14,62 @@ from dataflow_agent.logger import get_logger
 
 log = get_logger(__name__)
 
-from .base_agent import BaseAgent
+from dataflow_agent.agentroles.cores.base_agent import BaseAgent
 
-class DataExporter(BaseAgent):
-    """数据导出器 - 继承自BaseAgent"""
-
+class DataContentClassifier(BaseAgent):
+    """数据内容分类器 - 继承自BaseAgent"""
+    # 后续都改成类方法
     @classmethod
     def create(cls, tool_manager: Optional[ToolManager] = None, **kwargs):
         return cls(tool_manager=tool_manager, **kwargs)
 
     @property
     def role_name(self) -> str:
-        return "exporter"
+        return "classifier"
     
     @property
     def system_prompt_template_name(self) -> str:
-        return "system_prompt_for_nodes_export"
+        return "system_prompt_for_data_content_classification"
     
     @property
     def task_prompt_template_name(self) -> str:
-        return "task_prompt_for_nodes_export"
-
+        return "task_prompt_for_data_content_classification"
+    
     def get_task_prompt_params(self, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
-        """数据导出器特有的提示词参数"""
+        """数据分类器特有的提示词参数"""
         return {
-            'nodes_info': pre_tool_results.get('nodes_info', '[]'),
-            'sample': pre_tool_results.get('sample','')
-            # 'export_fields': pre_tool_results.get('export_fields', '[]'),
+            'local_tool_for_sample': pre_tool_results.get('sample', ''),
+            'local_tool_for_get_categories': pre_tool_results.get('categories', '[]'),
         }
     
     def get_default_pre_tool_results(self) -> Dict[str, Any]:
-        """数据导出器的默认前置工具结果"""
+        """数据分类器的默认前置工具结果"""
         return {
-            'nodes_info': '',
+            'sample': '',
+            'categories': '[]'
         }
     
     def update_state_result(self, state: DFState, result: Dict[str, Any], pre_tool_results: Dict[str, Any]):
         """自定义状态更新 - 保持向后兼容"""
-        state.nodes_info = result
+        state.category = result 
         super().update_state_result(state, result, pre_tool_results)
 
-async def data_export(
+async def data_content_classification(
     state: DFState, 
     model_name: Optional[str] = None,
     tool_manager: Optional[ToolManager] = None,
     temperature: float = 0.0,
-    max_tokens: int = 1024,
+    max_tokens: int = 512,
     use_agent: bool = False,
     **kwargs,
 ) -> DFState:
-    exporter = DataExporter(
+    classifier = DataContentClassifier(
         tool_manager=tool_manager,
         model_name=model_name,
         temperature=temperature,
         max_tokens=max_tokens,
     )
-    return await exporter.execute(state, use_agent=use_agent, **kwargs)
+    return await classifier.execute(state, use_agent=use_agent, **kwargs)
 
-def create_exporter(tool_manager: Optional[ToolManager] = None, **kwargs) -> DataExporter:
-    return DataExporter(tool_manager=tool_manager, **kwargs)
+def create_classifier(tool_manager: Optional[ToolManager] = None, **kwargs) -> DataContentClassifier:
+    return DataContentClassifier(tool_manager=tool_manager, **kwargs)

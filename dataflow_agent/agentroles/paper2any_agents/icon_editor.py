@@ -11,11 +11,10 @@ from dataflow_agent.state import DFState
 from dataflow_agent.utils import robust_parse_json
 from dataflow_agent.toolkits.tool_manager import ToolManager
 from dataflow_agent.logger import get_logger
-from .registry import register
-
+from dataflow_agent.agentroles import register
 log = get_logger(__name__)
 
-from .base_agent import BaseAgent
+from dataflow_agent.agentroles.cores.base_agent import BaseAgent
 
 @register("icon_editor")
 class IconEditor(BaseAgent):
