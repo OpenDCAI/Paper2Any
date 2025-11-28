@@ -111,18 +111,8 @@ class GenericGraphBuilder:
 
         # 注册后置工具
         if role in self.post_tool_registry:
-            from langchain_core.tools import BaseTool
-            for tool_or_func in self.post_tool_registry[role]:
-                # 检查是否已经是 BaseTool 对象
-                if isinstance(tool_or_func, BaseTool):
-                    # 已经是工具对象，直接使用
-                    tm.register_post_tool(tool_or_func, role=role)
-                elif callable(tool_or_func):
-                    # 是一个返回工具的函数，调用它获取工具
-                    tool = tool_or_func()
-                    tm.register_post_tool(tool, role=role)
-                else:
-                    raise TypeError(f"post_tool 必须是 BaseTool 对象或返回 BaseTool 的函数，但得到了 {type(tool_or_func)}")
+            for tool_func in self.post_tool_registry[role]:
+                tm.register_post_tool(tool_func, role=role)
 
     def _wrap_node_with_tools(self, node_func: Callable, role: str):
         """为节点包装自动工具注册逻辑"""

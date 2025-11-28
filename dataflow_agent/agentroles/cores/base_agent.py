@@ -1001,18 +1001,14 @@ class BaseAgent(ABC):
         try:
             # 执行子图
             final_state = await compiled_graph.ainvoke(state)
-            # 执行子图，传入当前 state，设置 recursion_limit 防止无限循环
-            # 注意：每次 assistant -> tools -> assistant 循环需要消耗多次递归计数
-            # 因此需要设置足够大的值以支持多轮工具调用
-            final_state = await compiled_graph.ainvoke(
-                state,
-                config={"recursion_limit": 15}  # 限制最大递归次数为 15，支持约 5-7 轮工具调用
-            )
-            
             log.info(f"{self.role_name} 子图执行完成")
             
             # 8. 从 final_state 中提取结果
             result = final_state["agent_results"].get(self.role_name.lower(), {}).get("results", {})
+
+            if "messages" in final_state:
+                # 9. 更新状态中的 messages
+                state.messages = final_state["messages"]
             
             if not result:
                 log.error("子图执行后未找到结果")
@@ -1540,57 +1536,3 @@ class BaseAgent(ABC):
                 log.info(f"additional_kwargs 内容: {response.additional_kwargs}")
         
         return parsed
-# 这个暂时用不到
-    def build_generation_prompt(self, pre_tool_results: Dict[str, Any]) -> str:
-        """示例：把工具结果拼进 prompt"""
-        return (
-            f"{self.vlm_config.get('prompt', '')}"
-        )
-    
-    def create_assistant_node_func(self, state: MainState, pre_tool_results: Dict[str, Any]):
-        async def assistant_node(graph_state):
-            messages = graph_state.get("messages", [])
-            if not messages:
-                messages = self.build_messages(state, pre_tool_results)
-                log.info(f"构建 {self.role_name} 初始消息，包含前置工具结果")
-
-            response = await self.process_with_llm_for_graph(messages, state)
-
-            if self.has_tool_calls(response):
-                log.info(f"[create_assistant_node_func]: {self.role_name} LLM选择调用工具: ...")
-                return {"messages": messages + [response]}
-            else:
-                log.info(f"[create_assistant_node_func]: {self.role_name} LLM本次未调用工具，解析最终结果")
-                result = self.parse_result(response.content)
-                # **这里同步了一次 agent_results**
-                state.agent_results[self.role_name.lower()] = {
-                    "pre_tool_results": pre_tool_results,
-                    "post_tools": [t.name for t in self.get_post_tools()],
-                    "results": result
-                }
-                return {
-                    "messages": messages + [response],
-                    self.role_name.lower(): result,
-                    "finished": True
-                }
-        return assistant_node
-    
-# # ---------------------------------- 在 BaseAgent 顶部添加 --------------------------
-# from langchain_core.messages import AIMessage, BaseMessage
-
-# # ---------------------------------- 添加统一调用助手 ------------------------------
-# async def _call_llm(self,
-#                     messages: List[BaseMessage],
-#                     state: MainState,
-#                     bind_post_tools: bool = False) -> AIMessage:
-#     if self.use_vlm:
-#         caller = self.get_llm_caller(state)       # VisionLLMCaller
-#         return await caller.call(messages)
-
-#     llm = self.create_llm(state, bind_post_tools=bind_post_tools)
-#     return await llm.ainvoke(messages)
-# # -------------------------------------------------------------------------------
-
-# # process_simple_mode / process_react_mode 内全部换成：
-# answer_msg = await self._call_llm(messages, state, bind_post_tools=False)
-
