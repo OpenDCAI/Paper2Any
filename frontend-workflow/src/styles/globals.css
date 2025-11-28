@@ -1,0 +1,252 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary-color: #0070f3;
+  --primary-light: #3291ff;
+  --primary-dark: #0050b3;
+  --bg-dark: #0a0a1a;
+  --bg-card: rgba(255, 255, 255, 0.05);
+  --border-color: rgba(255, 255, 255, 0.1);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.7);
+  --glow-color: rgba(0, 112, 243, 0.5);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+/* 玻璃态效果 */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-dark {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* 发光效果 */
+.glow {
+  box-shadow: 0 0 20px var(--glow-color), 0 0 40px rgba(0, 112, 243, 0.3);
+}
+
+.glow-text {
+  text-shadow: 0 0 10px var(--glow-color), 0 0 20px rgba(0, 112, 243, 0.5);
+}
+
+/* 渐变边框 */
+.gradient-border {
+  position: relative;
+  background: linear-gradient(135deg, rgba(0, 112, 243, 0.2), rgba(0, 200, 255, 0.1));
+  border-radius: 12px;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  padding: 1px;
+  background: linear-gradient(135deg, #0070f3, #00c8ff);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* React Flow 自定义样式 */
+.react-flow__node {
+  transition: all 0.3s ease;
+}
+
+.react-flow__node:hover {
+  transform: scale(1.02);
+}
+
+.react-flow__edge-path {
+  stroke: var(--primary-color);
+  stroke-width: 2;
+}
+
+.react-flow__edge.animated path {
+  stroke-dasharray: 5;
+  animation: dashdraw 0.5s linear infinite;
+}
+
+@keyframes dashdraw {
+  from {
+    stroke-dashoffset: 10;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.react-flow__handle {
+  width: 12px;
+  height: 12px;
+  background: var(--primary-color);
+  border: 2px solid var(--bg-dark);
+  transition: all 0.2s ease;
+}
+
+.react-flow__handle:hover {
+  transform: scale(1.3);
+  box-shadow: 0 0 10px var(--glow-color);
+}
+
+.react-flow__background {
+  background-color: var(--bg-dark);
+}
+
+.react-flow__minimap {
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.react-flow__controls {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.react-flow__controls-button {
+  background: transparent;
+  border: none;
+  color: white;
+}
+
+.react-flow__controls-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 112, 243, 0.5);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 112, 243, 0.7);
+}
+
+/* 动画类 */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.2s ease-out;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 脉冲动画 */
+.pulse-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  border: 2px solid var(--primary-color);
+  animation: pulseRing 2s ease-out infinite;
+}
+
+@keyframes pulseRing {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* 节点类型颜色 */
+.node-data {
+  --node-color: #10b981;
+  --node-glow: rgba(16, 185, 129, 0.5);
+}
+
+.node-code {
+  --node-color: #8b5cf6;
+  --node-glow: rgba(139, 92, 246, 0.5);
+}
+
+.node-pipeline {
+  --node-color: #f59e0b;
+  --node-glow: rgba(245, 158, 11, 0.5);
+}
+
+.node-image {
+  --node-color: #ec4899;
+  --node-glow: rgba(236, 72, 153, 0.5);
+}
+
+.node-utility {
+  --node-color: #06b6d4;
+  --node-glow: rgba(6, 182, 212, 0.5);
+}

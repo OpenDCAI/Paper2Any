@@ -1,1070 +1,1586 @@
+# dataflow/dataflowagent/toolkits/pipeline_assembler.py
 from __future__ import annotations
 
-import asyncio
-from abc import ABC, abstractmethod
-import datetime
-import os
+import ast
+import json
+import itertools
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, Callable, Tuple
-from dataflow_agent.llm_callers.base import BaseLLMCaller
-from dataflow_agent.parsers.parsers import BaseParser
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage, AIMessage
-from langchain_core.tools import Tool
-from pydantic import BaseModel, Field
-from dataflow_agent.graghbuilder.message_history import AdvancedMessageHistory
+from typing import Any, Dict, List, Tuple, DefaultDict
+import requests
+from dataflow_agent.state import DFState,DFRequest
+import importlib
+import inspect
+import re
+from collections import defaultdict
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
 
+from dataflow import get_logger
+from dataflow.utils.registry import OPERATOR_REGISTRY
 
-from dataflow_agent.promptstemplates.prompt_template import PromptsTemplateGenerator
-from dataflow_agent.state import MainState
-from dataflow_agent.utils import robust_parse_json
-from dataflow_agent.toolkits.tool_manager import ToolManager
-import pickle
-from dataflow_agent.logger import get_logger
-from dataflow_agent.utils import get_project_root
-from dataflow_agent.agentroles.cores.strategies import ExecutionStrategy
+log = get_logger()
 
-PROJDIR = get_project_root()
+EXTRA_IMPORTS: set[str] = set()  
 
-log = get_logger(__name__)
-
-# 验证器类型定义：返回 (是否通过, 错误信息)
-ValidatorFunc = Callable[[str, Dict[str, Any]], Tuple[bool, Optional[str]]]
-
-
-class BaseAgent(ABC):
-    """Agent基类 - 定义通用的agent执行模式"""
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        try:
-            tmp = cls(tool_manager=None)          # BaseAgent 的 __init__ 很轻
-            name = tmp.role_name
-            from dataflow_agent.agentroles.registry import AgentRegistry
-            AgentRegistry.register(name.lower(), cls)
-        except Exception as e:
-            pass
+def call_llm_for_selection(
+    system_prompt: str,
+    user_message: str,
+    api_url: str,
+    api_key: str,
+    model: str,
+    temperature: float = 0.3,
+    max_tokens: int = 100
+) -> str:
+    """
+    调用 LLM API 进行选择决策
     
-    def __init__(self, 
-                 tool_manager: Optional[ToolManager] = None,
-                 model_name: Optional[str] = None,
-                 temperature: float = 0.0,
-                 max_tokens: int = 16384,
-                 tool_mode: str = "auto",
-                 react_mode: bool = False,
-                 react_max_retries: int = 3,
-                 # 新增参数
-                 parser_type: str = "json",
-                 parser_config: Optional[Dict[str, Any]] = None,
-                 use_vlm: bool = False,
-                 vlm_config: Optional[Dict[str, Any]] = None,
-                 ignore_history: bool = True,
-                 message_history: Optional[AdvancedMessageHistory] = None,
-                 chat_api_url: Optional[str] = None,
-
-                # 新增参数，用于策略控制； 
-                 execution_config: Optional[Any] = None
-                 ):
-        """
-        Args:
-            parser_type: 解析器类型 ("json", "xml", "text")
-            parser_config: 解析器配置（如XML的root_tag）
-            use_vlm: 是否使用视觉语言模型
-            vlm_config: VLM配置字典
-            ignore_history: 是否忽略历史消息
-            message_history: 消息历史管理器
-            execution_config: 执行配置，用于策略控制
-        """
-        self.tool_manager = tool_manager
-        self.model_name = model_name
-        self.temperature = temperature
-        self.max_tokens = max_tokens
-        self.tool_mode = tool_mode
-        self.react_mode = react_mode
-        self.react_max_retries = react_max_retries
-        self.chat_api_url = chat_api_url
+    Args:
+        system_prompt: 系统提示词
+        user_message: 用户消息
+        api_url: API 地址（OpenAI 兼容格式）
+        api_key: API 密钥
+        model: 模型名称
+        temperature: 温度参数
+        max_tokens: 最大 token 数
+    
+    Returns:
+        LLM 返回的文本内容
+    """
+    if not api_url.endswith('/chat/completions'):
+        if api_url.endswith('/'):
+            api_url = api_url + 'chat/completions'
+        else:
+            api_url = api_url + '/chat/completions'
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+    
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message}
+        ],
+        "temperature": temperature,
+        "max_tokens": max_tokens
+    }
+    
+    try:
+        response = requests.post(api_url, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()
+        result = response.json()
         
-        # 解析器配置
-        self.parser_type = parser_type
-        self.parser_config = parser_config or {}
-        self._parser = None  # 懒加载
+        # 提取返回的内容
+        content = result.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+        log.info(f"[pipeline_assembler] LLM selection result: {content}")
+        return content
         
-        # VLM配置
-        self.use_vlm = use_vlm
-        self.vlm_config = vlm_config or {}
+    except Exception as e:
+        log.error(f"[pipeline_assembler] LLM API call failed: {e}")
+        raise
+
+
+def extract_prompt_info(prompt_cls: type) -> Dict[str, Any]:
+    """
+    提取 prompt 类的详细信息，包括示例提示词
+    
+    Args:
+        prompt_cls: Prompt 类对象
+    
+    Returns:
+        包含类名、模块、文档字符串和示例提示词的字典
+    """
+    prompt_info = {
+        'class_name': prompt_cls.__qualname__,
+        'module': prompt_cls.__module__,
+        'docstring': (prompt_cls.__doc__ or '').strip(),
+    }
+    
+    # 尝试实例化并获取示例提示词
+    try:
+        instance = prompt_cls()
         
-        # 消息历史配置
-        self.ignore_history = ignore_history
-        self.message_history = message_history or AdvancedMessageHistory()
+        # 如果有 build_prompt 方法
+        if hasattr(instance, 'build_prompt'):
+            sig = inspect.signature(instance.build_prompt)
+            params = list(sig.parameters.keys())
+            
+            # 构造示例参数
+            example_args = {}
+            for param in params:
+                if param == 'self':
+                    continue
+                # 使用占位符
+                example_args[param] = f"<example_{param}>"
+            
+            try:
+                # 调用 build_prompt 获取完整的提示词模板
+                example_prompt = instance.build_prompt(**example_args)
+                # 截取前 800 字符避免过长
+                prompt_info['full_prompt_template'] = example_prompt[:800]
+                if len(example_prompt) > 800:
+                    prompt_info['full_prompt_template'] += "\n...[truncated]"
+            except Exception as e:
+                log.warning(f"[pipeline_assembler] Failed to get example prompt for {prompt_cls.__name__}: {e}")
+                prompt_info['full_prompt_template'] = "Unable to generate example"
+        
+        # 如果有其他可用的属性，也可以提取
+        if hasattr(instance, 'template'):
+            prompt_info['template_attr'] = str(instance.template)[:200]
+            
+    except Exception as e:
+        log.warning(f"[pipeline_assembler] Failed to instantiate {prompt_cls.__name__}: {e}")
+        prompt_info['full_prompt_template'] = "Unable to instantiate"
+    
+    return prompt_info
 
-        # ========== 新增：策略模式支持 ==========
-        self._execution_strategy: Optional[ExecutionStrategy] = None
-        if execution_config:
-            # 如果提供了执行配置，则使用其中的值更新agent实例的属性
-            # 这解决了通过 create_simple_agent 等函数创建时参数不生效的问题
-            for f in execution_config.__dataclass_fields__:
-                config_value = getattr(execution_config, f)
-                if hasattr(self, f) and config_value is not None:
-                    setattr(self, f, config_value)
 
-            from dataflow_agent.agentroles.cores.strategies import StrategyFactory
-            self._execution_strategy = StrategyFactory.create(
-                execution_config.mode.value,
-                self,
-                execution_config
-            )
+def choose_prompt_template_by_llm(op_name: str, state: DFState) -> str:
+    """
+    通过 LLM 选择最合适的 prompt_template
+    
+    规则：
+      1. 提取 operator 的所有 ALLOWED_PROMPTS 候选
+      2. 获取每个 prompt 的详细信息（包括提示词模板）
+      3. 调用 LLM 让它根据 target 任务描述选择最合适的 prompt
+      4. 返回选中 prompt 的实例化代码字符串
+    
+    Args:
+        op_name: Operator 名称
+        state: DFState 对象，包含 request.target 等信息
+    
+    Returns:
+        选中的 prompt_template 实例化代码字符串
+    """
+    cls = OPERATOR_REGISTRY.get(op_name)
+    if cls is None:
+        raise KeyError(f"Operator {op_name} not found in registry")
+    
+    # 如果没有 ALLOWED_PROMPTS 或为空，回退到原逻辑
+    allowed_prompts = getattr(cls, "ALLOWED_PROMPTS", None)
+    if not allowed_prompts:
+        log.info(f"[pipeline_assembler] No ALLOWED_PROMPTS for {op_name}, using default logic")
+        return choose_prompt_template(op_name, state)
+# 如果只有一个候选，直接使用
+    if len(allowed_prompts) == 1:
+        prompt_cls = allowed_prompts[0]
+        EXTRA_IMPORTS.add(f"from {prompt_cls.__module__} import {prompt_cls.__qualname__}")
+        return f"{prompt_cls.__qualname__}()"
+    
+    # 收集所有候选 prompt 的详细信息
+    log.info(f"[pipeline_assembler] Extracting info from {len(allowed_prompts)} prompt candidates")
+    prompt_candidates = []
+    for prompt_cls in allowed_prompts:
+        prompt_info = extract_prompt_info(prompt_cls)
+        prompt_candidates.append(prompt_info)
+    
+    # 构造 LLM 请求
+    target = state.request.target
+    system_prompt = """You are an expert at selecting the most appropriate prompt template for a given task.
 
-    # 暂时没用到这个LLM caller；还是create_llm；
-    def get_llm_caller(self, state: MainState) -> BaseLLMCaller:
-        """根据配置返回对应的LLM Caller"""
-        if self.use_vlm:
-            from dataflow_agent.llm_callers import VisionLLMCaller
-            log.info(f"使用 VisionLLMCaller，模式: {self.vlm_config.get('mode', 'understanding')}")
-            return VisionLLMCaller(
-                state,
-                vlm_config=self.vlm_config,
-                model_name=self.model_name,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                tool_mode=self.tool_mode,
-                tool_manager=self.tool_manager,
-                chat_api_url=self.chat_api_url
+Your job is to:
+1. Analyze the target task description
+2. Review all available prompt templates (including their documentation and example prompts)
+3. Select the MOST suitable prompt template
+
+IMPORTANT: Respond with ONLY the exact class name of the selected prompt template, nothing else."""
+    
+    user_message = f"""Target Task Description:
+{target}
+
+Available Prompt Templates:
+"""
+    
+    for i, p in enumerate(prompt_candidates, 1):
+        user_message += f"\n{'='*60}\n"
+        user_message += f"Option {i}: {p['class_name']}\n"
+        user_message += f"{'='*60}\n"
+        
+        if p['docstring']:
+            user_message += f"Documentation:\n{p['docstring']}\n\n"
+        
+        if 'full_prompt_template' in p:
+            user_message += f"Prompt Template Example:\n{p['full_prompt_template']}\n"
+        
+        if 'template_attr' in p:
+            user_message += f"Template: {p['template_attr']}\n"
+    
+    user_message += f"\n{'='*60}\n"
+    user_message += "\nBased on the target task, which prompt template is most suitable?\n"
+    user_message += "Respond with ONLY the class name (e.g., 'MathAnswerGeneratorPrompt')."
+    
+    # 调用 LLM
+    try:
+        selected_class_name = call_llm_for_selection(
+            system_prompt=system_prompt,
+            user_message=user_message,
+            api_url=state.request.chat_api_url,
+            api_key=state.request.api_key,
+            model=state.request.model
+        )
+        
+        # 清理返回结果（移除可能的引号、空格等）
+        selected_class_name = selected_class_name.strip().strip('"\'`')
+        
+        # 找到对应的 prompt class
+        for prompt_cls in allowed_prompts:
+            if prompt_cls.__qualname__ == selected_class_name or prompt_cls.__name__ == selected_class_name:
+                log.info(f"[pipeline_assembler] LLM selected prompt: {prompt_cls.__qualname__}")
+                EXTRA_IMPORTS.add(f"from {prompt_cls.__module__} import {prompt_cls.__qualname__}")
+                return f"{prompt_cls.__qualname__}()"
+        
+        # 如果没找到精确匹配，尝试模糊匹配
+        for prompt_cls in allowed_prompts:
+            if selected_class_name in prompt_cls.__qualname__ or prompt_cls.__name__ in selected_class_name:
+                log.warning(f"[pipeline_assembler] Using fuzzy match for '{selected_class_name}' -> {prompt_cls.__qualname__}")
+                EXTRA_IMPORTS.add(f"from {prompt_cls.__module__} import {prompt_cls.__qualname__}")
+                return f"{prompt_cls.__qualname__}()"
+        
+        # 如果还是没找到，使用第一个作为默认
+        log.warning(f"[pipeline_assembler] LLM selected unknown prompt '{selected_class_name}', using first available")
+        
+    except Exception as e:
+        log.error(f"[pipeline_assembler] LLM selection failed: {e}, using first available prompt")
+    
+    # 默认使用第一个
+    prompt_cls = allowed_prompts[0]
+    EXTRA_IMPORTS.add(f"from {prompt_cls.__module__} import {prompt_cls.__qualname__}")
+    return f"{prompt_cls.__qualname__}()"
+
+
+# ==================================================================================================================================
+def snake_case(name: str) -> str:
+    """
+    Convert CamelCase (with acronyms) to snake_case.
+    Examples:
+        SQLGenerator -> sql_generator
+        HTTPRequest -> http_request
+    """
+    s1 = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
+    s2 = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1)
+    return s2.replace("__", "_").lower()
+
+
+def try_import(module_path: str) -> bool:
+    try:
+        importlib.import_module(module_path)
+        return True
+    except Exception as e:
+        log.warning(f"[pipeline_assembler] import {module_path} failed: {e}")
+        return False
+
+
+def build_stub(cls_name: str, module_path: str) -> str:
+    return (
+        f"# Fallback stub for {cls_name}, original module '{module_path}' not found\n"
+        f"class {cls_name}:  # type: ignore\n"
+        f"    def __init__(self, *args, **kwargs):\n"
+        f"        import warnings; warnings.warn(\n"
+        f"            \"Stub operator {cls_name} used, module '{module_path}' missing.\"\n"
+        f"        )\n"
+        f"    def run(self, *args, **kwargs):\n"
+        f"        return kwargs.get(\"storage\")  # 透传\n"
+    )
+
+def _normalize_module(mod: str) -> str:
+    """
+    将类似
+        dataflow.operators.general_text.eval.langkit_sample_evaluator
+    统一裁剪成
+        dataflow.operators.general_text
+
+    规则：
+        1. 仅处理以 "dataflow.operators." 开头的模块。
+        2. 只保留 "dataflow.operators.<一级子包>"。
+        3. 其余模块原样返回。
+    """
+    prefix = "dataflow.operators."
+    if mod.startswith(prefix):
+        # 拿掉前缀后按点分割，取第 0 个就是一级子包
+        subpkg = mod[len(prefix):].split(".", 1)[0]
+        return f"{prefix}{subpkg}"
+    return mod
+
+def group_imports(op_names: List[str]) -> Tuple[List[str], List[str], Dict[str, type]]:
+    imports, stubs = [], []
+    op_classes: Dict[str, type] = {}
+    module2names: Dict[str, List[str]] = defaultdict(list)
+
+    for name in op_names:
+        cls = OPERATOR_REGISTRY.get(name)
+        if cls is None:
+            raise KeyError(f"Operator <{name}> not in OPERATOR_REGISTRY")
+        op_classes[name] = cls
+
+        mod_raw = cls.__module__                       # e.g. dataflow.operators.general_text.eval.langkit_sample_evaluator
+        mod = _normalize_module(mod_raw)               # → dataflow.operators.general_text
+
+        if try_import(mod):
+            module2names[mod].append(cls.__name__)
+        else:                                          # 正常情况下进不到这里
+            stubs.append(build_stub(cls.__name__, mod))
+
+    # 只保留一次循环
+    for m in sorted(module2names.keys()):
+        uniq_names = sorted(set(module2names[m]))
+        imports.append(f"from {m} import {', '.join(uniq_names)}")
+
+    # 追加由 choose_prompt_template 收集的 import
+    imports.extend(sorted(EXTRA_IMPORTS))
+    return imports, stubs, op_classes
+
+
+def _format_default(val: Any) -> str:
+    """
+    Produce a code string for a default value.
+    If default is missing (inspect._empty), we return 'None' to keep code runnable.
+    """
+    if val is inspect._empty:
+        return "None"
+    if isinstance(val, str):
+        return repr(val)
+    return repr(val)
+
+
+def extract_op_params(cls: type) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str]], bool]:
+    """
+    Inspect 'cls' for __init__ and run signatures.
+
+    Returns:
+        init_kwargs: list of (param_name, code_str_default) for __init__ (excluding self)
+        run_kwargs: list of (param_name, code_str_default) for run (excluding self and storage)
+        run_has_storage: whether run(...) has 'storage' parameter
+    """
+    # ---- __init__
+    init_kwargs: List[Tuple[str, str]] = []
+    try:
+        init_sig = inspect.signature(cls.__init__)
+        for p in list(init_sig.parameters.values())[1:]:  # skip self
+            if p.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+                continue
+            init_kwargs.append((p.name, _format_default(p.default)))
+    except Exception as e:
+        log.warning(f"[pipeline_assembler] inspect __init__ of {cls.__name__} failed: {e}")
+
+    # ---- run
+    run_kwargs: List[Tuple[str, str]] = []
+    run_has_storage = False
+    if hasattr(cls, "run"):
+        try:
+            run_sig = inspect.signature(cls.run)
+            params = list(run_sig.parameters.values())[1:]  # skip self
+            for p in params:
+                if p.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+                    continue
+                if p.name == "storage":
+                    run_has_storage = True
+                    continue
+                run_kwargs.append((p.name, _format_default(p.default)))
+        except Exception as e:
+            log.warning(f"[pipeline_assembler] inspect run of {cls.__name__} failed: {e}")
+
+    return init_kwargs, run_kwargs, run_has_storage
+
+def choose_prompt_template(op_name: str, state: DFState) -> str:
+    """
+    返回 prompt_template 的代码字符串。
+    规则：
+      1. 若类有 ALLOWED_PROMPTS 且非空 → 取第一个并实例化；
+      2. 否则回退到 __init__ 默认值；若仍不可用则返回 None。
+    """
+    from dataflow.utils.registry import OPERATOR_REGISTRY
+    import inspect, json
+
+    cls = OPERATOR_REGISTRY.get(op_name)
+    if cls is None:
+        raise KeyError(f"Operator {op_name} not found in registry")
+
+    # 优先使用 ALLOWED_PROMPTS
+    if getattr(cls, "ALLOWED_PROMPTS", None):
+        prompt_cls = cls.ALLOWED_PROMPTS[0]
+        EXTRA_IMPORTS.add(f"from {prompt_cls.__module__} import {prompt_cls.__qualname__}")
+        return f"{prompt_cls.__qualname__}()"
+
+    # -------- 无 ALLOWED_PROMPTS，兜底处理 --------
+    sig = inspect.signature(cls.__init__)
+    p = sig.parameters.get("prompt_template")
+    if p is None:
+        # 理论上不会走到这里，因为调用方只在存在该参数时才进来
+        return "None"
+
+    default_val = p.default
+    if default_val in (inspect._empty, None):
+        return "None"
+
+    # 基础类型可直接 repr
+    if isinstance(default_val, (str, int, float, bool)):
+        return repr(default_val)
+
+    # 类型对象 → 加 import 然后实例化
+    if isinstance(default_val, type):
+        EXTRA_IMPORTS.add(f"from {default_val.__module__} import {default_val.__qualname__}")
+        return f"{default_val.__qualname__}()"
+
+    # UnionType / 其它复杂对象 → 字符串化再 repr，保证可写入代码
+    return repr(str(default_val))
+
+
+def render_operator_blocks(op_names: List[str], op_classes: Dict[str, type], state :DFState) -> Tuple[str, str]:
+    """
+    Render operator initialization lines and forward-run lines without leading indentation.
+    Indentation will be applied by build_pipeline_code when inserting into the template.
+    """
+    init_lines: List[str] = []
+    forward_lines: List[str] = []
+    
+    # 用于跟踪每个算子名称的出现次数
+    name_count: Dict[str, int] = {}
+
+    for i, name in enumerate(op_names):
+        cls = op_classes[name]
+        base_var_name = snake_case(cls.__name__)
+        
+        # 统计相同算子名称的出现次数
+        count = name_count.get(base_var_name, 0) + 1
+        name_count[base_var_name] = count
+        
+        # 如果出现多次，添加序号后缀
+        if count > 1:
+            var_name = f"{base_var_name}_{count}"
+        else:
+            var_name = base_var_name
+
+        init_kwargs, run_kwargs, run_has_storage = extract_op_params(cls)
+
+        # Inject pipeline context where appropriate
+        rendered_init_args: List[str] = []
+        for k, v in init_kwargs:
+            if k == "llm_serving":
+                rendered_init_args.append(f"{k}=self.llm_serving")
+            elif k == "prompt_template":
+                # p_t = choose_prompt_template(name, state)
+                # 用LLM来选择
+                p_t = choose_prompt_template_by_llm(name, state)
+                rendered_init_args.append(f'{k}={p_t}')
+            else:
+                rendered_init_args.append(f"{k}={v}")
+
+        init_line = f"self.{var_name} = {cls.__name__}(" + ", ".join(rendered_init_args) + ")"
+        init_lines.append(init_line)
+
+        # Build run call
+        run_args: List[str] = []
+        if run_has_storage:
+            run_args.append("storage=self.storage.step()")
+        run_args.extend([f"{k}={v}" for k, v in run_kwargs])
+
+        if run_args:
+            call = (
+                f"self.{var_name}.run(\n"
+                f"    " + ", ".join(run_args) + "\n"
+                f")"
             )
         else:
-            from dataflow_agent.llm_callers import TextLLMCaller
-            return TextLLMCaller(
-                state,
-                model_name=self.model_name,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                tool_mode=self.tool_mode,
-                tool_manager=self.tool_manager,
-                chat_api_url=self.chat_api_url
-            )
+            call = f"self.{var_name}.run()"
+        forward_lines.append(call)
 
-    @property
-    def parser(self) -> BaseParser:
-        """获取解析器实例（懒加载）"""
-        if self._parser is None:
-            from dataflow_agent.parsers import ParserFactory
-            self._parser = ParserFactory.create(self.parser_type, **self.parser_config)
-        return self._parser
+    return "\n".join(init_lines), "\n".join(forward_lines)
+
+
+def indent_block(code: str, spaces: int) -> str:
+    """
+    Indent every line of 'code' by 'spaces' spaces. Keeps internal structure.
+    """
+    import textwrap as _tw
+    code = _tw.dedent(code or "").strip("\n")
+    if not code:
+        return ""
+    prefix = " " * spaces
+    return "\n".join(prefix + line if line else "" for line in code.splitlines())
+
+
+def write_pipeline_file(
+    code: str,
+    file_name: str = "recommend_pipeline.py",
+    overwrite: bool = True,
+) -> Path:
+    """
+    把生成的 pipeline 代码写入当前文件同级目录下的 `file_name`。
+    """
+    target_path = Path(__file__).resolve().parent / file_name
+
+    if target_path.exists() and not overwrite:
+        raise FileExistsError(f"{target_path} already exists. Set overwrite=True to replace it.")
+
+    target_path.write_text(code, encoding="utf-8")
+    log.info(f"[pipeline_assembler] code written to {target_path}")
+
+    return target_path
+
+# =========================================================渲染 op 的 全部函数==================================================
+# def snake_case(name: str) -> str:
+#     """CamelCase -> snake_case"""
+#     s1 = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
+#     s2 = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1)
+#     return s2.replace("__", "_").lower()
+
+
+# def try_import(module_path: str) -> bool:
+#     """尝试导入模块"""
+#     try:
+#         importlib.import_module(module_path)
+#         return True
+#     except Exception as e:
+#         log.warning(f"import {module_path} failed: {e}")
+#         return False
+
+
+# def _normalize_module(mod: str) -> str:
+#     """dataflow.operators.xxx.yyy.zzz -> dataflow.operators.xxx"""
+#     prefix = "dataflow.operators."
+#     if mod.startswith(prefix):
+#         subpkg = mod[len(prefix):].split(".", 1)[0]
+#         return f"{prefix}{subpkg}"
+#     return mod
+
+
+def group_import_for_full_params(op_names: List[str]) -> tuple:
+    """收集所有算子的导入语句"""
+    imports = []
+    op_classes: Dict[str, type] = {}
+    module2names: Dict[str, List[str]] = defaultdict(list)
+
+    for name in op_names:
+        cls = OPERATOR_REGISTRY.get(name)
+        if cls is None:
+            raise KeyError(f"Operator <{name}> not in OPERATOR_REGISTRY")
+        op_classes[name] = cls
+
+        mod_raw = cls.__module__
+        mod = _normalize_module(mod_raw)
+
+        if try_import(mod):
+            module2names[mod].append(cls.__name__)
+
+    for m in sorted(module2names.keys()):
+        uniq_names = sorted(set(module2names[m]))
+        imports.append(f"from {m} import {', '.join(uniq_names)}")
+
+    # 追加额外的 import
+    # imports.extend(sorted(EXTRA_IMPORTS))
+    return imports, op_classes
+
+def render_operator_blocks_with_full_params(
+    opname_and_params: List[Dict[str, Any]], 
+    op_classes: Dict[str, type]
+) -> tuple:
+    """
+    渲染算子初始化和调用代码（完整支持 init + run 参数）
     
-    def parse_result(self, content: str) -> Dict[str, Any]:
-        """使用配置的解析器解析结果"""
-        try:
-            parsed = self.parser.parse(content)
-            log.info(f"{self.role_name} 使用 {self.parser_type} 解析器解析成功")
-            log.critical(f"[parse_result 解析结果] : {parsed}")
-            return parsed
-        except Exception as e:
-            log.exception(f"解析失败: {e}")
-            return {"raw": content, "error": str(e)}
-
-    @classmethod
-    def create(cls, tool_manager: Optional[ToolManager] = None, **kwargs) -> "BaseAgent":
-        """
-        工厂方法：保持所有 Agent 统一的创建入口。
-
-        ----
-        BaseAgent 的具体子类实例（cls）
-        """
-        return cls(tool_manager=tool_manager, **kwargs)
-    
-    @property
-    @abstractmethod
-    def role_name(self) -> str:
-        """角色名称 - 子类必须实现"""
-        pass
-    
-    @property
-    @abstractmethod
-    def system_prompt_template_name(self) -> str:
-        """系统提示词模板名称 - 子类必须实现"""
-        pass
-    
-    @property
-    @abstractmethod
-    def task_prompt_template_name(self) -> str:
-        """任务提示词模板名称 - 子类必须实现"""
-        pass
-    
-    def get_task_prompt_params(self, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        获取任务提示词参数 - 子类可重写
-        
-        Args:
-            pre_tool_results: 前置工具结果
-            
-        Returns:
-            提示词参数字典
-        """
-        return pre_tool_results
-    
-    # def parse_result(self, content: str) -> Dict[str, Any]:
-    #     """
-    #     解析结果 - 子类可重写自定义解析逻辑
-        
-    #     Args:
-    #         content: LLM输出内容
-            
-    #     Returns:
-    #         解析后的结果
-    #     """
-    #     try:
-    #         parsed = robust_parse_json(content)
-    #         # log.info(f'content是什么？？{content}')
-    #         log.info(f"{self.role_name} 结果解析成功")
-    #         return parsed
-    #     except ValueError as e:
-    #         log.warning(f"JSON解析失败: {e}")
-    #         return {"raw": content}
-    #     except Exception as e:
-    #         log.warning(f"解析过程出错: {e}")
-    #         return {"raw": content}
-    
-    def get_default_pre_tool_results(self) -> Dict[str, Any]:
-        """获取默认前置工具结果 - 子类可重写"""
-        return {}
-
-    # ==================== 并行模式 ========================================================================================================================
-    async def process_parallel_mode(self, state: MainState, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        并行模式处理
-        
-        自动检测前置工具结果中的列表数据，进行并行LLM调用
-        不需要强制使用特定的字段名
-        """
-        import asyncio
-        log.info(f"执行 {self.role_name} 并行模式...")
-        
-        # 智能检测并行数据
-        parallel_items = []
-        
-        # 情况1: 如果pre_tool_results中直接包含列表类型的主要数据
-        if isinstance(pre_tool_results, list):
-            parallel_items = pre_tool_results
-        
-        # 情况2: 如果有明确的parallel_items字段
-        elif "parallel_items" in pre_tool_results:
-            parallel_items = pre_tool_results["parallel_items"]
-        
-        # 情况3: 检查是否有任何值为列表的字段（取第一个找到的非空列表）
-        elif isinstance(pre_tool_results, dict):
-            for key, value in pre_tool_results.items():
-                if isinstance(value, list) and value and all(isinstance(item, dict) for item in value):
-                    parallel_items = value
-                    break
-        
-        # 如果没有找到合适的并行数据
-        if not parallel_items:
-            log.warning("未找到合适的并行数据，回退到简单模式")
-            return await self.process_simple_mode(state, pre_tool_results)
-        
-        log.info(f"找到 {len(parallel_items)} 条数据用于并行处理")
-        
-        # 获取并发限制（从执行策略配置中获取）
-        concurrency_limit = 5  # 默认值
-        if hasattr(self, '_execution_strategy') and hasattr(self._execution_strategy, 'config'):
-            if hasattr(self._execution_strategy.config, 'concurrency_limit'):
-                concurrency_limit = self._execution_strategy.config.concurrency_limit
-        
-        # 创建信号量控制并发
-        semaphore = asyncio.Semaphore(concurrency_limit)
-        
-        # 定义单个并行任务处理函数
-        async def process_item(item: dict) -> tuple[int, dict]:
-            """处理单个并行项，返回索引和结果"""
-            async with semaphore:
-                try:
-                    # 为每个并行项创建独立的上下文
-                    item_pre_tool_results = {}
-                    
-                    # 如果是字典，将其所有键值对添加到前置工具结果
-                    if isinstance(item, dict):
-                        item_pre_tool_results.update(item)
-                    
-                    # 也保留原始前置工具结果中的非列表字段
-                    if isinstance(pre_tool_results, dict):
-                        for key, value in pre_tool_results.items():
-                            if not isinstance(value, list):
-                                item_pre_tool_results[key] = value
-                    
-                    # 使用简单模式处理单个项
-                    result = await self.process_simple_mode(state, item_pre_tool_results)
-                    return result
-                except Exception as e:
-                    log.error(f"并行处理单个项失败: {e}")
-                    return {"error": str(e)}
-        
-        # 并行执行所有任务
-        tasks = [process_item(item) for item in parallel_items]
-        results = await asyncio.gather(*tasks)
-        
-        log.info(f"并行模式执行完成，共处理 {len(results)} 个任务")
-        
-        # 返回结果列表
-        return {
-            "parallel_results": results,
-            "total_processed": len(results)
-        }
-    # ==================== Agent-as-Tool 功能 ========================================================================================================================
-
-    def get_tool_name(self) -> str:
-        """获取作为工具时的名称 - 子类可重写"""
-        return f"call_{self.role_name.lower()}_agent"
-
-    def get_tool_description(self) -> str:
-        """获取作为工具时的描述 - 子类应该重写提供更具体的描述"""
-        return f"调用 {self.role_name} agent 来执行特定任务。该 agent 会根据输入参数执行相应的分析和处理。"
-
-    def get_tool_args_schema(self) -> Type[BaseModel]:
-        """获取作为工具时的参数模式 - 子类可以重写定义自己的参数结构"""
-        from pydantic import BaseModel, Field
-        
-        class DefaultAgentToolArgs(BaseModel):
-            """默认 Agent 工具参数"""
-            task_description: str = Field(
-                description=f"传递给 {self.role_name} 的任务描述或指令"
-            )
-            additional_params: Optional[Dict[str, Any]] = Field(
-                default=None,
-                description="额外的参数，会被合并到前置工具结果中"
-            )
-        
-        return DefaultAgentToolArgs
-
-    def prepare_tool_execution_params(self, **tool_kwargs) -> Dict[str, Any]:
-        """准备工具执行时的参数 - 子类可重写自定义参数处理逻辑"""
-        params = {}
-        
-        if 'additional_params' in tool_kwargs and tool_kwargs['additional_params']:
-            params.update(tool_kwargs['additional_params'])
-        
-        for key, value in tool_kwargs.items():
-            if key != 'additional_params':
-                params[key] = value
-        
-        return params
-
-    def extract_tool_result(self, state: MainState) -> Dict[str, Any]:
-        """从状态中提取工具调用的结果 - 子类可重写自定义结果提取逻辑"""
-        agent_result = state.agent_results.get(self.role_name, {})
-        return agent_result.get('results', {})
-
-    async def _execute_as_tool(self, state: MainState, **tool_kwargs) -> Dict[str, Any]:
-        """作为工具执行的内部方法"""
-        try:
-            log.info(f"[Agent-as-Tool] 调用 {self.role_name}，参数: {tool_kwargs}")
-            
-            exec_params = self.prepare_tool_execution_params(**tool_kwargs)
-            
-            result_state = await self.execute(
-                state, 
-                use_agent=False,
-                **exec_params
-            )
-            
-            result = self.extract_tool_result(result_state)
-            
-            log.info(f"[Agent-as-Tool] {self.role_name} 执行完成")
-            return result
-            
-        except Exception as e:
-            log.exception(f"[Agent-as-Tool] {self.role_name} 执行失败: {e}")
-            return {
-                "error": str(e),
-                "agent": self.role_name,
-                "status": "failed"
-            }
-
-    def as_tool(self, state: MainState) -> Tool:
-        """将 agent 包装成可被调用的工具"""
-        
-        async def agent_tool_func(**kwargs) -> Dict[str, Any]:
-            return await self._execute_as_tool(state, **kwargs)
-        
-        def sync_agent_tool_func(**kwargs) -> Dict[str, Any]:
-            return asyncio.run(agent_tool_func(**kwargs))
-        
-        return Tool(
-            name=self.get_tool_name(),
-            description=self.get_tool_description(),
-            func=sync_agent_tool_func,
-            coroutine=agent_tool_func,
-            args_schema=self.get_tool_args_schema()
-        )
-    
-    # ==================== ReAct 模式相关方法 ========================================================================================================================
-    
-    def get_react_validators(self) -> List[ValidatorFunc]:
-        """
-        获取ReAct模式的验证器列表 - 子类可重写添加自定义验证器
-        
-        Returns:
-            验证器函数列表，每个函数签名为: (content: str, parsed_result: Dict) -> (bool, Optional[str])
-            - bool: 是否通过验证
-            - Optional[str]: 未通过时的错误提示信息
-        """
-        return [
-            self._default_json_validator,
-            # 子类可以添加更多验证器，例如：
-            # self._check_required_fields,
-            # self._check_data_format,
+    Args:
+        opname_and_params: [
+            {
+                "op_name": "OperatorA",
+                "init_params": {"llm_serving": "...", "prompt_template": "..."},
+                "run_params": {"param1": "value1"}
+            },
+            ...
         ]
     
-    @staticmethod
-    def _default_json_validator(content: str, parsed_result: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
-        """
-        默认JSON格式验证器
-        
-        Args:
-            content: LLM原始输出
-            parsed_result: parse_result()的结果
-            
-        Returns:
-            (是否通过, 错误信息)
-        """
-        # 如果解析结果中只有raw字段，说明JSON解析失败
-        if "raw" in parsed_result and len(parsed_result) == 1:
-            return False, (
-                "你返回的内容不是有效的JSON格式。请确保返回纯JSON格式的数据，"
-                "不要包含其他文字说明。正确的格式示例：\n"
-                '{"key1": "value1", "key2": "value2"}'
-            )
-        
-        # 检查是否为空字典
-        if not parsed_result or (isinstance(parsed_result, dict) and not parsed_result):
-            return False, "你返回的JSON为空，请提供完整的结果数据。"
-        
-        return True, None
+    Returns:
+        (init_code_block, forward_code_block)
+    """
+    import inspect
     
-    def _run_validators(self, content: str, parsed_result: Dict[str, Any]) -> Tuple[bool, List[str]]:
-        """
-        运行所有验证器
+    init_lines = []
+    forward_lines = []
+    # 记录同一算子类出现的次数，避免 self.xxx 被后面的覆盖
+    name_count: Dict[str, int] = {}
+
+    for item in opname_and_params:
+        name = item["op_name"]
+        custom_init_params = item.get("init_params", {})
+        custom_run_params = item.get("run_params", {})
         
-        Args:
-            content: LLM原始输出
-            parsed_result: 解析后的结果
-            
-        Returns:
-            (是否全部通过, 错误信息列表)
-        """
-        validators = self.get_react_validators()
-        errors = []
-        
-        for i, validator in enumerate(validators):
+        cls = op_classes[name]
+        base_var_name = snake_case(cls.__name__)
+        count = name_count.get(base_var_name, 0) + 1
+        name_count[base_var_name] = count
+        if count > 1:
+            var_name = f"{base_var_name}_{count}"
+        else:
+            var_name = base_var_name
+
+        # 检查 run 方法是否有 storage 参数
+        run_has_storage = False
+        if hasattr(cls, "run"):
             try:
-                passed, error_msg = validator(content, parsed_result)
-                if not passed:
-                    validator_name = getattr(validator, '__name__', f'validator_{i}')
-                    log.warning(f"验证器 {validator_name} 未通过: {error_msg}")
-                    if error_msg:
-                        errors.append(error_msg)
-            except Exception as e:
-                log.exception(f"验证器执行出错: {e}")
-                errors.append(f"验证过程出错: {str(e)}")
-        
-        return len(errors) == 0, errors
-    
-    async def process_react_mode(self, state: MainState, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        ReAct模式处理 - 循环调用LLM直到验证通过
-        
-        Args:
-            state: DFState实例
-            pre_tool_results: 前置工具结果
-            
-        Returns:
-            处理结果
-        """
-        log.info(f"执行 {self.role_name} ReAct模式 (最大重试: {self.react_max_retries})")
-        
-        # 构建初始消息
-        messages = self.build_messages(state, pre_tool_results)
-        
-        # 消息历史管理
-        if not self.ignore_history:
-            history_messages = self.message_history.get_messages()
-            if history_messages:
-                messages = self.message_history.merge_histories(history_messages, messages)
-                log.info(f"合并了 {len(history_messages)} 条历史消息")
-        
-        llm = self.create_llm(state, bind_post_tools=False)
-        
-        for attempt in range(self.react_max_retries + 1):
-            try:
-                # 调用LLM
-                log.info(f"ReAct尝试 {attempt + 1}/{self.react_max_retries + 1}")
-                answer_msg = await llm.ainvoke(messages)
-                answer_text = answer_msg.content
-                log.info(f'[process_react_mode]: LLM原始输出：{answer_text}')
-                
-                # 解析结果
-                parsed_result = self.parse_result(answer_text)
-                
-                # 运行验证器
-                all_passed, errors = self._run_validators(answer_text, parsed_result)
-                
-                if all_passed:
-                    log.info(f"✓ {self.role_name} ReAct验证通过，共尝试 {attempt + 1} 次")
-                    
-                    # 更新消息历史
-                    if not self.ignore_history:
-                        self.message_history.add_messages([answer_msg])
-                        log.info("已更新消息历史")
-                    
-                    return parsed_result
-                
-                # 验证未通过
-                if attempt < self.react_max_retries:
-                    # 构建反馈消息
-                    feedback = self._build_validation_feedback(errors)
-                    log.warning(f"[process_react_mode] : 验证未通过 (尝试 {attempt + 1}): {feedback}")
-                    
-                    # 添加LLM的回复和人类的反馈到消息列表
-                    messages.append(AIMessage(content=answer_text))
-                    messages.append(HumanMessage(content=feedback))
+                run_sig = inspect.signature(cls.run)
+                run_has_storage = "storage" in run_sig.parameters
+            except:
+                pass
+
+        # -------- 渲染 __init__ 参数 --------
+        init_args = []
+        for k, v in custom_init_params.items():
+            if k == "llm_serving":
+                init_args.append(f"{k}=self.llm_serving")
+            elif k == "prompt_template":
+                # 用户已经选择了具体的 prompt 类
+                if v and v != "None":
+                    # v 格式：module.ClassName
+                    parts = v.rsplit(".", 1)
+                    if len(parts) == 2:
+                        module, classname = parts
+                        EXTRA_IMPORTS.add(f"from {module} import {classname}")
+                        init_args.append(f"{k}={classname}()")
+                    else:
+                        init_args.append(f"{k}={v}")
                 else:
-                    # 达到最大重试次数
-                    log.error(f"[process_react_mode] : {self.role_name} ReAct达到最大重试次数，验证仍未通过")
-                    return {
-                        "error": "ReAct验证失败",
-                        "attempts": attempt + 1,
-                        "last_errors": errors,
-                        "last_result": parsed_result
-                    }
-                    
-            except Exception as e:
-                log.exception(f"ReAct模式LLM调用失败 (尝试 {attempt + 1}): {e}")
-                if attempt >= self.react_max_retries:
-                    return {"error": f"LLM调用失败: {str(e)}"}
-                # 继续重试
-                continue
+                    init_args.append(f"{k}=None")
+            else:
+                # 其他参数直接使用
+                if isinstance(v, str):
+                    init_args.append(f"{k}={repr(v)}")
+                else:
+                    init_args.append(f"{k}={v}")
+        init_args.insert(0, 'llm_serving=self.llm_serving') #前端没传这个，直接塞进来；
+        init_line = f"self.{var_name} = {cls.__name__}({', '.join(init_args)})"
+        init_lines.append(init_line)
+
+        # -------- 渲染 run() 调用参数 --------
+        run_args = []
+        if run_has_storage:
+            run_args.append("storage=self.storage.step()")
         
-        # 理论上不会到这里
-        return {"error": "ReAct处理异常终止"}
+        for k, v in custom_run_params.items():
+            if isinstance(v, str):
+                run_args.append(f"{k}={repr(v)}")
+            else:
+                run_args.append(f"{k}={v}")
+
+        if run_args:
+            separator = ',\n            '
+            call = (
+                f"self.{var_name}.run(\n"
+                f"            {separator.join(run_args)}\n"
+                f"        )"
+            )
+        else:
+            call = f"self.{var_name}.run()"
+        forward_lines.append(call)
+
+    return "\n        ".join(init_lines), "\n        ".join(forward_lines)
+
+
+def build_pipeline_code_with_full_params(
+    opname_and_params: List[Dict[str, Any]],
+    *,
+    cache_dir: str = "./cache_local",
+    llm_local: bool = False,
+    local_model_path: str = "",
+    chat_api_url: str = "",
+    model_name: str = "gpt-4o",
+    file_path: str = "",
+) -> str:
+    """构建完整的 pipeline 代码（支持 init + run 参数）"""
     
-    def _build_validation_feedback(self, errors: List[str]) -> str:
-        """
-        构建验证失败的反馈消息
-        
-        Args:
-            errors: 错误信息列表
-            
-        Returns:
-            反馈消息
-        """
-        if not errors:
-            return "输出格式有误，请按要求重新生成。"
-        
-        feedback_parts = ["你的输出存在以下问题，请修正后重新生成：\n"]
-        for i, error in enumerate(errors, 1):
-            feedback_parts.append(f"{i}. {error}")
-        
-        feedback_parts.append("\n请仔细检查并重新输出正确的结果。")
-        return "\n".join(feedback_parts)
+    # 清空之前的额外导入
+    EXTRA_IMPORTS.clear()
     
-    # ==================== 原有方法 ============================================================================================================================================
-    async def _execute_react_graph(self, state: MainState, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        自动构建和执行ReAct子图
-        
-        Args:
-            state: 主状态
-            pre_tool_results: 前置工具结果
-            
-        Returns:
-            执行结果
-        """
-        from langgraph.graph import StateGraph
-        from langgraph.prebuilt import ToolNode, tools_condition
-        
-        log.info(f"开始构建 {self.role_name} 的子图...")
-        
-        # 1. 获取后置工具
-        post_tools = self.get_post_tools()
-        if not post_tools:
-            log.warning(f"{self.role_name} 没有后置工具，回退到简单模式")
-            return await self.process_simple_mode(state, pre_tool_results)
-                
-        # 2. 使用 DFState 作为子图状态（与现有代码一致）
-        log.critical(f"state: {state.agent_results}")
-
-        subgraph = StateGraph(type(state))
-        
-        # 3. 直接复用 create_assistant_node_func ， 这里没有写历史存储的代码；
-        assistant_func = self.create_assistant_node_func(state, pre_tool_results)
-        
-        # 4. 添加节点
-        subgraph.add_node("assistant", assistant_func)
-        subgraph.add_node("tools", ToolNode(post_tools))
-        
-        # 5. 添加边
-        subgraph.add_conditional_edges("assistant", tools_condition)
-        subgraph.add_edge("tools", "assistant")
-        
-        # 6. 设置入口点
-        subgraph.set_entry_point("assistant")
-        
-        # 7. 编译并执行
-        compiled_graph = subgraph.compile()
-        log.info(f"{self.role_name} 子图编译完成")
-        
-        try:
-            # 执行子图，传入当前 state
-            final_state = await compiled_graph.ainvoke(state)
-            
-            log.info(f"{self.role_name} 子图执行完成")
-            
-            # 8. 从 final_state 中提取结果
-            # create_assistant_node_func 已经把结果放到 state.agent_results 中了
-            result = final_state["agent_results"].get(self.role_name.lower(), {}).get("results", {})
-            
-            if not result:
-                log.error("子图执行后未找到结果")
-                return {"error": "子图执行异常：未找到结果"}
-            
-            # 如果需要 react mode 验证，这里可以加react对LLM Resp的
-
-            # if self.react_mode:
-            #     # 从 messages 中获取最后的 AI 响应
-            #     messages = final_state.get("messages", [])
-            #     if messages:
-            #         last_msg = messages[-1]
-            #         if hasattr(last_msg, 'content'):
-            #             all_passed, errors = self._run_validators(last_msg.content, result)
-            #             if not all_passed:
-            #                 log.warning(f"ReAct 验证未通过: {errors}")
-            #                 result["validation_errors"] = errors
-            
-            log.info(f"{self.role_name} 子图结果解析完成")
-            return result
-            
-        except Exception as e:
-            log.exception(f"{self.role_name} 子图执行失败: {e}")
-            return {"error": f"子图执行失败: {str(e)}"}
-
-
-
-    def store_outputs(self, data, file_name: str = None) -> str:
-        """保存输出结果到文件"""
-        out_dir = f"{PROJDIR}/outputs/{self.role_name.lower()}"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        
-        if not file_name:
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            file_name = f"{ts}.pkl"
-        
-        file_path = out_dir / file_name
-        
-        with open(file_path, "wb") as f:
-            pickle.dump(data, f)
-        log.info(f"已保存->: {file_path}")
-        return str(file_path)
+    # 1) 提取所有算子名称
+    op_names = [item["op_name"] for item in opname_and_params]
     
-    async def execute_pre_tools(self, state: MainState) -> Dict[str, Any]:
-        """执行前置工具"""
-        log.info(f"开始执行 {self.role_name} 的前置工具...")
+    # 2) 判断 cache_type
+    file_suffix = Path(file_path).suffix.lower() if file_path else ""
+    cache_type = {
+        ".jsonl": "jsonl",
+        ".json": "json",
+        ".csv": "csv"
+    }.get(file_suffix, "jsonl")
+
+    # 3) 收集导入
+    import_lines, op_classes = group_import_for_full_params(op_names)
+    import_section = "\n".join(import_lines)
+
+    # 4) 渲染算子代码
+    ops_init_block, forward_block = render_operator_blocks_with_full_params(
+        opname_and_params, op_classes
+    )
+
+    # 汇总所有导入语句，去重排序
+    all_imports = import_lines + sorted(EXTRA_IMPORTS)
+    import_section = "\n".join(dict.fromkeys(all_imports)) 
+
+    # 5) LLM Serving
+    if llm_local:
+        llm_block = f'''
+        # -------- LLM Serving (Local) --------
+        self.llm_serving = LocalModelLLMServing_vllm(
+            hf_model_name_or_path="{local_model_path}",
+            vllm_tensor_parallel_size=1,
+            vllm_max_tokens=8192,
+            hf_local_dir="local",
+            model_name="{model_name}",
+        )'''
+    else:
+        llm_block = f'''
+        # -------- LLM Serving (Remote) --------
+        self.llm_serving = APILLMServing_request(
+            api_url="{chat_api_url}chat/completions",
+            key_name_of_api_key="DF_API_KEY",
+            model_name="{model_name}",
+            max_workers=100,
+        )'''
+
+    # 6) 模板
+    template = '''"""
+Auto-generated Pipeline (supports init + run params)
+"""
+from dataflow.pipeline import PipelineABC
+from dataflow.utils.storage import FileStorage
+from dataflow.serving import APILLMServing_request, LocalModelLLMServing_vllm
+
+{import_section}
+
+class RecommendPipeline(PipelineABC):
+    def __init__(self):
+        super().__init__()
+        # -------- FileStorage --------
+        self.storage = FileStorage(
+            first_entry_file_name="{file_path}",
+            cache_path="{cache_dir}",
+            file_name_prefix="dataflow_cache_step",
+            cache_type="{cache_type}",
+        )
+{llm_block}
+
+        # -------- Operators --------
+        {ops_init_block}
+
+    def forward(self):
+        {forward_block}
+
+if __name__ == "__main__":
+    pipeline = RecommendPipeline()
+    pipeline.compile()
+    pipeline.forward()
+'''
+
+    code = template.format(
+        file_path=file_path,
+        import_section=import_section,
+        cache_dir=cache_dir,
+        cache_type=cache_type, 
+        llm_block=llm_block,
+        ops_init_block=ops_init_block,
+        forward_block=forward_block,
+    )
+    
+    return code
+
+# =========================================================只渲染run函数，其余不管：==================================================
+def render_operator_blocks_with_params(
+    opname_and_params: List[Dict[str, Any]], 
+    op_classes: Dict[str, type], 
+    state: DFState
+) -> Tuple[str, str]:
+    """
+    渲染算子初始化和调用代码，支持自定义 run 函数参数
+    
+    Args:
+        opname_and_params: 算子名称和参数列表，格式: [{"op_name": "xxx", "params": {...}}, ...]
+        op_classes: 算子类字典
+        state: DFState 对象
+    
+    Returns:
+        (初始化代码块, forward调用代码块)
+    """
+    init_lines: List[str] = []
+    forward_lines: List[str] = []
+    # 记录同一算子类出现的次数，避免 self.xxx 被后面的覆盖
+    name_count: Dict[str, int] = {}
+
+    for item in opname_and_params:
+        name = item["op_name"]
+        custom_params = item.get("params", {})  # 获取自定义的 run 参数
         
-        if not self.tool_manager:
-            log.info("未提供工具管理器，使用默认值")
-            return self.get_default_pre_tool_results()
+        cls = op_classes[name]
+        base_var_name = snake_case(cls.__name__)
+        count = name_count.get(base_var_name, 0) + 1
+        name_count[base_var_name] = count
+        if count > 1:
+            var_name = f"{base_var_name}_{count}"
+        else:
+            var_name = base_var_name
+
+        init_kwargs, run_kwargs, run_has_storage = extract_op_params(cls)
+
+        # -------- 渲染 __init__ 参数 --------
+        rendered_init_args: List[str] = []
+        for k, v in init_kwargs:
+            if k == "llm_serving":
+                rendered_init_args.append(f"{k}=self.llm_serving")
+            elif k == "prompt_template":
+                p_t = choose_prompt_template_by_llm(name, state)
+                rendered_init_args.append(f'{k}={p_t}')
+            else:
+                rendered_init_args.append(f"{k}={v}")
+
+        init_line = f"self.{var_name} = {cls.__name__}(" + ", ".join(rendered_init_args) + ")"
+        init_lines.append(init_line)
+
+        # -------- 渲染 run() 调用参数 --------
+        run_args: List[str] = []
         
-        results = await self.tool_manager.execute_pre_tools(self.role_name)
+        # 第一个参数 storage 保持不变
+        if run_has_storage:
+            run_args.append("storage=self.storage.step()")
         
-        # 设置默认值
-        defaults = self.get_default_pre_tool_results()
-        for key, default_value in defaults.items():
-            if key not in results or results[key] is None:
-                results[key] = default_value
-                
-        log.info(f"前置工具执行完成，获得: {list(results.keys())}")
+        # 处理其他参数：优先使用自定义参数，否则使用默认值
+        for k, default_v in run_kwargs:
+            if k in custom_params:
+                # 使用自定义参数值，需要正确格式化
+                actual_value = custom_params[k]
+                if isinstance(actual_value, str):
+                    formatted_value = repr(actual_value)
+                elif isinstance(actual_value, (int, float, bool, type(None))):
+                    formatted_value = repr(actual_value)
+                elif isinstance(actual_value, (list, dict)):
+                    formatted_value = repr(actual_value)
+                else:
+                    # 其他类型尝试转字符串
+                    formatted_value = repr(actual_value)
+                run_args.append(f"{k}={formatted_value}")
+            else:
+                # 使用默认值
+                run_args.append(f"{k}={default_v}")
+
+        # 构建完整的 run 调用
+        if run_args:
+            call = (
+                f"self.{var_name}.run(\n"
+                f"    " + ",\n    ".join(run_args) + "\n"
+                f")"
+            )
+        else:
+            call = f"self.{var_name}.run()"
+        forward_lines.append(call)
+
+    return "\n".join(init_lines), "\n".join(forward_lines)
+
+
+def build_pipeline_code_with_run_params(
+    opname_and_params: List[Dict[str, Any]],
+    state: DFState,
+    *,
+    cache_dir: str = "./cache_local",
+    llm_local: bool = False,
+    local_model_path: str = "",
+    chat_api_url: str = "",
+    model_name: str = "gpt-4o",
+    file_path: str = "",
+) -> str:
+    """
+    构建 pipeline 代码，支持为每个算子指定 run 函数的实际参数
+    
+    Args:
+        opname_and_params: 算子名称和参数列表
+            格式: [
+                {"op_name": "OperatorA", "params": {"param1": "value1", "param2": 123}},
+                {"op_name": "OperatorB", "params": {"param_x": True}},
+                ...
+            ]
+            其中 params 是该算子 run 函数的参数（不包括 storage）
+        state: DFState 对象
+        cache_dir: 缓存目录
+        llm_local: 是否使用本地 LLM
+        local_model_path: 本地模型路径
+        chat_api_url: API URL
+        model_name: 模型名称
+        file_path: 输入文件路径
+    
+    Returns:
+        生成的 pipeline 代码字符串
+    """
+    # 1) 提取所有算子名称
+    op_names = [item["op_name"] for item in opname_and_params]
+    
+    # 2) 根据 file_path 后缀判断 cache_type
+    file_suffix = Path(file_path).suffix.lower() if file_path else ""
+    if file_suffix == ".jsonl":
+        cache_type = "jsonl"
+    elif file_suffix == ".json":
+        cache_type = "json"
+    elif file_suffix == ".csv":
+        cache_type = "csv"  
+    else:
+        cache_type = "jsonl" 
+        log.warning(f"[pipeline_assembler] Unknown file suffix '{file_suffix}', defaulting to 'jsonl'")
+
+    # 3) 收集导入与类
+    import_lines, stub_blocks, op_classes = group_imports(op_names)
+
+    # 4) 渲染 operator 代码片段（使用自定义参数版本）
+    ops_init_block_raw, forward_block_raw = render_operator_blocks_with_params(
+        opname_and_params, op_classes, state
+    )
+
+    import_lines.extend(sorted(EXTRA_IMPORTS))
+    
+    import_section = "\n".join(import_lines)
+    stub_section = "\n\n".join(stub_blocks)
+
+    # 5) LLM-Serving 片段（无缩进，统一在模板中缩进）
+    if llm_local:
+        llm_block_raw = f"""
+# -------- LLM Serving (Local) --------
+self.llm_serving = LocalModelLLMServing_vllm(
+    hf_model_name_or_path="{local_model_path}",
+    vllm_tensor_parallel_size=1,
+    vllm_max_tokens=8192,
+    hf_local_dir="local",
+    model_name="{model_name}",
+)
+"""
+    else:
+        llm_block_raw = f"""
+# -------- LLM Serving (Remote) --------
+self.llm_serving = APILLMServing_request(
+    api_url="{chat_api_url}chat/completions",
+    key_name_of_api_key="DF_API_KEY",
+    model_name="{model_name}",
+    max_workers=100,
+)
+"""
+
+    # 6) 统一缩进
+    llm_block = indent_block(llm_block_raw, 8)
+    ops_init_block = indent_block(ops_init_block_raw, 8)
+    forward_block = indent_block(forward_block_raw, 8)
+
+    # 7) 模板
+    template = '''"""
+Auto-generated by pipeline_assembler (with custom run params)
+"""
+from dataflow.pipeline import PipelineABC
+from dataflow.utils.storage import FileStorage
+from dataflow.serving import APILLMServing_request, LocalModelLLMServing_vllm
+
+{import_section}
+
+{stub_section}
+
+class RecommendPipeline(PipelineABC):
+    def __init__(self):
+        super().__init__()
+        # -------- FileStorage --------
+        self.storage = FileStorage(
+            first_entry_file_name="{file_path}",
+            cache_path="{cache_dir}",
+            file_name_prefix="dataflow_cache_step",
+            cache_type="{cache_type}",
+        )
+{llm_block}
+
+{ops_init_block}
+
+    def forward(self):
+{forward_block}
+
+if __name__ == "__main__":
+    pipeline = RecommendPipeline()
+    pipeline.compile()
+    pipeline.forward()
+'''
+
+    # 8) 格式化并返回
+    code = template.format(
+        file_path=file_path,
+        import_section=import_section,
+        stub_section=stub_section,
+        cache_dir=cache_dir,
+        cache_type=cache_type, 
+        llm_block=llm_block,
+        ops_init_block=ops_init_block,
+        forward_block=forward_block,
+    )
+    return code
+
+
+def pipeline_assembler_with_params(
+    opname_and_params: List[Dict[str, Any]], 
+    state: DFState,
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    Pipeline 组装器（支持自定义 run 参数版本）
+    
+    Args:
+        opname_and_params: 算子名称和参数列表
+            格式: [{"op_name": "xxx", "params": {...}}, ...]
+        state: DFState 对象
+        **kwargs: 其他参数传递给 build_pipeline_code_with_run_params
+    
+    Returns:
+        包含生成代码的字典 {"pipe_code": ...}
+    """
+    code = build_pipeline_code_with_run_params(opname_and_params, state, **kwargs)
+    return {"pipe_code": code}
+
+
+async def apipeline_assembler_with_params(
+    opname_and_params: List[Dict[str, Any]], 
+    state: DFState,
+    **kwargs
+) -> Dict[str, Any]:
+    """异步版本"""
+    return pipeline_assembler_with_params(opname_and_params, state, **kwargs)
+
+
+# ================================之前的版本
+def build_pipeline_code(
+    op_names: List[str],
+    state: DFState,
+    *,
+    cache_dir: str = "./cache_local",
+    llm_local: bool = False,
+    local_model_path: str = "",
+    chat_api_url: str = "",
+    model_name: str = "gpt-4o",
+    file_path: str = "",
+) -> str:
+    # 1) 根据 file_path 后缀判断 cache_type
+    file_suffix = Path(file_path).suffix.lower() if file_path else ""
+    if file_suffix == ".jsonl":
+        cache_type = "jsonl"
+    elif file_suffix == ".json":
+        cache_type = "json"
+    elif file_suffix == ".csv":
+        cache_type = "csv"  
+    else:
+        cache_type = "jsonl" 
+        log.warning(f"[pipeline_assembler] Unknown file suffix '{file_suffix}', defaulting to 'jsonl'")
+
+    # 2) 收集导入与类
+    import_lines, stub_blocks, op_classes = group_imports(op_names)
+
+    # 3) 渲染 operator 代码片段（无缩进）
+    ops_init_block_raw, forward_block_raw = render_operator_blocks(op_names, op_classes, state)
+
+    import_lines.extend(sorted(EXTRA_IMPORTS))
+    
+    import_section = "\n".join(import_lines)
+    stub_section = "\n\n".join(stub_blocks)
+
+    # 4) LLM-Serving 片段（无缩进，统一在模板中缩进）
+    if llm_local:
+        llm_block_raw = f"""
+# -------- LLM Serving (Local) --------
+self.llm_serving = LocalModelLLMServing_vllm(
+    hf_model_name_or_path="{local_model_path}",
+    vllm_tensor_parallel_size=1,
+    vllm_max_tokens=8192,
+    hf_local_dir="local",
+    model_name="{model_name}",
+)
+"""
+    else:
+        llm_block_raw = f"""
+# -------- LLM Serving (Remote) --------
+self.llm_serving = APILLMServing_request(
+    api_url="{chat_api_url}chat/completions",
+    key_name_of_api_key="DF_API_KEY",
+    model_name="{model_name}",
+    max_workers=100,
+)
+"""
+
+    # 5) 统一缩进
+    llm_block = indent_block(llm_block_raw, 8)
+    ops_init_block = indent_block(ops_init_block_raw, 8)
+    forward_block = indent_block(forward_block_raw, 8)
+
+    # 6) 模板（使用 {cache_type} 占位符）
+    template = '''"""
+Auto-generated by pipeline_assembler
+"""
+from dataflow.pipeline import PipelineABC
+from dataflow.utils.storage import FileStorage
+from dataflow.serving import APILLMServing_request, LocalModelLLMServing_vllm
+
+{import_section}
+
+{stub_section}
+
+class RecommendPipeline(PipelineABC):
+    def __init__(self):
+        super().__init__()
+        # -------- FileStorage --------
+        self.storage = FileStorage(
+            first_entry_file_name="{file_path}",
+            cache_path="{cache_dir}",
+            file_name_prefix="dataflow_cache_step",
+            cache_type="{cache_type}",
+        )
+{llm_block}
+
+{ops_init_block}
+
+    def forward(self):
+{forward_block}
+
+if __name__ == "__main__":
+    pipeline = RecommendPipeline()
+    pipeline.compile()
+    pipeline.forward()
+'''
+
+    # 7) 格式化并返回
+    code = template.format(
+        file_path=file_path,
+        import_section=import_section,
+        stub_section=stub_section,
+        cache_dir=cache_dir,
+        cache_type=cache_type, 
+        llm_block=llm_block,
+        ops_init_block=ops_init_block,
+        forward_block=forward_block,
+    )
+    return code
+
+
+def pipeline_assembler(recommendation: List[str], state: DFState,**kwargs) -> Dict[str, Any]:
+    code = build_pipeline_code(recommendation, state, **kwargs)
+    return {"pipe_code": code}
+
+
+async def apipeline_assembler(recommendation: List[str], **kwargs) -> Dict[str, Any]:
+    return pipeline_assembler(recommendation, **kwargs)
+
+# ===================================================================通过my pipline的 py文件，拿到结构化的输出信息
+"""
+Parse a generated PipelineABC python file and export a graph schema::
+
+    {
+      "nodes": [...],
+      "edges": [...]
+    }
+
+Requirements:
+    - 支持 input_key / output_key 既可以是关键字参数也可以是位置参数
+    - 允许同一个算子 run 多次
+    - nodes.id 直接使用 self.xxx 的变量名
+"""
+from collections import defaultdict
+from dataflow.utils.registry import OPERATOR_REGISTRY
+
+# ----------------------------------------------------- #
+# config & helpers
+# ----------------------------------------------------- #
+SKIP_CLASSES: set[str] = {
+    "FileStorage",
+    "APILLMServing_request",
+    "LocalModelLLMServing_vllm",
+}
+
+_IN_PREFIXES = ("input", "input_")
+_OUT_PREFIXES = ("output", "output_")
+
+
+def _is_input(name: str) -> bool:
+    return name.startswith(_IN_PREFIXES)
+
+
+def _is_output(name: str) -> bool:
+    return name.startswith(_OUT_PREFIXES)
+
+
+def _guess_type(cls_obj: type | None, cls_name: str) -> str:
+    """
+    Guess operator category for front-end icon & color.
+    规则:
+        1. package 名倒数第二段 (operators.xxx.{filter|parser}.xxx)
+        2. 类名后缀启发
+        3. 兜底 'other'
+    """
+    # rule-1
+    if cls_obj is not None:
+        parts = cls_obj.__module__.split(".")
+        if len(parts) >= 2:
+            candidate = parts[-2]
+            if candidate not in {"__init__", "__main__"}:
+                return candidate
+    # rule-2
+    lower = cls_name.lower()
+    for suf, cat in [
+        ("parser", "parser"),
+        ("generator", "generate"),
+        ("filter", "filter"),
+        ("evaluator", "eval"),
+        ("refiner", "refine"),
+    ]:
+        if lower.endswith(suf):
+            return cat
+    # rule-3
+    return "other"
+
+
+def _literal_eval_safe(node: ast.AST) -> Any:
+    """ast.literal_eval 的宽松版本，失败就返回反编译字符串"""
+    if isinstance(node, ast.Constant):  # fast path
+        return node.value
+    try:
+        return ast.literal_eval(node)
+    except Exception:
+        return ast.unparse(node) if hasattr(ast, "unparse") else repr(node)
+
+
+# ----------------------------------------------------- #
+# AST 解析主流程
+# ----------------------------------------------------- #
+def parse_pipeline_file(file_path: str | Path) -> Dict[str, Any]:
+    """
+    Parameters
+    ----------
+    file_path : str | Path
+        生成的 pipeline python 文件路径
+
+    Returns
+    -------
+    dict
+        {"nodes": [...], "edges": [...]}
+    """
+    file_path = Path(file_path)
+    src = file_path.read_text(encoding="utf-8")
+    tree = ast.parse(src, filename=str(file_path))
+
+    # ------------------------------------------------- #
+    # 1. 解析 __init__ 里的 operator 实例
+    # ------------------------------------------------- #
+    def _parse_init(init_func: ast.FunctionDef) -> Dict[str, Tuple[str, Dict[str, Any]]]:
+        """
+        Returns
+        -------
+        var_name -> (cls_name, init_kwargs)
+        """
+        results: Dict[str, Tuple[str, Dict[str, Any]]] = {}
+        for stmt in init_func.body:
+            if (
+                isinstance(stmt, ast.Assign)
+                and stmt.targets
+                and isinstance(stmt.targets[0], ast.Attribute)
+                and isinstance(stmt.value, ast.Call)
+            ):
+                attr: ast.Attribute = stmt.targets[0]
+                if not (isinstance(attr.value, ast.Name) and attr.value.id == "self"):
+                    continue
+                var_name = attr.attr
+
+                call: ast.Call = stmt.value
+                # 取类名
+                if isinstance(call.func, ast.Name):
+                    cls_name = call.func.id
+                elif isinstance(call.func, ast.Attribute):
+                    cls_name = call.func.attr
+                else:
+                    continue
+
+                if cls_name in SKIP_CLASSES:  # 跳过非算子
+                    continue
+
+                kwargs = {
+                    kw.arg: _literal_eval_safe(kw.value)
+                    for kw in call.keywords
+                    if kw.arg is not None
+                }
+                results[var_name] = (cls_name, kwargs)
         return results
-    
-    # def build_messages(self, 
-    #                   state: MainState, 
-    #                   pre_tool_results: Dict[str, Any]) -> List[BaseMessage]:
-    #     """构建消息列表"""
-    #     log.info("构建提示词消息...")
-        
-    #     ptg = PromptsTemplateGenerator(state.request.language)
-    #     sys_prompt = ptg.render(self.system_prompt_template_name)
-        
-    #     task_params = self.get_task_prompt_params(pre_tool_results)
-    #     task_prompt = ptg.render(self.task_prompt_template_name, **task_params)
-    #     # log.info(f"系统提示词: {sys_prompt}")
-    #     log.debug(f"[base agent]: 任务提示词: {task_prompt}")
-        
-    #     messages = [
-    #         SystemMessage(content=sys_prompt),
-    #         HumanMessage(content=task_prompt),
-    #     ]
-        
-    #     log.info("提示词消息构建完成")
-    #     return messages
 
-    # 多模态版本
-    def build_messages(self, 
-                    state: MainState, 
-                    pre_tool_results: Dict[str, Any]) -> List[BaseMessage]:
-        """构建消息列表 - 添加格式说明"""
-        log.info("构建提示词消息...")
-        
-        ptg = PromptsTemplateGenerator(state.request.language)
-        sys_prompt = ptg.render(self.system_prompt_template_name)
-        
-        # 添加解析器格式说明
-        format_instruction = self.parser.get_format_instruction()
-        if format_instruction and not self.use_vlm:  # VLM模式可能不需要格式说明
-            sys_prompt += f"\n\n{format_instruction}"
-        
-        task_params = self.get_task_prompt_params(pre_tool_results)
-        task_prompt = ptg.render(self.task_prompt_template_name, **task_params)
-        # log.info(f"系统提示词: {sys_prompt}")
-        log.info(f"[build_messages]任务提示词: {task_prompt}")
-        
-        messages = [
-            SystemMessage(content=sys_prompt),
-            HumanMessage(content=task_prompt),
-        ]
-        
-        log.info("提示词消息构建完成")
-        return messages
-
-    # def create_llm(self, state: MainState, bind_post_tools: bool = False) -> ChatOpenAI:
-    #     """创建LLM实例"""
-    #     actual_model = self.model_name or state.request.model
-    #     actual_url = self.chat_api_url or state.request.chat_api_url
-    #     log.info(f"[create_llm:]创建LLM实例，温度: {self.temperature}, 最大token: {self.max_tokens}, 模型: {actual_model}, 接口URL: {actual_url}, API Key: {state.request.api_key}")
-    #     llm = ChatOpenAI(
-    #         openai_api_base=actual_url,
-    #         openai_api_key=state.request.api_key,
-    #         model_name=actual_model,
-    #         temperature=self.temperature,
-    #         # max_tokens=self.max_tokens,
-    #     )
-        
-    #     if bind_post_tools and self.tool_manager:
-    #         post_tools = self.get_post_tools()
-    #         if post_tools:
-    #             llm = llm.bind_tools(post_tools, tool_choice=self.tool_mode)
-    #             log.info(f"[create_llm]:为LLM绑定了 {len(post_tools)} 个后置工具: {[t.name for t in post_tools]}")
-    #     return llm
-
-    def create_llm(self, state: MainState, bind_post_tools: bool = False) -> ChatOpenAI:
-        """创建LLM实例"""
-        import httpx
-        actual_model = self.model_name or state.request.model
-        actual_url = self.chat_api_url or state.request.chat_api_url
-        log.info(f"[create_llm:]创建LLM实例，模型: {actual_model}")
-        
-        log.info(f"[create_llm:]创建LLM实例，温度: {self.temperature}, 最大token: {self.max_tokens}, 模型: {actual_model}, 接口URL: {actual_url}, API Key: {state.request.api_key}")
-
-        # 1. 复用你之前的逻辑：配置超时和 SSL
-        # 注意：这里不需要 async with，因为 ChatOpenAI 会接管客户端的生命周期
-        timeout = 120.0 # 或者从 self.vlm_config 获取，保持一致性
-
-        # 2. 创建干净的异步客户端 (针对报错: _AsyncHttpxClientWrapper)
-        clean_async_client = httpx.AsyncClient(
-            timeout=httpx.Timeout(timeout),
-            proxies=None,        # === 关键修复：显式禁用代理 ===
-            trust_env=False,     # === 关键修复：忽略环境变量 ===
-            verify=False,        # 保持和你之前代码一致，关闭 SSL 验证（如需）
-            follow_redirects=True
-        )
-
-        # 3. 创建干净的同步客户端 (防止同步调用时出错)
-        clean_sync_client = httpx.Client(
-            timeout=httpx.Timeout(timeout),
-            proxies=None,
-            trust_env=False,
-            verify=False,
-            follow_redirects=True
-        )
-
-        llm = ChatOpenAI(
-            base_url=actual_url,
-            api_key=state.request.api_key,
-            model_name=actual_model,
-            temperature=self.temperature,
-            # === 注入修复后的客户端 ===
-            http_client=clean_sync_client,       # 覆盖同步调用
-            http_async_client=clean_async_client # 覆盖异步调用 (解决 AttributeError 问题)
-            # ========================
-        )
-
-
-        log.critical(f"ChatOpenAI创建完成！")
-        
-        if bind_post_tools and self.tool_manager:
-            post_tools = self.get_post_tools()
-            if post_tools:
-                llm = llm.bind_tools(post_tools, tool_choice=self.tool_mode)
-                log.info(f"[create_llm]:为LLM绑定了 {len(post_tools)} 个后置工具: {[t.name for t in post_tools]}")
-        return llm
-    
-    def get_post_tools(self) -> List[Tool]:
-        if not self.tool_manager:
-            return []
-        tools = self.tool_manager.get_post_tools(self.role_name)
-        uniq, seen = [], set()
-        for t in tools:
-            if t.name not in seen:
-                uniq.append(t)
-                seen.add(t.name)
-        return uniq
-    
-    async def process_simple_mode(self, state: MainState, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
-        """简单模式处理"""
-        log.info(f"执行 {self.role_name} 简单模式...")
-        
-        messages = self.build_messages(state, pre_tool_results)
-        
-        # 消息历史管理
-        if not self.ignore_history:
-            history_messages = self.message_history.get_messages()
-            if history_messages:
-                messages = self.message_history.merge_histories(history_messages, messages)
-                log.info(f"合并了 {len(history_messages)} 条历史消息")
-        
-        llm = self.create_llm(state, bind_post_tools=False)
-        
-        try:
-            answer_msg = await llm.ainvoke(messages)
-            answer_text = answer_msg.content
-            log.info(f'LLM原始输出：{answer_text}')
-            log.info("LLM调用成功，开始解析结果")
-            
-            # 更新消息历史
-            if not self.ignore_history:
-                self.message_history.add_messages([answer_msg])
-                log.info("已更新消息历史")
-                
-        except Exception as e:
-            log.exception("LLM调用失败: %s", e)
-            return {"error": str(e)}
-        
-        return self.parse_result(answer_text)
-    
-    async def process_with_llm_for_graph(self, messages: List[BaseMessage], state: MainState) -> BaseMessage:
-        llm = self.create_llm(state, bind_post_tools=True)
-        try:
-            response = await llm.ainvoke(messages)
-            log.info(response)
-            log.info(f"{self.role_name} 图模式LLM调用成功")
-            return response
-        except Exception as e:
-            log.exception(f"{self.role_name} 图模式LLM调用失败: {e}")
-            raise
-    
-    def has_tool_calls(self, message: BaseMessage) -> bool:
-        """检查消息是否包含工具调用"""
-        return hasattr(message, 'tool_calls') and bool(getattr(message, 'tool_calls', None))
-    def update_state_result(self, state: MainState, result: Dict[str, Any], pre_tool_results: Dict[str, Any]):
+    # ------------------------------------------------- #
+    # 2. 解析 forward() 里的 run 调用
+    # ------------------------------------------------- #
+    def _parse_forward(
+        forward_func: ast.FunctionDef,
+    ) -> DefaultDict[str, List[Dict[str, Any]]]:
         """
-        更新状态结果 - 子类可重写以自定义状态更新逻辑
-        
-        Args:
-            state: 状态对象
-            result: 处理结果
-            pre_tool_results: 前置工具结果
+        Returns
+        -------
+        var_name -> [run_kwargs ...]  (保持出现顺序)
         """
-        # 默认行为：将结果存储到与角色名对应的属性中
-        setattr(state, self.role_name.lower(), result)
-        state.agent_results[self.role_name] = {
-            "pre_tool_results": pre_tool_results,
-            "post_tools": [t.name for t in self.get_post_tools()],
-            "results": result
-        }
-# =================================================================================execute 部分！ 核心！！！=================================================================================
-    async def execute(self, state: MainState, use_agent: bool = False, **kwargs) -> MainState:
+        mapping: DefaultDict[str, List[Dict[str, Any]]] = defaultdict(list)
+
+        # walk 按源码顺序遍历需借助 ast.iter_child_nodes + 递归
+        def _visit(node: ast.AST):
+            # 按出现顺序遍历
+            for child in ast.iter_child_nodes(node):
+                if (
+                    isinstance(child, ast.Call)
+                    and isinstance(child.func, ast.Attribute)
+                    and child.func.attr == "run"
+                ):
+                    obj = child.func.value
+                    if (
+                        isinstance(obj, ast.Attribute)
+                        and isinstance(obj.value, ast.Name)
+                        and obj.value.id == "self"
+                    ):
+                        var_name = obj.attr
+
+                        # ------- 关键字参数 -------
+                        kw_dict = {
+                            kw.arg: _literal_eval_safe(kw.value)
+                            for kw in child.keywords
+                            if kw.arg is not None
+                        }
+
+                        # ------- 位置参数 -------
+                        # 假设位置顺序为 (storage, input_key, output_key, ...)
+                        if len(child.args) >= 2:
+                            kw_dict.setdefault("input_key", _literal_eval_safe(child.args[1]))
+                        if len(child.args) >= 3:
+                            kw_dict.setdefault("output_key", _literal_eval_safe(child.args[2]))
+
+                        mapping[var_name].append(kw_dict)
+                _visit(child)
+
+        _visit(forward_func)
+        return mapping
+
+    # ------------------------------------------------- #
+    # 3. 主 visitor：定位唯一继承 PipelineABC 的类
+    # ------------------------------------------------- #
+    init_ops, forward_calls = {}, defaultdict(list)
+
+    class PipelineVisitor(ast.NodeVisitor):
+        def visit_ClassDef(self, node: ast.ClassDef):  # noqa: N802
+            nonlocal init_ops, forward_calls
+            # naive 判断: 存在 forward() 方法即认为是 pipeline
+            has_forward = any(
+                isinstance(b, ast.FunctionDef) and b.name == "forward" for b in node.body
+            )
+            if not has_forward:
+                return
+            for item in node.body:
+                if isinstance(item, ast.FunctionDef):
+                    if item.name == "__init__":
+                        init_ops = _parse_init(item)
+                    elif item.name == "forward":
+                        forward_calls = _parse_forward(item)
+
+    PipelineVisitor().visit(tree)
+
+    # ------------------------------------------------- #
+    # 4. build nodes
+    # ------------------------------------------------- #
+    def build_nodes() -> tuple[list[dict[str, Any]],
+                            dict[str, str],
+                            dict[str, tuple[str, str]]]:
         """
-        统一执行入口
-        
-        Args:
-            state: DFState实例
-            use_agent: 是否使用代理模式（图模式）
-            **kwargs: 额外参数
-            
-        Returns:
-            更新后的DFState
+        Returns
+        -------
+        nodes                : list of node-dict
+        var2id               : var_name -> node_id        (供后续查表)
+        produced_ports       : label(str) -> (node_id, port_name)
         """
-        # 获取一些状态信息
-        self.state = state
-        # 如果配置了执行策略，优先使用
-        if self._execution_strategy:
-            log.info(f"使用策略模式执行: {self._execution_strategy.__class__.__name__}")
+        nodes: list[dict[str, Any]] = []
+        var2id: dict[str, str] = {}
+        produced_ports: dict[str, tuple[str, str]] = {}
+
+        global_counter = itertools.count(1)       
+
+        for var, (cls_name, init_kwargs) in init_ops.items():
+            # -------- 生成 node_id -------- #
+            node_id = f"node{next(global_counter)}"    # <-- 变成 node1/node2/…
+
+            var2id[var] = node_id
+
+            # forward() 第一次 run 的配置
+            first_run_cfg = forward_calls.get(var, [{}])[0]
+
+            # 把首次 run 产生的 output 标记为 “已经产生”
+            for k, v in first_run_cfg.items():
+                if _is_output(k) and isinstance(v, str):
+                    produced_ports[v] = (node_id, k)
             try:
-                pre_tool_results = await self.execute_pre_tools(state)
-                result = await self._execution_strategy.execute(state, **kwargs)
-                self.update_state_result(state, result, pre_tool_results)
-                return state
-            except Exception as e:
-                log.exception(f"策略执行失败: {e}")
-                error_result = {"error": str(e)}
-                self.update_state_result(state, error_result, {})
-                return state
-            
-        # ================之前的代码，非策略支持部分 ========================
-        log.info(f"开始执行 {self.role_name} (ReAct模式: {self.react_mode}, 图模式: {use_agent})")
+                cls_obj = OPERATOR_REGISTRY.get(cls_name)
+            except Exception:
+                cls_obj = None
 
-        if getattr(self, "use_vlm", False):
-            # 直接走多模态链路
-            log.critical(f'[base agent]: 走多模态路径 ')
-            result = await self._execute_vlm(state, **kwargs)
-            # 和简单/React 逻辑保持一致，更新到 state
-            self.update_state_result(state, result, {})
-            log.info(f"{self.role_name} 多模态执行完成")
-            return state
-        try:
-            # 1. 执行前置工具
-            pre_tool_results = await self.execute_pre_tools(state)
-
-            # 合并 kwargs 到前置工具结果中， 这一步是 agent as tool 时，需要将 kwargs 作为前置工具的输入； 也可以在正常调用时，将 kwargs 作为前置工具的结果，比如 {"content": "xxxx报告"}
-            pre_tool_results.update(kwargs)
-            
-            # 2. 检查是否有后置工具
-            post_tools = self.get_post_tools()
-            
-            # 3. 根据模式和工具情况选择处理方式
-            if use_agent and post_tools:
-                log.info(f"[子图新模式] 自动构建 {self.role_name} 的子图，后置工具: {[t.name for t in post_tools]}")
-                result = await self._execute_react_graph(state, pre_tool_results)
-                self.update_state_result(state, result, pre_tool_results)
-                log.info(f"[子图新模式] {self.role_name} 子图模式执行完成")
-                if not hasattr(state, 'temp_data'):
-                    state.temp_data = {}
-                state.temp_data['pre_tool_results'] = pre_tool_results
-                state.temp_data[f'{self.role_name}_instance'] = self
-                
-            elif self.react_mode:
-                # ReAct模式 - 带验证的循环调用
-                log.info("ReAct模式 - 带验证循环")
-                result = await self.process_react_mode(state, pre_tool_results)
-                self.update_state_result(state, result, pre_tool_results)
-                log.info(f"{self.role_name} ReAct模式执行完成")
-                
-            else:
-                # 简单模式 - 单次调用
-                if use_agent and not post_tools:
-                    log.info("图模式无可用后置工具，回退到简单模式")
-                result = await self.process_simple_mode(state, pre_tool_results)
-                self.update_state_result(state, result, pre_tool_results)
-                log.info(f"{self.role_name} 简单模式执行完成")
-            
-        except Exception as e:
-            log.exception(f"{self.role_name} 执行失败: {e}")
-            error_result = {"error": str(e)}
-            self.update_state_result(state, error_result, {})
-            
-        return state
-    
-    async def _execute_vlm(self,
-                        state: MainState,
-                        **kwargs) -> Dict[str, Any]:
-        """
-        Vision-LLM 专用执行流程
-        与文本链路完全解耦，不碰原有 llm / process_simple_mode 等函数
-        """
-        # 1. 前置工具
-        pre_tool_results = await self.execute_pre_tools(state)
-    
-        # 2. 构建消息（若是图像生成/编辑仅用 prompt 就行，
-        #    若是图像理解可和文本一样）——示例给两种典型写法:
-        mode = self.vlm_config.get("mode", "understanding")
-    
-        # if mode in {"generation", "edit"}:
-        #     # 只需要最后一条 prompt
-        #     messages = [
-        #         HumanMessage(content=self.build_generation_prompt(pre_tool_results))
-        #     ]
-        # else:
-        messages = self.build_messages(state, pre_tool_results)
-    
-        # 3. 调用 VisionLLMCaller
-        from dataflow_agent.llm_callers import VisionLLMCaller
-        vlm_caller = VisionLLMCaller(
-            state,
-            vlm_config=self.vlm_config,
-            model_name=self.model_name,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            tool_mode=self.tool_mode,
-            tool_manager=self.tool_manager,
-        )
-        response = await vlm_caller.call(messages)
-        log.info(f"{self.role_name} 多模态原始响应: {response}")
-    
-        # 4. 解析
-        parsed = self.parse_result(response.content)
-    
-        # 5. 如有附加信息（例如图像路径 / base64），一起返回
-        if hasattr(response, "additional_kwargs"):
-            log.info(f"{self.role_name} 多模态附加信息: {response.additional_kwargs}")
-            
-            if isinstance(parsed, dict):
-                parsed.update(response.additional_kwargs)
-            elif isinstance(parsed, list):
-                log.warning(f"{self.role_name} parsed 是列表类型，无法调用 update 方法，跳过附加参数合并")
-                log.info(f"parsed 类型: {type(parsed).__name__}, 内容: {parsed}")
-                log.info(f"additional_kwargs 内容: {response.additional_kwargs}")
-            else:
-                log.warning(f"{self.role_name} parsed 是 {type(parsed).__name__} 类型，无法调用 update 方法，跳过附加参数合并")
-                log.info(f"parsed 内容: {parsed}")
-                log.info(f"additional_kwargs 内容: {response.additional_kwargs}")
-        
-        return parsed
-# 这个暂时用不到
-    def build_generation_prompt(self, pre_tool_results: Dict[str, Any]) -> str:
-        """示例：把工具结果拼进 prompt"""
-        return (
-            f"{self.vlm_config.get('prompt', '')}"
-        )
-    
-    def create_assistant_node_func(self, state: MainState, pre_tool_results: Dict[str, Any]):
-        async def assistant_node(graph_state):
-            messages = graph_state.get("messages", [])
-            if not messages:
-                messages = self.build_messages(state, pre_tool_results)
-                log.info(f"构建 {self.role_name} 初始消息，包含前置工具结果")
-
-            response = await self.process_with_llm_for_graph(messages, state)
-
-            if self.has_tool_calls(response):
-                log.info(f"[create_assistant_node_func]: {self.role_name} LLM选择调用工具: ...")
-                return {"messages": messages + [response]}
-            else:
-                log.info(f"[create_assistant_node_func]: {self.role_name} LLM本次未调用工具，解析最终结果")
-                result = self.parse_result(response.content)
-                # **这里同步了一次 agent_results**
-                state.agent_results[self.role_name.lower()] = {
-                    "pre_tool_results": pre_tool_results,
-                    "post_tools": [t.name for t in self.get_post_tools()],
-                    "results": result
+            nodes.append(
+                {
+                    "id": node_id,
+                    "name": cls_name,
+                    "type": _guess_type(cls_obj, cls_name),
+                    "config": {
+                        "init": init_kwargs,
+                        "run": first_run_cfg,
+                    },
                 }
-                return {
-                    "messages": messages + [response],
-                    self.role_name.lower(): result,
-                    "finished": True
-                }
-        return assistant_node
+            )
+        return nodes, var2id, produced_ports
+
+    # ------------------------------------------------- #
+    # 5. build edges (按 forward 执行顺序)
+    # ------------------------------------------------- #
+    def build_edges(
+        produced_ports: dict[str, tuple[str, str]],
+        var2id: dict[str, str],
+    ) -> list[dict[str, Any]]:
+        edges: list[dict[str, Any]] = []
+        for var, runs in forward_calls.items():
+            tgt_id = var2id.get(var)
+            if not tgt_id:
+                continue
+            for run_cfg in runs:
+                for k, v in run_cfg.items():
+                    if _is_input(k) and isinstance(v, str) and v in produced_ports:
+                        src_id, src_port = produced_ports[v]
+                        edges.append(
+                            {
+                                "source": src_id,
+                                "target": tgt_id,
+                                "source_port": src_port,
+                                "target_port": k,
+                            }
+                        )
+        return edges
+
+    nodes, var2id, produced_ports = build_nodes()
+    edges = build_edges(produced_ports, var2id)
+    return {"nodes": nodes, "edges": edges}
+
+def build_edges_from_nodes(
+    nodes: List[Dict[str, Any]] | Dict[str, Any],
+    save_path: str | Path
+) -> Dict[str, Any]:
+    """
+    根据 nodes 自动生成 edges，并保存完整的 pipeline graph 到 save_path
+
+    Args:
+        nodes: 节点信息，支持两种格式：
+               - List[Dict]: 直接的节点列表
+               - Dict: 包含 "nodes" 键的字典，如 {"nodes": [...]}
+        save_path: 输出 json 文件路径
+
+    Returns:
+        完整的 graph dict: {"nodes": ..., "edges": ...}
     
-# # ---------------------------------- 在 BaseAgent 顶部添加 --------------------------
-# from langchain_core.messages import AIMessage, BaseMessage
+    Raises:
+        ValueError: 当输入格式不正确时
+    """
+    
+    # 统一处理输入格式，提取节点列表
+    log.critical(f'nodes: {nodes}, save_path : {save_path}')
+    if isinstance(nodes, dict):
+        if "nodes" in nodes:
+            nodes_list = nodes["nodes"]
+        else:
+            raise ValueError("当 nodes 为字典时，必须包含 'nodes' 键")
+    elif isinstance(nodes, list):
+        nodes_list = nodes
+    else:
+        raise ValueError(f"nodes 必须是 list 或 dict 类型，当前类型: {type(nodes)}")
+    
+    # 验证节点列表不为空
+    if not nodes_list:
+        log.warning("[build_edges_from_nodes] 节点列表为空")
+        graph = {"nodes": [], "edges": []}
+        save_path = Path(save_path)
+        save_path.write_text(json.dumps(graph, indent=2, ensure_ascii=False), encoding="utf-8")
+        return graph
 
-# # ---------------------------------- 添加统一调用助手 ------------------------------
-# async def _call_llm(self,
-#                     messages: List[BaseMessage],
-#                     state: MainState,
-#                     bind_post_tools: bool = False) -> AIMessage:
-#     if self.use_vlm:
-#         caller = self.get_llm_caller(state)       # VisionLLMCaller
-#         return await caller.call(messages)
+    # 1. 收集所有 output_key 到 (node_id, port_name) 的映射
+    produced_outputs = {}  # output_key_value -> (node_id, port_name)
+    for node in nodes_list:
+        if not isinstance(node, dict) or "id" not in node:
+            log.warning(f"[build_edges_from_nodes] 跳过无效节点: {node}")
+            continue
+            
+        run_cfg = node.get("config", {}).get("run", {})
+        for key, value in run_cfg.items():
+            if isinstance(key, str) and key.startswith("output") and isinstance(value, str):
+                produced_outputs[value] = (node["id"], key)
 
-#     llm = self.create_llm(state, bind_post_tools=bind_post_tools)
-#     return await llm.ainvoke(messages)
-# # -------------------------------------------------------------------------------
+    # 2. 遍历节点，查找 input_key 引用的 output_key，生成边
+    edges = []
+    for node in nodes_list:
+        if not isinstance(node, dict) or "id" not in node:
+            continue
+            
+        run_cfg = node.get("config", {}).get("run", {})
+        for key, value in run_cfg.items():
+            if isinstance(key, str) and key.startswith("input") and isinstance(value, str):
+                if value in produced_outputs:
+                    src_id, src_port = produced_outputs[value]
+                    edges.append({
+                        "source": src_id,
+                        "target": node["id"],
+                        "source_port": src_port,
+                        "target_port": key
+                    })
 
-# # process_simple_mode / process_react_mode 内全部换成：
-# answer_msg = await self._call_llm(messages, state, bind_post_tools=False)
+    # 3. 保存并返回
+    graph = {"nodes": nodes_list, "edges": edges}
+    save_path = Path(save_path)
+    save_path.write_text(json.dumps(graph, indent=2, ensure_ascii=False), encoding="utf-8")
+    
+    log.info(f"[build_edges_from_nodes] 生成 {len(nodes_list)} 个节点，{len(edges)} 条边")
+    return graph
+# ----------------------------------------------------- #
+# CLI 方便快速测试（免参数版）
+# ----------------------------------------------------- #
+if __name__ == "__main__":
+    import json
+    from pathlib import Path
+    import pprint
+
+    PY_PATH = Path("/mnt/DataFlow/lz/proj/DataFlow/dataflow/dataflowagent/tests/my_pipeline.py")
+
+    graph = parse_pipeline_file(PY_PATH)
+
+    pprint.pprint(graph, width=120)
+
+    OUT_PATH = PY_PATH.with_suffix(".json")
+    OUT_PATH.write_text(json.dumps(graph, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"saved to {OUT_PATH}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# if __name__ == "__main__":
+    # test_ops = [
+    #     "SQLGenerator",
+    #     "SQLExecutionFilter",
+    #     "SQLComponentClassifier",
+    # ]
+    # result = pipeline_assembler(
+    #     test_ops,
+    #     cache_dir="./cache_local",
+    #     llm_local=False,
+    #     chat_api_url="",
+    #     model_name="gpt-4o",
+    #     file_path = " "
+    # )
+    # code_str = result["pipe_code"]
+    # write_pipeline_file(code_str, file_name="my_recommend_pipeline.py", overwrite=True)
+    # print("Generated pipeline code written to my_recommend_pipeline.py")

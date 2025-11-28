@@ -85,7 +85,7 @@ def create_artifact(wf_name: Optional[str] = None,
     # ------------------------------------------------------------------
     elif agent_name:
         agent_snake = to_snake(agent_name)
-        dest        = Path(__file__).parent / "agentroles" / f"{agent_snake}_agent.py"
+        dest        = Path(__file__).parent / "agentroles" / "common_agents" / f"{agent_snake}_agent.py"
         tpl_path    = TEMPLATE_DIR / "agent.py.jinja"
         ctx         = dict(
             agent_name=agent_name,
@@ -130,7 +130,7 @@ def create_artifact(wf_name: Optional[str] = None,
     # ------------------------------------------------------------------
     elif agent_as_tool_name:
         agent_snake = to_snake(agent_as_tool_name)
-        dest        = Path(__file__).parent / "agentroles" / f"{agent_snake}_agent.py"
+        dest        = Path(__file__).parent / "agentroles" / "common_agents" / f"{agent_snake}_agent.py"
         tpl_path    = TEMPLATE_DIR / "agent_as_tool_name.py.jinja"
         ctx         = dict(
             agent_name=agent_as_tool_name,

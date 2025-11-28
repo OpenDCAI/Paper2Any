@@ -4,7 +4,8 @@ import json
 import re
 from typing import Any, Dict, Union, List
 from pathlib import Path
-
+from dataflow_agent.logger import get_logger
+log = get_logger(__name__)
 def get_project_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
@@ -43,11 +44,16 @@ def robust_parse_json(
     # ---------- 清理注释 & 尾逗号 ----------
     s = _strip_json_comments(s)
 
+    log.debug(f'清洗完之后内容是： {s}')
+
     # ---------- Step-1：整体解析 ----------
+    # Step-1
     try:
-        return json.loads(s)
-    except JSONDecodeError:
-        pass  # 继续尝试其它格式
+        result = json.loads(s)
+        log.info(f"整体解析成功，类型: {type(result)}")
+        return result
+    except JSONDecodeError as e:
+        log.warning(f"整体解析失败: {e}")
 
     # ---------- Step-2：尝试 JSON Lines ----------
     objs = _parse_json_lines(s)
@@ -56,6 +62,7 @@ def robust_parse_json(
 
     # ---------- Step-3：流式提取多个对象 ----------
     objs = _extract_json_objects(s)
+    log.warning(f"提取到 {len(objs)} 个对象")
     if not objs:
         raise ValueError("Unable to locate any valid JSON fragment.")
 

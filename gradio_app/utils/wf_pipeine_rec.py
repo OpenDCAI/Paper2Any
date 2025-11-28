@@ -17,7 +17,8 @@ async def run_pipeline_workflow(
     model_name:str = 'gpt-4o',
     max_debug_rounds: int = 2,
     chat_api_url_for_embeddings: str = "",
-    embedding_model_name: str =  "text-embedding-3-small"
+    embedding_model_name: str =  "text-embedding-3-small",
+    update_rag_content: bool = True
 ) -> dict:
     if api_key:
         os.environ["DF_API_KEY"] = api_key
@@ -47,7 +48,8 @@ async def run_pipeline_workflow(
         session_id=session_id,
         max_debug_rounds= max_debug_rounds,
         chat_api_url_for_embeddings=chat_api_url_for_embeddings,
-        embedding_model_name = embedding_model_name
+        embedding_model_name = embedding_model_name,
+        update_rag_content=update_rag_content
     )
 
     # state 初始化
