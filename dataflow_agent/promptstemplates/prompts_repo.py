@@ -546,31 +546,73 @@ Return ONLY a JSON object with field:
 
 # 3) Refiner: align input names and allow op_context per step_id
 PipelineRefinePrompts.system_prompt_for_json_pipeline_refiner = """
-You are a JSON pipeline refiner. Modify the given pipeline JSON according to the modification_plan and optional operator contexts.
-Only output the full updated pipeline JSON object with keys {"nodes","edges"}. No comments.
-Rules:
+You are a JSON pipeline refiner with access to operator search tools. Modify the given pipeline JSON according to the modification_plan.
+
+**CRITICAL RULES FOR ADDING NEW OPERATORS:**
+1. **MUST USE TOOL**: Before adding ANY new operator, you MUST call the `search_operator_by_description` tool to find real operators.
+2. **ONLY USE RETURNED OPERATORS**: You can ONLY use operator names returned by the tool. NEVER invent or guess operator names.
+3. **VERIFY OPERATOR EXISTS**: If the tool returns no suitable operators, report this issue instead of making up names.
+4. **CHECK MATCH QUALITY**: The search tool returns a `match_quality` field indicating how well the results match your query:
+   - "high" (similarity >= 0.5): Good match, safe to use
+   - "medium" (similarity 0.3-0.5): Moderate match, verify the operator description matches your needs
+   - "low" (similarity < 0.3): Poor match, the operators may NOT satisfy the requirement. You should report "未能找到满足XXX需求的算子" in this case.
+
+**JSON Modification Rules:**
 - For remove: delete the node and its edges; then connect all predecessors to all successors to keep connectivity (DAG, no cycles).
 - For insert_between(a,b): replace edge a→b with a→new and new→b.
 - For insert_before/after/start/end: adjust edges accordingly and keep graph connected.
 - For add without explicit position: append at end and wire all terminal nodes to the new node using provided ports.
 - Edge fields: {"source","target","source_port","target_port"}.
 - Node fields: {"id","name","type","config":{"run":{...},"init":{...}}}.
- - Always apply ALL steps in modification_plan sequentially. Do not skip steps.
- - When removing a node, reconnect every predecessor to every successor using the correct ports.
- - Ensure newly created node ids are unique.
+- Always apply ALL steps in modification_plan sequentially. Do not skip steps.
+- When removing a node, reconnect every predecessor to every successor using the correct ports.
+- Ensure newly created node ids are unique.
+
+**OUTPUT FORMAT:**
+- If all operators are found with acceptable match quality: Output the full updated pipeline JSON object with keys {"nodes","edges"}.
+- If any required operator has low match quality and cannot satisfy the requirement: Output a JSON object with:
+  {
+    "status": "partial_failure",
+    "message": "未能找到满足「XXX」需求的算子。当前算子库中最相似的是 YYY（功能：ZZZ），但其功能与需求不匹配。",
+    "matched_operators_info": [...],  // 搜索到的算子信息
+    "pipeline": {...}  // 尽可能完成其他修改后的 pipeline，或原始 pipeline
+  }
+
+No comments in output.
 """
 PipelineRefinePrompts.task_prompt_for_json_pipeline_refiner = """
 [TASK]
 1. 理解当前 pipeline_json 与 modification_plan。
-2. 如 op_context 提供了针对某个 step_id 的 operator 代码/端口/配置提示，请据此填写新节点的 type、config.run(input_key/output_key) 与必要的 init。
-3. 严格保持 JSON 结构、DAG 连通性与有向无环属性，禁止输出注释或解释性文字。
+2. **重要**：在添加新算子之前，必须先调用 `search_operator_by_description` 工具搜索真实存在的算子。
+3. **禁止**使用工具返回结果之外的算子名称。如果需要"情感分析"功能，先搜索"情感分析"，然后从返回的算子列表中选择最合适的。
+4. **关键**：检查工具返回的 `match_quality` 字段：
+   - 如果是 "high"：可以放心使用该算子
+   - 如果是 "medium"：仔细阅读算子描述，确认功能是否匹配
+   - 如果是 "low"：说明没有找到合适的算子！此时应该在输出中明确说明"未能找到满足「XXX」需求的算子"，并给出搜索到的最相似算子及其功能描述，让用户了解当前算子库的能力边界。
+5. 如需了解算子的详细参数，可调用 `get_operator_code_by_name` 工具获取算子源代码。
+6. 根据工具返回的算子信息，填写新节点的 name、type、config.run(input_key/output_key) 与必要的 init。
+7. 严格保持 JSON 结构、DAG 连通性与有向无环属性，禁止输出注释或解释性文字。
+
+[WORKFLOW]
+1. 分析 modification_plan 中需要添加的算子
+2. 对每个需要添加的算子，调用 search_operator_by_description 工具搜索
+3. **检查返回结果的 match_quality 字段**：
+   - 如果 match_quality 为 "high" 或 "medium"（且描述匹配）：从 matched_operators 中选择最合适的算子
+   - 如果 match_quality 为 "low"：记录下来，准备在最终输出中报告此问题
+4. 如需要，调用 get_operator_code_by_name 获取算子详细参数
+5. 生成最终输出：
+   - 如果所有需要的算子都找到了：输出完整的 pipeline JSON
+   - 如果有算子未找到（match_quality 为 low）：输出包含 status, message, pipeline 的 JSON，明确说明哪些需求无法满足
 
 [INPUT]
 Current pipeline JSON: {pipeline_json}
 Modification plan: {modification_plan}
 Operator context (op_context can be a list or a dict keyed by step_id): {op_context}
 
-Output the UPDATED pipeline JSON ONLY.
+[OUTPUT]
+根据搜索结果的 match_quality 决定输出格式：
+- 全部找到：直接输出更新后的 pipeline JSON（包含 nodes 和 edges）
+- 部分未找到：输出 {{"status": "partial_failure", "message": "...", "pipeline": {{...}}}}
 """
 
 

@@ -327,7 +327,28 @@ def create_pipeline_rec():
                 python_code = result["python_code"]
                 agent_results = result["agent_results"]
                 
+                # 检查是否有警告信息
+                warning_msg = result.get("warning", "")
+                refiner_status = result.get("refiner_status", "success")
+                
+                # 如果有警告，在代码顶部添加注释提示
+                if warning_msg:
+                    warning_comment = f'''# ⚠️ 优化警告 (状态: {refiner_status})
+# {warning_msg}
+# 
+# 以下是当前 Pipeline（可能未完全按需求修改）：
+# ============================================================
+
+'''
+                    python_code = warning_comment + python_code
+                    # 同时在 agent_results 中添加警告信息
+                    if isinstance(agent_results, dict):
+                        agent_results["_warning"] = warning_msg
+                        agent_results["_refiner_status"] = refiner_status
+                
                 round_text = f"**当前优化轮次：** {new_round}"
+                if warning_msg:
+                    round_text += f"\n\n⚠️ **警告：** {warning_msg}"
                 
                 # 保存到历史记录
                 new_history_entry = {

@@ -5,7 +5,9 @@ from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.toolkits.optool.op_tools import (
     local_tool_for_get_purpose,
     get_operator_content_str,
-    local_tool_for_get_match_operator_code
+    local_tool_for_get_match_operator_code,
+    search_operator_by_description,
+    get_operator_code_by_name,
 )
 
 from dataflow_agent.agentroles.data_agents.match import create_match
@@ -170,9 +172,19 @@ def create_pipeline_refine_graph() -> GenericGraphBuilder:
         # 传递子操作级匹配上下文（列表或映射），由 prompt 解析
         return state.agent_results.get("op_contexts", [])
 
+    # 注册 RAG 搜索工具为 pipeline_refiner 的 post tool
+    @builder.post_tool("pipeline_refiner")
+    def _rag_search_tool():
+        return search_operator_by_description
+    
+    @builder.post_tool("pipeline_refiner")
+    def _get_code_tool():
+        return get_operator_code_by_name
+
     async def pipeline_refiner_node(s: DFState) -> DFState:
         agent = create_json_pipeline_refiner()
-        s2 = await agent.execute(s, use_agent=False)
+        # 使用 use_agent=True 启用 graph agent 模式，让 LLM 可以调用 RAG 工具
+        s2 = await agent.execute(s, use_agent=True)
         # 直接覆盖写回（按需求不做校验）
         try:
             result = s2.agent_results.get("pipeline_refiner", {}).get("results", {})
@@ -205,3 +217,4 @@ def create_pipeline_refine_graph() -> GenericGraphBuilder:
     edges = [("refine_target_analyzer", "refine_planner"), ("refine_planner", "pipeline_refiner")]
     builder.add_nodes(nodes).add_edges(edges)
     return builder
+
