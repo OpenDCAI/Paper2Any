@@ -1667,6 +1667,18 @@ Return a JSON object with a single key "icon_prompt".
   "icon_prompt": "YOUR_GENERATED_PROMPT_HERE"
 }}
 """
+# --------------------------------------------------------------------------- #
+# 16. paper2video_prompt_generator                                                           #
+# --------------------------------------------------------------------------- #
+
+class Paper2VideoPrompt:
+    system_prompt_for_p2v_extract_pdf = """
+    """
+    task_prompt_for_p2v_extract_pdf = """
+    {pdf_markdown}, {pdf_images_relative_path},
+    No matter what you are given, output a string of text: "Hello world"
+
+    """
 
 
 class PromptWriterPrompt:

@@ -227,6 +227,27 @@ class PromptWritingState(MainState):
     prompt_output_format: Dict[str, Any] = field(default_factory=dict)
     delete_test_files: bool = True
 
+# Paper2Video 相关 State 和 Request 定义
+# ==================== Paper2Video 生成 Request ====================
+
+@dataclass
+class Paper2VideoRequest(MainRequest):
+    paper_pdf_path: str = ""
+    user_imgs_path: str = ""
+
+# ==================== Paper2Video 生成 State ======================
+@dataclass
+class Paper2VideoState(MainState):
+    # 重写 request
+    request: Paper2VideoRequest = field(default_factory=Paper2VideoRequest)
+    
+    # paper2video 特有字段
+    beamer_code: List[any] = field(default_factory=list)
+    code_debug_result: Dict[str, any] = field(default_factory=dict)
+    ppt_pdf_path: str = ""
+    ppt_imgs_pdf: str = ""
+
+
 
 # ==================== Planning Agent 相关 State ====================
 @dataclass
