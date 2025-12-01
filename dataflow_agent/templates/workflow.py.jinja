@@ -13,7 +13,8 @@ from __future__ import annotations
 import json
 from dataclasses import Field
 from pydantic import BaseModel
-from dataflow_agent.state import xxState
+from dataflow_agent.states.xxState import xxState
+# from dataflow_agent.state import xxState
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register
 from dataflow_agent.agentroles import (

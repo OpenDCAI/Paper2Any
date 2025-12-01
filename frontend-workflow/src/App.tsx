@@ -4,6 +4,7 @@ import ParticleBackground from './components/ParticleBackground';
 import AgentNodePanel from './components/AgentNodePanel';
 import WorkflowCanvas from './components/WorkflowCanvas';
 import NodeConfigPanel from './components/NodeConfigPanel';
+import Paper2GraphPage from './components/Paper2GraphPage';
 import { AgentType, WorkflowNode, AgentConfig } from './types';
 import { Workflow, Zap, Save, FolderOpen, Trash2 } from 'lucide-react';
 
@@ -11,6 +12,7 @@ function App() {
   const [selectedNode, setSelectedNode] = useState<WorkflowNode | null>(null);
   const [nodeCount, setNodeCount] = useState(0);
   const [edgeCount, setEdgeCount] = useState(0);
+  const [activePage, setActivePage] = useState<'workflow' | 'paper2graph'>('workflow');
 
   const handleDragStart = useCallback(
     (event: React.DragEvent, agentType: AgentType) => {
@@ -92,63 +94,98 @@ function App() {
           </div>
 
           {/* 工具栏 */}
-          <div className="flex items-center gap-2">
-            <button className="flex items-center gap-2 px-4 py-2 rounded-lg glass hover:bg-white/10 transition-colors">
-              <FolderOpen size={18} className="text-gray-400" />
-              <span className="text-sm text-white">打开</span>
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 rounded-lg glass hover:bg-white/10 transition-colors">
-              <Save size={18} className="text-gray-400" />
-              <span className="text-sm text-white">保存</span>
-            </button>
-            <button 
-              onClick={handleClearWorkflow}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg glass hover:bg-white/10 transition-colors"
-            >
-              <Trash2 size={18} className="text-gray-400" />
-              <span className="text-sm text-white">清空</span>
-            </button>
-            <div className="w-px h-8 bg-white/10 mx-2" />
-            <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 transition-colors glow">
-              <Zap size={18} className="text-white" />
-              <span className="text-sm text-white font-medium">运行工作流</span>
-            </button>
+          <div className="flex items-center gap-4">
+            {/* 页面切换 Tab */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setActivePage('workflow')}
+                className={`px-3 py-1.5 rounded-full text-sm ${
+                  activePage === 'workflow'
+                    ? 'bg-primary-500 text-white shadow'
+                    : 'glass text-gray-300 hover:bg-white/10'
+                }`}
+              >
+                工作流编辑器
+              </button>
+              <button
+                onClick={() => setActivePage('paper2graph')}
+                className={`px-3 py-1.5 rounded-full text-sm ${
+                  activePage === 'paper2graph'
+                    ? 'bg-primary-500 text-white shadow'
+                    : 'glass text-gray-300 hover:bg-white/10'
+                }`}
+              >
+                Paper2Graph 文档解析
+              </button>
+            </div>
+
+            {/* 右侧操作按钮 */}
+            <div className="flex items-center gap-2">
+              <button className="flex items-center gap-2 px-4 py-2 rounded-lg glass hover:bg-white/10 transition-colors">
+                <FolderOpen size={18} className="text-gray-400" />
+                <span className="text-sm text-white">打开</span>
+              </button>
+              <button className="flex items-center gap-2 px-4 py-2 rounded-lg glass hover:bg-white/10 transition-colors">
+                <Save size={18} className="text-gray-400" />
+                <span className="text-sm text-white">保存</span>
+              </button>
+              <button
+                onClick={handleClearWorkflow}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg glass hover:bg-white/10 transition-colors"
+              >
+                <Trash2 size={18} className="text-gray-400" />
+                <span className="text-sm text-white">清空</span>
+              </button>
+              <div className="w-px h-8 bg-white/10 mx-2" />
+              <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 transition-colors glow">
+                <Zap size={18} className="text-white" />
+                <span className="text-sm text-white font-medium">
+                  {activePage === 'workflow' ? '运行工作流' : '生成 PPTX'}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
       {/* 主内容区 */}
       <main className="absolute top-16 bottom-0 left-0 right-0 flex">
-        <ReactFlowProvider>
-          {/* 左侧面板 - Agent节点列表 */}
-          <AgentNodePanel onDragStart={handleDragStart} />
+        {activePage === 'workflow' ? (
+          <ReactFlowProvider>
+            {/* 左侧面板 - Agent节点列表 */}
+            <AgentNodePanel onDragStart={handleDragStart} />
 
-          {/* 中央画布 */}
-          <div className="flex-1 relative">
-            <WorkflowCanvas 
-              onNodeSelect={handleNodeSelect}
-              onNodesChange={handleNodesChange}
-              onEdgesChange={handleEdgesChange}
-            />
+            {/* 中央画布 */}
+            <div className="flex-1 relative">
+              <WorkflowCanvas
+                onNodeSelect={handleNodeSelect}
+                onNodesChange={handleNodesChange}
+                onEdgesChange={handleEdgesChange}
+              />
 
-            {/* 画布提示 */}
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none">
-              <div className="px-4 py-2 rounded-full glass text-sm text-gray-400">
-                拖拽左侧 Agent 到画布 · 连接节点创建工作流 · 滚轮缩放
+              {/* 画布提示 */}
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none">
+                <div className="px-4 py-2 rounded-full glass text-sm text-gray-400">
+                  拖拽左侧 Agent 到画布 · 连接节点创建工作流 · 滚轮缩放
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* 右侧面板 - 节点配置 */}
-          {selectedNode && (
-            <NodeConfigPanel
-              node={selectedNode}
-              onClose={() => setSelectedNode(null)}
-              onDelete={handleDeleteNode}
-              onUpdate={handleUpdateNode}
-            />
-          )}
-        </ReactFlowProvider>
+            {/* 右侧面板 - 节点配置 */}
+            {selectedNode && (
+              <NodeConfigPanel
+                node={selectedNode}
+                onClose={() => setSelectedNode(null)}
+                onDelete={handleDeleteNode}
+                onUpdate={handleUpdateNode}
+              />
+            )}
+          </ReactFlowProvider>
+        ) : (
+          <div className="flex-1">
+            <Paper2GraphPage />
+          </div>
+        )}
       </main>
 
       {/* 底部状态栏 */}
