@@ -804,3 +804,159 @@ downloaded_data/
 - 提交 [GitHub Issue](https://github.com/OpenDCAI/DataFlow-Agent/issues)
 - 查看 [FAQ](faq.md)
 - 参考 [贡献指南](contributing.md)
+
+## 附录：Agent 结构化输出（response_schema）配置说明
+
+在很多场景下，我们希望 Agent 不只是返回一段自由文本，而是返回**结构化的 JSON 结果**，方便后续程序消费。  
+DataFlow-Agent 在 `BaseAgentConfig` 中内置了针对 JSON 解析的快捷配置字段：
+
+- `parser_type`: 解析器类型，默认为 `"json"`
+- `response_schema`: 期望的返回结构定义（轻量级 JSON Schema）
+- `response_schema_description`: 对该结构的中文/英文文字说明
+- `response_example`: 一份期望的 JSON 返回示例
+- `required_fields`: 必须出现的字段列表，用于约束模型输出
+
+这些字段可以通过 `create_simple_agent` / `create_react_agent` 等便捷函数传入，也可以自行构造 `SimpleConfig` / `ReactConfig` 后再调用 `create_agent`。
+
+### 1. 基本用法示例：简单模式 Agent
+
+下面的示例中，我们要求 Agent 返回包含 `code` 和 `files` 两个字段的 JSON，其中 `code` 是字符串，`files` 是字符串列表：
+
+```python
+from dataflow_agent.agentroles import create_simple_agent
+
+agent = create_simple_agent(
+    "coder",
+    # 解析器类型设为 json（默认即为 json）
+    parser_type="json",
+    # 期望的返回结构（轻量 JSON Schema）
+    response_schema={
+        "code": "string",
+        "files": ["string"],  # 表示由字符串组成的列表
+        "summary": "string",  # 可选字段，用于描述本次修改
+    },
+    # 对 Schema 的自然语言说明，帮助模型理解每个字段含义
+    response_schema_description=(
+        "请返回代码生成结果。"
+        "code 字段包含完整的代码内容；"
+        "files 是本次修改涉及到的文件路径列表；"
+        "summary 对主要改动进行简要说明。"
+    ),
+    # 一份期望的返回示例，模型会参考该结构生成
+    response_example={
+        "code": "# 写在这里的是完整的 Python 代码 ...",
+        "files": ["dataflow_agent/agentroles/__init__.py"],
+        "summary": "新增了 create_simple_agent 的使用示例。",
+    },
+    # 必须出现的字段
+    required_fields=["code", "files"],
+)
+
+# 后续在你的业务逻辑中，一般会以异步方式调用 agent：
+# result = await agent.execute({"task": "请为我实现一个计算阶乘的函数"})
+# print(result["code"])
+# print(result["files"])
+```
+
+要点说明：
+
+1. **parser_type 建议为 `"json"`**  
+   `response_schema*` 这一组字段是为 JSON 解析场景设计的。当 `parser_type="json"` 时，框架会根据这些配置构建 Prompt 与解析逻辑，尽量保证返回满足你指定的结构。
+
+2. **`response_schema` 是“轻量级 JSON Schema”**  
+   - 推荐使用简单的类型标注，如：
+     - `"string"`, `"number"`, `"boolean"` 等
+     - `["string"]` 表示“字符串列表”
+     - 也可以嵌套字典/列表描述更复杂结构
+   - 不必完全遵循官方 JSON Schema 规范，保持可读性和易理解为主。
+
+3. **`response_schema_description` 与 `response_example` 用于“教模型”**  
+   - `response_schema_description`: 用自然语言解释每个字段含义和要求；
+   - `response_example`: 给出一份“长得像最终结果”的 JSON 示例。  
+   在实践中，这两项对提升结构化输出的稳定性非常有帮助。
+
+4. **`required_fields` 指定“必填字段”**  
+   - `required_fields=["code", "files"]` 表示：无论如何，这两个 key 必须出现在最终 JSON 中；
+   - 这可以配合 ReAct 模式/验证逻辑，用于在缺字段时触发重试或报错（具体行为取决于所用 Agent 策略和解析实现）。
+
+### 2. 在 ReAct 模式中使用 `response_schema`
+
+`create_react_agent` 同样支持以上字段，使用方式几乎一致，只是多了 ReAct 本身的重试与验证能力：
+
+```python
+from dataflow_agent.agentroles import create_react_agent
+
+agent = create_react_agent(
+    "planner",
+    max_retries=3,
+    parser_type="json",
+    response_schema={
+        "plan": ["string"],   # 分步计划，每一步是一句自然语言描述
+        "risks": ["string"],  # 可能的风险点
+    },
+    response_schema_description=(
+        "请返回本次任务的分步计划，以及可能的风险点列表。"
+        "plan 字段是按执行顺序排列的步骤列表，risks 列出需要注意的问题。"
+    ),
+    response_example={
+        "plan": [
+            "分析用户提供的数据源格式。",
+            "根据数据格式选择合适的预处理算子。",
+            "设计并生成完整的 DataFlow Pipeline 代码。"
+        ],
+        "risks": [
+            "数据中可能包含脏数据，需要额外清洗步骤。",
+            "某些算子依赖的第三方库可能尚未安装。"
+        ]
+    },
+    required_fields=["plan"],
+)
+```
+
+在这种模式下：
+
+- 如果模型第一次返回的 JSON 不满足要求（字段缺失/类型不符等），
+- 策略层可以结合验证器（`validators`）和重试机制，对结果进行检查并尝试修正，
+- 从而提高结构化输出的可靠性。
+
+### 3. 直接使用配置类（进阶用法）
+
+如果你希望显式构造配置对象，也可以直接使用 `SimpleConfig` / `ReactConfig` 等，然后调用 `create_agent`：
+
+```python
+from dataflow_agent.agentroles import (
+    SimpleConfig,
+    create_agent,
+)
+
+config = SimpleConfig(
+    model_name="gpt-4o",
+    parser_type="json",
+    response_schema={
+        "title": "string",
+        "outline": ["string"],
+    },
+    response_schema_description="生成一篇技术文章的大纲。",
+    response_example={
+        "title": "如何使用 DataFlow-Agent 构建智能数据处理管线",
+        "outline": [
+            "项目背景介绍",
+            "核心概念与模块划分",
+            "实战示例：从原始数据到可复用算子",
+        ],
+    },
+    required_fields=["title", "outline"],
+)
+
+agent = create_agent("writer", config=config)
+
+# result = await agent.execute({"topic": "DataFlow-Agent 使用实践"})
+# print(result["title"])
+# print(result["outline"])
+```
+
+这种方式在以下场景比较适合：
+
+- 你已经有一套统一的配置管理/注入机制；
+- 希望在不同 Agent 之间重用同一份结构化返回配置；
+- 或者需要在运行时动态调整配置（模型、温度、schema 等）。

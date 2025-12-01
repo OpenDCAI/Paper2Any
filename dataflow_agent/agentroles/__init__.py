@@ -224,11 +224,11 @@ def create_react_agent(
         name: 代理角色名称
         max_retries: 最大重试次数，默认3次
         tool_manager: 工具管理器实例，默认为全局工具管理器
+        validators: 自定义验证器列表，用于验证执行结果是否符合预期
         **kwargs: 配置参数，支持以下参数：
             - model_name: 模型名称
             - temperature: 采样温度 (0.0-1.0)，默认0.0
             - max_tokens: 最大生成token数，默认16384
-            - tool_mode: 工具调用模式 ("auto", "none", "required")，默认"auto"
             - parser_type: 解析器类型 ("json", "xml", "text")，默认"json"
             - parser_config: 解析器配置字典
             - response_schema: JSON返回结构定义
@@ -237,7 +237,6 @@ def create_react_agent(
             - required_fields: 必填字段列表
             - ignore_history: 是否忽略历史消息，默认True
             - message_history: 消息历史管理器
-            - validators: 自定义验证器列表，用于验证执行结果是否符合预期
             - chat_api_url: 自定义Chat API URL
     
     Returns:

@@ -421,7 +421,7 @@ def _call_openai_embedding_api(
     model_name: str = "text-embedding-ada-002",
     base_url: str = "https://api.openai.com/v1/embeddings",
     api_key: str | None = None,
-    timeout: float = 30.0,
+    timeout: float = 120.0,
 ) -> np.ndarray:
     """调用OpenAI API获取文本向量"""
     if api_key is None:

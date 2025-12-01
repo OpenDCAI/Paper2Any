@@ -1005,6 +1005,10 @@ class BaseAgent(ABC):
             
             # 8. 从 final_state 中提取结果
             result = final_state["agent_results"].get(self.role_name.lower(), {}).get("results", {})
+
+            if "messages" in final_state:
+                # 9. 更新状态中的 messages
+                state.messages = final_state["messages"]
             
             if not result:
                 log.error("子图执行后未找到结果")
