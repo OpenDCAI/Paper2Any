@@ -6,6 +6,7 @@ from dataflow_agent.state import MainState, IconGenRequest, IconGenState
 from dataflow_agent.workflow.wf_icongen_refine_loop import create_icongen_refine_loop_graph
 from dataflow_agent.workflow.wf_icongen import create_icongen_graph
 from dataflow_agent.logger import get_logger
+from dataflow_agent.utils import get_project_root
 
 log = get_logger(__name__)
 
@@ -18,9 +19,10 @@ global_icon_state = IconGenState(request=IconGenRequest(chat_api_url="http://123
 global_paper_state = IconGenState(request=IconGenRequest(chat_api_url="http://123.129.219.111:3000/v1"))
 last_image = None
 
-os.environ["DF_API_KEY"] = "xxx"
-os.environ.setdefault("DF_API_KEY", os.getenv("DF_API_KEY", "dummy"))
 
+
+# 添加模型路径环境变量
+os.environ["RM_MODEL_PATH"] = f"{get_project_root()}/dataflow_agent/toolkits/imtool/onnx/model.onnx"
 
 def _merge_state(state, out):
     """合并状态"""
@@ -89,11 +91,15 @@ async def run_paper_model_generation(paper_content=None, style=None, edit_prompt
     """运行论文模型图生成流程"""
     global global_paper_state
     
-    # 更新API配置
+    # 更新API配置 - 确保API密钥优先使用传入的参数
     if api_key:
         os.environ["DF_API_KEY"] = api_key
+        # 添加日志验证API密钥是否被正确设置
+        log.info(f"API密钥已更新: {api_key[:4]}****")  # 仅显示前4位以保护隐私
+    
     if chat_api_url:
         global_paper_state.request.chat_api_url = chat_api_url
+        log.info(f"API地址已更新: {chat_api_url}")
     
     # 使用正确的IconGenState和IconGenRequest
     if paper_content:

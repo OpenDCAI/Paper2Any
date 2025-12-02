@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.state import PromptWritingState, DFRequest
-from dataflow_agent.agentroles.prompt_writer import create_prompt_writer
-from dataflow_agent.agentroles.pipelinebuilder import create_pipeline_builder
+from dataflow_agent.agentroles.data_agents.prompt_writer import create_prompt_writer
+from dataflow_agent.agentroles.data_agents.pipelinebuilder import create_pipeline_builder
 from dataflow_agent.logger import get_logger
 from dataflow_agent.workflow.registry import register
 
@@ -84,5 +84,3 @@ def create_operator_prompt_writing_graph() -> GenericGraphBuilder:
 
     builder.add_nodes(nodes).add_edges(edges)
     return builder
-
-

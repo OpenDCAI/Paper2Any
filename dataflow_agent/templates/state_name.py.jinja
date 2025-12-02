@@ -1,0 +1,27 @@
+"""
+{{ state_name_camel }} State and Request
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+生成时间: {{ timestamp }}
+
+本文件由 `dfa create --state_name {{ state_name }}` 自动生成。
+用于创建继承MainState和MainRequest的自定义state和request。
+"""
+
+from dataclasses import dataclass, field
+from dataflow_agent.state import MainState, MainRequest
+
+
+# ==================== {{ state_name_camel }} Request ====================
+@dataclass
+class {{ state_name_camel }}Request(MainRequest):
+    """{{ state_name_camel }}任务的Request，继承自MainRequest"""
+    pass
+
+
+# ==================== {{ state_name_camel }} State ====================
+@dataclass
+class {{ state_name_camel }}State(MainState):
+    """{{ state_name_camel }}任务的State，继承自MainState"""
+    
+    # 重写request类型为{{ state_name_camel }}Request
+    request: {{ state_name_camel }}Request = field(default_factory={{ state_name_camel }}Request)

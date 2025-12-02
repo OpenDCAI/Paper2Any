@@ -14,16 +14,19 @@ from dataflow_agent.toolkits.optool.op_tools import (
     local_tool_for_get_purpose,
     get_operator_content_str,
     post_process_combine_pipeline_result,
+    get_operators_by_rag,
+    get_operators_info_by_names,
 )
 # from dataflow_agent.toolkits.pipetool.pipe_tools import parse_pipeline_file
 import dataflow_agent.toolkits.pipetool.pipe_tools as pt
-from dataflow_agent.agentroles.classifier import create_classifier
-from dataflow_agent.agentroles.recommender import create_recommender
-from dataflow_agent.agentroles.pipelinebuilder import create_pipeline_builder
-from dataflow_agent.agentroles.debugger import create_code_debugger
-from dataflow_agent.agentroles.rewriter import create_rewriter
-from dataflow_agent.agentroles.inforequester import create_info_requester
-from dataflow_agent.agentroles.exporter import create_exporter
+from dataflow_agent.agentroles.data_agents.classifier import create_classifier
+from dataflow_agent.agentroles.data_agents.target_parser import create_target_parser
+from dataflow_agent.agentroles.data_agents.recommender import create_recommender
+from dataflow_agent.agentroles.data_agents.pipelinebuilder import create_pipeline_builder
+from dataflow_agent.agentroles.data_agents.debugger import create_code_debugger
+from dataflow_agent.agentroles.data_agents.rewriter import create_rewriter
+from dataflow_agent.agentroles.data_agents.inforequester import create_info_requester
+from dataflow_agent.agentroles.data_agents.exporter import create_exporter
 
 
 from dataflow_agent.toolkits.tool_manager import get_tool_manager
@@ -43,7 +46,7 @@ PROJDIR = get_project_root()
 # create_pipeline_graph
 # ======================================================================
 def create_pipeline_graph() -> GenericGraphBuilder:
-    # ★ 1. 图入口改成 classifier
+    # ★ 1. 图入口：classifier
     builder = GenericGraphBuilder(state_model=DFState, entry_point="classifier")
 
     # ------------------------------------------------------------------
@@ -59,6 +62,11 @@ def create_pipeline_graph() -> GenericGraphBuilder:
     def cls_get_categories(state: DFState):
         return local_tool_for_get_categories()
 
+    # -------- target_parser 前置工具 --------
+    @builder.pre_tool("target", "target_parser")
+    def tp_get_target(state: DFState):
+        return state.request.target
+
     # -------- recommender 前置工具 --------
     @builder.pre_tool("sample", "exporter")
     @builder.pre_tool("sample", "recommender")
@@ -68,11 +76,18 @@ def create_pipeline_graph() -> GenericGraphBuilder:
 
     @builder.pre_tool("target", "recommender")
     def rec_get_target(state: DFState):
-        return local_tool_for_get_purpose(state.request)
+        # 返回 target_parser 拆解出的算子描述列表
+        operator_descriptions = state.temp_data.get('operator_descriptions', [])
+        return operator_descriptions
 
     @builder.pre_tool("operator", "recommender")
     def rec_get_operator(state: DFState):
-        return get_operator_content_str(data_type=state.category.get("category", "text"))
+        # 使用 target_parser_node 中 RAG 检索出的算子作为候选集
+        split_ops = state.temp_data.get('split_ops', [])
+        if split_ops:
+            return get_operators_info_by_names(split_ops)
+        # 兜底：如果没有 RAG 结果，使用默认全量算子
+        return get_operator_content_str(data_type="Default")
 
     class GetOpInput(BaseModel):
         oplist: list = Field(description="list['xxx']的算子列表")
@@ -145,8 +160,35 @@ def create_pipeline_graph() -> GenericGraphBuilder:
         """Classifier 节点"""
         from dataflow_agent.toolkits.tool_manager import get_tool_manager
 
-        classifier = create_classifier(tool_manager=get_tool_manager(), model_name="deepseek-v3")
+        classifier = create_classifier(tool_manager=get_tool_manager())
         s = await classifier.execute(s, use_agent=False)
+        return s
+
+    async def target_parser_node(s: DFState) -> DFState:
+        """目标意图理解节点 - 将 target 拆解为算子描述列表，并进行 RAG 检索"""
+        from dataflow_agent.toolkits.tool_manager import get_tool_manager
+        
+        parser = create_target_parser(tool_manager=get_tool_manager())
+        s = await parser.execute(s, use_agent=False)
+        
+        operator_descriptions = s.temp_data.get('operator_descriptions', [])
+        log.info(f"[target_parser_node] 拆解算子描述: {operator_descriptions}")
+        
+        # 在意图解析后立即进行 RAG 检索，获取候选算子
+        if operator_descriptions:
+            s.temp_data['split_ops'] = get_operators_by_rag(
+                search_queries=operator_descriptions,
+                top_k=2,
+                faiss_index_path=f"{PROJDIR}/dataflow_agent/resources/faiss_cache/all_ops.index",
+                base_url=f"{s.request.chat_api_url}embeddings" if s.request.chat_api_url_for_embeddings == "" else s.request.chat_api_url_for_embeddings,
+                model_name=s.request.embedding_model_name
+            )
+            # 展平结果
+            s.temp_data['split_ops'] = [item for sub in s.temp_data['split_ops'] for item in sub]
+            log.info(f"[target_parser_node] RAG 检索结果: {s.temp_data['split_ops']}")
+        else:
+            s.temp_data['split_ops'] = []
+        
         return s
 
     # --- recommender 子图同原来 ---
@@ -191,6 +233,9 @@ def create_pipeline_graph() -> GenericGraphBuilder:
         return sg.compile()
 
     async def recommender_node(s: DFState) -> DFState:
+        from dataflow.utils.registry import OPERATOR_REGISTRY  
+        _NAME2CLS = {name: cls for name, cls in OPERATOR_REGISTRY}
+
         rec_graph = await build_recommender_subgraph(s)
         result = await rec_graph.ainvoke(s)
         if isinstance(result, dict):
@@ -204,14 +249,39 @@ def create_pipeline_graph() -> GenericGraphBuilder:
         if not ops_list:
             raise ValueError("Recommender 没有返回有效算子列表")
         from dataflow_agent.toolkits.optool.op_tools import get_operators_by_rag
-        # 这里得改，参考库帕斯的写法；
+        
+        # 直接使用公共索引进行RAG检索
         ops_list = get_operators_by_rag(search_queries=ops_list, 
                                         top_k=1, 
                                         faiss_index_path=f"{PROJDIR}/dataflow_agent/resources/faiss_cache/all_ops.index",
                                         base_url=f"{s.request.chat_api_url}embeddings" if s.request.chat_api_url_for_embeddings == "" else s.request.chat_api_url_for_embeddings,
                                         model_name = s.request.embedding_model_name)
+        ops_list = [item for sub in ops_list for item in sub]   # 展平
 
-        ops_list = [item for sub in ops_list for item in sub]
+        # 如果要求RAG实时更新，检测未注册的算子；如有则删除索引文件并重跑RAG
+        if s.request.update_rag_content:
+            missing_ops = [op for op in ops_list if op not in _NAME2CLS]
+            if missing_ops:
+                log.warning("[recommender] 检测到未注册算子 %s ，重新生成索引", missing_ops)
+
+                # 删除索引文件(.index & .meta)
+                index_path = f"{PROJDIR}/dataflow_agent/resources/faiss_cache/all_ops.index"
+                for suffix in (".index", ".index.meta"):
+                    p = pathlib.Path(index_path + suffix) if suffix.endswith(".meta") else pathlib.Path(index_path)
+                    if p.exists():
+                        try:
+                            p.unlink()
+                        except FileNotFoundError:
+                            pass
+
+                # 重新检索（此时 get_operators_by_rag 会自动重新构建索引）
+                ops_list = get_operators_by_rag(search_queries=ops_list, 
+                                        top_k=1, 
+                                        faiss_index_path=index_path,
+                                        base_url=f"{s.request.chat_api_url}embeddings" if s.request.chat_api_url_for_embeddings == "" else s.request.chat_api_url_for_embeddings,
+                                        model_name = s.request.embedding_model_name)
+                ops_list = [item for sub in ops_list for item in sub]
+
         log.warning(f"[recommender_node + RAG ] 推荐算子列表：{ops_list}")
         s["recommendation"] = ops_list
         s.agent_results['recommender']['results']['ops'] = ops_list
@@ -254,12 +324,12 @@ def create_pipeline_graph() -> GenericGraphBuilder:
     async def rewriter_node(s: DFState) -> DFState:
         from dataflow_agent.toolkits.tool_manager import get_tool_manager
 
-        rewriter = create_rewriter(tool_manager=get_tool_manager(), model_name="gpt-4o")
+        rewriter = create_rewriter(tool_manager=get_tool_manager())
         return await rewriter.execute(s, use_agent=True)
 
     def after_rewrite_node(s: DFState) -> DFState:
 
-        rewriter = create_rewriter(tool_manager=get_tool_manager(), model_name="gpt-4o")
+        rewriter = create_rewriter(tool_manager=get_tool_manager())
         return rewriter.after_rewrite(s)
     
     async def info_requester_node(s: DFState) -> DFState:
@@ -334,6 +404,7 @@ def create_pipeline_graph() -> GenericGraphBuilder:
     # ------------------------------------------------------------------
     nodes = {
         "classifier": classifier_node,
+        "target_parser": target_parser_node,
         "recommender": recommender_node,
         "builder": builder_node,
         "code_debugger": debugger_node,
@@ -344,7 +415,8 @@ def create_pipeline_graph() -> GenericGraphBuilder:
     }
 
     edges = [
-        ("classifier", "recommender"),
+        ("classifier", "target_parser"),
+        ("target_parser", "recommender"),
         ("recommender", "builder"),
         ("code_debugger", "info_requester"),  
         ("info_requester", "rewriter"),       

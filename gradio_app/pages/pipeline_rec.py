@@ -55,6 +55,13 @@ def create_pipeline_rec():
                     value="text-embedding-3-small"
                 )
                 
+                # RAG 配置
+                gr.Markdown("### RAG 配置")
+                update_rag = gr.Checkbox(
+                    label="实时更新 RAG 索引（检测到未注册算子时自动重建索引）", 
+                    value=True
+                )
+                
                 # 调试配置
                 gr.Markdown("### 调试配置")
                 debug_mode = gr.Checkbox(label="启用调试模式", value=False)
@@ -96,6 +103,7 @@ def create_pipeline_rec():
             model_name_val,
             chat_api_url_for_embeddings_val,
             embedding_model_name_val,
+            update_rag_val,
             debug,
             max_debug_rounds
         ):
@@ -109,7 +117,8 @@ def create_pipeline_rec():
                 model_name=model_name_val,
                 max_debug_rounds=max_debug_rounds if debug else 2,
                 chat_api_url_for_embeddings=chat_api_url_for_embeddings_val,
-                embedding_model_name=embedding_model_name_val
+                embedding_model_name=embedding_model_name_val,
+                update_rag_content=update_rag_val
             )
 
             # 读取生成的 Python 文件
@@ -131,6 +140,7 @@ def create_pipeline_rec():
                 model_name,
                 chat_api_url_for_embeddings,
                 embedding_model_name,
+                update_rag,
                 debug_mode, 
                 debug_times
             ],

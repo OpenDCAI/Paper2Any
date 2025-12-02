@@ -9,7 +9,7 @@ from dataflow_agent.state import DFRequest, PromptWritingState
 from dataflow_agent.workflow.wf_pipeline_prompt import (
     create_operator_prompt_writing_graph,
 )
-from dataflow_agent.agentroles.prompt_writer import create_prompt_writer
+from dataflow_agent.agentroles.data_agents.prompt_writer import create_prompt_writer
 
 
 def _parse_arguments_str(arguments_text: str) -> List[str]:
