@@ -57,15 +57,22 @@ def create_{{ wf_name_snake }}_graph() -> GenericGraphBuilder:  # noqa: N802
         return "这里放入字符串 / 数值 / 列表 / 字典等供 prompt 使用"
 
     # 后置工具就是让agent选择的工具，可以定制多个；
-    class ModuleListInput(BaseModel):
-        #这里要写好工具的描述，agent会根据实际上下文输入参数：
-        module_list: list = Field(
-            description="List of dotted-path python modules or file paths"
-        )
     @builder.post_tool("step2")
-    @tool(args_schema=ModuleListInput)
-    def _post_tool1(module_list):
-        return func(module_list)
+    @tool
+    def _example_post_tool(date_str: str):
+        """
+        示例后置工具：根据日期获取天气信息
+
+        Args:
+            date_str: 日期字符串，格式为 "MM-DD"。
+                例如: "11-29" 表示 11 月 29 日。
+
+        Returns:
+            一个描述该日期天气状况的中文字符串。
+            示例返回值: "明天天气晴朗，可以放心出行。"
+        """
+        # 这里只是 demo，真实逻辑中请根据 date_str 查询实际天气
+        return "明天天气晴朗，可以放心出行。"
 
     # ----------------------------------------------------------------------
 
