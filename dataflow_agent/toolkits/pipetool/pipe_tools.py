@@ -825,11 +825,8 @@ def render_operator_blocks_with_full_params(
         run_args = []
         if run_has_storage:
             run_args.append("storage=self.storage.step()")
-
+        
         for k, v in custom_run_params.items():
-            # 跳过 storage 参数，因为已经在上面自动添加了
-            if k == "storage":
-                continue
             if isinstance(v, str):
                 run_args.append(f"{k}={repr(v)}")
             else:
