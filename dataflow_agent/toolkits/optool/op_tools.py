@@ -28,7 +28,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from dataflow.utils.registry import OPERATOR_REGISTRY
-from langchain_core.tools import tool
 from dataflow_agent.logger import get_logger
 
 log = get_logger(__name__)
@@ -563,24 +562,18 @@ class RAGOperatorSearch:
     def search(
         self,
         queries: Union[str, List[str]],
-        top_k: int = 5,
-        return_scores: bool = False
-    ) -> Union[List[str], List[List[str]], List[Dict[str, Any]], List[List[Dict[str, Any]]]]:
+        top_k: int = 5
+    ) -> Union[List[str], List[List[str]]]:
         """
         检索最相关的算子
         
         Args:
             queries: 单个查询字符串或查询列表
             top_k: 返回top-k个结果
-            return_scores: 是否返回相似度分数
         
         Returns:
-            如果 return_scores=False:
-                如果输入是字符串，返回List[str]
-                如果输入是列表，返回List[List[str]]
-            如果 return_scores=True:
-                如果输入是字符串，返回List[Dict]，每个Dict包含 name, description, similarity_score
-                如果输入是列表，返回List[List[Dict]]
+            如果输入是字符串，返回List[str]
+            如果输入是列表，返回List[List[str]]
         """
         # 统一处理为列表
         is_single = isinstance(queries, str)
@@ -600,24 +593,10 @@ class RAGOperatorSearch:
         
         # 组织结果
         results = []
-        for i, (indices, scores) in enumerate(zip(I, D)):
-            if return_scores:
-                # 返回包含分数的详细信息
-                matched_ops = []
-                for idx, score in zip(indices, scores):
-                    op_info = self.ops_list[idx]
-                    matched_ops.append({
-                        "name": op_info["name"],
-                        "description": op_info.get("description", ""),
-                        "similarity_score": float(score)  # FAISS cosine similarity score
-                    })
-                results.append(matched_ops)
-                log.info(f"Query {i+1}: '{queries[i][:50]}...' -> {[(op['name'], round(op['similarity_score'], 3)) for op in matched_ops]}")
-            else:
-                # 原有逻辑，只返回名称列表
-                matched_ops = [self.ops_list[idx]["name"] for idx in indices]
-                results.append(matched_ops)
-                log.info(f"Query {i+1}: '{queries[i][:50]}...' -> {matched_ops}")
+        for i, indices in enumerate(I):
+            matched_ops = [self.ops_list[idx]["name"] for idx in indices]
+            results.append(matched_ops)
+            log.info(f"Query {i+1}: '{queries[i][:50]}...' -> {matched_ops}")
         
         # 如果是单查询，返回单个列表
         return results[0] if is_single else results
@@ -704,200 +683,6 @@ def local_tool_for_get_match_operator_code(pre_task_result):
     elapsed = time.time() - start_time
     log.info(f"[local_tool_for_get_match_operator_code] Time used: {elapsed:.4f} seconds")
     return "\n\n".join(blocks)
-
-
-# =================================================================== LangChain Tool 封装的 RAG 工具：
-
-# 匹配质量阈值定义
-MATCH_QUALITY_THRESHOLDS = {
-    "high": 0.5,      # >= 0.5 为高度匹配
-    "medium": 0.3,    # >= 0.3 为中等匹配
-    # < 0.3 为低匹配
-}
-
-
-# 默认 FAISS 索引缓存路径
-DEFAULT_FAISS_INDEX_PATH = str(utils.get_project_root() / "dataflow_agent/toolkits/resources/faiss_ops.index")
-
-
-def _get_operators_by_rag_with_scores(
-    search_query: str,
-    top_k: int = 4,
-    ops_json_path: str = None,
-    faiss_index_path: str = None,
-    model_name: str = "text-embedding-3-small",
-    base_url: str = "http://123.129.219.111:3000/v1/embeddings",
-    api_key: str = None,
-) -> List[Dict[str, Any]]:
-    """
-    通过RAG检索算子，返回包含相似度分数的详细结果
-    
-    Args:
-        search_query: 搜索查询
-        top_k: 返回top-k结果
-        ops_json_path: 算子JSON文件路径
-        faiss_index_path: FAISS索引文件路径，如果存在则复用，否则生成并保存
-        model_name: embedding模型
-        base_url: API地址
-        api_key: API密钥
-    
-    Returns:
-        List[Dict]，每个Dict包含 name, description, similarity_score
-    """
-    if ops_json_path is None:
-        ops_json_path = utils.get_project_root() / "dataflow_agent/toolkits/resources/ops.json"
-    if faiss_index_path is None:
-        faiss_index_path = DEFAULT_FAISS_INDEX_PATH
-    if api_key is None:
-        api_key = os.getenv("DF_API_KEY")
-    
-    searcher = RAGOperatorSearch(
-        ops_json_path=str(ops_json_path),
-        category=None,
-        faiss_index_path=faiss_index_path,
-        model_name=model_name,
-        base_url=base_url,
-        api_key=api_key,
-    )
-    
-    return searcher.search(search_query, top_k=top_k, return_scores=True)
-
-
-def _determine_match_quality(max_score: float) -> str:
-    """根据最高相似度分数判断匹配质量"""
-    if max_score >= MATCH_QUALITY_THRESHOLDS["high"]:
-        return "high"
-    elif max_score >= MATCH_QUALITY_THRESHOLDS["medium"]:
-        return "medium"
-    else:
-        return "low"
-
-
-def _generate_match_warning(query: str, max_score: float, match_quality: str) -> Optional[str]:
-    """根据匹配质量生成警告信息"""
-    if match_quality == "high":
-        return None
-    elif match_quality == "medium":
-        return (
-            f"提示：与'{query}'相关的算子匹配度为中等(最高相似度: {max_score:.3f})。"
-            f"请仔细阅读算子描述，确认是否满足您的需求。"
-        )
-    else:  # low
-        return (
-            f"警告：未找到与'{query}'高度匹配的算子。最高相似度仅为{max_score:.3f}，"
-            f"低于推荐阈值{MATCH_QUALITY_THRESHOLDS['medium']}。"
-            f"当前返回的算子可能无法满足您的需求。如果没有合适的算子，"
-            f"请在回复中说明'未能找到满足{query}需求的算子'。"
-        )
-
-
-@tool
-def search_operator_by_description(query: str, top_k: int = 4) -> str:
-    """
-    根据功能描述搜索最匹配的数据处理算子。
-    
-    当你需要在 pipeline 中添加新算子时，必须先调用此工具搜索真实存在的算子。
-    禁止使用此工具返回结果之外的算子名称。
-    
-    **重要**：该工具会返回匹配质量评估(match_quality)：
-    - "high": 高度匹配(相似度>=0.5)，可以放心使用
-    - "medium": 中等匹配(相似度0.3-0.5)，请仔细确认是否满足需求
-    - "low": 低匹配(相似度<0.3)，可能无法满足需求，请考虑说明"未能找到满足需求的算子"
-    
-    Args:
-        query: 算子功能描述，例如 "情感分析"、"数据清洗"、"文本分类"、"去重"、"数据增强" 等
-        top_k: 返回的候选算子数量，默认为4
-    
-    Returns:
-        JSON 格式的搜索结果，包含匹配的算子名称、描述、相似度分数和匹配质量评估
-    
-    Examples:
-        >>> search_operator_by_description("情感分析")
-        >>> search_operator_by_description("数据去重", top_k=3)
-    """
-    try:
-        # 调用 RAG 检索（返回包含分数的详细结果）
-        matched_operators = _get_operators_by_rag_with_scores(query, top_k=top_k)
-        
-        # 计算最高相似度分数
-        max_score = 0.0
-        if matched_operators:
-            max_score = max(op.get("similarity_score", 0.0) for op in matched_operators)
-        
-        # 判断匹配质量
-        match_quality = _determine_match_quality(max_score)
-        
-        # 生成警告信息
-        warning = _generate_match_warning(query, max_score, match_quality)
-        
-        # 构建返回结果
-        result = {
-            "query": query,
-            "matched_operators": matched_operators,
-            "max_similarity_score": round(max_score, 4),
-            "match_quality": match_quality,
-        }
-        
-        # 添加警告信息（如果有）
-        if warning:
-            result["warning"] = warning
-        
-        # 根据匹配质量生成不同的指导说明
-        if match_quality == "high":
-            result["instruction"] = (
-                "请从 matched_operators 中选择最合适的算子名称(name字段)。"
-                "匹配质量高，可以放心使用。"
-            )
-        elif match_quality == "medium":
-            result["instruction"] = (
-                "请从 matched_operators 中选择最合适的算子名称(name字段)。"
-                "注意：匹配质量为中等，请仔细阅读算子描述(description)确认是否满足需求。"
-            )
-        else:  # low
-            result["instruction"] = (
-                "注意：当前匹配质量较低！请仔细评估 matched_operators 中的算子是否能满足需求。"
-                f"如果没有合适的算子，请在回复中明确说明'未能找到满足「{query}」需求的算子'，"
-                "并给出建议（如：建议用户自定义算子，或使用其他方式实现该功能）。"
-            )
-        
-        log.info(
-            f"[search_operator_by_description] 查询: '{query}' -> "
-            f"匹配到 {len(matched_operators)} 个算子, "
-            f"最高相似度: {max_score:.3f}, 匹配质量: {match_quality}"
-        )
-        return json.dumps(result, ensure_ascii=False, indent=2)
-        
-    except Exception as e:
-        log.error(f"[search_operator_by_description] 搜索失败: {e}")
-        return json.dumps({
-            "error": str(e),
-            "query": query,
-            "matched_operators": [],
-            "match_quality": "error"
-        }, ensure_ascii=False)
-
-
-@tool
-def get_operator_code_by_name(operator_name: str) -> str:
-    """
-    根据算子名称获取算子的源代码。
-    
-    在选择了要使用的算子后，可以调用此工具获取算子的源代码，
-    以便了解算子的 init 参数和 run 参数的具体用法。
-    
-    Args:
-        operator_name: 算子名称，必须是 search_operator_by_description 返回的算子名称
-    
-    Returns:
-        算子的源代码字符串
-    """
-    try:
-        code = get_operator_source_by_name(operator_name)
-        log.info(f"[get_operator_code_by_name] 获取算子 '{operator_name}' 的源代码成功")
-        return code
-    except Exception as e:
-        log.error(f"[get_operator_code_by_name] 获取失败: {e}")
-        return f"# 获取算子 '{operator_name}' 源代码失败: {e}"
 
 
 if __name__ == "__main__":
