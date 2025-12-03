@@ -62,7 +62,7 @@ def create_pipeline_rec():
                 )
                 
                 # 嵌入模型配置
-                gr.Markdown("### 嵌入模型配置")
+                gr.Markdown("### 嵌入模型配置 http://123.129.219.111:3000/v1/embeddings")
                 chat_api_url_for_embeddings = gr.Textbox(
                     label="Embedding API URL",
                     placeholder="留空则使用主要 API URL",
@@ -81,15 +81,15 @@ def create_pipeline_rec():
                     value=True
                 )
                 
-                # 调试配置
-                gr.Markdown("### 调试配置")
-                debug_mode = gr.Checkbox(label="启用调试模式", value=False)
-                debug_times = gr.Dropdown(
-                    label="调试模式执行次数",
-                    choices=[1, 2, 3, 5, 10],
-                    value=2,
-                    visible=False
-                )
+                # 调试配置（暂时禁用）
+                # gr.Markdown("### 调试配置")
+                # debug_mode = gr.Checkbox(label="启用调试模式", value=False)
+                # debug_times = gr.Dropdown(
+                #     label="调试模式执行次数",
+                #     choices=[1, 2, 3, 5, 10],
+                #     value=2,
+                #     visible=False
+                # )
                 
                 submit_btn = gr.Button("🚀 Generate Pipeline", variant="primary", size="lg")
 
@@ -145,11 +145,11 @@ def create_pipeline_rec():
         def toggle_debug_times(is_debug):
             return gr.update(visible=is_debug)
 
-        debug_mode.change(
-            toggle_debug_times,
-            inputs=debug_mode,
-            outputs=debug_times
-        )
+        # debug_mode.change(
+        #     toggle_debug_times,
+        #     inputs=debug_mode,
+        #     outputs=debug_times
+        # )
 
         # ---------------------- 生成 Pipeline 回调 ----------------------
         async def generate_pipeline(
@@ -171,12 +171,12 @@ def create_pipeline_rec():
             result = await run_pipeline_workflow(
                 target=target_text,
                 json_file=json_path,
-                need_debug=debug,
+                need_debug=False,
                 session_id=session_id_val,
                 chat_api_url=chat_api_url_val,
                 api_key=api_key_val,
                 model_name=model_name_val,
-                max_debug_rounds=max_debug_rounds if debug else 2,
+                max_debug_rounds=2,
                 chat_api_url_for_embeddings=chat_api_url_for_embeddings_val,
                 embedding_model_name=embedding_model_name_val,
                 update_rag_content=update_rag_val
