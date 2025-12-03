@@ -765,7 +765,9 @@ class WriteOperator:
 1. Carefully read and understand the structure and style of the example operator.
 2. Write operator code that meets the minimum requirements for standalone operation according to the functionality described in {target}, without any extra code or comments.
 3. Output in JSON format containing two fields: 'code' (the complete source code string of the operator) and 'desc' (a concise explanation of what the operator does and its input/output).
-4. If the operator requires using an LLM, the llm_serving field must be included in the __init__ method.
+4. If the operator requires using an LLM, do NOT initialize llm_serving in __init__. Instead, accept llm_serving as a parameter: def __init__(self, llm_serving=None) and assign self.llm_serving = llm_serving. The llm_serving will be injected externally.
+5. IMPORTANT: Do NOT import 'LLMServing' from dataflow.serving (it does not exist). Only use 'APILLMServing_request' or 'LocalModelLLMServing_vllm'. Correct import: from dataflow.serving import APILLMServing_request
+6. APILLMServing_request API usage: Call self.llm_serving.generate_from_input(list_of_strings) which takes a list of input strings and returns a list of output strings. Do NOT use .request() or .call() methods - they do not exist.
 """
 
 # --------------------------------------------------------------------------- #
