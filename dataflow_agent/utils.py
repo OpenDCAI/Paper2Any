@@ -97,8 +97,8 @@ def _remove_leading_json_word(src: str) -> str:
 def _strip_json_comments(src: str) -> str:
     # /* ... */  块注释
     src = re.sub(r'/\*[\s\S]*?\*/', '', src)
-    # // ...     行注释
-    src = re.sub(r'//.*', '', src)
+    # // ...     行注释，排除 URL 中的 :// 和字符串内的 //）
+    src = re.sub(r'(?<![:\"\'])//.*', '', src)
     # 尾逗号 ,}
     src = re.sub(r',\s*([}\]])', r'\1', src)
     return src.strip()
