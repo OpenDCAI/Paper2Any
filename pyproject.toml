@@ -31,12 +31,21 @@ dev = [
     "black",
     "ruff",
 ]
-paper=[
 
+# 针对论文 / NLP / 文本相关能力的可选依赖
+paper = [
+    "datasets<=3.2",
+    "transformers",
+    "nltk",
+    "sentencepiece",
+    "fasttext-wheel",
 ]
-data=[
+
+# 针对数据处理 / 数值计算相关能力的可选依赖
+data = [
     "pandas",
-    "numpy"
+    "numpy<2.0.0",
+    "scipy",
 ]
 
 

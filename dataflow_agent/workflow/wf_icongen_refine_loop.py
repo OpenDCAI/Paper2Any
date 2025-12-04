@@ -142,7 +142,6 @@ def create_icongen_refine_loop_graph() -> GenericGraphBuilder:
         try:
             out_path = local_tool_for_bg_remove({
                 "image_path": src,
-                "model_path": f"{get_project_root()}/dataflow_agent/toolkits/imtool/models/RMBG-2.0/onnx/model.onnx",         # 允许 bg_tool 内部走默认
                 "output_dir": "./"
             })
         except Exception as e:

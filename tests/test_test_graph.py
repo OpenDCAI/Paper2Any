@@ -1,11 +1,11 @@
 """
-测试 {{ wf_name }} workflow
+测试 test_graph workflow
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-生成时间: {{ timestamp }}
+生成时间: 2025-12-01 20:16:43
 
 运行方式:
-  pytest tests/test_{{ wf_name_snake }}.py -v -s
-  或直接: python tests/test_{{ wf_name_snake }}.py
+  pytest tests/test_test_graph.py -v -s
+  或直接: python tests/test_test_graph.py
 """
 
 from __future__ import annotations
@@ -13,30 +13,26 @@ import asyncio
 import pytest
 
 # ------------ 依赖 -------------
-from dataflow_agent.states.xx_xx_xx import xxState, xxRequest
-# from dataflow_agent.state import xxState, xxRequest
+from dataflow_agent.states.test_graph_state import TestGraphState, TestGraphRequest
 from dataflow_agent.workflow import run_workflow
-# 如果使用了自定义 State，请替换上面的 xxState 导入：
+# 如果使用了自定义 State，请替换上面的 TestGraphState 导入：
 # from dataflow_agent.state import YourCustomState
 # --------------------------------
 
 
 # ============ 核心异步流程 ============
-async def run_{{ wf_name_snake }}_pipeline() -> xxState:
+async def run_test_graph_pipeline() -> TestGraphState:
     """
-    执行 {{ wf_name }} 工作流的测试流程
+    执行 test_graph 工作流的测试流程
     """
     # TODO: 根据实际需求构造初始状态
     # 1) 如果使用自定义请求对象，在这里构造
-    # req = YourRequest(
-    #     param1="value1",
-    #     param2="value2",
-    # )
+    req = TestGraphRequest()
     
     # 2) 初始化状态
-    state = xxState(
+    state = TestGraphState(
         messages=[],
-        # request=req,  # 如果有自定义请求
+        request=req
     )
     
     # TODO: 可以在这里预设一些测试数据
@@ -44,17 +40,17 @@ async def run_{{ wf_name_snake }}_pipeline() -> xxState:
     # state.agent_results = {}
 
     # 3) 通过注册中心执行工作流
-    final_state: xxState = await run_workflow("{{ wf_name }}", state)
+    final_state: TestGraphState = await run_workflow("test_graph", state)
     return final_state
 
 
 # ============ pytest 入口 ============
 @pytest.mark.asyncio
-async def test_{{ wf_name_snake }}_pipeline():
+async def test_test_graph_pipeline():
     """
-    测试 {{ wf_name }} 工作流的完整流程
+    测试 test_graph 工作流的完整流程
     """
-    final_state = await run_{{ wf_name_snake }}_pipeline()
+    final_state = await run_test_graph_pipeline()
 
     # TODO: 根据实际业务逻辑添加断言
     # 示例断言：
@@ -83,4 +79,4 @@ if __name__ == "__main__":
     """
     允许直接运行此文件进行快速测试
     """
-    asyncio.run(run_{{ wf_name_snake }}_pipeline())
+    asyncio.run(run_test_graph_pipeline())
