@@ -717,7 +717,7 @@ MATCH_QUALITY_THRESHOLDS = {
 
 
 # 默认 FAISS 索引缓存路径
-DEFAULT_FAISS_INDEX_PATH = str(utils.get_project_root() / "dataflow_agent/toolkits/resources/faiss_ops.index")
+DEFAULT_FAISS_INDEX_PATH = str(utils.get_project_root() / "dataflow_agent/resources/faiss_cache/all_ops.index")
 
 
 def _get_operators_by_rag_with_scores(

@@ -141,15 +141,7 @@ def create_pipeline_rec():
 
         # ==================== 事件绑定 ====================
         
-        # 调试模式显示下拉
-        def toggle_debug_times(is_debug):
-            return gr.update(visible=is_debug)
-
-        # debug_mode.change(
-        #     toggle_debug_times,
-        #     inputs=debug_mode,
-        #     outputs=debug_times
-        # )
+        # （调试模式相关 UI 已下线，如需恢复请参考 git 历史记录）
 
         # ---------------------- 生成 Pipeline 回调 ----------------------
         async def generate_pipeline(
@@ -162,8 +154,6 @@ def create_pipeline_rec():
             chat_api_url_for_embeddings_val,
             embedding_model_name_val,
             update_rag_val,
-            debug,
-            max_debug_rounds,
             current_json_state,
             current_round_state,
             current_api_config
@@ -244,8 +234,6 @@ def create_pipeline_rec():
                 chat_api_url_for_embeddings,
                 embedding_model_name,
                 update_rag,
-                debug_mode, 
-                debug_times,
                 pipeline_json_state,
                 refine_round_state,
                 api_config_state,
