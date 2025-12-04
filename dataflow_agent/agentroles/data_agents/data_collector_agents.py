@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, Optional
 
-from dataflow_agent.agentroles.webresearch import BaseAgent
+from dataflow_agent.agentroles.cores.base_agent import BaseAgent
 from dataflow_agent.state import WebCrawlState
 from dataflow_agent.toolkits.datatool.log_manager import LogManager, log_agent_input_output
 from dataflow_agent.logger import get_logger

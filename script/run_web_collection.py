@@ -5,7 +5,7 @@ import sys
 sys.path.append('/mnt/DataFlow/zks/DataFlow')
 from dataflow_agent.state import DataCollectionRequest, DataCollectionState
 from dataflow_agent.workflow.wf_data_collector import WebCrawlOrchestrator
-from dataflow_agent.agentroles.data_convertor import DataConvertor
+from dataflow_agent.agentroles.data_agents.data_convertor import DataConvertor
 from dataflow_agent.workflow.wf_data_convertor import data_conversion
 
 async def main() -> None:

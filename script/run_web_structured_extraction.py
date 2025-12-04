@@ -16,7 +16,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from dataflow_agent.agentroles.webresearch import WebStructuredDataExtractionNode
+from dataflow_agent.agentroles.data_agents.webresearch import WebStructuredDataExtractionNode
 from dataflow_agent.state import WebCrawlRequest, WebCrawlState
 
 

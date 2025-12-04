@@ -3,7 +3,7 @@
 from __future__ import annotations
 from typing import Optional
 from dataflow_agent.state import DataCollectionState
-from dataflow_agent.agentroles.data_convertor import DataConvertor, UniversalDataConvertor
+from dataflow_agent.agentroles.data_agents.data_convertor import DataConvertor, UniversalDataConvertor
 from dataflow_agent.workflow.registry import register
 
 async def data_conversion(

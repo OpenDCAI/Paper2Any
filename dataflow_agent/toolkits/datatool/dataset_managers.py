@@ -12,7 +12,7 @@ import tenacity
 import requests.exceptions
 
 from dataflow_agent.logger import get_logger
-from dataflow_agent.agentroles.webresearch import ToolManager
+from dataflow_agent.agentroles.data_agents.webresearch import ToolManager
 
 # 在导入 huggingface_hub / datasets 之前，优先设置 HF_ENDPOINT
 _df_hf_endpoint = os.getenv("DF_HF_ENDPOINT")

@@ -11,7 +11,7 @@ from langgraph.graph import StateGraph, START, END
 
 from dataflow_agent.state import WebCrawlState
 from dataflow_agent.logger import get_logger
-from dataflow_agent.agentroles.webresearch import (
+from dataflow_agent.agentroles.data_agents.webresearch import (
     ToolManager,
     URLFilter,
     WebPageReader,
@@ -20,8 +20,8 @@ from dataflow_agent.agentroles.webresearch import (
     WebResearchAgent,
     QueryGeneratorAgent,
 )
-from dataflow_agent.agentroles.download_manager import DownloadManager
-from dataflow_agent.agentroles.data_collector_agents import (
+from dataflow_agent.agentroles.data_agents.download_manager import DownloadManager
+from dataflow_agent.agentroles.data_agents.data_collector_agents import (
     DownloadMethodDecisionAgent,
     HuggingFaceDecisionAgent,
     KaggleDecisionAgent,
