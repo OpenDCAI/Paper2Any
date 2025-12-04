@@ -5,10 +5,15 @@ from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.toolkits.optool.op_tools import (
     local_tool_for_get_purpose,
     get_operator_content_str,
-    local_tool_for_get_match_operator_code
+    local_tool_for_get_match_operator_code,
+    search_operator_by_description,
+    get_operator_code_by_name,
+    _get_operators_by_rag_with_scores,
+    _determine_match_quality,
+    _generate_match_warning,
+    MATCH_QUALITY_THRESHOLDS,
 )
 
-from dataflow_agent.agentroles.data_agents.match import create_match
 from dataflow_agent.agentroles.data_agents.refine import (
     create_refine_target_analyzer,
     create_refine_planner,
@@ -86,29 +91,38 @@ def create_pipeline_refine_graph() -> GenericGraphBuilder:
                 if not desc or not step_id:
                     continue
 
-                # 为本次匹配创建临时 ToolManager，并注册全局前置工具
-                tm = ToolManager()
-                tm.register_pre_tool(name="purpose", func=lambda d=desc: d)
-                tm.register_pre_tool(name="get_operator_content", func=lambda c=operator_catalog: c)
-
-                matcher = create_match(tool_manager=tm)
+                # 使用带分数的 RAG 搜索，获取相似度和匹配质量
                 matched_name = None
                 code_block = ""
+                match_quality = "low"
+                max_score = 0.0
+                warning_msg = None
+                matched_operators = []
+
                 try:
-                    s_tmp = await matcher.execute(s2, use_agent=False)
-                    res = s_tmp.agent_results.get("match_operator", {}).get("results", {})
-                    names = []
-                    try:
-                        names = list(dict.fromkeys(res.get("match_operators", []) or []))
-                    except Exception:
-                        names = []
-                    matched_name = names[0] if names else None
-                    if matched_name:
-                        try:
-                            code_block = local_tool_for_get_match_operator_code({"match_operators": [matched_name]}) or ""
-                        except Exception:
-                            code_block = ""
-                except Exception:
+                    # 调用 RAG 搜索，返回带分数的结果
+                    matched_operators = _get_operators_by_rag_with_scores(desc, top_k=4)
+
+                    if matched_operators:
+                        # 获取最高分数和匹配质量
+                        max_score = max(op.get("similarity_score", 0.0) for op in matched_operators)
+                        match_quality = _determine_match_quality(max_score)
+                        warning_msg = _generate_match_warning(desc, max_score, match_quality)
+
+                        # 获取最佳匹配的算子名称
+                        matched_name = matched_operators[0].get("name") if matched_operators else None
+
+                        # 获取算子源码
+                        if matched_name:
+                            try:
+                                code_block = local_tool_for_get_match_operator_code({"match_operators": [matched_name]}) or ""
+                            except Exception:
+                                code_block = ""
+
+                        log.info(f"[RAG匹配] 需求: '{desc}' -> 最佳匹配: {matched_name}, "
+                                f"相似度: {max_score:.3f}, 质量: {match_quality}")
+                except Exception as e:
+                    log.warning(f"[RAG匹配] 搜索失败: {e}")
                     matched_name = None
                     code_block = ""
 
@@ -116,6 +130,10 @@ def create_pipeline_refine_graph() -> GenericGraphBuilder:
                     "step_id": step_id,
                     "action": action,
                     "matched_name": matched_name,
+                    "matched_operators": matched_operators,  # 所有候选算子（含分数）
+                    "max_similarity_score": max_score,
+                    "match_quality": match_quality,
+                    "warning": warning_msg,
                     "code_snippet": code_block,
                 })
 
@@ -149,30 +167,40 @@ def create_pipeline_refine_graph() -> GenericGraphBuilder:
         return s2
 
     # --------------------- pipeline_refiner -------------------------
-    @builder.pre_tool("pipeline_json", "pipeline_refiner")
-    def _pipeline_json(state: DFState):
-        # 传入字符串化的 JSON，便于 LLM准确读取
-        try:
-            return json.dumps(state.pipeline_structure_code or {}, ensure_ascii=False, indent=2)
-        except Exception:
-            return state.pipeline_structure_code or {}
-
-    @builder.pre_tool("modification_plan", "pipeline_refiner")
-    def _mod_plan(state: DFState):
-        plan = state.agent_results.get("refine_planner", {}).get("results", {})
-        # 传入列表形式，便于 LLM 按序逐步执行所有步骤
-        if isinstance(plan, dict) and isinstance(plan.get("modification_plan"), list):
-            return plan.get("modification_plan")
-        return plan
-
-    @builder.pre_tool("op_context", "pipeline_refiner")
-    def _op_ctx(state: DFState):
-        # 传递子操作级匹配上下文（列表或映射），由 prompt 解析
-        return state.agent_results.get("op_contexts", [])
-
     async def pipeline_refiner_node(s: DFState) -> DFState:
-        agent = create_json_pipeline_refiner()
-        s2 = await agent.execute(s, use_agent=False)
+        # 创建 ToolManager 并注册工具
+        tm = ToolManager()
+
+        # 注册前置工具（原本通过 @builder.pre_tool 注册的）
+        tm.register_pre_tool(
+            name="pipeline_json",
+            role="pipeline_refiner",
+            func=lambda: json.dumps(s.pipeline_structure_code or {}, ensure_ascii=False, indent=2)
+        )
+        tm.register_pre_tool(
+            name="modification_plan",
+            role="pipeline_refiner",
+            func=lambda: (
+                s.agent_results.get("refine_planner", {}).get("results", {}).get("modification_plan")
+                if isinstance(s.agent_results.get("refine_planner", {}).get("results", {}), dict)
+                   and isinstance(s.agent_results.get("refine_planner", {}).get("results", {}).get("modification_plan"), list)
+                else s.agent_results.get("refine_planner", {}).get("results", {})
+            )
+        )
+        tm.register_pre_tool(
+            name="op_context",
+            role="pipeline_refiner",
+            func=lambda: s.agent_results.get("op_contexts", [])
+        )
+
+        # 注册后置工具（RAG 搜索工具）
+        tm.register_post_tool(search_operator_by_description, role="pipeline_refiner")
+        tm.register_post_tool(get_operator_code_by_name, role="pipeline_refiner")
+
+        # 创建 agent 并传入 tool_manager
+        agent = create_json_pipeline_refiner(tool_manager=tm)
+        # 使用 use_agent=True 启用 graph agent 模式，让 LLM 可以调用 RAG 工具
+        s2 = await agent.execute(s, use_agent=True)
         # 直接覆盖写回（按需求不做校验）
         try:
             result = s2.agent_results.get("pipeline_refiner", {}).get("results", {})
@@ -205,3 +233,4 @@ def create_pipeline_refine_graph() -> GenericGraphBuilder:
     edges = [("refine_target_analyzer", "refine_planner"), ("refine_planner", "pipeline_refiner")]
     builder.add_nodes(nodes).add_edges(edges)
     return builder
+
