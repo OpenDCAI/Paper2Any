@@ -242,10 +242,12 @@ class Paper2VideoState(MainState):
     request: Paper2VideoRequest = field(default_factory=Paper2VideoRequest)
     
     # paper2video 特有字段
-    beamer_code: List[any] = field(default_factory=list)
-    code_debug_result: Dict[str, any] = field(default_factory=dict)
-    ppt_pdf_path: str = ""
-    ppt_imgs_pdf: str = ""
+    beamer_code_path: str = ""
+    is_beamer_wrong: bool = False
+    is_beamer_warning: bool = False
+    code_debug_result: str = ""
+    ppt_path: str = ""
+    
 
 
 
