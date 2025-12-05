@@ -74,12 +74,17 @@ def robust_parse_json(
 # ======================================================================
 
 _fence_pat = re.compile(r'```[\w-]*\s*([\s\S]*?)```', re.I)
+# 只匹配外层包裹的代码块（整个内容被 ``` 包裹）
+_outer_fence_pat = re.compile(r'^\s*```[\w-]*\s*([\s\S]*?)```\s*$', re.I)
 
 
 def _remove_markdown_fence(src: str) -> str:
-    """提取 ``` … ``` 内文本；若没找到则原样返回"""
-    blocks = _fence_pat.findall(src)
-    return "\n".join(blocks).strip() if blocks else src
+    """只提取外层包裹的 ``` … ``` 内文本；若内容不是被代码块包裹则原样返回"""
+    # 只处理整个内容被代码块包裹的情况，避免提取 JSON 内嵌的代码块
+    match = _outer_fence_pat.match(src)
+    if match:
+        return match.group(1).strip()
+    return src
 
 
 def _remove_outer_triple_quotes(src: str) -> str:
