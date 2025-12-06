@@ -247,3 +247,7 @@ lerna-debug.log*
 outputs/
 
 fastapi_app/invite_codes.txt
+models/*
+outputs/*
+tmps/*
+data/*

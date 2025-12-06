@@ -6,6 +6,30 @@ from typing import Any, Dict, Union, List
 from pathlib import Path
 from dataflow_agent.logger import get_logger
 log = get_logger(__name__)
+
+import ast
+from json import JSONDecodeError, JSONDecoder
+import json
+import re
+from typing import Any, Dict, Union, List
+from pathlib import Path
+import asyncio
+import logging
+from typing import List, Dict, Any, Optional
+
+
+from math import ceil
+import time
+import os
+import math
+from pptx.enum.text import PP_ALIGN
+from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_SHAPE
+from pptx.util import Inches, Pt
+
+from PIL import Image
+import pdfplumber
+
 def get_project_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
@@ -154,6 +178,460 @@ def _maybe_merge(objs: List[Any], merge_dicts: bool) -> Union[Any, List[Any]]:
             merged.update(o)
         return merged
     return objs
+
+
+# ========================================================================
+
+#                           For Paper2Figure
+
+# ========================================================================
+
+async def run_mineru(image_path: Path, output_dir: Path) -> bool:
+    """调用 mineru 并返回是否成功"""
+    cmd = [
+        "mineru",
+        "-p", str(image_path),
+        "--backend", "vlm-transformers",
+        "--source", "local",
+        "-o", str(output_dir)
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+
+    if proc.returncode != 0:
+        log.warning(f"[mineru] 运行失败: {stderr.decode(errors='ignore')}")
+        return False
+    
+    log.info("[mineru] 执行成功")
+    return True
+
+async def replace_item_with_sub_items(
+    items: List[Dict[str, Any]], 
+    sub_items: List[Dict[str, Any]], 
+    sub_img_path: str
+) -> List[Dict[str, Any]]:
+    """
+    处理每个 sub_item，执行坐标变换并替换原有的 item。
+    """
+    # 加载图像并获取宽高
+    with Image.open(sub_img_path) as sub_img:
+        sub_img_width, sub_img_height = sub_img.size
+
+    expanded_items = []  # 用来存储展开后的 sub_items
+    items_to_remove = []  # 用来记录需要删除的 items 索引
+
+    log.info(f"[replace_item_with_sub_items] 开始替换图像: {sub_img_path}")
+
+    for i, item in enumerate(items):
+        log.info(f"item[type]: {item['type']}")
+        if item["type"] in ["image", "table"]:
+            log.info(f"item['img_path']: {item['img_path']}")
+            log.info(f"sub_img_path: {sub_img_path}") 
+            if item["img_path"] == sub_img_path: # 用 sub_img_path 匹配原图的 img_path
+                # 获取目标图像的 bbox
+                target_bbox = item["bbox"]
+                xmin, ymin, xmax, ymax = target_bbox
+                # 计算比例
+                width_ratio = (xmax - xmin) / sub_img_width
+                height_ratio = (ymax - ymin) / sub_img_height
+
+                log.info(f"[replace_item_with_sub_items] 找到匹配的 item，替换 bbox: {target_bbox} -> 展开为 {len(sub_items)} 个 sub_items")
+
+                # 替换原始项中的 image 信息，展开 sub_items
+                for sub_item in sub_items:
+                    # 获取 sub_item 的原始 bbox 坐标
+                    sub_item_bbox = sub_item["bbox"]
+                    sub_xmin, sub_ymin, sub_xmax, sub_ymax = sub_item_bbox
+
+                    # 进行坐标线性变换
+                    transformed_bbox = [
+                        int(sub_xmin * width_ratio + xmin),  # x 坐标变换
+                        int(sub_ymin * height_ratio + ymin),  # y 坐标变换
+                        int(sub_xmax * width_ratio + xmin),  # x 坐标变换
+                        int(sub_ymax * height_ratio + ymin)  # y 坐标变换
+                    ]
+
+                    # 更新 sub_item 的 bbox
+                    sub_item["bbox"] = transformed_bbox
+
+                    # 将变换后的 sub_item 加入 expanded_items 列表
+                    expanded_items.append(sub_item)
+
+                # 记录需要删除的原 item 索引
+                items_to_remove.append(i)
+
+                break
+
+    # 替换原项中的 item，删除原有的 item
+    log.info(f"[replace_item_with_sub_items] 将原 item 删除, 替换为 {len(expanded_items)} 个 sub_item")
+
+    for index in sorted(items_to_remove, reverse=True):  # 逆序删除，避免索引错乱
+        del items[index]
+
+    # 将展开的 sub_items 插入到 items 中
+    items.extend(expanded_items)
+
+    log.info(f"[replace_item_with_sub_items] 替换完成后，当前 items 长度: {len(items)}")
+
+    return items
+
+async def recursive_run_mineru(
+    img_path: Path, 
+    out_dir: Path, 
+    max_depth: int = 2, 
+    current_depth: int = 0
+) -> List[Dict[str, Any]]:
+    """递归运行 mineru，处理子图并更新fig_mask"""
+    
+    if current_depth > max_depth:
+        return []  # 达到最大递归深度时停止递归
+    
+    log.info(f"[recursive_run_mineru] 当前深度 {current_depth}，处理图像: {img_path}")
+    
+    # 调用 mineru 处理当前图像
+    ok = await run_mineru(img_path, out_dir)
+    if not ok:
+        return []  # 如果失败，则返回空结果
+
+    # 寻找并读取中间结果的 JSON 文件
+    content_json = locate_content_json(out_dir / img_path.stem)
+    if content_json is None:
+        return []  # 没有找到内容文件，返回空结果
+
+    items = load_and_fix_items(content_json, out_dir)
+
+    log.info(f"[recursive_run_mineru] 当前 items 长度: {len(items)}")
+
+    # 查找子图目录并递归处理每个子图
+    vlm_images_dir = out_dir / img_path.stem / 'vlm' / 'images'
+    sub_images = list(vlm_images_dir.glob("*.jpg"))  # 假设子图为 .jpg 格式
+
+    if(current_depth != max_depth):
+        for sub_img_path in sub_images:  # sub_img_path 是图像路径
+            log.info(f"[recursive_run_mineru] 处理子图: {sub_img_path}")
+
+            # 获取当前 sub_img_path 对应的 sub_items
+            sub_items = await recursive_run_mineru(sub_img_path, out_dir, max_depth, current_depth + 1)
+
+            # 处理替换和坐标变换
+            items = await replace_item_with_sub_items(items, sub_items, str(sub_img_path))
+
+            log.info(f"[recursive_run_mineru] 替换完成后，当前 items 长度: {len(items)}")
+
+    return items
+
+def locate_content_json(output_dir: Path) -> Path | None:
+    """寻找 *_middle.json 文件"""
+    files = list(output_dir.rglob("*_middle.json"))
+    if not files:
+        log.warning(f"[mineru] 未找到 *_middle.json in {output_dir}")
+        return None
+    return files[0]
+
+
+def load_and_fix_items(content_json: Path, output_dir: Path) -> List[Dict[str, Any]]:
+    """
+    读取 JSON 并提取所有文本和图片元素，修复图片路径为绝对路径
+    """
+    try:
+        data = json.loads(content_json.read_text(encoding="utf-8"))
+    except Exception as e:
+        log.warning(f"[mineru] JSON 读取失败: {e}")
+        return []
+
+    # 提取基础名称
+    stem = content_json.stem  # e.g. "paper1_middle"
+    base_name = stem.replace("_middle", "") or stem
+    
+    results = []
+    
+    # 遍历pdf_info中的para_blocks
+    if "pdf_info" in data and isinstance(data["pdf_info"], list):
+        for pdf_info in data["pdf_info"]:
+            if "para_blocks" in pdf_info and isinstance(pdf_info["para_blocks"], list):
+                for block in pdf_info["para_blocks"]:
+                    block_type = block.get("type", "")
+                    
+                    # 处理标题和普通文本
+                    if block_type in ["title", "text", "paragraph"]:
+                        # 提取文本内容
+                        text_content = extract_text_from_block(block)
+                        if text_content:
+                            results.append({
+                                "type": "text",
+                                "text": text_content,
+                                "bbox": block.get("bbox", []),
+                                "text_level": 1 if block_type == "title" else None,
+                                "page_idx": 0
+                            })
+                    
+                    # 处理图片块
+                    elif block_type in ["list", "image", "table"]:
+                        # 提取图片和相关的caption
+                        image_elements = extract_image_elements(block, base_name, output_dir)
+                        results.extend(image_elements)
+    
+    return results
+
+
+def extract_text_from_block(block: Dict) -> str:
+    """从块中提取文本内容"""
+    text_parts = []
+    
+    # 如果有lines字段，遍历提取
+    if "lines" in block and isinstance(block["lines"], list):
+        for line in block["lines"]:
+            if "spans" in line and isinstance(line["spans"], list):
+                for span in line["spans"]:
+                    if span.get("type") == "text" and "content" in span:
+                        text_parts.append(span["content"])
+    
+    # 如果没有lines字段，尝试直接获取content
+    elif "content" in block:
+        text_parts.append(block["content"])
+    
+    return " ".join(text_parts) if text_parts else ""
+
+
+def extract_image_elements(block: Dict, base_name: str, output_dir: Path) -> List[Dict]:
+    """从图片块中提取图片和相关的文本元素"""
+    elements = []
+    
+    if "blocks" in block and isinstance(block["blocks"], list):
+        for sub_block in block["blocks"]:
+            sub_type = sub_block.get("type", "")
+            
+            # 处理图片caption
+            if sub_type in ["title", "text", "paragraph","image_caption", "table_caption"]:
+                caption_text = extract_text_from_block(sub_block)
+                if caption_text:
+                    elements.append({
+                        "type": "text",
+                        "text": caption_text,
+                        "bbox": sub_block.get("bbox", []),
+                        "text_level": None,  # caption作为普通文本
+                        "page_idx": 0
+                    })
+            
+            # 处理图片主体
+            elif sub_type in ["image_body", "table_body"]:
+                image_path = extract_image_path(sub_block, base_name, output_dir)
+                if image_path:
+                    elements.append({
+                        "type": "image",
+                        "img_path": str(image_path),
+                        "bbox": sub_block.get("bbox", []),
+                        "image_caption": [],
+                        "image_footnote": [],
+                        "page_idx": 0
+                    })
+    
+    return elements
+
+
+def extract_image_path(block: Dict, base_name: str, output_dir: Path) -> Optional[Path]:
+    """从图片块中提取图片路径并转换为绝对路径"""
+    if "lines" in block and isinstance(block["lines"], list):
+        for line in block["lines"]:
+            if "spans" in line and isinstance(line["spans"], list):
+                for span in line["spans"]:
+                    if span.get("type") in ["image", "table"] and "image_path" in span:
+                        rel_path = span["image_path"]
+                        if rel_path:
+                            # 构建绝对路径
+                            abs_path = output_dir / base_name / "vlm/images" / rel_path
+                            return abs_path
+    return None
+
+def build_output_directory(image_path: Path) -> Path:
+    """构造 <image_no_ext>_mineru 输出目录"""
+    base = image_path.with_suffix("")
+    out_dir = Path(f"{base}_mineru")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir
+
+def get_font_size_for_text(bbox, text, max_font_size=48, min_font_size=10):
+    """
+    根据文本框的 bbox 和文本长度推算字体大小
+    bbox: [xmin, ymin, xmax, ymax]
+    text: 要插入的文本
+    """
+    box_height = bbox[3] - bbox[1]  # 计算文本框高度
+    max_chars_per_line = 30         # 最大每行字符数
+    lines = ceil(len(text) / max_chars_per_line)  # 计算需要的行数
+
+    font_size = min(box_height // lines, max_font_size)
+    return max(font_size, min_font_size)
+
+def generate_ppt_filename(output_path):
+    """
+    生成一个唯一的 PPT 文件名，基于当前时间戳
+    """
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    return f"{output_path}/presentation_{timestamp}.pptx"
+
+def pixels_to_inches(pixels: int, dpi: int = 96) -> float:
+    """将像素转换为英寸"""
+    return pixels / dpi
+
+
+def calculate_font_size(text: str, bbox: List[int], text_level: int = None) -> int:
+    """
+    根据文本框大小、文字内容和文本级别计算合适的字体大小
+    """
+    # 计算文本框的宽度和高度（像素）
+    width = bbox[2] - bbox[0]
+    height = bbox[3] - bbox[1]
+    
+    # 根据文本级别设置基础字体大小
+    if text_level == 1:  # 主标题
+        base_size = min(height * 0.8, 44)
+    elif text_level == 2:  # 子标题
+        base_size = min(height * 0.7, 32)
+    else:  # 正文
+        base_size = min(height * 0.6, 24)
+    
+    # 根据文本长度调整
+    char_count = len(text)
+    if char_count > 0:
+        chars_per_line = max(1, width / (base_size * 0.6))
+        lines_needed = math.ceil(char_count / chars_per_line)
+        
+        max_lines = max(1, height / (base_size * 1.1))
+        if lines_needed > max_lines:
+            base_size = base_size * (max_lines / lines_needed)
+    
+    # 限制字体大小范围
+    font_size = max(8, min(base_size, 72))
+    
+    return int(font_size)
+
+
+def setup_presentation_size(prs, slide_width_px: int = 1024, slide_height_px: int = 1024):
+    """设置PPT尺寸"""
+    prs.slide_width = Inches(pixels_to_inches(slide_width_px))
+    prs.slide_height = Inches(pixels_to_inches(slide_height_px))
+    
+    return slide_width_px, slide_height_px
+
+
+def add_text_element(slide, element: Dict):
+    """添加文本元素到幻灯片"""
+    bbox = element.get('bbox', [0, 0, 100, 50])
+    text = element.get('text', '')
+    text_level = element.get('text_level')
+    
+    # 计算位置和大小
+    left = pixels_to_inches(bbox[0])
+    top = pixels_to_inches(bbox[1])
+    width = pixels_to_inches(bbox[2] - bbox[0])
+    height = pixels_to_inches(bbox[3] - bbox[1])
+    
+    # 计算字体大小
+    font_size = calculate_font_size(text, bbox, text_level)
+    
+    log.info(f"添加文本框:")
+    log.info(f"  位置: [{bbox[0]}, {bbox[1]}, {bbox[2]}, {bbox[3]}] 像素")
+    log.info(f"  英寸坐标: left={left:.2f}, top={top:.2f}, width={width:.2f}, height={height:.2f}")
+    log.info(f"  文本内容: {text[:30]}{'...' if len(text) > 30 else ''}")
+    log.info(f"  文本级别: {text_level}, 字体大小: {font_size}pt")
+    
+    # 添加文本框
+    textbox = slide.shapes.add_textbox(
+        Inches(left), Inches(top), Inches(width) * 1.2, Inches(height)
+    )
+    text_frame = textbox.text_frame
+    text_frame.word_wrap = True
+    
+    # 设置文本内容
+    paragraph = text_frame.paragraphs[0]
+    paragraph.text = text
+    
+    # 设置字体样式
+    paragraph.font.size = Pt(font_size)
+    paragraph.font.name = "Comic Sans MS"
+    
+    # 根据文本级别设置样式
+    if text_level == 1:
+        paragraph.font.bold = True
+        paragraph.alignment = PP_ALIGN.CENTER
+        log.info("  样式: 标题(加粗、居中)")
+    elif text_level == 2:
+        paragraph.font.bold = True
+        log.info("  样式: 子标题(加粗)")
+    else:
+        log.info("  样式: 正文")
+    
+    return textbox
+
+
+def add_image_element(slide, element: Dict):
+    """添加图片元素到幻灯片"""
+    bbox = element.get('bbox', [0, 0, 100, 100])
+    img_path = element.get('img_path', '')
+    
+    # 计算位置和大小
+    left = pixels_to_inches(bbox[0])
+    top = pixels_to_inches(bbox[1])
+    width = pixels_to_inches(bbox[2] - bbox[0])
+    height = pixels_to_inches(bbox[3] - bbox[1])
+    
+    log.info(f"添加图片:")
+    log.info(f"  位置: [{bbox[0]}, {bbox[1]}, {bbox[2]}, {bbox[3]}] 像素")
+    log.info(f"  英寸坐标: left={left:.2f}, top={top:.2f}, width={width:.2f}, height={height:.2f}")
+    log.info(f"  图片路径: {img_path}")
+    log.info(f"  图片尺寸: {bbox[2]-bbox[0]}x{bbox[3]-bbox[1]} 像素")
+    
+    # 检查图片文件是否存在
+    if os.path.exists(img_path):
+        try:
+            log.info("  图片文件存在，正在添加...")
+            result = slide.shapes.add_picture(
+                img_path,
+                Inches(left), Inches(top), Inches(width), Inches(height)
+            )
+            log.info("  图片添加成功")
+            return result
+        except Exception as e:
+            log.error(f"  添加图片时出错: {e}")
+            return add_image_placeholder(slide, bbox, f"Error: {str(e)}")
+    else:
+        log.warning("  图片文件不存在，使用占位符")
+        return add_image_placeholder(slide, bbox, "Image not found")
+
+
+def add_image_placeholder(slide, bbox: List[int], message: str):
+    """添加图片占位符"""
+    left = pixels_to_inches(bbox[0])
+    top = pixels_to_inches(bbox[1])
+    width = pixels_to_inches(bbox[2] - bbox[0])
+    height = pixels_to_inches(bbox[3] - bbox[1])
+    
+    # 添加矩形作为占位符
+    shape = slide.shapes.add_shape(
+        MSO_SHAPE.RECTANGLE,
+        Inches(left), Inches(top), Inches(width), Inches(height)
+    )
+    shape.fill.solid()
+    shape.fill.fore_color.rgb = RGBColor(240, 240, 240)
+    shape.line.color.rgb = RGBColor(200, 200, 200)
+    
+    # 添加说明文字
+    textbox = slide.shapes.add_textbox(
+        Inches(left), Inches(top), Inches(width), Inches(height)
+    )
+    text_frame = textbox.text_frame
+    text_frame.text = message
+    text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+    text_frame.paragraphs[0].font.size = Pt(10)
+    text_frame.paragraphs[0].font.name = "Comic Sans MS"
+    text_frame.paragraphs[0].font.color.rgb = RGBColor(128, 128, 128)
+    
+    return shape
 
 # def robust_parse_json(
 #         s: str,
