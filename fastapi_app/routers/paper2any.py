@@ -80,6 +80,8 @@ async def generate_paper2graph(
     - 为每次请求在 outputs/paper2graph 下创建独立目录；
     - 使用全局信号量控制重任务串行执行；
     - 返回一个简单的 PPTX 文件，供前端下载测试。
+
+    - 图片比例，16:9
     """
     # 1. 基础参数校验
     if input_type in ("file", "image"):
