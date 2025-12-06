@@ -244,3 +244,8 @@ lerna-debug.log*
 
 # TypeScript cache
 *.tsbuildinfo
+
+models/*
+outputs/*
+tmps/*
+data/*
