@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from fastapi_app.routers import operator_write, pipeline_rec, workflows
+from fastapi_app.routers import operator_write, pipeline_rec, workflows, paper2video
 
 
 def create_app() -> FastAPI:
@@ -32,7 +32,7 @@ def create_app() -> FastAPI:
     app.include_router(workflows.router, prefix="/workflows", tags=["workflows"])
     app.include_router(operator_write.router, prefix="/operator", tags=["operator_write"])
     app.include_router(pipeline_rec.router, prefix="/pipeline", tags=["pipeline_recommend"])
-
+    app.include_router(paper2video.router, prefix="/paper2video", tags=["paper2video"])
     @app.get("/health")
     async def health_check():
         return {"status": "ok"}

@@ -103,3 +103,17 @@ class PipelineRecommendResponse(BaseModel):
     python_file: str
     execution_result: Dict[str, Any]
     agent_results: Dict[str, Any]
+
+
+# ===================== paper2video相关 =====================
+class FeaturePaper2VideoRequest(BaseModel):
+    model: str = "gpt-4o",
+    chat_api_url: str = "http://123.129.219.111:3000/v1/",
+    api_key: str = "",
+    pdf_path: str = "",
+    img_path: str = "",
+
+class FeaturePaper2VideoResponse(BaseModel):
+    success: bool
+    ppt_path: str
+
