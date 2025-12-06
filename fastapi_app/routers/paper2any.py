@@ -8,6 +8,7 @@ from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from fastapi_app.routers.paper2video import paper2video_endpoint, FeaturePaper2VideoRequest, FeaturePaper2VideoResponse
 
 # 全局信号量：控制重任务并发度（排队机制）
 # 目前设为 1，即串行执行；如需并行可调大此值
@@ -172,24 +173,43 @@ async def generate_paper2ppt(
     input_path = input_dir / f"input{ext}"
     content_bytes = await file.read()
     input_path.write_bytes(content_bytes)
-    saved_input_name = input_path.name
+    abs_input_path = input_path.resolve()
+    # saved_input_name = input_path.name
 
     # 4. 重任务段：受信号量保护，确保排队执行
     async with task_semaphore:
-        output_pptx = output_dir / "paper2ppt.pptx"
-        demo_title = "Paper2PPT Demo"
-        demo_content = (
-            f"model_name: {model_name}\n"
-            f"chat_api_url: {chat_api_url}\n"
-            f"input_type: {input_type}\n"
-            f"file_kind: {file_kind or 'pdf'}\n"
-            f"saved_input: {saved_input_name}\n"
+        # output_pptx = output_dir / "paper2ppt.pdf"
+        # demo_title = "Paper2PPT Demo"
+        # content = (
+        #     f"model_name: {model_name}\n"
+        #     f"chat_api_url: {chat_api_url}\n"
+        #     f"input_type: {input_type}\n"
+        #     f"file_kind: {file_kind or 'pdf'}\n"
+        #     f"saved_input: {saved_input_name}\n"
+        # )
+        # create_dummy_pptx(output_pptx, demo_title, demo_content)
+        # create_pdf(output_pptx, demo_title, content)
+        req = FeaturePaper2VideoRequest(
+            model=model_name,
+            chat_api_url=chat_api_url,
+            api_key=api_key,
+            pdf_path=str(abs_input_path),
+            img_path="",
         )
-        create_dummy_pptx(output_pptx, demo_title, demo_content)
+        resp: FeaturePaper2VideoResponse = await paper2video_endpoint(req)
+        if not resp.success:
+            raise HTTPException(status_code=500, detail="Paper to PPT generation failed.")
+        output_path = resp.ppt_path
+        output_path = Path(output_path)
 
     # 5. 返回 PPTX 文件
+    # return FileResponse(
+    #     path=output_pptx,
+    #     media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    #     filename="paper2ppt.pdf",
+    # )
     return FileResponse(
-        path=output_pptx,
-        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        filename="paper2ppt.pptx",
-    )
+    path=output_path,
+    media_type="application/pdf",
+    filename="paper2ppt.pdf",
+)

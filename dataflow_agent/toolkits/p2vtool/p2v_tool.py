@@ -44,7 +44,7 @@ def beamer_code_validator(content: str, parsed_result: Dict[str, Any]) -> Tuple[
     from tempfile import TemporaryDirectory
 
     # 这里的 dir 具体是什么无所谓，因为我latex code中的图像路径是绝对路径
-    with TemporaryDirectory(dir="/mnt/DataFlow/lz/proj/agentgroup/ligang/DataFlow-Agent/data") as temp_dir_name:
+    with TemporaryDirectory() as temp_dir_name:
         temp_dir = Path(temp_dir_name)
         # 在临时目录中创建 .tex 文件
         # todo: 这里可能需要修改一下，因为在临时目录下创建文件还是不太行。

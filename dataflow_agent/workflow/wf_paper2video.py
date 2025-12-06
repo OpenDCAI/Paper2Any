@@ -51,6 +51,7 @@ def create_paper2video_graph() -> GenericGraphBuilder:
             return ""
         paper_pdf_dir = paper_pdf_path.with_suffix('').parent
         if not paper_pdf_path.with_suffix('').exists():
+            #fixme: 这里需要修改为部署机器上的mineru
             mineru_cmd = ["/opt/conda/envs/p2v-model/bin/mineru", "-p", str(paper_pdf_path),  "-o",  str(paper_pdf_dir), "--source", "modelscope"]
             subprocess.run(mineru_cmd, shell=False, check=True, text=True, stderr=None,stdout=None,)
             
