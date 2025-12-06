@@ -4,7 +4,7 @@ import { FileText, UploadCloud, Type, Settings2, Download, Loader2, CheckCircle2
 type UploadMode = 'file' | 'text' | 'image';
 type FileKind = 'pdf' | 'image' | null;
 
-const BACKEND_API = '/api/paper2graph/generate';
+const BACKEND_API = '/api/paper2figure/generate';
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'tiff'];
 
@@ -16,7 +16,7 @@ function detectFileKind(file: File): FileKind {
   return null;
 }
 
-const Paper2GraphPage = () => {
+const Paper2FigurePage = () => {
   const [uploadMode, setUploadMode] = useState<UploadMode>('file');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileKind, setFileKind] = useState<FileKind>(null);
@@ -30,7 +30,7 @@ const Paper2GraphPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
-  const [lastFilename, setLastFilename] = useState('paper2graph.pptx');
+  const [lastFilename, setLastFilename] = useState('paper2figure.pptx');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showBanner, setShowBanner] = useState(true);
 
@@ -111,7 +111,7 @@ const Paper2GraphPage = () => {
       }
 
       const disposition = res.headers.get('content-disposition') || '';
-      let filename = 'paper2graph.pptx';
+      let filename = 'paper2figure.pptx';
       const match = disposition.match(/filename="?([^";]+)"?/i);
       if (match?.[1]) {
         filename = decodeURIComponent(match[1]);
@@ -509,4 +509,4 @@ const DemoCard = ({ title, desc }: DemoCardProps) => {
   );
 };
 
-export default Paper2GraphPage;
+export default Paper2FigurePage;
