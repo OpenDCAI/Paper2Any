@@ -177,7 +177,7 @@ def _dump_all_ops_to_file() -> Dict[str, List[Dict[str, Any]]]:
     for op_name, cls in OPERATOR_REGISTRY:
         category, info = _gather_single_operator(op_name, cls, idx)
         all_ops.setdefault(category, []).append(info)   
-        default_bucket.append(info)                     # 收集全集
+        default_bucket.append(info)
         idx += 1
 
     all_ops["Default"] = default_bucket
@@ -524,7 +524,11 @@ class RAGOperatorSearch:
                     self.ops_list = pickle.load(f)
                 log.info(f"✓ 索引加载成功，包含 {len(self.ops_list)} 个算子")
                 return
-        
+
+        # 先用最新的 OPERATOR_REGISTRY 刷新 ops.json 快照
+        log.info("⚙ 正在刷新 ops.json 算子快照...")
+        _dump_all_ops_to_file()
+
         # 重新构建索引
         log.info("⚙ 开始构建新的向量索引...")
         self.ops_list = self._load_operators()
