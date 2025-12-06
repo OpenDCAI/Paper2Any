@@ -21,6 +21,7 @@ const Paper2GraphPage = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileKind, setFileKind] = useState<FileKind>(null);
   const [textContent, setTextContent] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
 
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.openai.com/v1/chat/completions');
   const [apiKey, setApiKey] = useState('');
@@ -61,6 +62,11 @@ const Paper2GraphPage = () => {
     setSuccessMessage(null);
     setDownloadUrl(null);
 
+    if (!inviteCode.trim()) {
+      setError('请先输入邀请码');
+      return;
+    }
+
     if (!llmApiUrl.trim() || !apiKey.trim()) {
       setError('请先配置模型 API URL 和 API Key');
       return;
@@ -71,6 +77,7 @@ const Paper2GraphPage = () => {
     formData.append('chat_api_url', llmApiUrl.trim());
     formData.append('api_key', apiKey.trim());
     formData.append('input_type', uploadMode);
+    formData.append('invite_code', inviteCode.trim());
 
     if (uploadMode === 'file' || uploadMode === 'image') {
       if (!selectedFile) {
@@ -101,11 +108,15 @@ const Paper2GraphPage = () => {
 
       if (!res.ok) {
         let msg = '生成 PPTX 失败';
-        try {
-          const text = await res.text();
-          if (text) msg = text;
-        } catch {
-          // ignore
+        if (res.status === 403) {
+          msg = '邀请码不正确或已失效';
+        } else {
+          try {
+            const text = await res.text();
+            if (text) msg = text;
+          } catch {
+            // ignore
+          }
         }
         throw new Error(msg);
       }
@@ -333,10 +344,21 @@ const Paper2GraphPage = () => {
                 )}
               </button>
 
-              {showAdvanced && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">模型 API URL</label>
+                  {showAdvanced && (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">邀请码</label>
+                        <input
+                          type="text"
+                          value={inviteCode}
+                          onChange={e => setInviteCode(e.target.value)}
+                          placeholder="请输入邀请码"
+                          className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">模型 API URL</label>
                     <input
                       type="text"
                       value={llmApiUrl}

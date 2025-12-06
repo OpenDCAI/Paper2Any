@@ -9,6 +9,40 @@ from typing import Optional
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
+# 简单的邀请码校验：从本地文本文件加载白名单
+INVITE_CODES_FILE = Path(__file__).resolve().parent.parent / "invite_codes.txt"
+
+
+def load_invite_codes() -> set[str]:
+    """
+    从 invite_codes.txt 中加载邀请码列表。
+
+    文件格式：每行一个邀请码，忽略空行和以 # 开头的注释行。
+    """
+    codes: set[str] = set()
+    if not INVITE_CODES_FILE.exists():
+        return codes
+    for line in INVITE_CODES_FILE.read_text(encoding="utf-8").splitlines():
+        code = line.strip()
+        if not code or code.startswith("#"):
+            continue
+        codes.add(code)
+    return codes
+
+
+VALID_INVITE_CODES = load_invite_codes()
+
+
+def validate_invite_code(code: str | None) -> None:
+    """
+    校验邀请码是否有效。无效则抛出 403。
+    """
+    if not code:
+        raise HTTPException(status_code=403, detail="invite_code is required")
+    if code not in VALID_INVITE_CODES:
+        raise HTTPException(status_code=403, detail="Invalid invite_code")
+
+
 # 全局信号量：控制重任务并发度（排队机制）
 # 目前设为 1，即串行执行；如需并行可调大此值
 task_semaphore = asyncio.Semaphore(1)
@@ -69,13 +103,15 @@ async def generate_paper2graph(
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
     input_type: str = Form(...),  # 'file' | 'text' | 'image'
+    invite_code: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     file_kind: Optional[str] = Form(None),  # 'pdf' | 'image'
     text: Optional[str] = Form(None),
 ):
     """
-    Paper2Graph 假接口：
+    Paper2Graph 假接口（带邀请码校验）：
 
+    - 需要前端在 FormData 中传入 invite_code，并在本地白名单文件中验证；
     - 接收前端上传的 PDF / 图片 / 文本；
     - 为每次请求在 outputs/paper2graph 下创建独立目录；
     - 使用全局信号量控制重任务串行执行；
@@ -83,6 +119,9 @@ async def generate_paper2graph(
 
     - 图片比例，16:9
     """
+    # 0. 邀请码校验
+    validate_invite_code(invite_code)
+
     # 1. 基础参数校验
     if input_type in ("file", "image"):
         if file is None:
@@ -142,17 +181,22 @@ async def generate_paper2ppt(
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
     input_type: str = Form(...),  # 当前前端固定为 'file'
+    invite_code: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     file_kind: Optional[str] = Form(None),  # 当前前端固定为 'pdf'
 ):
     """
-    Paper2PPT 假接口：
+    Paper2PPT 假接口（带邀请码校验）：
 
+    - 需要前端在 FormData 中传入 invite_code，并在本地白名单文件中验证；
     - 接收前端上传的 PDF；
     - 为每次请求在 outputs/paper2ppt 下创建独立目录；
     - 使用全局信号量控制重任务串行执行；
     - 返回一个简单的 PPTX 文件，供前端下载测试。
     """
+    # 0. 邀请码校验
+    validate_invite_code(invite_code)
+
     if input_type != "file":
         raise HTTPException(status_code=400, detail="Paper2PPT currently only supports input_type='file'")
 
