@@ -23,7 +23,7 @@ const Paper2FigurePage = () => {
   const [textContent, setTextContent] = useState('');
   const [inviteCode, setInviteCode] = useState('');
 
-  const [llmApiUrl, setLlmApiUrl] = useState('https://api.openai.com/v1/chat/completions');
+  const [llmApiUrl, setLlmApiUrl] = useState('http://123.129.219.111:3000/v1');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('NanoBanana');
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -73,7 +73,7 @@ const Paper2FigurePage = () => {
     }
 
     const formData = new FormData();
-    formData.append('model_name', model);
+    formData.append('img_gen_model_name', model);
     formData.append('chat_api_url', llmApiUrl.trim());
     formData.append('api_key', apiKey.trim());
     formData.append('input_type', uploadMode);
@@ -386,8 +386,8 @@ const Paper2FigurePage = () => {
                       onChange={e => setModel(e.target.value)}
                       className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     >
-                      <option value="NanoBanana">NanoBanana</option>
-                      <option value="NanoBanana Pro">NanoBanana Pro</option>
+                      <option value="gemini-2.5-flash-image-preview">NanoBanana</option>
+                      <option value="gemini-3-pro-image-preview">NanoBanana Pro</option>
                     </select>
                   </div>
                 </div>

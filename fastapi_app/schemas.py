@@ -108,9 +108,17 @@ class PipelineRecommendResponse(BaseModel):
 class Paper2FigureRequest(BaseModel):
     """
     Paper2Figure 的请求参数定义。
+
+    注意：
+    - 为了兼容 dataflow_agent 内部对 state.request 的访问，
+      这里额外提供 language 字段，并实现一个简单的 get 方法，
+      使其既能通过属性访问（.language），也能通过 dict 风格访问（.get）。
     """
 
     # ---------------------- 基础 LLM 设置 ----------------------
+    language: str = "en"
+    # 工作流内部有角色会访问 state.request.language
+
     chat_api_url: str = "http://123.129.219.111:3000/v1/"
     # 与大模型交互使用的 API URL
 
@@ -120,13 +128,14 @@ class Paper2FigureRequest(BaseModel):
     api_key: str = ""
     # 如果使用第三方外部 API（如 OpenAI），在此填写外部 API Key；为空则使用内部服务
 
-    llm_model: str = "gpt-4o"
+    model: str = "gpt-4o"
     # 用于执行理解、抽象、描述生成的文本模型名称
 
     gen_fig_model: str = "gemini-3-pro-image-preview"
     # 用于生成插图 / 构图草图的图像模型名称
     # 模型名和雨茶官网一致
-
+    
+    bg_rm_model: str = "/home/ubuntu/liuzhou/hzy/DataFlow-Agent/models/RMBG-2.0"
 
     # ---------------------- 输入类型设置 ----------------------
     input_type: Literal["PDF", "TEXT", "FIGURE"] = "PDF"
@@ -148,6 +157,14 @@ class Paper2FigureRequest(BaseModel):
     aspect_ratio: Literal["1:1", "16:9", "9:16", "4:3", "3:4", "21:9"] = "16:9"
     # 指定生成图像的长宽比，例如：
     # 1:1（正方形）、16:9（横向宽屏）、9:16（竖屏）、4:3、3:4 以及 21:9 超宽屏。
+
+    # ---------------------- 兼容 dict 风格访问 ----------------------
+    def get(self, key: str, default=None):
+        """
+        兼容 dataflow_agent 内部对 request 使用 dict.get("key") 的写法。
+        未找到属性时返回 default。
+        """
+        return getattr(self, key, default)
 
 
 class Paper2FigureResponse(BaseModel):
