@@ -411,7 +411,7 @@ const Paper2FigurePage = () => {
                       <span>抓紧生成中......</span>
                     </div>
                     <p className="text-[11px] text-primary-200/80">
-                      通常需要 30 秒到 2 分钟，请耐心等待，我们正在为你生成可编辑 PPTX。
+                      通常需要 2 分钟 到 5 分钟，请耐心等待，我们正在为你生成可编辑 PPTX。
                     </p>
                     <div className="w-full h-1.5 rounded-full bg-primary-950/60 overflow-hidden">
                       <div className="h-full w-1/2 bg-gradient-to-r from-primary-400 via-pink-400 to-orange-300 animate-pulse" />
@@ -475,6 +475,7 @@ const Paper2FigurePage = () => {
                 title="生图模型结果 → 可编辑 PPTX"
                 desc="上传由 Gemini 等模型生成的科研配图或示意图截图，智能识别段落层级与要点，自动排版为可编辑的中英文 PPTX。"
                 inputImg="/p2f_paper_model_img.png"
+                outputImg='/p2f_paper_modle_img_2.png'
               />
               <DemoCard
                 title="摘要文本 → 科研绘图"
