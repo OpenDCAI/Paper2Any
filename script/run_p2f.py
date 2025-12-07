@@ -83,7 +83,8 @@ async def main() -> None:
     state = Paper2FigureState(request=req, messages=[])
     state.temp_data["round"] = 0
     state.paper_file = 'data/GovBench_ACL_Template.pdf'
-    # state.fig_draft_path = '/home/ubuntu/liuzhou/hzy/DataFlow-Agent/tmps/1765029821.jpg'
+    state.input_type = 'FIGURE'
+    state.fig_draft_path = '/home/ubuntu/liuzhou/hzy/paper2figure/gen_gemini2.png'
     state.result_path = f'./outputs/{time.strftime("%Y%m%d_%H%M%S")}'
     os.makedirs(state.result_path, exist_ok=True)
 
