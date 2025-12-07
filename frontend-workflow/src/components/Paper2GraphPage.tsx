@@ -589,13 +589,13 @@ const Paper2FigurePage = () => {
                 outputImg='/p2f_paper_pdf_img_2.png'
               />
               <DemoCard
-                title="生图模型结果 → 可编辑 PPTX"
+                title="模型结果图 → 可编辑 PPTX"
                 desc="上传由 Gemini 等模型生成的科研配图或示意图截图，智能识别段落层级与要点，自动排版为可编辑的中英文 PPTX。"
                 inputImg="/p2f_paper_model_img.png"
                 outputImg='/p2f_paper_modle_img_2.png'
               />
               <DemoCard
-                title="摘要文本 → 科研绘图"
+                title="论文摘要文本 → 科研绘图 PPTX"
                 desc="粘贴论文摘要或章节内容，一键生成包含标题层级、关键要点与图示占位的 PPTX 大纲，方便后续细化与美化。"
                 inputImg='/p2f_paper_content.png'
               />
