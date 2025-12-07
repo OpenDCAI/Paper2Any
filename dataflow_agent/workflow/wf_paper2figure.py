@@ -267,7 +267,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             
             # 保存PPT
             prs.save(str(ppt_path))
-            
+            state.ppt_path = ppt_path
             print(f"PPT generated successfully: {ppt_path}")
             print(f"Slide size: {slide_width_px}x{slide_height_px} pixels")
             print(f"Total elements added: {len(state.fig_mask)}")

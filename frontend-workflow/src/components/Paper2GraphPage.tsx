@@ -213,7 +213,7 @@ const Paper2FigurePage = () => {
       )}
 
       {/* 主区域：居中简洁布局 */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 overflow-auto">
+      <div className="flex-1 flex flex-col items-center justify-start px-6 pt-20 pb-10 overflow-auto">
         <div className="w-full max-w-5xl animate-fade-in">
           {/* 顶部标题区 */}
           <div className="mb-8 text-center">
@@ -224,7 +224,7 @@ const Paper2FigurePage = () => {
               一键根据论文内容绘制（可编辑）科研绘图
             </h1>
             <p className="text-sm text-gray-400 max-w-2xl mx-auto">
-              上传论文 PDF / 图片，或直接粘贴文字，一键生成可编辑的 PPTX，方便你继续修改、增删和排版。
+              上传论文 PDF / 图片，或直接粘贴文字，一键生成可编辑的 科研绘图PPTX，方便你继续修改、增删和排版。
             </p>
           </div>
 
@@ -253,7 +253,7 @@ const Paper2FigurePage = () => {
                       }`}
                     >
                       <UploadCloud size={14} />
-                      文件（PDF / 图片）
+                      文件（PDF）
                     </button>
                     <button
                       type="button"
@@ -401,8 +401,23 @@ const Paper2FigurePage = () => {
                   className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/60 disabled:cursor-not-allowed text-white text-sm font-medium py-2.5 transition-colors glow"
                 >
                   {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                  <span>生成可编辑 PPTX</span>
+                  <span>{isLoading ? '生成中...' : '生成可编辑 PPTX'}</span>
                 </button>
+
+                {isLoading && !error && !successMessage && (
+                  <div className="flex flex-col gap-2 mt-2 text-xs rounded-lg border border-primary-400/40 bg-primary-500/10 px-3 py-2">
+                    <div className="flex items-center gap-2 text-primary-200">
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>抓紧生成中......</span>
+                    </div>
+                    <p className="text-[11px] text-primary-200/80">
+                      通常需要 30 秒到 2 分钟，请耐心等待，我们正在为你生成可编辑 PPTX。
+                    </p>
+                    <div className="w-full h-1.5 rounded-full bg-primary-950/60 overflow-hidden">
+                      <div className="h-full w-1/2 bg-gradient-to-r from-primary-400 via-pink-400 to-orange-300 animate-pulse" />
+                    </div>
+                  </div>
+                )}
 
                 {downloadUrl && (
                   <button
@@ -453,14 +468,18 @@ const Paper2FigurePage = () => {
               <DemoCard
                 title="论文 PDF → 符合论文主题的 科研绘图（PPT）"
                 desc="上传英文论文 PDF，自动提炼研究背景、方法、实验设计和结论，生成结构清晰、符合学术风格的汇报 PPTX。"
+                inputImg="/p2f_paper_pdf_img.png"
+                outputImg='/p2f_paper_pdf_img_2.png'
               />
               <DemoCard
                 title="生图模型结果 → 可编辑 PPTX"
                 desc="上传由 Gemini 等模型生成的科研配图或示意图截图，智能识别段落层级与要点，自动排版为可编辑的中英文 PPTX。"
+                inputImg="/p2f_paper_model_img.png"
               />
               <DemoCard
                 title="摘要文本 → 科研绘图"
                 desc="粘贴论文摘要或章节内容，一键生成包含标题层级、关键要点与图示占位的 PPTX 大纲，方便后续细化与美化。"
+                inputImg='/p2f_paper_content.png'
               />
             </div>
           </div>
@@ -508,19 +527,37 @@ const Paper2FigurePage = () => {
 interface DemoCardProps {
   title: string;
   desc: string;
+  inputImg?: string;
+  outputImg?: string;
 }
 
-const DemoCard = ({ title, desc }: DemoCardProps) => {
+const DemoCard = ({ title, desc, inputImg, outputImg }: DemoCardProps) => {
   return (
     <div className="glass rounded-lg border border-white/10 p-3 flex flex-col gap-2 hover:bg-white/5 transition-colors">
       <div className="flex gap-2">
-        {/* 左侧：输入示例图片占位，你可以替换为真实 img */}
-        <div className="flex-1 rounded-md bg-white/5 border border-dashed border-white/10 flex items-center justify-center text-[10px] text-gray-400 demo-input-placeholder">
-          输入示例图（待替换）
+        {/* 左侧：输入示例图片 */}
+        <div className="flex-1 rounded-md bg-white/5 border border-dashed border-white/10 flex items-center justify-center demo-input-placeholder overflow-hidden">
+          {inputImg ? (
+            <img
+              src={inputImg}
+              alt="输入示例图"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-[10px] text-gray-400">输入示例图（待替换）</span>
+          )}
         </div>
-        {/* 右侧：输出 PPTX 示例图片占位，你可以替换为真实 img */}
-        <div className="flex-1 rounded-md bg-primary-500/10 border border-dashed border-primary-300/40 flex items-center justify-center text-[10px] text-primary-200 demo-output-placeholder">
-          PPTX 示例图（待替换）
+        {/* 右侧：输出 PPTX 示例图片 */}
+        <div className="flex-1 rounded-md bg-primary-500/10 border border-dashed border-primary-300/40 flex items-center justify-center demo-output-placeholder overflow-hidden">
+          {outputImg ? (
+            <img
+              src={outputImg}
+              alt="PPTX 示例图"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-[10px] text-primary-200">PPTX 示例图（待替换）</span>
+          )}
         </div>
       </div>
       <div>

@@ -363,7 +363,7 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
         Path("./outputs/paper2figure") / time.strftime("%Y%m%d_%H%M%S")
     )
     os.makedirs(state.result_path, exist_ok=True)
-    state.mask_detail_level = 3
+    state.mask_detail_level = 2
 
     # -------- 异步执行 -------- #
     log.critical(f'req: {req} !!!!!!!!\n')
@@ -378,8 +378,9 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
     )
 
     log.info(f"[paper2figure] Results saved in directory: {state.result_path}")
+    log.info(f"[paper2figure]: {final_state['ppt_path']}")
 
     return Paper2FigureResponse(
         success=True,
-        ppt_filename=state.ppt_path,
+        ppt_filename=str(final_state["ppt_path"]),
     )
