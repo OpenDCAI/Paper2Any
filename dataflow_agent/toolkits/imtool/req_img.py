@@ -15,6 +15,7 @@ def extract_base64(s: str) -> str:
     从任意字符串中提取最长连续 Base64 串
     """
     s = "".join(s.split())                # 去掉所有空白
+    # log.info(f"raw response: {s}")
     matches = _B64_RE.findall(s)          # 提取候选段
     return max(matches, key=len) if matches else ""
 
@@ -58,7 +59,7 @@ async def _post_chat_completions(
         try:
             resp = await client.post(url, headers=headers, json=payload)
             log.info(f"status={resp.status_code}")
-            log.debug(f"resp.text[:500]={resp.text[:500]}")
+            log.info(f"resp.text[:500]={resp.text[:500]}")
             resp.raise_for_status()
             return resp.json()
         except httpx.HTTPStatusError as e:
@@ -203,6 +204,7 @@ async def call_gemini_image_generation_async(
     model: str,
     prompt: str,
     timeout: int = 120,
+    aspect_ratio: str = '16:9'
 ) -> str:
     """
     纯文生图 - Gemini
@@ -216,7 +218,14 @@ async def call_gemini_image_generation_async(
         "response_format": {"type": "image"},
         "max_tokens": 1024,
         "temperature": 0.7,
+        "generationConfig": {
+            "imageConfig": {
+                "aspect_ratio": aspect_ratio,
+                "image_size": "4K"
+            }
+        }
     }
+    log.info(payload)
     data = await _post_chat_completions(api_url, api_key, payload, timeout)
     return data["choices"][0]["message"]["content"]
 
@@ -268,6 +277,7 @@ async def generate_or_edit_and_save_image_async(
     mask_path: Optional[str] = None,
     use_edit: bool = False,
     size: str = "1024x1024",
+    aspect_ratio: str = '16:9',
     quality: str = "standard",
     style: str = "vivid",
     response_format: str = "b64_json",
@@ -319,7 +329,7 @@ async def generate_or_edit_and_save_image_async(
             )
         else:
             raw = await call_gemini_image_generation_async(
-                api_url, api_key, model, prompt, timeout
+                api_url, api_key, model, prompt, timeout, aspect_ratio
             )
     else:
         raise ValueError(f"不支持的模型: {model}")

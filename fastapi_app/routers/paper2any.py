@@ -64,8 +64,8 @@ def create_dummy_pptx(output_path: Path, title: str, content: str) -> None:
     prs.save(output_path)
 
 
-@router.post("/paper2graph/generate")
-async def generate_paper2graph(
+@router.post("/paper2figure/generate")
+async def generate_paper2figure(
     model_name: str = Form(...),
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
@@ -75,10 +75,10 @@ async def generate_paper2graph(
     text: Optional[str] = Form(None),
 ):
     """
-    Paper2Graph 假接口：
+    paper2figure 假接口：
 
     - 接收前端上传的 PDF / 图片 / 文本；
-    - 为每次请求在 outputs/paper2graph 下创建独立目录；
+    - 为每次请求在 outputs/paper2figure 下创建独立目录；
     - 使用全局信号量控制重任务串行执行；
     - 返回一个简单的 PPTX 文件，供前端下载测试。
     """
@@ -95,7 +95,7 @@ async def generate_paper2graph(
         raise HTTPException(status_code=400, detail="invalid input_type, must be one of: file, text, image")
 
     # 2. 创建本次请求的独立目录
-    run_dir = create_run_dir("paper2graph")
+    run_dir = create_run_dir("paper2figure")
     input_dir = run_dir / "input"
     output_dir = run_dir / "output"
 
@@ -115,9 +115,9 @@ async def generate_paper2graph(
 
     # 4. 重任务段：受信号量保护，确保排队执行
     async with task_semaphore:
-        output_pptx = output_dir / "paper2graph.pptx"
+        output_pptx = output_dir / "paper2figure.pptx"
         # 这里未来可以替换为真正的 LLM + PDF/图片解析逻辑
-        demo_title = "Paper2Graph Demo"
+        demo_title = "paper2figure Demo"
         demo_content = (
             f"model_name: {model_name}\n"
             f"chat_api_url: {chat_api_url}\n"
@@ -131,7 +131,7 @@ async def generate_paper2graph(
     return FileResponse(
         path=output_pptx,
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        filename="paper2graph.pptx",
+        filename="paper2figure.pptx",
     )
 
 

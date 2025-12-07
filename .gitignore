@@ -245,5 +245,9 @@ lerna-debug.log*
 # TypeScript cache
 *.tsbuildinfo
 
+models/*
+outputs/*
+tmps/*
+data/*
 # fastapi
 fastapi_app/outputs/
