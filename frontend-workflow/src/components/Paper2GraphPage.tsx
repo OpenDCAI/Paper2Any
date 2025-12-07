@@ -16,6 +16,20 @@ function detectFileKind(file: File): FileKind {
   return null;
 }
 
+// 生成阶段定义
+type GenerationStage = {
+  id: number;
+  message: string;
+  duration: number; // 该阶段持续时间（秒）
+};
+
+const GENERATION_STAGES: GenerationStage[] = [
+  { id: 1, message: '正在分析论文内容...', duration: 30 },
+  { id: 2, message: '正在生成科研绘图...', duration: 30 },
+  { id: 3, message: '正在转为可编辑绘图...', duration: 30 },
+  { id: 4, message: '正在合成 PPT...', duration: 30 },
+];
+
 const Paper2FigurePage = () => {
   const [uploadMode, setUploadMode] = useState<UploadMode>('file');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -35,6 +49,10 @@ const Paper2FigurePage = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showBanner, setShowBanner] = useState(true);
 
+  // 新增：生成阶段状态
+  const [currentStage, setCurrentStage] = useState(0);
+  const [stageProgress, setStageProgress] = useState(0);
+
   useEffect(() => {
     return () => {
       if (downloadUrl) {
@@ -42,6 +60,57 @@ const Paper2FigurePage = () => {
       }
     };
   }, [downloadUrl]);
+
+  // 新增：管理生成阶段的定时器
+  useEffect(() => {
+    if (!isLoading) {
+      setCurrentStage(0);
+      setStageProgress(0);
+      return;
+    }
+
+    let stageTimer: NodeJS.Timeout;
+    let progressTimer: NodeJS.Timeout;
+    let currentStageIndex = 0;
+    let elapsedTime = 0;
+
+    const updateProgress = () => {
+      elapsedTime += 0.5;
+      const currentStageDuration = GENERATION_STAGES[currentStageIndex].duration;
+      const progress = Math.min((elapsedTime % currentStageDuration) / currentStageDuration * 100, 100);
+      setStageProgress(progress);
+    };
+
+    const advanceStage = () => {
+      if (currentStageIndex < GENERATION_STAGES.length - 1) {
+        currentStageIndex++;
+        setCurrentStage(currentStageIndex);
+        elapsedTime = 0;
+        setStageProgress(0);
+      }
+    };
+
+    // 每0.5秒更新进度条
+    progressTimer = setInterval(updateProgress, 500);
+
+    // 根据阶段时长切换阶段
+    const scheduleNextStage = () => {
+      const duration = GENERATION_STAGES[currentStageIndex].duration * 1000;
+      stageTimer = setTimeout(() => {
+        advanceStage();
+        if (currentStageIndex < GENERATION_STAGES.length - 1) {
+          scheduleNextStage();
+        }
+      }, duration);
+    };
+
+    scheduleNextStage();
+
+    return () => {
+      clearTimeout(stageTimer);
+      clearInterval(progressTimer);
+    };
+  }, [isLoading]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -61,6 +130,8 @@ const Paper2FigurePage = () => {
     setError(null);
     setSuccessMessage(null);
     setDownloadUrl(null);
+    setCurrentStage(0);
+    setStageProgress(0);
 
     if (!inviteCode.trim()) {
       setError('请先输入邀请码');
@@ -344,21 +415,21 @@ const Paper2FigurePage = () => {
                 )}
               </button>
 
-                  {showAdvanced && (
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">邀请码</label>
-                        <input
-                          type="text"
-                          value={inviteCode}
-                          onChange={e => setInviteCode(e.target.value)}
-                          placeholder="请输入邀请码"
-                          className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                        />
-                      </div>
+              {showAdvanced && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">邀请码</label>
+                    <input
+                      type="text"
+                      value={inviteCode}
+                      onChange={e => setInviteCode(e.target.value)}
+                      placeholder="请输入邀请码"
+                      className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
 
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">模型 API URL</label>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">模型 API URL</label>
                     <input
                       type="text"
                       value={llmApiUrl}
@@ -404,18 +475,64 @@ const Paper2FigurePage = () => {
                   <span>{isLoading ? '生成中...' : '生成可编辑 PPTX'}</span>
                 </button>
 
+                {/* 改进的生成进度显示 */}
                 {isLoading && !error && !successMessage && (
-                  <div className="flex flex-col gap-2 mt-2 text-xs rounded-lg border border-primary-400/40 bg-primary-500/10 px-3 py-2">
+                  <div className="flex flex-col gap-3 mt-2 text-xs rounded-lg border border-primary-400/40 bg-primary-500/10 px-3 py-3">
                     <div className="flex items-center gap-2 text-primary-200">
                       <Loader2 size={14} className="animate-spin" />
-                      <span>抓紧生成中......</span>
+                      <span className="font-medium">{GENERATION_STAGES[currentStage].message}</span>
                     </div>
-                    <p className="text-[11px] text-primary-200/80">
-                      通常需要 2 分钟 到 5 分钟，请耐心等待，我们正在为你生成可编辑 PPTX。
+                    
+                    {/* 阶段指示器 */}
+                    <div className="flex gap-1">
+                      {GENERATION_STAGES.map((stage, index) => (
+                        <div
+                          key={stage.id}
+                          className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${
+                            index < currentStage
+                              ? 'bg-primary-400'
+                              : index === currentStage
+                              ? 'bg-gradient-to-r from-primary-400 to-primary-400/40'
+                              : 'bg-primary-950/60'
+                          }`}
+                          style={{
+                            width: index === currentStage ? `${stageProgress}%` : undefined,
+                          }}
+                        />
+                      ))}
+                    </div>
+
+                    {/* 阶段详细信息 */}
+                    <div className="space-y-1.5 text-[11px] text-primary-200/80">
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 0 ? 'bg-primary-400 animate-pulse' : 'bg-primary-950/60'}`} />
+                        <span className={currentStage >= 0 ? 'text-primary-200 font-medium' : ''}>
+                          分析论文内容
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 1 ? 'bg-primary-400 animate-pulse' : 'bg-primary-950/60'}`} />
+                        <span className={currentStage >= 1 ? 'text-primary-200 font-medium' : ''}>
+                          生成科研绘图
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 2 ? 'bg-primary-400 animate-pulse' : 'bg-primary-950/60'}`} />
+                        <span className={currentStage >= 2 ? 'text-primary-200 font-medium' : ''}>
+                          转为可编辑绘图
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 3 ? 'bg-primary-400 animate-pulse' : 'bg-primary-950/60'}`} />
+                        <span className={currentStage >= 3 ? 'text-primary-200 font-medium' : ''}>
+                          合成 PPT
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-primary-200/70 pt-1 border-t border-primary-400/20">
+                      预计需要 2-5 分钟，请耐心等待...
                     </p>
-                    <div className="w-full h-1.5 rounded-full bg-primary-950/60 overflow-hidden">
-                      <div className="h-full w-1/2 bg-gradient-to-r from-primary-400 via-pink-400 to-orange-300 animate-pulse" />
-                    </div>
                   </div>
                 )}
 
