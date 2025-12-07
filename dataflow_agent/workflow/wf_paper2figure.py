@@ -165,7 +165,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             save_path=save_path,
             aspect_ratio = state.aspect_ratio,
             api_url=state.request.chat_api_url,
-            api_key=os.getenv("DF_API_KEY"), 
+            api_key=os.getenv("DF_API_KEY") if os.getenv("DF_API_KEY")=="" else state.request.chat_api_key, 
             model=state.request.gen_fig_model,
             image_path=image_path,
             use_edit= True if image_path else False

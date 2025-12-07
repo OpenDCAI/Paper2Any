@@ -365,7 +365,7 @@ class PlanningState(MainState):
         }
 
 @dataclass
-class Paper2FigureRequest(DFRequest):
+class Paper2FigureRequest(MainRequest):
     gen_fig_model: str = "gemini-2.5-flash-image-preview",
     # gen_fig_model: str = "gemini-3-pro-image-preview",
     sam2_model: str = "models/facebook/sam2.1-hiera-tiny"
