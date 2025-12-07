@@ -63,7 +63,11 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
-
+script/print_sampling_and_prompt.py
+script/run_dfa_data_conversion.py
+script/run_web_collection.py
+script/run_web_structured_extraction.py
+script/run_dfa_web_collection.py
 # Translations
 *.mo
 *.pot
@@ -244,3 +248,8 @@ lerna-debug.log*
 
 # TypeScript cache
 *.tsbuildinfo
+
+models/*
+outputs/*
+tmps/*
+data/*

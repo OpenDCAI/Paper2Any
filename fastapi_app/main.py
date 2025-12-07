@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from fastapi_app.routers import operator_write, pipeline_rec, workflows
+from fastapi_app.routers import paper2any
 
 
 def create_app() -> FastAPI:
@@ -32,6 +33,8 @@ def create_app() -> FastAPI:
     app.include_router(workflows.router, prefix="/workflows", tags=["workflows"])
     app.include_router(operator_write.router, prefix="/operator", tags=["operator_write"])
     app.include_router(pipeline_rec.router, prefix="/pipeline", tags=["pipeline_recommend"])
+    # Paper2Graph / Paper2PPT 假接口，对接前端 /api/*
+    app.include_router(paper2any.router, prefix="/api", tags=["paper2any"])
 
     @app.get("/health")
     async def health_check():

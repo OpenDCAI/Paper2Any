@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 
 from pydantic import BaseModel
 
@@ -103,3 +103,53 @@ class PipelineRecommendResponse(BaseModel):
     python_file: str
     execution_result: Dict[str, Any]
     agent_results: Dict[str, Any]
+
+
+class Paper2FigureRequest(BaseModel):
+    """
+    Paper2Figure 的请求参数定义。
+    """
+
+    # ---------------------- 基础 LLM 设置 ----------------------
+    chat_api_url: str = "http://123.129.219.111:3000/v1/"
+    # 与大模型交互使用的 API URL
+
+    chat_api_key: str = "fill the key"
+    # chat_api_url 对应的 API KEY；用于访问后端 LLM 服务
+
+    api_key: str = ""
+    # 如果使用第三方外部 API（如 OpenAI），在此填写外部 API Key；为空则使用内部服务
+
+    llm_model: str = "gpt-4o"
+    # 用于执行理解、抽象、描述生成的文本模型名称
+
+    gen_fig_model: str = "gemini-3-pro-image-preview"
+    # 用于生成插图 / 构图草图的图像模型名称
+    # 模型名和雨茶官网一致
+
+
+    # ---------------------- 输入类型设置 ----------------------
+    input_type: Literal["PDF", "TEXT", "FIGURE"] = "PDF"
+    # 指定输入内容的形式：
+    # - "PDF": 输入为 PDF 文件路径
+    # - "TEXT": 输入为纯文本内容
+    # - "FIGURE": 输入为图片文件路径（如 JPG/PNG），用于图像解析或转图
+
+
+    input_content: str = ''
+    # 输入内容本体（字符串类型），含义由 input_type 决定：
+    # - 当 input_type = "PDF"   时：input_content 为 PDF **文件路径**
+    # - 当 input_type = "FIGURE" 时：input_content 为 图片 **文件路径**
+    # - 当 input_type = "TEXT"   时：input_content 为 **纯文本内容本身**
+    # 注意：此参数始终为字符串，不做类型变化。
+
+
+    # ---------------------- 输出图像比例设置 ----------------------
+    aspect_ratio: Literal["1:1", "16:9", "9:16", "4:3", "3:4", "21:9"] = "16:9"
+    # 指定生成图像的长宽比，例如：
+    # 1:1（正方形）、16:9（横向宽屏）、9:16（竖屏）、4:3、3:4 以及 21:9 超宽屏。
+
+
+class Paper2FigureResponse(BaseModel):
+    success: bool
+    ppt_filename: str = '' # 生成PPT的路径

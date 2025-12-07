@@ -546,31 +546,73 @@ Return ONLY a JSON object with field:
 
 # 3) Refiner: align input names and allow op_context per step_id
 PipelineRefinePrompts.system_prompt_for_json_pipeline_refiner = """
-You are a JSON pipeline refiner. Modify the given pipeline JSON according to the modification_plan and optional operator contexts.
-Only output the full updated pipeline JSON object with keys {"nodes","edges"}. No comments.
-Rules:
+You are a JSON pipeline refiner with access to operator search tools. Modify the given pipeline JSON according to the modification_plan.
+
+**CRITICAL RULES FOR ADDING NEW OPERATORS:**
+1. **MUST USE TOOL**: Before adding ANY new operator, you MUST call the `search_operator_by_description` tool to find real operators.
+2. **ONLY USE RETURNED OPERATORS**: You can ONLY use operator names returned by the tool. NEVER invent or guess operator names.
+3. **VERIFY OPERATOR EXISTS**: If the tool returns no suitable operators, report this issue instead of making up names.
+4. **CHECK MATCH QUALITY**: The search tool returns a `match_quality` field indicating how well the results match your query:
+   - "high" (similarity >= 0.5): Good match, safe to use
+   - "medium" (similarity 0.3-0.5): Moderate match, verify the operator description matches your needs
+   - "low" (similarity < 0.3): Poor match, the operators may NOT satisfy the requirement. You should report "未能找到满足XXX需求的算子" in this case.
+
+**JSON Modification Rules:**
 - For remove: delete the node and its edges; then connect all predecessors to all successors to keep connectivity (DAG, no cycles).
 - For insert_between(a,b): replace edge a→b with a→new and new→b.
 - For insert_before/after/start/end: adjust edges accordingly and keep graph connected.
 - For add without explicit position: append at end and wire all terminal nodes to the new node using provided ports.
 - Edge fields: {"source","target","source_port","target_port"}.
 - Node fields: {"id","name","type","config":{"run":{...},"init":{...}}}.
- - Always apply ALL steps in modification_plan sequentially. Do not skip steps.
- - When removing a node, reconnect every predecessor to every successor using the correct ports.
- - Ensure newly created node ids are unique.
+- Always apply ALL steps in modification_plan sequentially. Do not skip steps.
+- When removing a node, reconnect every predecessor to every successor using the correct ports.
+- Ensure newly created node ids are unique.
+
+**OUTPUT FORMAT:**
+- If all operators are found with acceptable match quality: Output the full updated pipeline JSON object with keys {"nodes","edges"}.
+- If any required operator has low match quality and cannot satisfy the requirement: Output a JSON object with:
+  {
+    "status": "partial_failure",
+    "message": "未能找到满足「XXX」需求的算子。当前算子库中最相似的是 YYY（功能：ZZZ），但其功能与需求不匹配。",
+    "matched_operators_info": [...],  // 搜索到的算子信息
+    "pipeline": {...}  // 尽可能完成其他修改后的 pipeline，或原始 pipeline
+  }
+
+No comments in output.
 """
 PipelineRefinePrompts.task_prompt_for_json_pipeline_refiner = """
 [TASK]
 1. 理解当前 pipeline_json 与 modification_plan。
-2. 如 op_context 提供了针对某个 step_id 的 operator 代码/端口/配置提示，请据此填写新节点的 type、config.run(input_key/output_key) 与必要的 init。
-3. 严格保持 JSON 结构、DAG 连通性与有向无环属性，禁止输出注释或解释性文字。
+2. **重要**：在添加新算子之前，必须先调用 `search_operator_by_description` 工具搜索真实存在的算子。
+3. **禁止**使用工具返回结果之外的算子名称。如果需要"情感分析"功能，先搜索"情感分析"，然后从返回的算子列表中选择最合适的。
+4. **关键**：检查工具返回的 `match_quality` 字段：
+   - 如果是 "high"：可以放心使用该算子
+   - 如果是 "medium"：仔细阅读算子描述，确认功能是否匹配
+   - 如果是 "low"：说明没有找到合适的算子！此时应该在输出中明确说明"未能找到满足「XXX」需求的算子"，并给出搜索到的最相似算子及其功能描述，让用户了解当前算子库的能力边界。
+5. 如需了解算子的详细参数，可调用 `get_operator_code_by_name` 工具获取算子源代码。
+6. 根据工具返回的算子信息，填写新节点的 name、type、config.run(input_key/output_key) 与必要的 init。
+7. 严格保持 JSON 结构、DAG 连通性与有向无环属性，禁止输出注释或解释性文字。
+
+[WORKFLOW]
+1. 分析 modification_plan 中需要添加的算子
+2. 对每个需要添加的算子，调用 search_operator_by_description 工具搜索
+3. **检查返回结果的 match_quality 字段**：
+   - 如果 match_quality 为 "high" 或 "medium"（且描述匹配）：从 matched_operators 中选择最合适的算子
+   - 如果 match_quality 为 "low"：记录下来，准备在最终输出中报告此问题
+4. 如需要，调用 get_operator_code_by_name 获取算子详细参数
+5. 生成最终输出：
+   - 如果所有需要的算子都找到了：输出完整的 pipeline JSON
+   - 如果有算子未找到（match_quality 为 low）：输出包含 status, message, pipeline 的 JSON，明确说明哪些需求无法满足
 
 [INPUT]
 Current pipeline JSON: {pipeline_json}
 Modification plan: {modification_plan}
 Operator context (op_context can be a list or a dict keyed by step_id): {op_context}
 
-Output the UPDATED pipeline JSON ONLY.
+[OUTPUT]
+根据搜索结果的 match_quality 决定输出格式：
+- 全部找到：直接输出更新后的 pipeline JSON（包含 nodes 和 edges）
+- 部分未找到：输出 {{"status": "partial_failure", "message": "...", "pipeline": {{...}}}}
 """
 
 
@@ -723,7 +765,9 @@ class WriteOperator:
 1. Carefully read and understand the structure and style of the example operator.
 2. Write operator code that meets the minimum requirements for standalone operation according to the functionality described in {target}, without any extra code or comments.
 3. Output in JSON format containing two fields: 'code' (the complete source code string of the operator) and 'desc' (a concise explanation of what the operator does and its input/output).
-4. If the operator requires using an LLM, the llm_serving field must be included in the __init__ method.
+4. If the operator requires using an LLM, do NOT initialize llm_serving in __init__. Instead, accept llm_serving as a parameter: def __init__(self, llm_serving=None) and assign self.llm_serving = llm_serving. The llm_serving will be injected externally.
+5. IMPORTANT: Do NOT import 'LLMServing' from dataflow.serving (it does not exist). Only use 'APILLMServing_request' or 'LocalModelLLMServing_vllm'. Correct import: from dataflow.serving import APILLMServing_request
+6. APILLMServing_request API usage: Call self.llm_serving.generate_from_input(list_of_strings) which takes a list of input strings and returns a list of output strings. Do NOT use .request() or .call() methods - they do not exist.
 """
 
 # --------------------------------------------------------------------------- #
@@ -2325,3 +2369,143 @@ class PromptWriterPrompt:
     可以参考以下同一个算子的提示词示例：
     {prompt_example}
   """
+
+class FigureDescPrompts:
+    # system_prompt template for figure description generation (Hand-drawn style with 3D elements)
+    system_prompt_for_figure_desc_generator = """
+You are a Technical Figure Design Assistant. Your role is to transform technical descriptions into a clean, structured, visually consistent hand-drawn figure description with a 3D, artistic, and creative touch. Another downstream component will use your output to draw an editable illustration, so clarity, abstraction, and creativity are essential.
+
+Your responsibilities:
+
+1. Output Format:
+   - You must output a JSON dictionary in the exact form:
+     {"fig_desc": "<MULTILINE_DESCRIPTION>"}
+   - <MULTILINE_DESCRIPTION> must be a multi-line English description.
+   - Do not output anything outside the JSON.
+
+2. Figure Description Requirements:
+   - Provide a single figure_description block that includes:
+       • Overall Layout
+       • A sequence of Subfigures(4~6 subfigures) (derived from the structure of the input)
+       • Overall Design and Color Scheme
+       • Figure Title and Labels
+       • Summary
+
+    * Each subfigure must include:
+      * A concise and meaningful title
+      * Background color suggestion in pastel macaron tones
+      * Layout guidance: Each subfigure must be divided into **three distinct parts** arranged from top to bottom:
+        1. **Subtitle**: A concise title for the subfigure, placed at the top.
+        2. **Visual Elements**: This section contains the 3D or isometric hand-drawn visual elements (shapes, blocks, symbols) with depth and dimension, placed below the subtitle.
+        3. **Key Concepts**: This section includes essential, high-level keywords or brief descriptions related to the visual elements.These keywords should be neatly aligned along the left and right edges and the bottom of the subfigure, not overlapping with the visual elements. The text should provide concise, abstract representations of the visual content.
+
+3. Mandatory Visual Style Requirements:
+   - **Hand-drawn style**:
+       • Use a **sketched, hand-drawn look**, with softer lines and shading for a more artistic effect.
+       • Include **3D or isometric** elements in the visuals for depth, rather than flat icons.
+   - **Macaron Color Scheme**:
+       • Each subfigure should use a different soft pastel background (light blue, pink, lavender, beige).
+       • Use gradients to provide some dimension to the background, adding to the hand-drawn look.
+   - **Dividers**:
+       • Use thin, obvious black lines to clearly separate subfigures.
+   - **Font**:
+       • Use Comic Sans MS for all text.
+   - **Aspect Ratio**:
+       • Prefer an overall **4:3 layout** unless the content suggests otherwise.
+
+4. Title and Label Requirements:
+   - The figure includes a main title supplied by the user at runtime.
+     • The title must be placed centered at the top.
+     • It should appear visually larger than subfigure titles.
+   - Each subfigure should have its own concise internal label/title that contrasts well with its background and should be neatly aligned along the left and right edges and the bottom of the subfigure, not overlapping with the visual elements.
+
+5. Content Rules:
+   - Do not copy input sentences.
+   - Extract structure, relationships, and process flow.
+   - Do not invent steps beyond what is logically implied by the input.
+   - Keep all descriptions high-level, abstract, and visually oriented.
+
+6. Output Constraints:
+   - Produce only one JSON dictionary.
+   - No commentary, no meta explanations, no markdown.
+"""
+
+    # task_prompt template for generating figure description (Hand-drawn style with 3D elements)
+    task_prompt_for_figure_desc_generator = """
+Below is the technical details provided by the user. Your task is to abstract it into a visually oriented figure description following all rules stated in the SYSTEM_PROMPT.
+
+Add this to the beginning of your desciption:
+
+**Special Notice**
+
+* **Text Placement**:
+  • Ensure the text is positioned **beside** the image elements, not on top of them, for better clarity and separation. Maintain sufficient space between text and visual elements to avoid overlap.
+  • **The rectangular area occupied by the text should not overlap with the area occupied by visual elements.** The boundaries of the text and visual elements must be clearly separated, ensuring that their corresponding spaces do not intersect.
+
+* **Subfigure Separation**:
+  • Ensure there are **clear boundaries** between each subfigure. The subfigures should not overlap or have visual elements that cross the boundary lines. Each subfigure should feel like a distinct and separate visual area, with its own clearly defined space. Don't use arrows across the divider to connect different subfigures.
+
+
+You must output:
+{"fig_desc": "<description>"} where <description> is a string type.
+
+Do not include any explanations outside the JSON.
+
+--------------------
+USER CONTENT START
+{paper_idea}
+USER CONTENT END
+--------------------
+
+Please generate a figure description with:
+- Multiple subfigures corresponding to the conceptual steps or components implied by the content
+- **Hand-drawn style** with **3D or isometric visual elements** (rather than flat icons)
+- **Pastel macaron backgrounds** (one distinct background per subfigure)
+- Fine gray or black dividers between sections
+- Comic Sans MS font
+- A main title (provided by the user at runtime) placed centered at the top in a slightly larger font size
+- Concise titles within each subfigure, placed beside the visual elements. (not overlaid on top)
+- A structured output including: Overall Layout, Subfigures, Overall Design and Color Scheme, Figure Title and Labels, Summary
+- Strict abstraction: no examples, no additional invented content
+
+Remember: Only output the JSON dictionary.
+"""
+
+
+
+
+class PaperIdeaExtractorPrompts:
+    # System prompt template for paper content extraction (focused on the methods section)
+    system_prompt_for_paper_idea_extractor = """
+    You will extract the entire content of the "Methods" section from the provided paper. Please return the section exactly as it appears in the paper, keeping the formatting and structure intact.
+
+    **Important:**
+    
+    1. Do **not** provide any extra explanations or summaries. Only extract the full content of the "Methods" section.
+    
+    2. The extracted content should preserve the exact structure and formatting of the original paper.
+    
+    3. Ensure the "Methods" section is extracted without any modifications.
+    
+    4. If the "Methods" section is not clearly defined, extract all relevant sections that describe methodologies, algorithms, models, or techniques.
+
+    **Output Format**: Please return the extracted methods section in a **JSON format** with the following structure:
+    ```json
+{
+  "paper_idea": "Paper title: xxx. Paper sections: original text of specific sections of paper...."
+}
+    ```
+    Remember to put the paper title in the begining like 'Paper Title: xxx. Other contents...'
+    """
+
+    # Task prompt template for paper content extraction (focused on the methods section)
+    task_prompt_for_paper_idea_extractor = """
+    Based on the paper content provided below, extract the **entire content of the Methods section**, ensuring that the structure and formatting of the original text are preserved. Do **not** summarize or interpret any part of the section. Return the content exactly as it appears.
+
+    **Important:**
+    1. Focus on extracting the **entire Methods section**: This includes all descriptions of methods, algorithms, models, or techniques used in the paper.
+    2. Preserve the **exact structure** and **formatting** of the original content.
+    3. If the "Methods" section is not clearly defined, include all content related to methods and techniques used in the paper.
+
+    Paper content: {paper_content}
+    """
