@@ -9,12 +9,51 @@ from typing import Optional
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
+from fastapi_app.schemas import Paper2FigureRequest
+from fastapi_app.workflow_adapters import run_paper2figure_wf_api
+from dataflow_agent.utils import get_project_root
+
+# 简单的邀请码校验：从本地文本文件加载白名单
+INVITE_CODES_FILE = Path(__file__).resolve().parent.parent / "invite_codes.txt"
+
+
+def load_invite_codes() -> set[str]:
+    """
+    从 invite_codes.txt 中加载邀请码列表。
+
+    文件格式：每行一个邀请码，忽略空行和以 # 开头的注释行。
+    """
+    codes: set[str] = set()
+    if not INVITE_CODES_FILE.exists():
+        return codes
+    for line in INVITE_CODES_FILE.read_text(encoding="utf-8").splitlines():
+        code = line.strip()
+        if not code or code.startswith("#"):
+            continue
+        codes.add(code)
+    return codes
+
+
+VALID_INVITE_CODES = load_invite_codes()
+
+
+def validate_invite_code(code: str | None) -> None:
+    """
+    校验邀请码是否有效。无效则抛出 403。
+    """
+    if not code:
+        raise HTTPException(status_code=403, detail="invite_code is required")
+    if code not in VALID_INVITE_CODES:
+        raise HTTPException(status_code=403, detail="Invalid invite_code")
+
+
 # 全局信号量：控制重任务并发度（排队机制）
 # 目前设为 1，即串行执行；如需并行可调大此值
 task_semaphore = asyncio.Semaphore(1)
 
 # 输出根目录：按任务类型 / 时间戳+UUID 组织
 BASE_OUTPUT_DIR = Path("outputs")
+PROJECT_ROOT = get_project_root()
 
 
 router = APIRouter()
@@ -65,33 +104,58 @@ def create_dummy_pptx(output_path: Path, title: str, content: str) -> None:
 
 @router.post("/paper2figure/generate")
 async def generate_paper2figure(
-    model_name: str = Form(...),
+    img_gen_model_name: str = Form(...),
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
     input_type: str = Form(...),  # 'file' | 'text' | 'image'
+    invite_code: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     file_kind: Optional[str] = Form(None),  # 'pdf' | 'image'
     text: Optional[str] = Form(None),
 ):
     """
-    paper2figure 假接口：
+    Paper2Graph 接口（带邀请码校验 + workflow 调用）：
 
-    - 接收前端上传的 PDF / 图片 / 文本；
-    - 为每次请求在 outputs/paper2figure 下创建独立目录；
-    - 使用全局信号量控制重任务串行执行；
-    - 返回一个简单的 PPTX 文件，供前端下载测试。
+    - 前端通过 FormData 传入：
+        - img_gen_model_name, chat_api_url, api_key, input_type, invite_code
+        - file, file_kind, text
+    - 路由层负责：
+        - 校验邀请码
+        - 保存文件到本地 input 目录
+        - 将前端自定义 input_type/file_kind 映射为 Paper2FigureRequest 语义：
+            - "file" + "pdf"   -> input_type="PDF",    input_content=PDF路径
+            - "file" + "image" -> input_type="FIGURE", input_content=图片路径
+            - "image"          -> input_type="FIGURE", input_content=图片路径
+            - "text"           -> input_type="TEXT",   input_content=文本内容
+        - 调用 run_paper2figure_wf_api
+        - 返回生成的 PPTX 文件
     """
+    # 0. 邀请码校验
+    validate_invite_code(invite_code)
+
     # 1. 基础参数校验
     if input_type in ("file", "image"):
         if file is None:
-            raise HTTPException(status_code=400, detail="file is required when input_type is 'file' or 'image'")
+            raise HTTPException(
+                status_code=400,
+                detail="file is required when input_type is 'file' or 'image'",
+            )
         if file_kind not in ("pdf", "image"):
-            raise HTTPException(status_code=400, detail="file_kind must be 'pdf' or 'image'")
+            raise HTTPException(
+                status_code=400,
+                detail="file_kind must be 'pdf' or 'image'",
+            )
     elif input_type == "text":
         if not text:
-            raise HTTPException(status_code=400, detail="text is required when input_type is 'text'")
+            raise HTTPException(
+                status_code=400,
+                detail="text is required when input_type is 'text'",
+            )
     else:
-        raise HTTPException(status_code=400, detail="invalid input_type, must be one of: file, text, image")
+        raise HTTPException(
+            status_code=400,
+            detail="invalid input_type, must be one of: file, text, image",
+        )
 
     # 2. 创建本次请求的独立目录
     run_dir = create_run_dir("paper2figure")
@@ -99,38 +163,66 @@ async def generate_paper2figure(
     output_dir = run_dir / "output"
 
     # 3. 保存输入内容到 input/ 目录
-    saved_input_name = "unknown"
     if input_type in ("file", "image"):
         original_name = file.filename or "uploaded"
         ext = Path(original_name).suffix or ""
         input_path = input_dir / f"input{ext}"
         content_bytes = await file.read()
         input_path.write_bytes(content_bytes)
-        saved_input_name = input_path.name
-    else:  # text
+    else:
         input_path = input_dir / "input.txt"
         input_path.write_text(text or "", encoding="utf-8")
-        saved_input_name = input_path.name
 
-    # 4. 重任务段：受信号量保护，确保排队执行
+    # 4. 将前端的 input_type/file_kind 映射为 Paper2FigureRequest 的语义
+    if input_type in ("file", "image"):
+        if file_kind == "pdf":
+            real_input_type = "PDF"
+            real_input_content = str(input_path)
+        else:
+            real_input_type = "FIGURE"
+            real_input_content = str(input_path)
+    elif input_type == "text":
+        real_input_type = "TEXT"
+        real_input_content = text or ""
+    else:
+        raise HTTPException(status_code=400, detail="unsupported input_type")
+
+    # 5. 构造 Paper2FigureRequest
+    p2f_req = Paper2FigureRequest(
+        chat_api_url=chat_api_url,
+        chat_api_key=api_key,
+        api_key=api_key,
+        # model= "gpt-4o",
+        # gen_fig_model  = img_gen_model_name 使用默认值，或在需要时扩展表单字段
+        input_type=real_input_type,       # "PDF" / "TEXT" / "FIGURE"
+        input_content=real_input_content, # 文件路径或文本
+        # aspect_ratio 使用默认 "16:9"，如需前端控制可再加 Form 字段
+    )
+
+    # 6. 重任务段：受信号量保护，调用真实 workflow
     async with task_semaphore:
-        output_pptx = output_dir / "paper2figure.pptx"
-        # 这里未来可以替换为真正的 LLM + PDF/图片解析逻辑
-        demo_title = "paper2figure Demo"
-        demo_content = (
-            f"model_name: {model_name}\n"
-            f"chat_api_url: {chat_api_url}\n"
-            f"input_type: {input_type}\n"
-            f"file_kind: {file_kind or 'N/A'}\n"
-            f"saved_input: {saved_input_name}\n"
-        )
-        create_dummy_pptx(output_pptx, demo_title, demo_content)
+        p2f_resp = await run_paper2figure_wf_api(p2f_req)
 
-    # 5. 返回 PPTX 文件
+    # 7. 从 workflow 返回的路径读取 PPTX，并返回给前端
+    raw_path = Path(p2f_resp.ppt_filename)
+
+    # 若为相对路径，则以项目根目录为基准，避免工作目录变化导致找不到文件
+    if not raw_path.is_absolute():
+        ppt_path = PROJECT_ROOT / raw_path
+    else:
+        ppt_path = raw_path
+
+    # 同时检查“存在 + 是文件”
+    if not ppt_path.exists() or not ppt_path.is_file():
+        raise HTTPException(
+            status_code=500,
+            detail=f"generated ppt file not found or not a file: {ppt_path}",
+        )
+
     return FileResponse(
-        path=output_pptx,
+        path=str(ppt_path),
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        filename="paper2figure.pptx",
+        filename=ppt_path.name,
     )
 
 
@@ -140,17 +232,22 @@ async def generate_paper2ppt(
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
     input_type: str = Form(...),  # 当前前端固定为 'file'
+    invite_code: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     file_kind: Optional[str] = Form(None),  # 当前前端固定为 'pdf'
 ):
     """
-    Paper2PPT 假接口：
+    Paper2PPT 假接口（带邀请码校验）：
 
+    - 需要前端在 FormData 中传入 invite_code，并在本地白名单文件中验证；
     - 接收前端上传的 PDF；
     - 为每次请求在 outputs/paper2ppt 下创建独立目录；
     - 使用全局信号量控制重任务串行执行；
     - 返回一个简单的 PPTX 文件，供前端下载测试。
     """
+    # 0. 邀请码校验
+    validate_invite_code(invite_code)
+
     if input_type != "file":
         raise HTTPException(status_code=400, detail="Paper2PPT currently only supports input_type='file'")
 

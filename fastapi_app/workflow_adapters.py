@@ -16,10 +16,9 @@ from typing import Any, Dict, List
 import json
 import time
 
-from dataflow_agent.state import Paper2FigureState
+from dataflow_agent.state import Paper2FigureState, DFRequest, DFState
 from dataflow_agent.workflow import run_workflow
 from dataflow_agent.logger import get_logger
-from dataflow_agent.state import DFRequest, DFState
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.workflow.wf_pipeline_recommend_extract_json import (
     create_pipeline_graph,
@@ -330,51 +329,58 @@ def save_final_state_json(final_state: dict, out_dir: Path, filename: str = "fin
 
 # ====================== 主函数 ====================== #
 async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureResponse:
-    # -------- 基础路径与 session 处理 -------- #
-    PROJECT_ROOT: Path = get_project_root()  # e.g. /mnt/DataFlow/lz/proj/dataflow-agent-kupasi
-    TMPS_DIR: Path = PROJECT_ROOT / "dataflow_agent" / "tmps"
+    """
+    真正调用 dataflow_agent.workflow.wf_paper2figure 的封装。
 
-    request = Paper2FigureRequest(
-        language="en",
-        chat_api_url=req.chat_api_url,
-        api_key=os.getenv('DF_API_KEY', "fill in the damn key."),
-        model=req.llm_model,
-        gen_fig_model=req.gen_fig_model,
-        # json_file=f"{PROJECT_ROOT}/tests/test.jsonl",
-        target="Create Figures For Papers",
-    )
+    入参 req 通常由 FastAPI 路由层（如 paper2any.generate_paper2figure）
+    根据前端 FormData 映射而来：
+      - input_type: "PDF" / "TEXT" / "FIGURE"
+      - input_content: 文件路径或纯文本
+    """
+    # -------- 基础路径与输出目录 -------- #
+    project_root: Path = get_project_root()
+    tmps_dir: Path = project_root / "dataflow_agent" / "tmps"
+    tmps_dir.mkdir(parents=True, exist_ok=True)
 
     # -------- 初始化 Paper2FigureState -------- #
+    # 这里直接把 FastAPI 请求模型作为 state.request，以保持配置一致
     state = Paper2FigureState(request=req, messages=[])
     state.temp_data["round"] = 0
 
-    if(req.input_type == 'PDF'):
+    # 根据 input_type / input_content 设置具体输入
+    if req.input_type == "PDF":
         state.paper_file = req.input_content
-    elif(req.input_type == 'TEXT'):
+    elif req.input_type == "TEXT":
         state.paper_idea = req.input_content
-    elif(req.input_type == 'FIGURE'):
+    elif req.input_type == "FIGURE":
         state.fig_draft_path = req.input_content
     else:
-        raise TypeError("Invalid input type. Available input type: PDF,TEXT,FIGURE.")
+        raise TypeError("Invalid input type. Available input type: PDF, TEXT, FIGURE.")
 
-    # state.fig_draft_path = '/home/ubuntu/liuzhou/hzy/DataFlow-Agent/tmps/1765029821.jpg'
+    # 其它控制参数
     state.aspect_ratio = req.aspect_ratio
-    state.result_path = f'./outputs/paper2gfigure/{time.strftime("%Y%m%d_%H%M%S")}'
+    state.result_path = str(
+        Path("./outputs/paper2figure") / time.strftime("%Y%m%d_%H%M%S")
+    )
     os.makedirs(state.result_path, exist_ok=True)
-    state.mask_detail_level = 3
+    state.mask_detail_level = 2
 
     # -------- 异步执行 -------- #
+    log.critical(f'req: {req} !!!!!!!!\n')
     final_state: Paper2FigureState = await run_workflow("paper2fig", state)
 
     # -------- 保存最终 State -------- #
+    # 这里把 final_state 转成可序列化结构后落盘，便于调试
+    serializable_state = to_serializable(final_state)
     save_final_state_json(
-        final_state=final_state, 
-        out_dir = f"dataflow_agent/tmps/{time.strftime('%Y%m%d_%H%M%S')}"
+        final_state=serializable_state,
+        out_dir=tmps_dir / time.strftime("%Y%m%d_%H%M%S"),
     )
 
-    log.info(f"Results saved in directory: {state.result_path}")
+    log.info(f"[paper2figure] Results saved in directory: {state.result_path}")
+    log.info(f"[paper2figure]: {final_state['ppt_path']}")
 
     return Paper2FigureResponse(
-        success = True,
-        ppt_filename = state.ppt_path
+        success=True,
+        ppt_filename=str(final_state["ppt_path"]),
     )
