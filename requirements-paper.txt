@@ -15,3 +15,7 @@ python-pptx
 PyPDF2
 kornia 
 timm
+
+
+vtracer
+cairosvg

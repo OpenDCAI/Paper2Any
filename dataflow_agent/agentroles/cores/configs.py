@@ -72,6 +72,7 @@ class VLMConfig(BaseAgentConfig):
     vlm_mode: str = "understanding"  # understanding/generation/edit
     image_detail: str = "auto"       # low/high/auto
     max_image_size: tuple = (1024, 1024)
+    # vlm.config 参数： 
     additional_params: Dict[str, Any] = field(default_factory=dict)
 
 

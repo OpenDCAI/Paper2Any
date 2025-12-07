@@ -361,3 +361,8 @@ class Paper2FigureState(MainState):
     mask_detail_level: int = 2
     paper_idea: str = ''
     input_type: str = 'PDF'
+
+
+    # 技术路线图使用属性
+    figure_tec_svg_content: str = ""
+    svg_img_path: str = ""
