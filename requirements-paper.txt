@@ -6,3 +6,17 @@
 # datasets==3.2.0
 # evaluate==0.4.3
 # vendi-score==0.0.3
+
+# Paper2Figure
+pdfplumber
+transformers==4.57.3
+mineru[core]
+mineru-vl-utils
+python-pptx
+PyPDF2
+kornia 
+timm
+
+
+vtracer
+cairosvg

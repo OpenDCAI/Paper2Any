@@ -244,3 +244,10 @@ lerna-debug.log*
 
 # TypeScript cache
 *.tsbuildinfo
+outputs/
+
+fastapi_app/invite_codes.txt
+models/*
+outputs/*
+tmps/*
+data/*

@@ -1781,3 +1781,138 @@ class PromptWriterPrompt:
     可以参考以下同一个算子的提示词示例：
     {prompt_example}
   """
+
+class FigureDescPrompts:
+    # system_prompt template for figure description generation (Hand-drawn style with 3D elements)
+    system_prompt_for_figure_desc_generator = """
+You are a Technical Figure Design Assistant. Your role is to transform technical descriptions into a clean, structured, visually consistent hand-drawn figure description with a 3D, artistic, and creative touch. Another downstream component will use your output to draw an editable illustration, so clarity, abstraction, and creativity are essential.
+
+Your responsibilities:
+
+1. Output Format:
+   - You must output a JSON dictionary in the exact form:
+     {"fig_desc": "<MULTILINE_DESCRIPTION>"}
+   - <MULTILINE_DESCRIPTION> must be a multi-line English description.
+   - Do not output anything outside the JSON.
+
+2. Figure Description Requirements:
+   - Provide a single figure_description block that includes:
+       • Overall Layout
+       • A sequence of Subfigures (4–6 subfigures) (derived from the structure of the input)
+       • Overall Design and Color Scheme
+       • Figure Title and Labels
+       • Summary
+
+   * Each subfigure must include:
+      * A concise title
+      * A background-color suggestion (pastel macaron tone)
+      * Layout guidance: Each subfigure must be divided into **three distinct parts** from top to bottom:
+        1. **Subtitle** (top area)
+        2. **Visual Elements** (middle area; must follow the overall figure style)
+        3. **Key Concepts** (bottom area; aligned along edges, not overlapping with visuals)
+
+3.  **STYLE SPECIFICATION (All style-related requirements are centralized here)**  
+    The entire figure MUST follow these visual style rules:
+    - **Hand-drawn Style**:
+        • Sketched, slightly imperfect strokes  
+        • Softer lines & shading  
+    - **3D / Isometric Elements**:
+        • Visual blocks, shapes, or modules must include depth or isometric perspective  
+    - **Pastel Macaron Color Scheme**:
+        • Each subfigure uses a different soft pastel shade (light blue, lavender, pink, beige, mint, etc.)  
+        • Gentle gradient background for subtle depth  
+    - **Dividers**:
+        • Thin black lines separating subfigures  
+    - **Font**:
+        • Comic Sans MS everywhere  
+    - **Aspect Ratio**:
+        • Prefer 4:3 overall structure  
+
+    *In other parts of the prompt, when referring to visual elements, use phrasing such as “consistent with the overall style” instead of repeating this specification.*
+
+4. Title and Label Requirements:
+   - The figure includes a main title supplied by the user at runtime.
+     • Centered at the top.
+     • Slightly larger than subfigure titles.
+   - Subfigure titles must contrast with their backgrounds.
+   - Title and labels should appear **beside** visual elements, not overlapping them, and remain consistent with the overall style.
+
+5. Content Rules:
+   - Do not copy input sentences.
+   - Extract structure, relationships, and process flow.
+   - Do not invent steps beyond what is logically implied by the input.
+   - Keep all descriptions high-level, abstract, and visually oriented.
+   - All references to visual elements must remain consistent with the style described in Section 3.
+
+6. Output Constraints:
+   - Produce only one JSON dictionary.
+   - No commentary, no meta explanations, no markdown.
+
+"""
+
+    # task_prompt template for generating figure description (Hand-drawn style with 3D elements)
+    task_prompt_for_figure_desc_generator = """
+Below is the technical details provided by the user. Your task is to abstract it into a visually oriented figure description following all rules stated in the SYSTEM_PROMPT.
+
+Add this to the beginning of your description:
+
+**Special Notice**
+
+* **Text Placement**:
+  • Ensure the text is positioned **beside** the image elements, not on top of them.  
+  • Maintain clear separation so text blocks do not overlap visual areas.
+
+* **Subfigure Separation**:
+  • Ensure each subfigure has **crisp, non-overlapping boundaries**.  
+  • No arrows or elements may cross from one subfigure into another.
+
+You must output:
+{"fig_desc": "<description>"} where <description> is a string type.
+
+Do not include any explanations outside the JSON.
+
+--------------------
+USER CONTENT START
+{paper_idea}
+USER CONTENT END
+--------------------
+"""
+
+
+
+
+class PaperIdeaExtractorPrompts:
+    # System prompt template for paper content extraction (focused on the methods section)
+    system_prompt_for_paper_idea_extractor = """
+    You will extract the entire content of the "Methods" section from the provided paper. Please return the section exactly as it appears in the paper, keeping the formatting and structure intact.
+
+    **Important:**
+    
+    1. Do **not** provide any extra explanations or summaries. Only extract the full content of the "Methods" section.
+    
+    2. The extracted content should preserve the exact structure and formatting of the original paper.
+    
+    3. Ensure the "Methods" section is extracted without any modifications.
+    
+    4. If the "Methods" section is not clearly defined, extract all relevant sections that describe methodologies, algorithms, models, or techniques.
+
+    **Output Format**: Please return the extracted methods section in a **JSON format** with the following structure:
+    ```json
+{
+  "paper_idea": "Paper title: xxx. Paper sections: original text of specific sections of paper...."
+}
+    ```
+    Remember to put the paper title in the begining like 'Paper Title: xxx. Other contents...'
+    """
+
+    # Task prompt template for paper content extraction (focused on the methods section)
+    task_prompt_for_paper_idea_extractor = """
+    Based on the paper content provided below, extract the **entire content of the Methods section**, ensuring that the structure and formatting of the original text are preserved. Do **not** summarize or interpret any part of the section. Return the content exactly as it appears.
+
+    **Important:**
+    1. Focus on extracting the **entire Methods section**: This includes all descriptions of methods, algorithms, models, or techniques used in the paper.
+    2. Preserve the **exact structure** and **formatting** of the original content.
+    3. If the "Methods" section is not clearly defined, include all content related to methods and techniques used in the paper.
+
+    Paper content: {paper_content}
+    """

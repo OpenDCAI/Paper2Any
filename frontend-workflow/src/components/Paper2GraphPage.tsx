@@ -4,7 +4,7 @@ import { FileText, UploadCloud, Type, Settings2, Download, Loader2, CheckCircle2
 type UploadMode = 'file' | 'text' | 'image';
 type FileKind = 'pdf' | 'image' | null;
 
-const BACKEND_API = '/api/paper2graph/generate';
+const BACKEND_API = '/api/paper2figure/generate';
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'tiff'];
 
@@ -16,13 +16,28 @@ function detectFileKind(file: File): FileKind {
   return null;
 }
 
-const Paper2GraphPage = () => {
+// 生成阶段定义
+type GenerationStage = {
+  id: number;
+  message: string;
+  duration: number; // 该阶段持续时间（秒）
+};
+
+const GENERATION_STAGES: GenerationStage[] = [
+  { id: 1, message: '正在分析论文内容...', duration: 30 },
+  { id: 2, message: '正在生成科研绘图...', duration: 30 },
+  { id: 3, message: '正在转为可编辑绘图...', duration: 30 },
+  { id: 4, message: '正在合成 PPT...', duration: 30 },
+];
+
+const Paper2FigurePage = () => {
   const [uploadMode, setUploadMode] = useState<UploadMode>('file');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileKind, setFileKind] = useState<FileKind>(null);
   const [textContent, setTextContent] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
 
-  const [llmApiUrl, setLlmApiUrl] = useState('https://api.openai.com/v1/chat/completions');
+  const [llmApiUrl, setLlmApiUrl] = useState('http://123.129.219.111:3000/v1');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('NanoBanana');
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -30,9 +45,13 @@ const Paper2GraphPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
-  const [lastFilename, setLastFilename] = useState('paper2graph.pptx');
+  const [lastFilename, setLastFilename] = useState('paper2figure.pptx');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showBanner, setShowBanner] = useState(true);
+
+  // 新增：生成阶段状态
+  const [currentStage, setCurrentStage] = useState(0);
+  const [stageProgress, setStageProgress] = useState(0);
 
   useEffect(() => {
     return () => {
@@ -41,6 +60,57 @@ const Paper2GraphPage = () => {
       }
     };
   }, [downloadUrl]);
+
+  // 新增：管理生成阶段的定时器
+  useEffect(() => {
+    if (!isLoading) {
+      setCurrentStage(0);
+      setStageProgress(0);
+      return;
+    }
+
+    let stageTimer: NodeJS.Timeout;
+    let progressTimer: NodeJS.Timeout;
+    let currentStageIndex = 0;
+    let elapsedTime = 0;
+
+    const updateProgress = () => {
+      elapsedTime += 0.5;
+      const currentStageDuration = GENERATION_STAGES[currentStageIndex].duration;
+      const progress = Math.min((elapsedTime % currentStageDuration) / currentStageDuration * 100, 100);
+      setStageProgress(progress);
+    };
+
+    const advanceStage = () => {
+      if (currentStageIndex < GENERATION_STAGES.length - 1) {
+        currentStageIndex++;
+        setCurrentStage(currentStageIndex);
+        elapsedTime = 0;
+        setStageProgress(0);
+      }
+    };
+
+    // 每0.5秒更新进度条
+    progressTimer = setInterval(updateProgress, 500);
+
+    // 根据阶段时长切换阶段
+    const scheduleNextStage = () => {
+      const duration = GENERATION_STAGES[currentStageIndex].duration * 1000;
+      stageTimer = setTimeout(() => {
+        advanceStage();
+        if (currentStageIndex < GENERATION_STAGES.length - 1) {
+          scheduleNextStage();
+        }
+      }, duration);
+    };
+
+    scheduleNextStage();
+
+    return () => {
+      clearTimeout(stageTimer);
+      clearInterval(progressTimer);
+    };
+  }, [isLoading]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -60,6 +130,13 @@ const Paper2GraphPage = () => {
     setError(null);
     setSuccessMessage(null);
     setDownloadUrl(null);
+    setCurrentStage(0);
+    setStageProgress(0);
+
+    if (!inviteCode.trim()) {
+      setError('请先输入邀请码');
+      return;
+    }
 
     if (!llmApiUrl.trim() || !apiKey.trim()) {
       setError('请先配置模型 API URL 和 API Key');
@@ -67,10 +144,11 @@ const Paper2GraphPage = () => {
     }
 
     const formData = new FormData();
-    formData.append('model_name', model);
+    formData.append('img_gen_model_name', model);
     formData.append('chat_api_url', llmApiUrl.trim());
     formData.append('api_key', apiKey.trim());
     formData.append('input_type', uploadMode);
+    formData.append('invite_code', inviteCode.trim());
 
     if (uploadMode === 'file' || uploadMode === 'image') {
       if (!selectedFile) {
@@ -101,17 +179,21 @@ const Paper2GraphPage = () => {
 
       if (!res.ok) {
         let msg = '生成 PPTX 失败';
-        try {
-          const text = await res.text();
-          if (text) msg = text;
-        } catch {
-          // ignore
+        if (res.status === 403) {
+          msg = '邀请码不正确或已失效';
+        } else {
+          try {
+            const text = await res.text();
+            if (text) msg = text;
+          } catch {
+            // ignore
+          }
         }
         throw new Error(msg);
       }
 
       const disposition = res.headers.get('content-disposition') || '';
-      let filename = 'paper2graph.pptx';
+      let filename = 'paper2figure.pptx';
       const match = disposition.match(/filename="?([^";]+)"?/i);
       if (match?.[1]) {
         filename = decodeURIComponent(match[1]);
@@ -202,7 +284,7 @@ const Paper2GraphPage = () => {
       )}
 
       {/* 主区域：居中简洁布局 */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 overflow-auto">
+      <div className="flex-1 flex flex-col items-center justify-start px-6 pt-20 pb-10 overflow-auto">
         <div className="w-full max-w-5xl animate-fade-in">
           {/* 顶部标题区 */}
           <div className="mb-8 text-center">
@@ -213,7 +295,7 @@ const Paper2GraphPage = () => {
               一键根据论文内容绘制（可编辑）科研绘图
             </h1>
             <p className="text-sm text-gray-400 max-w-2xl mx-auto">
-              上传论文 PDF / 图片，或直接粘贴文字，一键生成可编辑的 PPTX，方便你继续修改、增删和排版。
+              上传论文 PDF / 图片，或直接粘贴文字，一键生成可编辑的 科研绘图PPTX，方便你继续修改、增删和排版。
             </p>
           </div>
 
@@ -242,7 +324,7 @@ const Paper2GraphPage = () => {
                       }`}
                     >
                       <UploadCloud size={14} />
-                      文件（PDF / 图片）
+                      文件（PDF）
                     </button>
                     <button
                       type="button"
@@ -336,6 +418,17 @@ const Paper2GraphPage = () => {
               {showAdvanced && (
                 <div className="space-y-3">
                   <div>
+                    <label className="block text-xs text-gray-400 mb-1">邀请码</label>
+                    <input
+                      type="text"
+                      value={inviteCode}
+                      onChange={e => setInviteCode(e.target.value)}
+                      placeholder="请输入邀请码"
+                      className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
+
+                  <div>
                     <label className="block text-xs text-gray-400 mb-1">模型 API URL</label>
                     <input
                       type="text"
@@ -364,8 +457,8 @@ const Paper2GraphPage = () => {
                       onChange={e => setModel(e.target.value)}
                       className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     >
-                      <option value="NanoBanana">NanoBanana</option>
-                      <option value="NanoBanana Pro">NanoBanana Pro</option>
+                      <option value="gemini-2.5-flash-image-preview">NanoBanana</option>
+                      <option value="gemini-3-pro-image-preview">NanoBanana Pro</option>
                     </select>
                   </div>
                 </div>
@@ -379,8 +472,69 @@ const Paper2GraphPage = () => {
                   className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/60 disabled:cursor-not-allowed text-white text-sm font-medium py-2.5 transition-colors glow"
                 >
                   {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                  <span>生成可编辑 PPTX</span>
+                  <span>{isLoading ? '生成中...' : '生成可编辑 PPTX'}</span>
                 </button>
+
+                {/* 改进的生成进度显示 */}
+                {isLoading && !error && !successMessage && (
+                  <div className="flex flex-col gap-3 mt-2 text-xs rounded-lg border border-primary-400/40 bg-primary-500/10 px-3 py-3">
+                    <div className="flex items-center gap-2 text-primary-200">
+                      <Loader2 size={14} className="animate-spin" />
+                      <span className="font-medium">{GENERATION_STAGES[currentStage].message}</span>
+                    </div>
+                    
+                    {/* 阶段指示器 */}
+                    <div className="flex gap-1">
+                      {GENERATION_STAGES.map((stage, index) => (
+                        <div
+                          key={stage.id}
+                          className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${
+                            index < currentStage
+                              ? 'bg-primary-400'
+                              : index === currentStage
+                              ? 'bg-gradient-to-r from-primary-400 to-primary-400/40'
+                              : 'bg-primary-950/60'
+                          }`}
+                          style={{
+                            width: index === currentStage ? `${stageProgress}%` : undefined,
+                          }}
+                        />
+                      ))}
+                    </div>
+
+                    {/* 阶段详细信息 */}
+                    <div className="space-y-1.5 text-[11px] text-primary-200/80">
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 0 ? 'bg-primary-400 animate-pulse' : 'bg-primary-950/60'}`} />
+                        <span className={currentStage >= 0 ? 'text-primary-200 font-medium' : ''}>
+                          分析论文内容
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 1 ? 'bg-primary-400 animate-pulse' : 'bg-primary-950/60'}`} />
+                        <span className={currentStage >= 1 ? 'text-primary-200 font-medium' : ''}>
+                          生成科研绘图
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 2 ? 'bg-primary-400 animate-pulse' : 'bg-primary-950/60'}`} />
+                        <span className={currentStage >= 2 ? 'text-primary-200 font-medium' : ''}>
+                          转为可编辑绘图
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 3 ? 'bg-primary-400 animate-pulse' : 'bg-primary-950/60'}`} />
+                        <span className={currentStage >= 3 ? 'text-primary-200 font-medium' : ''}>
+                          合成 PPT
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-primary-200/70 pt-1 border-t border-primary-400/20">
+                      预计需要 2-5 分钟，请耐心等待...
+                    </p>
+                  </div>
+                )}
 
                 {downloadUrl && (
                   <button
@@ -431,14 +585,19 @@ const Paper2GraphPage = () => {
               <DemoCard
                 title="论文 PDF → 符合论文主题的 科研绘图（PPT）"
                 desc="上传英文论文 PDF，自动提炼研究背景、方法、实验设计和结论，生成结构清晰、符合学术风格的汇报 PPTX。"
+                inputImg="/p2f_paper_pdf_img.png"
+                outputImg='/p2f_paper_pdf_img_2.png'
               />
               <DemoCard
-                title="生图模型结果 → 可编辑 PPTX"
+                title="模型结果图 → 可编辑 PPTX"
                 desc="上传由 Gemini 等模型生成的科研配图或示意图截图，智能识别段落层级与要点，自动排版为可编辑的中英文 PPTX。"
+                inputImg="/p2f_paper_model_img.png"
+                outputImg='/p2f_paper_modle_img_2.png'
               />
               <DemoCard
-                title="摘要文本 → 科研绘图"
+                title="论文摘要文本 → 科研绘图 PPTX"
                 desc="粘贴论文摘要或章节内容，一键生成包含标题层级、关键要点与图示占位的 PPTX 大纲，方便后续细化与美化。"
+                inputImg='/p2f_paper_content.png'
               />
             </div>
           </div>
@@ -486,19 +645,37 @@ const Paper2GraphPage = () => {
 interface DemoCardProps {
   title: string;
   desc: string;
+  inputImg?: string;
+  outputImg?: string;
 }
 
-const DemoCard = ({ title, desc }: DemoCardProps) => {
+const DemoCard = ({ title, desc, inputImg, outputImg }: DemoCardProps) => {
   return (
     <div className="glass rounded-lg border border-white/10 p-3 flex flex-col gap-2 hover:bg-white/5 transition-colors">
       <div className="flex gap-2">
-        {/* 左侧：输入示例图片占位，你可以替换为真实 img */}
-        <div className="flex-1 rounded-md bg-white/5 border border-dashed border-white/10 flex items-center justify-center text-[10px] text-gray-400 demo-input-placeholder">
-          输入示例图（待替换）
+        {/* 左侧：输入示例图片 */}
+        <div className="flex-1 rounded-md bg-white/5 border border-dashed border-white/10 flex items-center justify-center demo-input-placeholder overflow-hidden">
+          {inputImg ? (
+            <img
+              src={inputImg}
+              alt="输入示例图"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-[10px] text-gray-400">输入示例图（待替换）</span>
+          )}
         </div>
-        {/* 右侧：输出 PPTX 示例图片占位，你可以替换为真实 img */}
-        <div className="flex-1 rounded-md bg-primary-500/10 border border-dashed border-primary-300/40 flex items-center justify-center text-[10px] text-primary-200 demo-output-placeholder">
-          PPTX 示例图（待替换）
+        {/* 右侧：输出 PPTX 示例图片 */}
+        <div className="flex-1 rounded-md bg-primary-500/10 border border-dashed border-primary-300/40 flex items-center justify-center demo-output-placeholder overflow-hidden">
+          {outputImg ? (
+            <img
+              src={outputImg}
+              alt="PPTX 示例图"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-[10px] text-primary-200">PPTX 示例图（待替换）</span>
+          )}
         </div>
       </div>
       <div>
@@ -509,4 +686,4 @@ const DemoCard = ({ title, desc }: DemoCardProps) => {
   );
 };
 
-export default Paper2GraphPage;
+export default Paper2FigurePage;

@@ -5,6 +5,7 @@ const BACKEND_API = '/api/paper2ppt/generate';
 
 const Paper2PptPage = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [inviteCode, setInviteCode] = useState('');
 
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.openai.com/v1/chat/completions');
   const [apiKey, setApiKey] = useState('');
@@ -48,6 +49,11 @@ const Paper2PptPage = () => {
     setSuccessMessage(null);
     setDownloadUrl(null);
 
+    if (!inviteCode.trim()) {
+      setError('请先输入邀请码');
+      return;
+    }
+
     if (!llmApiUrl.trim() || !apiKey.trim()) {
       setError('请先配置模型 API URL 和 API Key');
       return;
@@ -63,6 +69,7 @@ const Paper2PptPage = () => {
     formData.append('chat_api_url', llmApiUrl.trim());
     formData.append('api_key', apiKey.trim());
     formData.append('input_type', 'file');
+    formData.append('invite_code', inviteCode.trim());
     formData.append('file', selectedFile);
     formData.append('file_kind', 'pdf');
 
@@ -75,11 +82,15 @@ const Paper2PptPage = () => {
 
       if (!res.ok) {
         let msg = '生成 PPTX 失败';
-        try {
-          const text = await res.text();
-          if (text) msg = text;
-        } catch {
-          // ignore
+        if (res.status === 403) {
+          msg = '邀请码不正确或已失效';
+        } else {
+          try {
+            const text = await res.text();
+            if (text) msg = text;
+          } catch {
+            // ignore
+          }
         }
         throw new Error(msg);
       }
@@ -266,6 +277,17 @@ const Paper2PptPage = () => {
                 {showAdvanced && (
                   <div className="space-y-4 pt-2">
                     <div>
+                      <label className="block text-sm text-gray-300 mb-2 font-medium">邀请码</label>
+                      <input
+                        type="text"
+                        value={inviteCode}
+                        onChange={e => setInviteCode(e.target.value)}
+                        placeholder="请输入邀请码"
+                        className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder:text-gray-500"
+                      />
+                    </div>
+
+                    <div>
                       <label className="block text-sm text-gray-300 mb-2 font-medium">模型 API URL</label>
                       <input
                         type="text"
@@ -289,13 +311,14 @@ const Paper2PptPage = () => {
 
                     <div>
                       <label className="block text-sm text-gray-300 mb-2 font-medium">模型名称</label>
-                      <input
-                        type="text"
+                      <select
                         value={model}
                         onChange={e => setModel(e.target.value)}
-                        placeholder="gpt-4o"
-                        className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder:text-gray-500"
-                      />
+                        className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      >
+                        <option value="gpt-4o">gpt-4o</option>
+                        <option value="gpt-5.1">gpt-5.1</option>
+                      </select>
                     </div>
                   </div>
                 )}
