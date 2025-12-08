@@ -366,3 +366,4 @@ class Paper2FigureState(MainState):
     # 技术路线图使用属性
     figure_tec_svg_content: str = ""
     svg_img_path: str = ""
+    mineru_port: int = 8001
