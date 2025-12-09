@@ -31,7 +31,7 @@ async def run_paper2technical_pipeline() -> Paper2FigureState:
     )
 
     # final_state: Paper2FigureState = await run_workflow("paper2technical", state)
-    final_state: Paper2FigureState = await run_workflow("paper2technical_bg_remove", state)
+    final_state: Paper2FigureState = await run_workflow("paper2technical", state)
     return final_state
 
 

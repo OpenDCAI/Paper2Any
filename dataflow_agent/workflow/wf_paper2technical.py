@@ -23,13 +23,7 @@ from dataflow_agent.toolkits.imtool.bg_tool import (
     local_tool_for_svg_render,
     local_tool_for_raster_to_svg,
 )
-from dataflow_agent.toolkits.imtool.mineru_tool import (
-    run_aio_two_step_extract,
-    crop_mineru_blocks_by_type,
-    crop_mineru_blocks_with_meta,
-    svg_to_emf,
-    recursive_mineru_layout,
-)
+from dataflow_agent.toolkits.imtool.mineru_tool import svg_to_emf
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
 
@@ -206,136 +200,14 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
 
         return state
 
-    async def svg_fragment_miner_node(state: Paper2FigureState) -> Paper2FigureState:
-        """
-        节点 4: SVG 结构切分 / 小图块生成 (MinerU 接入)
-
-        目标:
-        - 将整张技术路线 SVG 图，切分成若干“小 SVG”或逻辑块（例如每个阶段一个块），
-          以便后续在 PPT 中灵活排版。
-        - 实际实现对接 MinerU 提取结构信息。
-
-        当前实现:
-        - 使用 technical_route_desc_generator_node 生成的 PNG 图 (state.svg_img_path)
-          调用 MinerU two_step_extract。
-        - 将 MinerU 的返回结果完整写入日志，并挂到 state.agent_results["mineru_svg_fragment"]。
-        """
-        image_path = getattr(state, "svg_img_path", None)
-        if not image_path:
-            log.error("svg_fragment_miner_node: state.svg_img_path 为空，无法调用 MinerU")
-            return state
-
-        mineru_port = 8001  # MinerU 服务端口
-
-        try:
-            log.info(
-                f"svg_fragment_miner_node: 调用 MinerU recursive_mineru_layout, "
-                f"image_path={image_path}, port={mineru_port}"
-            )
-            # 使用递归版本的 MinerU 拆图 + 坐标映射：
-            # - 内部会对 image_path 执行多层 two_step_extract
-            # - 对 image/table 等块裁剪子图并递归
-            # - 所有最底层块的 bbox 统一为相对于最顶层 image_path 的归一化坐标
-            mineru_result = await recursive_mineru_layout(
-                image_path=image_path,
-                port=mineru_port,
-                max_depth=2,
-            )
-
-            # 尝试 JSON 序列化方式打印，方便查看结构
-            try:
-                log.warning(
-                    "svg_fragment_miner_node: MinerU 返回结果 (JSON): "
-                    + json.dumps(mineru_result, ensure_ascii=False, indent=2)
-                )
-            except Exception:
-                # 兜底：即使不是严格 JSON，可打印 repr
-                log.warning(
-                    "svg_fragment_miner_node: MinerU 返回结果 (repr): "
-                    + repr(mineru_result)
-                )
-
-            # 写回到 state.agent_results 中，便于后续节点使用或调试
-            if getattr(state, "agent_results", None) is None:
-                state.agent_results = {}
-            state.agent_results["mineru_svg_fragment"] = mineru_result
-
-            # 使用 MinerU 的 bbox + type 信息裁剪指定区域小图，例如标题区域、图像区域等
-            # 统一挂到本次 workflow 的根输出目录下，避免不同请求之间数据串台
-            run_root = Path(_ensure_result_path(state))
-            crop_output_dir = run_root / "crops" / "title"
-            crop_paths = crop_mineru_blocks_by_type(
-                image_path=image_path,
-                blocks=mineru_result,
-                # target_type=["title", "img", "text"],
-                output_dir=str(crop_output_dir),
-                prefix="paper2technical_",
-            )
-            state.agent_results["mineru_crops_png"] = crop_paths
-
-            # 新: 保留带元信息的裁剪结果，后续 PPT 可按 bbox 还原布局
-            crops_with_meta = crop_mineru_blocks_with_meta(
-                image_path=image_path,
-                blocks=mineru_result,
-                # target_type=["title", "img", "text"],
-                output_dir=str(crop_output_dir / "meta"),
-                prefix="paper2technical_",
-            )
-
-            # 将所有裁剪出来的 PNG（带 meta）转换为 SVG，并保留 bbox / type
-            svg_output_dir = crop_output_dir / "svgs"
-            svg_output_dir.mkdir(parents=True, exist_ok=True)
-            blocks_for_ppt: list[dict] = []
-
-            for item in crops_with_meta:
-                png_path = item.get("png_path")
-                if not png_path:
-                    continue
-
-                try:
-                    png_p = Path(png_path)
-                    svg_path = str((svg_output_dir / f"{png_p.stem}.svg").resolve())
-                    out_svg = local_tool_for_raster_to_svg(
-                        {
-                            "image_path": str(png_p),
-                            "output_svg": svg_path,
-                            "colormode": 'color',
-                            # "mode": 
-                        }
-                    )
-                    blocks_for_ppt.append(
-                        {
-                            "block_index": item.get("block_index"),
-                            "type": item.get("type"),
-                            "bbox": item.get("bbox"),
-                            "png_path": png_path,
-                            "svg_path": out_svg,
-                        }
-                    )
-                except Exception as e:
-                    log.error(f"svg_fragment_miner_node: PNG->SVG 转换失败 {png_path}: {e}")
-
-            state.agent_results["mineru_blocks_for_ppt"] = blocks_for_ppt
-
-        except Exception as e:
-            log.error(f"svg_fragment_miner_node: MinerU 调用失败: {e}", exc_info=True)
-
-        return state
 
     async def technical_ppt_generator_node(state: Paper2FigureState) -> Paper2FigureState:
         """
-        节点 5: 基于技术路线 SVG / 片段生成 PPT
+        节点 4: 基于技术路线 SVG 生成 PPT
 
-        - 根据前面步骤生成的 SVG 代码或 svg_fragments，
-          生成一份或多份 PPT 幻灯片，用于展示技术路线图。
-        - 与 paper2figure 的 PPT 生成不同:
-          - 这里不依赖位图图片和抠图，不需要图像背景去除模型；
-          - 完全围绕“技术路线图”的结构信息进行排版。
-
-        现在的策略：
-        - 优先使用 state.agent_results["mineru_blocks_for_ppt"] 中的
-          (svg_path, bbox) 信息，在一页 PPT 中根据 bbox 还原整体布局；
-        - 若该字段不存在，则回退到旧逻辑：逐个 SVG/EMF 单独占一页。
+        - 根据前面步骤生成的 SVG 代码（整图），
+          生成用于展示技术路线图的 PPT。
+        - 不再依赖 MinerU 进行图像分割，只需要将整张 SVG 转成 EMF 插入 PPT。
         """
         from pptx import Presentation
 
@@ -353,112 +225,54 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         slide_width = prs.slide_width
         slide_height = prs.slide_height
 
-        # 优先尝试按 bbox 还原布局
-        blocks_for_ppt: list[dict] = []
-        if getattr(state, "agent_results", None):
-            blocks_for_ppt = state.agent_results.get("mineru_blocks_for_ppt", []) or []
+        # ------------------------------------------------------------------
+        # 第 1 页：技术路线图（整张 SVG 转 EMF 插入）
+        # ------------------------------------------------------------------
+        slide = prs.slides.add_slide(blank_slide_layout)
 
-        if blocks_for_ppt:
-            # 在同一页 slide 上按 MinerU bbox 摆放所有 EMF 图块
-            slide = prs.slides.add_slide(blank_slide_layout)
+        svg_path = getattr(state, "svg_file_path", None)
+        if svg_path:
+            try:
+                emf_output_dir = output_dir / "ppt_emf"
+                emf_output_dir.mkdir(parents=True, exist_ok=True)
 
-            emf_output_dir = output_dir / "ppt_emf"
-            emf_output_dir.mkdir(parents=True, exist_ok=True)
+                svg_p = Path(svg_path)
+                emf_path = str((emf_output_dir / f"{svg_p.stem}.emf").resolve())
 
-            for blk in blocks_for_ppt:
-                svg_path = blk.get("svg_path")
-                bbox = blk.get("bbox") or [0, 0, 1, 1]
-                x1, y1, x2, y2 = bbox
+                # SVG -> EMF（保持矢量特性）
+                emf_abs = svg_to_emf(str(svg_p), emf_path)
 
-                if not svg_path:
-                    continue
+                # 将 EMF 插入 PPT，按 80% 宽度缩放并居中
+                pic = slide.shapes.add_picture(emf_abs, 0, 0)
 
-                try:
-                    svg_p = Path(svg_path)
-                    emf_path = str((emf_output_dir / f"{svg_p.stem}.emf").resolve())
-                    emf_abs = svg_to_emf(str(svg_p), emf_path)
-                except Exception as e:
-                    log.error(f"technical_ppt_generator_node: SVG -> EMF 失败 {svg_path}: {e}")
-                    continue
+                if pic.width and pic.width > 0:
+                    scale = (slide_width * 0.8) / pic.width
+                else:
+                    scale = 1.0
 
-                # 按归一化 bbox 计算在 slide 上的坐标和大小
-                left = int(slide_width * x1)
-                top = int(slide_height * y1)
-                width = int(slide_width * (x2 - x1))
-                height = int(slide_height * (y2 - y1))
+                pic.width = int(pic.width * scale)
+                pic.height = int(pic.height * scale)
 
-                try:
-                    slide.shapes.add_picture(
-                        emf_abs,
-                        left,
-                        top,
-                        width=width,
-                        height=height,
-                    )
-                except Exception as e:
-                    log.error(
-                        f"technical_ppt_generator_node: 将 EMF 按 bbox 插入 PPT 失败 {emf_abs}: {e}"
-                    )
-                    continue
+                pic.left = int((slide_width - pic.width) / 2)
+                pic.top = int((slide_height - pic.height) / 2)
+            except Exception as e:
+                log.error(f"technical_ppt_generator_node: SVG -> EMF 或插入 PPT 失败: {e}")
 
-            prs.save(str(ppt_path))
-            state.ppt_path = str(ppt_path)
-            log.info(
-                "technical_ppt_generator_node: PPT 已按 MinerU bbox 还原整体布局生成: "
-                f"{ppt_path}"
-            )
-            return state
-
-        # 若没有 blocks_for_ppt，退回旧逻辑：每个 SVG 单独一页居中缩放
-        svg_paths: list[str] = []
-        if getattr(state, "agent_results", None):
-            svg_paths = state.agent_results.get("mineru_crops_svg", []) or []
-
-        if not svg_paths:
-            # 没有碎片 SVG，保留一页空白，用于兼容/调试
-            prs.slides.add_slide(blank_slide_layout)
-            log.warning(
-                "technical_ppt_generator_node: 未找到 mineru_crops_svg，生成占位空白 PPT"
-            )
         else:
-            # 临时 EMF 输出目录
-            emf_output_dir = output_dir / "ppt_emf_fallback"
-            emf_output_dir.mkdir(parents=True, exist_ok=True)
+            log.warning("technical_ppt_generator_node: state.svg_file_path 为空，第一页将为空白")
 
-            for svg_path in svg_paths:
-                slide = prs.slides.add_slide(blank_slide_layout)
+        # ------------------------------------------------------------------
+        # 第 2 页：操作提示页（写上“右键转换成形状”）
+        # ------------------------------------------------------------------
+        slide2 = prs.slides.add_slide(blank_slide_layout)
+        left = int(slide_width * 0.1)
+        top = int(slide_height * 0.3)
+        width = int(slide_width * 0.8)
+        height = int(slide_height * 0.4)
 
-                try:
-                    svg_p = Path(svg_path)
-                    emf_path = str((emf_output_dir / f"{svg_p.stem}.emf").resolve())
-
-                    # SVG -> EMF（保持矢量特性）
-                    emf_abs = svg_to_emf(str(svg_p), emf_path)
-                except Exception as e:
-                    log.error(f"technical_ppt_generator_node: SVG -> EMF 失败 {svg_path}: {e}")
-                    continue
-
-                # 将 EMF 插入 PPT，先插入再按 80% 宽度缩放并居中
-                try:
-                    pic = slide.shapes.add_picture(emf_abs, 0, 0)
-
-                    # 缩放到宽度 80%，保持纵横比
-                    if pic.width and pic.width > 0:
-                        scale = (slide_width * 0.8) / pic.width
-                    else:
-                        scale = 1.0
-
-                    pic.width = int(pic.width * scale)
-                    pic.height = int(pic.height * scale)
-
-                    # 居中
-                    pic.left = int((slide_width - pic.width) / 2)
-                    pic.top = int((slide_height - pic.height) / 2)
-                except Exception as e:
-                    log.error(
-                        f"technical_ppt_generator_node: 将 EMF 插入 PPT 失败 {emf_abs}: {e}"
-                    )
-                    continue
+        textbox = slide2.shapes.add_textbox(left, top, width, height)
+        text_frame = textbox.text_frame
+        text_frame.text = "右键转换成形状"
 
         prs.save(str(ppt_path))
         state.ppt_path = str(ppt_path)
@@ -504,7 +318,6 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         "_start_": _init_result_path,
         "paper_idea_extractor": paper_idea_extractor_node,
         "technical_route_desc_generator": technical_route_desc_generator_node,
-        "svg_fragment_miner": svg_fragment_miner_node,
         "technical_ppt_generator": technical_ppt_generator_node,
         "_end_": lambda state: state,  # 终止节点
     }
@@ -515,9 +328,8 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
     edges = [
         # PDF 流程: 先抽想法，再生成技术路线描述
         ("paper_idea_extractor", "technical_route_desc_generator"),
-        # PDF/TEXT 后续流程共用: 描述 -> 结构切分 -> PPT
-        ("technical_route_desc_generator", "svg_fragment_miner"),
-        ("svg_fragment_miner", "technical_ppt_generator"),
+        # PDF/TEXT 后续流程共用: 描述 -> PPT
+        ("technical_route_desc_generator", "technical_ppt_generator"),
         ("technical_ppt_generator", "_end_"),
     ]
 

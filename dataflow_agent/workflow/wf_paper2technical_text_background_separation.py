@@ -23,6 +23,7 @@ from dataflow_agent.toolkits.imtool.bg_tool import (
     local_tool_for_svg_render,
     local_tool_for_raster_to_svg,
 )
+from dataflow_agent.toolkits.imtool.sam_tool import run_sam_auto, postprocess_sam_items
 from dataflow_agent.toolkits.imtool.mineru_tool import (
     run_aio_two_step_extract,
     crop_mineru_blocks_by_type,
@@ -286,6 +287,7 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
                     {
                         "svg_code": svg_bg_code,
                         "output_path": png_output_path_bg,
+                        "scale": 3.0,
                     }
                 )
                 state.svg_img_path = png_bg_path
@@ -295,6 +297,7 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
                     {
                         "svg_path": svg_output_path,
                         "output_path": png_output_path_full,
+                        "scale": 3.0,
                     }
                 )
                 state.svg_full_img_path = png_full_path
@@ -345,7 +348,9 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
             mineru_full = await recursive_mineru_layout(
                 image_path=full_image_path,
                 port=mineru_port,
-                max_depth=3,
+                max_depth = 3,
+                current_depth= 0,
+                # block_types_for_subimage=
             )
             state.agent_results["mineru_svg_fragment_full"] = mineru_full
 
@@ -361,60 +366,88 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
                 )
 
             # -----------------------------
-            # 2) 背景裁剪：用 mineru_full 的 bbox 在“去文字版” PNG 上裁剪纯背景小图
+            # 2) SAM 背景裁剪：对 full_image_path 做自动分割，用 bbox 在“去文字版” PNG 上裁剪纯背景小图
             # -----------------------------
             run_root = Path(_ensure_result_path(state))
-            crop_output_dir = run_root / "crops" / "bg"
+            crop_output_dir = run_root / "crops" / "bg_sam"
 
-            # 根据需要选择哪些 block 用于生成背景原子块
-            allowed_bg_types = {"image", "img", "figure", "table"}
-            bg_blocks_for_crop = [
-                b
-                for b in mineru_full
-                # if b.get("bbox") is not None
-                # and len(b.get("bbox")) == 4
-                # and (b.get("type") in allowed_bg_types)
-            ]
+            sam_blocks_for_ppt: list[dict] = []
+            try:
+                sam_items = run_sam_auto(
+                    image_path=full_image_path,
+                    checkpoint="sam_b.pt",   # 与 sam_tool 中保持一致
+                    device="cuda",           # 无 GPU 可改为 "cpu"
+                )
+                sam_items = postprocess_sam_items(
+                    sam_items,
+                    min_area=200,        # 去掉过小噪声块，可按需要调整
+                    min_score=0.0,       # 目前 SAM 一般无 score，可留作接口
+                    iou_threshold=0.3,   # IoU 过高视为重叠，做 NMS 去重
+                    top_k=30,            # 最多保留 30 个块，视业务需要调整
+                    # nms_by="bbox",       # 先用 bbox NMS，速度快
+                )
+                log.info(
+                    "svg_fragment_miner_node[SAM]: "
+                    f"Got {len(sam_items)} masks after post-process"
+                )
 
-            crops_with_meta = crop_mineru_blocks_with_meta(
-                image_path=bg_image_path,          # 去文字 PNG
-                blocks=mineru_full,         # 布局来自 full 图
-                output_dir=str(crop_output_dir / "meta"),
-                prefix="paper2technical_bg_",
-            )
-
-            svg_output_dir = crop_output_dir / "svgs"
-            svg_output_dir.mkdir(parents=True, exist_ok=True)
-            blocks_for_ppt: list[dict] = []
-
-            for item in crops_with_meta:
-                png_path = item.get("png_path")
-                if not png_path:
-                    continue
-
-                try:
-                    png_p = Path(png_path)
-                    svg_path = str((svg_output_dir / f"{png_p.stem}.svg").resolve())
-                    out_svg = local_tool_for_raster_to_svg(
+                # 将 SAM 的 bbox 包装成 MinerU 风格的 blocks，便于复用现有裁剪函数
+                sam_blocks = []
+                for i, it in enumerate(sam_items):
+                    bbox = it.get("bbox")
+                    if not bbox or len(bbox) != 4:
+                        continue
+                    sam_blocks.append(
                         {
-                            "image_path": str(png_p),
-                            "output_svg": svg_path,
-                            "colormode": "color",
+                            "type": "sam_bg",
+                            "bbox": bbox,
+                            "text": None,
+                            "depth": 0,
                         }
                     )
-                    blocks_for_ppt.append(
-                        {
-                            "block_index": item.get("block_index"),
-                            "type": item.get("type"),
-                            "bbox": item.get("bbox"),  # 直接沿用 mineru_full 的归一化 bbox
-                            "png_path": png_path,
-                            "svg_path": out_svg,
-                        }
-                    )
-                except Exception as e:
-                    log.error(f"svg_fragment_miner_node[bg]: PNG->SVG 转换失败 {png_path}: {e}")
 
-            state.agent_results["mineru_blocks_for_ppt"] = blocks_for_ppt
+                crops_with_meta = crop_mineru_blocks_with_meta(
+                    image_path=bg_image_path,          # 去文字 PNG
+                    blocks=sam_blocks,                 # 使用 SAM 产生的 bbox
+                    output_dir=str(crop_output_dir / "meta"),
+                    prefix="paper2technical_sam_bg_",
+                )
+
+                svg_output_dir = crop_output_dir / "svgs"
+                svg_output_dir.mkdir(parents=True, exist_ok=True)
+
+                for item in crops_with_meta:
+                    png_path = item.get("png_path")
+                    if not png_path:
+                        continue
+
+                    try:
+                        png_p = Path(png_path)
+                        svg_path = str((svg_output_dir / f"{png_p.stem}.svg").resolve())
+                        out_svg = local_tool_for_raster_to_svg(
+                            {
+                                "image_path": str(png_p),
+                                "output_svg": svg_path,
+                                "colormode": "color",
+                            }
+                        )
+                        sam_blocks_for_ppt.append(
+                            {
+                                "block_index": item.get("block_index"),
+                                "type": "sam_bg",
+                                "bbox": item.get("bbox"),  # 归一化 bbox，用于 PPT 布局
+                                "png_path": png_path,
+                                "svg_path": out_svg,
+                            }
+                        )
+                    except Exception as e:
+                        log.error(f"svg_fragment_miner_node[SAM]: PNG->SVG 转换失败 {png_path}: {e}")
+
+            except Exception as e:
+                log.error(f"svg_fragment_miner_node[SAM]: SAM 分割或裁剪失败: {e}", exc_info=True)
+
+            # 使用 SAM 产生的块作为 PPT 背景块，后续 PPT 生成逻辑无需改动
+            state.agent_results["mineru_blocks_for_ppt"] = sam_blocks_for_ppt
 
             # -----------------------------
             # 3) 文本通路：从 mineru_full 提取文本块 (text/title/image_caption)

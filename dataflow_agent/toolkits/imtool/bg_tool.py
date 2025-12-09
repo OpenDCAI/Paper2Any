@@ -454,6 +454,7 @@ def render_svg_to_image(
     *,
     from_string: bool = False,
     fmt: str | None = None,
+    scale: float = 1.0,
 ) -> str:
     """
     使用 CairoSVG 将 SVG 渲染为图片或文档文件。
@@ -517,7 +518,7 @@ def render_svg_to_image(
             # svg_source 是 SVG 字符串
             data = svg_source.encode("utf-8")
             if fmt == "png":
-                cairosvg.svg2png(bytestring=data, write_to=str(out_p))
+                cairosvg.svg2png(bytestring=data, write_to=str(out_p), scale=scale)
             elif fmt == "pdf":
                 cairosvg.svg2pdf(bytestring=data, write_to=str(out_p))
             elif fmt == "ps":
@@ -534,7 +535,7 @@ def render_svg_to_image(
                 raise FileNotFoundError(f"输入 SVG 文件不存在: {in_p}")
 
             if fmt == "png":
-                cairosvg.svg2png(url=str(in_p), write_to=str(out_p))
+                cairosvg.svg2png(url=str(in_p), write_to=str(out_p), scale=scale)
             elif fmt == "pdf":
                 cairosvg.svg2pdf(url=str(in_p), write_to=str(out_p))
             elif fmt == "ps":
@@ -599,6 +600,7 @@ def local_tool_for_svg_render(req: dict) -> str:
     """
     svg_path = req.get("svg_path")
     svg_code = req.get("svg_code")
+    scale = req.get("scale", 1.0)
 
     if not svg_path and not svg_code:
         raise ValueError("必须提供 svg_path 或 svg_code 其中之一。")
@@ -615,6 +617,7 @@ def local_tool_for_svg_render(req: dict) -> str:
             output_path=req["output_path"],
             from_string=True,
             fmt=req.get("fmt"),
+            scale=scale,
         )
 
     return render_svg_to_image(
@@ -622,6 +625,7 @@ def local_tool_for_svg_render(req: dict) -> str:
         output_path=req["output_path"],
         from_string=False,
         fmt=req.get("fmt"),
+        scale=scale,
     )
 
 

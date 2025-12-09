@@ -363,7 +363,7 @@ class Paper2FigureState(MainState):
     input_type: str = 'PDF'
 
 
-    # 技术路线图使用属性
+    # 技术路线图使用属性 ==============================
     figure_tec_svg_content: str = ""
     svg_img_path: str = ""
     svg_file_path: str = "" # svg 带文字图的 地址

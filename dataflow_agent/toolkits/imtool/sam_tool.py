@@ -13,6 +13,36 @@ Design philosophy:
 - Similar to mineru_tool.py: expose simple, stateless function APIs
 - Internally cache heavy model objects to avoid repeated initialization
 - Normalize outputs into Python dict / list structures that are easy to consume
+
+# 函数一览（中文说明）：
+# _ensure_ultralytics_sam_available: 校验 ultralytics.SAM 是否可用，否则抛出安装提示。
+# _ensure_ultralytics_yolo_available: 校验 ultralytics.YOLO 是否可用，否则抛出安装提示。
+# _ensure_hf_pipeline_available: 校验 transformers.pipeline 是否可用，否则抛出安装提示。
+# _ensure_skimage_available: 校验 scikit-image 是否可用，否则抛出安装提示。
+# _ensure_matplotlib_available: 校验 matplotlib 是否可用，否则抛出安装提示。
+# _load_image_pil: 从路径读取图片并转为 RGB 的 PIL.Image。
+# _get_image_size: 返回图片的宽高 (width, height)。
+# _get_sam_model: 懒加载并缓存指定 checkpoint 的 SAM 模型。
+# run_sam_auto: 对单张图片运行 SAM 自动分割，返回每个实例的 mask、归一化 bbox 等信息。
+# run_sam_auto_batch: 对多张图片批量运行 SAM 自动分割，按图片返回实例列表。
+# _get_yolo_model: 懒加载并缓存指定权重和设备的 YOLOv8 分割模型。
+# run_yolov8_seg: 对单张图片运行 YOLOv8 实例分割，返回带类别标签和分数的实例信息。
+# run_yolov8_seg_batch: 对多张图片批量运行 YOLOv8 实例分割，按图片返回实例列表。
+# _get_hf_seg_pipeline: 懒加载并缓存 Hugging Face 语义分割 pipeline。
+# run_hf_semantic_seg: 使用 HF pipeline 对单张图片做语义分割，返回每个类别的前景掩膜。
+# run_hf_semantic_seg_batch: 对多张图片批量做语义分割，按图片返回类别掩膜列表。
+# run_felzenszwalb: 调用 Felzenszwalb 图分割算法，返回标签图或每个 segment 的布尔掩膜。
+# save_felzenszwalb_visualization: 运行 Felzenszwalb 并保存带分割边界的可视化图片。
+# save_sam_instances: 将 SAM 分割得到的每个实例按 bbox 或 RGBA mask 截图后保存为单独图片。
+# 过滤/后处理函数：
+# filter_sam_items_by_area_and_score: 按最小面积、最小得分过滤 SAM 实例。
+# bbox_iou: 计算两个归一化 bbox 的 IoU。
+# mask_iou: 计算两个布尔 mask 的 IoU。
+# nms_sam_items_by_bbox: 基于 bbox IoU 的 SAM 实例 NMS 去重。
+# nms_sam_items_by_mask: 基于 mask IoU 的 SAM 实例 NMS 去重。
+# topk_sam_items: 只保留 Top-K 个 SAM 实例。
+# postprocess_sam_items: 统一封装上述步骤的 SAM 实例后处理函数。
+
 """
 
 from pathlib import Path
@@ -242,6 +272,353 @@ def run_sam_auto_batch(
 
 
 # -----------------------------------------------------------------------------
+# 1.1 SAM post-processing helpers (过滤 / 去重 / Top-K)
+# -----------------------------------------------------------------------------
+def filter_sam_items_by_area_and_score(
+    items: List[Dict[str, Any]],
+    min_area: int = 0,
+    min_score: float = 0.0,
+) -> List[Dict[str, Any]]:
+    """
+    简单按面积和得分过滤 SAM 实例。
+
+    Parameters
+    ----------
+    items : List[Dict[str, Any]]
+        run_sam_auto 返回的实例列表。
+    min_area : int, optional
+        保留的最小像素面积，默认 0（不过滤）。
+    min_score : float, optional
+        保留的最小得分阈值（当存在 score 时），默认 0.0。
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        过滤后的实例列表。
+    """
+    filtered: List[Dict[str, Any]] = []
+    for it in items:
+        area = int(it.get("area", 0))
+        score = it.get("score", None)
+        if area < min_area:
+            continue
+        if score is not None and float(score) < float(min_score):
+            continue
+        filtered.append(it)
+    return filtered
+
+
+def bbox_iou(box1: Sequence[float], box2: Sequence[float]) -> float:
+    """
+    计算两个归一化 bbox 的 IoU。
+
+    Parameters
+    ----------
+    box1, box2 : [x1, y1, x2, y2] in [0, 1]
+
+    Returns
+    -------
+    float
+        IoU 值，范围 [0, 1]。
+    """
+    if len(box1) != 4 or len(box2) != 4:
+        return 0.0
+
+    x1 = max(float(box1[0]), float(box2[0]))
+    y1 = max(float(box1[1]), float(box2[1]))
+    x2 = min(float(box1[2]), float(box2[2]))
+    y2 = min(float(box1[3]), float(box2[3]))
+
+    inter_w = max(0.0, x2 - x1)
+    inter_h = max(0.0, y2 - y1)
+    inter = inter_w * inter_h
+    if inter <= 0.0:
+        return 0.0
+
+    area1 = max(0.0, float(box1[2]) - float(box1[0])) * max(
+        0.0, float(box1[3]) - float(box1[1])
+    )
+    area2 = max(0.0, float(box2[2]) - float(box2[0])) * max(
+        0.0, float(box2[3]) - float(box2[1])
+    )
+    union = area1 + area2 - inter
+    if union <= 0.0:
+        return 0.0
+    return inter / union
+
+
+def mask_iou(m1: np.ndarray, m2: np.ndarray) -> float:
+    """
+    计算两个布尔 mask 的 IoU。
+    """
+    if m1.shape != m2.shape:
+        # 简单兜底：形状不一致时不计算 IoU
+        return 0.0
+
+    m1_bool = m1.astype(bool)
+    m2_bool = m2.astype(bool)
+
+    inter = np.logical_and(m1_bool, m2_bool).sum()
+    if inter == 0:
+        return 0.0
+    union = np.logical_or(m1_bool, m2_bool).sum()
+    if union == 0:
+        return 0.0
+    return float(inter) / float(union)
+
+
+def nms_sam_items_by_bbox(
+    items: List[Dict[str, Any]],
+    iou_threshold: float = 0.5,
+    score_key: str = "score",  # "score" | "area"
+) -> List[Dict[str, Any]]:
+    """
+    基于 bbox IoU 的 Non-Maximum Suppression（NMS）去重。
+
+    - 按 score_key（score 或 area）从大到小排序；
+    - 依次保留与已有保留框 IoU 小于阈值的实例。
+
+    Parameters
+    ----------
+    items : List[Dict[str, Any]]
+        run_sam_auto 返回的实例列表。
+    iou_threshold : float, optional
+        IoU 阈值，超过则认为“太重叠”，默认 0.5。
+    score_key : str, optional
+        用于排序和优先保留的字段，默认 "score"，可选 "area"。
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        经过 NMS 去重后的实例列表。
+    """
+
+    def _score(it: Dict[str, Any]) -> float:
+        if score_key == "score":
+            v = it.get("score")
+            if v is not None:
+                try:
+                    return float(v)
+                except Exception:
+                    pass
+        # fallback to area
+        return float(it.get("area", 0))
+
+    # 从高分/大面积到低分/小面积排序
+    items_sorted = sorted(items, key=_score, reverse=True)
+
+    kept: List[Dict[str, Any]] = []
+    for it in items_sorted:
+        bbox = it.get("bbox")
+        if not bbox or len(bbox) != 4:
+            continue
+
+        keep = True
+        for kept_it in kept:
+            kept_bbox = kept_it.get("bbox")
+            if not kept_bbox or len(kept_bbox) != 4:
+                continue
+            iou = bbox_iou(bbox, kept_bbox)
+            if iou >= iou_threshold:
+                keep = False
+                break
+        if keep:
+            kept.append(it)
+
+    return kept
+
+
+def nms_sam_items_by_mask(
+    items: List[Dict[str, Any]],
+    iou_threshold: float = 0.5,
+    score_key: str = "score",
+) -> List[Dict[str, Any]]:
+    """
+    基于 mask IoU 的 Non-Maximum Suppression（NMS）去重。
+
+    - IoU 计算使用像素级 mask，更精确但速度稍慢；
+    - 其他逻辑与 nms_sam_items_by_bbox 类似。
+
+    Parameters
+    ----------
+    items : List[Dict[str, Any]]
+        run_sam_auto 返回的实例列表。
+    iou_threshold : float, optional
+        IoU 阈值，默认 0.5。
+    score_key : str, optional
+        用于排序的字段，默认 "score"，可选 "area"。
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        经过 NMS 去重后的实例列表。
+    """
+
+    def _score(it: Dict[str, Any]) -> float:
+        if score_key == "score":
+            v = it.get("score")
+            if v is not None:
+                try:
+                    return float(v)
+                except Exception:
+                    pass
+        return float(it.get("area", 0))
+
+    items_sorted = sorted(items, key=_score, reverse=True)
+    kept: List[Dict[str, Any]] = []
+
+    for it in items_sorted:
+        m = it.get("mask")
+        if m is None:
+            continue
+        m_arr = np.array(m)
+        if m_arr.dtype != bool:
+            m_arr = m_arr > 0
+
+        keep = True
+        for kept_it in kept:
+            m2 = kept_it.get("mask")
+            if m2 is None:
+                continue
+            m2_arr = np.array(m2)
+            if m2_arr.dtype != bool:
+                m2_arr = m2_arr > 0
+
+            # 形状不同则视作 IoU=0（不去重）
+            if m_arr.shape != m2_arr.shape:
+                continue
+
+            iou = mask_iou(m_arr, m2_arr)
+            if iou >= iou_threshold:
+                keep = False
+                break
+        if keep:
+            kept.append(it)
+
+    return kept
+
+
+def topk_sam_items(
+    items: List[Dict[str, Any]],
+    k: int = 0,
+    sort_key: str = "area",  # "area" | "score"
+) -> List[Dict[str, Any]]:
+    """
+    只保留 Top-K 个 SAM 实例。
+
+    Parameters
+    ----------
+    items : List[Dict[str, Any]]
+        run_sam_auto 返回的实例列表。
+    k : int, optional
+        要保留的实例数量；小于等于 0 时不截断，默认 0。
+    sort_key : str, optional
+        排序依据，默认 "area"，可选 "score"。
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        截断后的实例列表。
+    """
+    if k is None or k <= 0:
+        return items
+
+    def _score(it: Dict[str, Any]) -> float:
+        if sort_key == "score":
+            v = it.get("score")
+            if v is not None:
+                try:
+                    return float(v)
+                except Exception:
+                    pass
+        return float(it.get("area", 0))
+
+    items_sorted = sorted(items, key=_score, reverse=True)
+    return items_sorted[:k]
+
+
+def postprocess_sam_items(
+    items: List[Dict[str, Any]],
+    min_area: int = 0,
+    min_score: float = 0.0,
+    iou_threshold: float = 0.0,
+    top_k: Optional[int] = None,
+    nms_by: str = "bbox",  # "bbox" | "mask"
+    score_key_for_nms: str = "score",  # "score" | "area"
+    sort_key_for_topk: str = "area",  # "area" | "score"
+) -> List[Dict[str, Any]]:
+    """
+    统一封装 SAM 实例的后处理流程（过滤 + NMS + Top-K）。
+
+    典型用法：
+        items = run_sam_auto(...)
+        items = postprocess_sam_items(
+            items,
+            min_area=200,
+            min_score=0.3,
+            iou_threshold=0.6,
+            top_k=20,
+            nms_by="bbox",
+        )
+
+    Parameters
+    ----------
+    items : List[Dict[str, Any]]
+        run_sam_auto 返回的实例列表。
+    min_area : int, optional
+        最小保留面积，默认 0（不过滤）。
+    min_score : float, optional
+        最小保留得分（当存在 score），默认 0.0。
+    iou_threshold : float, optional
+        若大于 0，则按该阈值进行 NMS 去重；小于等于 0 时不做 NMS。
+    top_k : Optional[int], optional
+        若给定且 > 0，则在 NMS 后只保留 Top-K，默认 None（不截断）。
+    nms_by : {"bbox", "mask"}, optional
+        NMS 的 IoU 计算方式，默认 "bbox"。
+    score_key_for_nms : {"score", "area"}, optional
+        NMS 时的排序依据，默认 "score"。
+    sort_key_for_topk : {"area", "score"}, optional
+        Top-K 时的排序依据，默认 "area"。
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        经过后处理的 SAM 实例列表。
+    """
+    # 1) 面积 / 得分过滤
+    out = filter_sam_items_by_area_and_score(
+        items,
+        min_area=min_area,
+        min_score=min_score,
+    )
+
+    # 2) NMS 去重
+    if iou_threshold and iou_threshold > 0.0:
+        if nms_by == "mask":
+            out = nms_sam_items_by_mask(
+                out,
+                iou_threshold=float(iou_threshold),
+                score_key=score_key_for_nms,
+            )
+        else:
+            out = nms_sam_items_by_bbox(
+                out,
+                iou_threshold=float(iou_threshold),
+                score_key=score_key_for_nms,
+            )
+
+    # 3) Top-K 截断
+    if top_k is not None and top_k > 0:
+        out = topk_sam_items(
+            out,
+            k=int(top_k),
+            sort_key=sort_key_for_topk,
+        )
+
+    return out
+
+
+# -----------------------------------------------------------------------------
 # 2. YOLOv8 Instance Segmentation via ultralytics.YOLO
 # -----------------------------------------------------------------------------
 def _get_yolo_model(
@@ -450,15 +827,15 @@ def run_felzenszwalb(
 
     Parameters
     ----------
-    image_path : str
+    image_path: str
         Path to the input image.
-    scale : float, optional
+    scale: float, optional
         Higher means larger clusters, by default 100.0.
-    sigma : float, optional
+    sigma: float, optional
         Gaussian smoothing parameter, by default 0.5.
-    min_size : int, optional
+    min_size: int, optional
         Minimum component size, by default 50.
-    return_type : {"labels", "masks"}, optional
+    return_type: {"labels", "masks"}, optional
         - "labels": return an integer label map [H, W]
         - "masks": return a list of bool masks for each segment id
 
@@ -517,15 +894,15 @@ def save_felzenszwalb_visualization(
 
     Parameters
     ----------
-    image_path : str
+    image_path: str
         Path to the input image.
-    output_path : str
+    output_path: str
         Path to save the visualization PNG (or other image format).
-    scale : float, optional
+    scale: float, optional
         Higher means larger clusters, by default 100.0.
-    sigma : float, optional
+    sigma: float, optional
         Gaussian smoothing parameter, by default 0.5.
-    min_size : int, optional
+    min_size: int, optional
         Minimum component size, by default 50.
 
     Returns
@@ -674,8 +1051,8 @@ if __name__ == "__main__":
     import cv2
 
     # 1. Input/output paths
-    img_path = ""
-    out_dir = Path("")
+    img_path = "/home/ubuntu/liuzhou/myproj/dev/DataFlow-Agent/tests/image.png"
+    out_dir = Path("/home/ubuntu/liuzhou/myproj/dev/DataFlow-Agent/outputs")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"[Demo] Input image: {img_path}")
@@ -693,8 +1070,36 @@ if __name__ == "__main__":
             checkpoint="sam_b.pt",  # assumes this file is available or will be auto-downloaded
             device="cuda",          # change to "cpu" if no GPU
         )
-        print(f"[SAM] Got {len(items)} masks")
 
+        # Apply default post-processing for demo:
+        # - remove tiny masks
+        # - suppress highly-overlapping instances
+        # - keep at most 20 instances
+        items = postprocess_sam_items(
+            items,
+            min_area=200,
+            min_score=0.0,
+            iou_threshold=0.3,
+            top_k=20,
+            nms_by="bbox",
+        )
+
+        print(f"[SAM] Got {len(items)} masks after post-processing")
+
+        # 3.1 Save each SAM instance as a separate image
+        sam_inst_dir = out_dir / "sam_instances"
+        saved_paths = save_sam_instances(
+            image_path=img_path,
+            items=items,
+            output_dir=sam_inst_dir,
+            prefix="sam_inst_",
+            mode="bbox",  # or "rgba"
+        )
+        print(f"[SAM] {len(saved_paths)} instance images saved to dir: {sam_inst_dir}")
+        for p in saved_paths:
+            print("   ", p)
+
+        # 3.2 Keep original overlay visualization
         if items:
             overlay = img_bgr.copy()
             # Visualize at most first 10 masks
