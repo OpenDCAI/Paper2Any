@@ -258,7 +258,7 @@ def get_bg_remove_desc(lang: str = "zh") -> str:
 def convert_image_to_svg(
     input_path: str,
     output_path: str,
-    colormode: str = "binary",
+    colormode: str = "color",
     hierarchical: str = "stacked",
     mode: str = "spline",
     filter_speckle: int = 4,

@@ -366,3 +366,9 @@ class Paper2FigureState(MainState):
     # 技术路线图使用属性
     figure_tec_svg_content: str = ""
     svg_img_path: str = ""
+    svg_file_path: str = "" # svg 带文字图的 地址
+    svg_bg_file_path: str = ""
+    # 带文字版本的svg图片
+    svg_full_img_path: str = "" 
+    # 背景svg code：
+    svg_bg_code : str = "" 

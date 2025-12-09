@@ -18,5 +18,5 @@ kornia
 timm
 
 
-vtracer
 cairosvg
+vtracer

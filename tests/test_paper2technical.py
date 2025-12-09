@@ -10,16 +10,8 @@ from __future__ import annotations
 import asyncio
 import pytest
 
-from dataflow_agent.state import Paper2FigureState
+from dataflow_agent.state import Paper2FigureState, Paper2FigureRequest
 from dataflow_agent.workflow import run_workflow
-
-
-class MockPaper2TechnicalRequest:
-    """
-    简单的请求对象，仅提供 workflow 路由所需的 input_type 字段。
-    """
-    def __init__(self, input_type: str = "TEXT"):
-        self.input_type = input_type
 
 
 # ============ 核心异步流程 ============
@@ -28,18 +20,18 @@ async def run_paper2technical_pipeline() -> Paper2FigureState:
     执行 paper2technical 工作流的测试流程
     """
     # TEXT 模式下，跳过 PDF 抽取节点，直接进入 technical_route_desc_generator
-    req = MockPaper2TechnicalRequest(input_type="TEXT")
+    req = Paper2FigureRequest()
 
     state = Paper2FigureState(
         messages=[],
         agent_results={},
         paper_idea="This is a test description for technical route.",
         request=req,
-        # 可选: 显式指定输出目录
-        # result_path="./outputs/test_paper2technical",
+        paper_file = "/home/ubuntu/liuzhou/myproj/dev/DataFlow-Agent/tests/2506.02454v1.pdf"
     )
 
-    final_state: Paper2FigureState = await run_workflow("paper2technical", state)
+    # final_state: Paper2FigureState = await run_workflow("paper2technical", state)
+    final_state: Paper2FigureState = await run_workflow("paper2technical_bg_remove", state)
     return final_state
 
 

@@ -11,7 +11,7 @@ TechnicalRouteDescGenerator agent
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List, Tuple
 
 from dataflow_agent.state import MainState
 from dataflow_agent.toolkits.tool_manager import ToolManager
@@ -66,6 +66,80 @@ class TechnicalRouteDescGenerator(BaseAgent):
     def get_default_pre_tool_results(self) -> Dict[str, Any]:
         """若调用方未显式传入，返回默认前置工具结果"""
         return {}
+
+    # ---------- ReAct 验证器 ----------
+    def get_react_validators(self) -> List:
+        """
+        返回 ReAct 模式下使用的验证器列表。
+
+        验证器签名固定为:
+            validator(content: str, parsed_result: Dict[str, Any]) -> Tuple[bool, str]
+        这里基于 parsed_result["svg_code"] 做 SVG XML 合法性检查。
+        """
+
+        def _extract_svg_fragment(svg_code: str) -> str:
+            """
+            从模型返回的字符串中，提取出干净的 <svg>...</svg> 片段。
+
+            会做几件事：
+            1. 去掉首尾空白
+            2. 去掉可能的 ``` 或 ```svg 代码块包裹
+            3. 只保留从第一个 <svg 开始到最后一个 </svg> 结束的部分
+            """
+            if not svg_code:
+                return ""
+
+            text = svg_code.strip()
+
+            # 处理 ```svg ... ``` 或 ``` ... ``` 代码块
+            if text.startswith("```"):
+                lines = [line for line in text.splitlines() if line.strip("`").strip()]
+                # 找到第一行包含 <svg 的
+                for i, line in enumerate(lines):
+                    if "<svg" in line or "<SVG" in line or "<Svg" in line:
+                        text = "\n".join(lines[i:])
+                        break
+
+            # 定位 <svg ...> 到 </svg> 的区间
+            start = text.find("<svg")
+            end = text.rfind("</svg>")
+            if start == -1 or end == -1:
+                # 找不到明确片段时，直接返回原始文本，交给 XML 解析报错
+                return text
+
+            end += len("</svg>")
+            return text[start:end].strip()
+
+        def validate_svg(content: str, parsed_result: Dict[str, Any]) -> Tuple[bool, str]:
+            """
+            technical_route_desc_generator 的 SVG 验证器。
+
+            使用解析后的结果 parsed_result["svg_code"] 做 XML 级合法性检查，
+            与 base_agent._run_validators(content, parsed_result) 的调用约定保持一致。
+            """
+            import xml.etree.ElementTree as ET
+
+            svg_code = None
+            if isinstance(parsed_result, dict):
+                svg_code = parsed_result.get("svg_code")
+
+            if not svg_code:
+                return False, "缺少 svg_code 字段或内容为空"
+
+            fragment = _extract_svg_fragment(svg_code)
+            if "<svg" not in fragment and "<SVG" not in fragment:
+                return False, "返回内容中未检测到 <svg> 根标签"
+
+            try:
+                # XML 解析只关心 well‑formed，不关心命名空间等
+                ET.fromstring(fragment)
+            except Exception as e:
+                log.warning(f"technical_route_desc_generator.validate_svg: SVG XML 解析失败: {e}")
+                return False, f"SVG 不是合法 XML: {e}"
+
+            return True, "SVG 验证通过"
+
+        return [validate_svg]
 
     # ---------- 结果写回 ----------
     def update_state_result(

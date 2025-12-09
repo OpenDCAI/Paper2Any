@@ -33,7 +33,76 @@ from dataflow_agent.toolkits.imtool.mineru_tool import (
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
 
+from pptx.util import Pt
+
 log = get_logger(__name__)
+
+
+def _strip_svg_text_nodes(svg_code: str) -> str:
+    """
+    兜底版 SVG 去文字函数，用于在 svg_bg_cleaner agent 失败时硬编码移除文本。
+
+    处理策略（尽量“只删字不动图形”）：
+    - 删除所有 <text>...</text> 块（支持跨行、多属性写法）；
+    - 删除所有 <tspan>...</tspan> 块；
+    - 删除 <title>...</title> 块；
+    - 删除自闭合 text / tspan 节点（如 <text .../>，<tspan .../>）。
+    其它图形元素（rect/circle/path/...）保留不动。
+    """
+    import re
+
+    if not svg_code:
+        return svg_code
+
+    cleaned = svg_code
+
+    # 1) 删除 <title>...</title>（SVG 文档标题/图标题）
+    cleaned = re.sub(
+        r"<title[^>]*?>.*?</title>",
+        "",
+        cleaned,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    # 2) 删除 <tspan>...</tspan>，避免保留行内文本
+    cleaned = re.sub(
+        r"<tspan[^>]*?>.*?</tspan>",
+        "",
+        cleaned,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    # 3) 删除 <text>...</text>，主要文字节点
+    cleaned = re.sub(
+        r"<text[^>]*?>.*?</text>",
+        "",
+        cleaned,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    # 4) 删除自闭合的 text / tspan 节点（无内容的标签）
+    cleaned = re.sub(
+        r"<text[^>]*/>",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"<tspan[^>]*/>",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+
+    # 5) 简单压缩多余空行，避免产生大片空白
+    lines = cleaned.splitlines()
+    cleaned_lines = []
+    for line in lines:
+        if line.strip() == "":
+            if cleaned_lines and cleaned_lines[-1].strip() == "":
+                continue
+        cleaned_lines.append(line)
+    return "\n".join(cleaned_lines)
 
 
 def _ensure_result_path(state: Paper2FigureState) -> str:
@@ -55,7 +124,7 @@ def _ensure_result_path(state: Paper2FigureState) -> str:
     return state.result_path
 
 
-@register("paper2technical")
+@register("paper2technical_bg_remove")
 def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
     """
     Workflow factory: dfa run --wf paper2technical
@@ -182,24 +251,58 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
             timestamp = int(time.time())
             # 同时输出 SVG 源码文件和 PNG 位图
             svg_output_path = str((base_dir / f"technical_route_{timestamp}.svg").resolve())
-            png_output_path = str((base_dir / f"technical_route_{timestamp}.png").resolve())
+            svg_bg_output_path = str((base_dir / f"technical_route_{timestamp}_bg.svg").resolve())
+            png_output_path_bg = str((base_dir / f"technical_route_{timestamp}_bg.png").resolve())
+            png_output_path_full = str((base_dir / f"technical_route_{timestamp}_full.png").resolve())
 
             try:
-                # 1) 保存 SVG 源码到 .svg 文件
+                # 1) 保存原始 SVG 源码（含文字）
                 Path(svg_output_path).write_text(svg_code, encoding="utf-8")
                 state.svg_file_path = svg_output_path
 
-                # 2) 渲染 PNG 供 MinerU 使用
-                png_path = local_tool_for_svg_render(
+                # 2) 调用 svg_bg_cleaner agent 生成“去文字版” SVG，失败时回退到本地函数
+                svg_bg_code = None
+                try:
+                    cleaner_agent = create_react_agent(
+                        name="svg_bg_cleaner",
+                        max_retries=4,
+                        model_name="claude-haiku-4-5-20251001",
+                    )
+                    # 将原始 SVG 挂到 state，方便 agent 读取
+                    cleaner_state = await cleaner_agent.execute(state=state)
+                    svg_bg_code = cleaner_state.svg_bg_code
+
+                except Exception as e:
+                    log.warning(f"svg_bg_cleaner agent 执行失败，回退到本地去文字函数: {e}")
+
+                if not svg_bg_code:
+                    svg_bg_code = _strip_svg_text_nodes(svg_code)
+
+                Path(svg_bg_output_path).write_text(svg_bg_code, encoding="utf-8")
+                state.svg_bg_file_path = svg_bg_output_path
+
+                # 3) 用“纯背景 SVG”渲染 PNG 供 MinerU 使用（背景通路）
+                png_bg_path = local_tool_for_svg_render(
                     {
-                        "svg_code": svg_code,
-                        "output_path": png_output_path,
+                        "svg_code": svg_bg_code,
+                        "output_path": png_output_path_bg,
                     }
                 )
-                # 将最终图像路径写回 state.svg_img_path
-                state.svg_img_path = png_path
+                state.svg_img_path = png_bg_path
+
+                # 4) 额外渲染一份“带文字版” PNG 供 MinerU 抽取文本
+                png_full_path = local_tool_for_svg_render(
+                    {
+                        "svg_path": svg_output_path,
+                        "output_path": png_output_path_full,
+                    }
+                )
+                state.svg_full_img_path = png_full_path
+
                 log.critical(f"[state.svg_img_path]: {state.svg_img_path}")
+                log.critical(f"[state.svg_full_img_path]: {state.svg_full_img_path}")
                 log.critical(f"[state.svg_file_path]: {state.svg_file_path}")
+                log.critical(f"[state.svg_bg_file_path]: {state.svg_bg_file_path}")
             except Exception as e:
                 # 渲染或写文件失败时仅记录日志，避免打断整体 workflow
                 log.error(f"technical_route_desc_generator_node: SVG 落盘/渲染失败: {e}")
@@ -210,79 +313,76 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         """
         节点 4: SVG 结构切分 / 小图块生成 (MinerU 接入)
 
-        目标:
-        - 将整张技术路线 SVG 图，切分成若干“小 SVG”或逻辑块（例如每个阶段一个块），
-          以便后续在 PPT 中灵活排版。
-        - 实际实现对接 MinerU 提取结构信息。
-
-        当前实现:
-        - 使用 technical_route_desc_generator_node 生成的 PNG 图 (state.svg_img_path)
-          调用 MinerU two_step_extract。
-        - 将 MinerU 的返回结果完整写入日志，并挂到 state.agent_results["mineru_svg_fragment"]。
+        新策略：
+        - 仅对“带文字版” PNG (full_image_path) 调用 MinerU，获取全局 layout (mineru_full)；
+        - 使用 mineru_full 的 bbox 在“去文字版” PNG (bg_image_path) 上裁剪出纯背景小图；
+        - 这些背景小图再进行 PNG->SVG->EMF 转换，用于 PPT 背景层；
+        - 文本仍由 mineru_full 中的 text/title/image_caption block 提取，用于 PPT 文本框 overlay。
         """
-        image_path = getattr(state, "svg_img_path", None)
-        if not image_path:
-            log.error("svg_fragment_miner_node: state.svg_img_path 为空，无法调用 MinerU")
+        bg_image_path = getattr(state, "svg_img_path", None)
+        full_image_path = getattr(state, "svg_full_img_path", None)
+
+        if not bg_image_path or not full_image_path:
+            log.error(
+                "svg_fragment_miner_node: svg_img_path 或 svg_full_img_path 为空，"
+                "无法调用 MinerU 进行双通路布局与裁剪"
+            )
             return state
 
         mineru_port = 8001  # MinerU 服务端口
 
-        try:
-            log.info(
-                f"svg_fragment_miner_node: 调用 MinerU recursive_mineru_layout, "
-                f"image_path={image_path}, port={mineru_port}"
-            )
-            # 使用递归版本的 MinerU 拆图 + 坐标映射：
-            # - 内部会对 image_path 执行多层 two_step_extract
-            # - 对 image/table 等块裁剪子图并递归
-            # - 所有最底层块的 bbox 统一为相对于最顶层 image_path 的归一化坐标
-            mineru_result = await recursive_mineru_layout(
-                image_path=image_path,
-                port=mineru_port,
-                max_depth=2,
-            )
+        if getattr(state, "agent_results", None) is None:
+            state.agent_results = {}
 
-            # 尝试 JSON 序列化方式打印，方便查看结构
+        try:
+            # -----------------------------
+            # 1) layout 通路: 带文字 PNG -> MinerU -> mineru_full
+            # -----------------------------
+            log.info(
+                f"svg_fragment_miner_node[full]: 调用 MinerU recursive_mineru_layout, "
+                f"image_path={full_image_path}, port={mineru_port}"
+            )
+            mineru_full = await recursive_mineru_layout(
+                image_path=full_image_path,
+                port=mineru_port,
+                max_depth=3,
+            )
+            state.agent_results["mineru_svg_fragment_full"] = mineru_full
+
             try:
                 log.warning(
-                    "svg_fragment_miner_node: MinerU 返回结果 (JSON): "
-                    + json.dumps(mineru_result, ensure_ascii=False, indent=2)
+                    "svg_fragment_miner_node[full]: MinerU 返回结果 (JSON): "
+                    + json.dumps(mineru_full, ensure_ascii=False, indent=2)
                 )
             except Exception:
-                # 兜底：即使不是严格 JSON，可打印 repr
                 log.warning(
-                    "svg_fragment_miner_node: MinerU 返回结果 (repr): "
-                    + repr(mineru_result)
+                    "svg_fragment_miner_node[full]: MinerU 返回结果 (repr): "
+                    + repr(mineru_full)
                 )
 
-            # 写回到 state.agent_results 中，便于后续节点使用或调试
-            if getattr(state, "agent_results", None) is None:
-                state.agent_results = {}
-            state.agent_results["mineru_svg_fragment"] = mineru_result
-
-            # 使用 MinerU 的 bbox + type 信息裁剪指定区域小图，例如标题区域、图像区域等
-            # 统一挂到本次 workflow 的根输出目录下，避免不同请求之间数据串台
+            # -----------------------------
+            # 2) 背景裁剪：用 mineru_full 的 bbox 在“去文字版” PNG 上裁剪纯背景小图
+            # -----------------------------
             run_root = Path(_ensure_result_path(state))
-            crop_output_dir = run_root / "crops" / "title"
-            crop_paths = crop_mineru_blocks_by_type(
-                image_path=image_path,
-                blocks=mineru_result,
-                # target_type=["title", "img", "text"],
-                output_dir=str(crop_output_dir),
-                prefix="paper2technical_",
-            )
-            state.agent_results["mineru_crops_png"] = crop_paths
+            crop_output_dir = run_root / "crops" / "bg"
 
-            # 新: 保留带元信息的裁剪结果，后续 PPT 可按 bbox 还原布局
+            # 根据需要选择哪些 block 用于生成背景原子块
+            allowed_bg_types = {"image", "img", "figure", "table"}
+            bg_blocks_for_crop = [
+                b
+                for b in mineru_full
+                # if b.get("bbox") is not None
+                # and len(b.get("bbox")) == 4
+                # and (b.get("type") in allowed_bg_types)
+            ]
+
             crops_with_meta = crop_mineru_blocks_with_meta(
-                image_path=image_path,
-                blocks=mineru_result,
-                # target_type=["title", "img", "text"],
+                image_path=bg_image_path,          # 去文字 PNG
+                blocks=mineru_full,         # 布局来自 full 图
                 output_dir=str(crop_output_dir / "meta"),
-                prefix="paper2technical_",
+                prefix="paper2technical_bg_",
             )
 
-            # 将所有裁剪出来的 PNG（带 meta）转换为 SVG，并保留 bbox / type
             svg_output_dir = crop_output_dir / "svgs"
             svg_output_dir.mkdir(parents=True, exist_ok=True)
             blocks_for_ppt: list[dict] = []
@@ -299,23 +399,46 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
                         {
                             "image_path": str(png_p),
                             "output_svg": svg_path,
-                            "colormode": 'color',
-                            # "mode": 
+                            "colormode": "color",
                         }
                     )
                     blocks_for_ppt.append(
                         {
                             "block_index": item.get("block_index"),
                             "type": item.get("type"),
-                            "bbox": item.get("bbox"),
+                            "bbox": item.get("bbox"),  # 直接沿用 mineru_full 的归一化 bbox
                             "png_path": png_path,
                             "svg_path": out_svg,
                         }
                     )
                 except Exception as e:
-                    log.error(f"svg_fragment_miner_node: PNG->SVG 转换失败 {png_path}: {e}")
+                    log.error(f"svg_fragment_miner_node[bg]: PNG->SVG 转换失败 {png_path}: {e}")
 
             state.agent_results["mineru_blocks_for_ppt"] = blocks_for_ppt
+
+            # -----------------------------
+            # 3) 文本通路：从 mineru_full 提取文本块 (text/title/image_caption)
+            # -----------------------------
+            # text_types = {"title", "text", "image_caption"}
+            text_blocks = [
+                {
+                    "type": b.get("type"),
+                    "bbox": b.get("bbox"),
+                    "text": b.get("text"),
+                    "depth": b.get("depth"),
+                }
+                for b in mineru_full
+                # if b.get("bbox") is not None
+                # and b.get("text") not in (None, "")
+                # and b.get("type") in text_types
+            ]
+
+            state.agent_results["mineru_text_blocks"] = text_blocks
+            # 若 Paper2FigureState 定义了 mineru_text_blocks 字段，可同步一份
+            try:
+                state.mineru_text_blocks = text_blocks  # type: ignore[attr-defined]
+            except Exception:
+                pass
 
         except Exception as e:
             log.error(f"svg_fragment_miner_node: MinerU 调用失败: {e}", exc_info=True)
@@ -358,13 +481,40 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         if getattr(state, "agent_results", None):
             blocks_for_ppt = state.agent_results.get("mineru_blocks_for_ppt", []) or []
 
+        # 预先将完整 SVG / 去文字 SVG 转为 EMF，用于后面单页展示
+        full_svg_path = getattr(state, "svg_file_path", None)
+        bg_svg_path = getattr(state, "svg_bg_file_path", None)
+
+        full_emf = None
+        bg_emf = None
+
+        # 统一 EMF 输出目录
+        emf_output_dir = output_dir / "ppt_emf"
+        emf_output_dir.mkdir(parents=True, exist_ok=True)
+
+        if full_svg_path:
+            try:
+                full_emf = svg_to_emf(
+                    full_svg_path,
+                    str((emf_output_dir / "technical_route_full.emf").resolve()),
+                )
+            except Exception as e:
+                log.error(f"technical_ppt_generator_node: full SVG -> EMF 失败 {full_svg_path}: {e}")
+
+        if bg_svg_path:
+            try:
+                bg_emf = svg_to_emf(
+                    bg_svg_path,
+                    str((emf_output_dir / "technical_route_bg.emf").resolve()),
+                )
+            except Exception as e:
+                log.error(f"technical_ppt_generator_node: bg SVG -> EMF 失败 {bg_svg_path}: {e}")
+
         if blocks_for_ppt:
-            # 在同一页 slide 上按 MinerU bbox 摆放所有 EMF 图块
+            # 在同一页 slide 上按 MinerU bbox 摆放所有 EMF 图块，并叠加文本框
             slide = prs.slides.add_slide(blank_slide_layout)
 
-            emf_output_dir = output_dir / "ppt_emf"
-            emf_output_dir.mkdir(parents=True, exist_ok=True)
-
+            # 1) 背景原子图块（EMF）
             for blk in blocks_for_ppt:
                 svg_path = blk.get("svg_path")
                 bbox = blk.get("bbox") or [0, 0, 1, 1]
@@ -381,7 +531,6 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
                     log.error(f"technical_ppt_generator_node: SVG -> EMF 失败 {svg_path}: {e}")
                     continue
 
-                # 按归一化 bbox 计算在 slide 上的坐标和大小
                 left = int(slide_width * x1)
                 top = int(slide_height * y1)
                 width = int(slide_width * (x2 - x1))
@@ -401,10 +550,79 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
                     )
                     continue
 
+            # 2) 文本块 overlay：将 MinerU 抽取的文本按 bbox 作为文本框叠加到同一页
+            text_blocks: list[dict] = []
+            if getattr(state, "agent_results", None):
+                text_blocks = state.agent_results.get("mineru_text_blocks", []) or []
+
+            for tb in text_blocks:
+                bbox = tb.get("bbox") or [0, 0, 1, 1]
+                if len(bbox) != 4:
+                    continue
+                x1, y1, x2, y2 = bbox
+                raw_text = tb.get("text") or ""
+                text = raw_text.strip()
+                if not text:
+                    continue
+
+                left = int(slide_width * x1)
+                top = int(slide_height * y1)
+                width = int(slide_width * (x2 - x1))
+                height = int(slide_height * (y2 - y1))
+
+                try:
+                    tx_box = slide.shapes.add_textbox(left, top, width, height)
+                    tf = tx_box.text_frame
+                    tf.text = text
+
+                    for p in tf.paragraphs:
+                        p.font.size = Pt(12)
+                        if tb.get("type") == "title":
+                            p.font.bold = True
+                            p.font.size = Pt(14)
+                except Exception as e:
+                    log.error(
+                        f"technical_ppt_generator_node: 文本块插入失败 "
+                        f"{text[:30]}...: {e}"
+                    )
+
+            # 额外页 1：完整带文字版 SVG 的 EMF
+            if full_emf:
+                slide_full = prs.slides.add_slide(blank_slide_layout)
+                try:
+                    slide_full.shapes.add_picture(
+                        full_emf,
+                        0,
+                        0,
+                        width=slide_width,
+                        height=slide_height,
+                    )
+                except Exception as e:
+                    log.error(
+                        f"technical_ppt_generator_node: 将 full EMF 插入 PPT 失败 {full_emf}: {e}"
+                    )
+
+            # 额外页 2：完整去文字版 SVG 的 EMF
+            if bg_emf:
+                slide_bg = prs.slides.add_slide(blank_slide_layout)
+                try:
+                    slide_bg.shapes.add_picture(
+                        bg_emf,
+                        0,
+                        0,
+                        width=slide_width,
+                        height=slide_height,
+                    )
+                except Exception as e:
+                    log.error(
+                        f"technical_ppt_generator_node: 将 bg EMF 插入 PPT 失败 {bg_emf}: {e}"
+                    )
+
             prs.save(str(ppt_path))
             state.ppt_path = str(ppt_path)
             log.info(
-                "technical_ppt_generator_node: PPT 已按 MinerU bbox 还原整体布局生成: "
+                "technical_ppt_generator_node: PPT 已按 MinerU bbox 还原整体布局并叠加文本生成，"
+                "并追加 full/bg 整图页面: "
                 f"{ppt_path}"
             )
             return state
