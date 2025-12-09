@@ -1798,65 +1798,73 @@ Your responsibilities:
 2. Figure Description Requirements:
    - Provide a single figure_description block that includes:
        • Overall Layout
-       • A sequence of Subfigures(4~6 subfigures) (derived from the structure of the input)
+       • A sequence of Subfigures (4–6 subfigures) (derived from the structure of the input)
        • Overall Design and Color Scheme
        • Figure Title and Labels
        • Summary
 
-    * Each subfigure must include:
-      * A concise and meaningful title
-      * Background color suggestion in pastel macaron tones
-      * Layout guidance: Each subfigure must be divided into **three distinct parts** arranged from top to bottom:
-        1. **Subtitle**: A concise title for the subfigure, placed at the top.
-        2. **Visual Elements**: This section contains the 3D or isometric hand-drawn visual elements (shapes, blocks, symbols) with depth and dimension, placed below the subtitle.
-        3. **Key Concepts**: This section includes essential, high-level keywords or brief descriptions related to the visual elements.These keywords should be neatly aligned along the left and right edges and the bottom of the subfigure, not overlapping with the visual elements. The text should provide concise, abstract representations of the visual content.
+   * Each subfigure must include:
+      * A concise title
+      * A background-color suggestion (pastel macaron tone)
+      * Layout guidance: Each subfigure must be divided into **three distinct parts** from top to bottom:
+        1. **Subtitle** (top area)
+        2. **Visual Elements** (middle area; must follow the overall figure style)
+        3. **Key Concepts** (bottom area; aligned along edges, not overlapping with visuals)
 
-3. Mandatory Visual Style Requirements:
-   - **Hand-drawn style**:
-       • Use a **sketched, hand-drawn look**, with softer lines and shading for a more artistic effect.
-       • Include **3D or isometric** elements in the visuals for depth, rather than flat icons.
-   - **Macaron Color Scheme**:
-       • Each subfigure should use a different soft pastel background (light blue, pink, lavender, beige).
-       • Use gradients to provide some dimension to the background, adding to the hand-drawn look.
-   - **Dividers**:
-       • Use thin, obvious black lines to clearly separate subfigures.
-   - **Font**:
-       • Use Comic Sans MS for all text.
-   - **Aspect Ratio**:
-       • Prefer an overall **4:3 layout** unless the content suggests otherwise.
+3.  **STYLE SPECIFICATION (All style-related requirements are centralized here)**  
+    The entire figure MUST follow these visual style rules:
+    - **Hand-drawn Style**:
+        • Sketched, slightly imperfect strokes  
+        • Softer lines & shading  
+    - **3D / Isometric Elements**:
+        • Visual blocks, shapes, or modules must include depth or isometric perspective  
+    - **Pastel Macaron Color Scheme**:
+        • Each subfigure uses a different soft pastel shade (light blue, lavender, pink, beige, mint, etc.)  
+        • Gentle gradient background for subtle depth  
+    - **Dividers**:
+        • Thin black lines separating subfigures  
+    - **Font**:
+        • Comic Sans MS everywhere  
+    - **Aspect Ratio**:
+        • Prefer 4:3 overall structure  
+
+    *In other parts of the prompt, when referring to visual elements, use phrasing such as “consistent with the overall style” instead of repeating this specification.*
 
 4. Title and Label Requirements:
    - The figure includes a main title supplied by the user at runtime.
-     • The title must be placed centered at the top.
-     • It should appear visually larger than subfigure titles.
-   - Each subfigure should have its own concise internal label/title that contrasts well with its background and should be neatly aligned along the left and right edges and the bottom of the subfigure, not overlapping with the visual elements.
+     • Centered at the top.
+     • Slightly larger than subfigure titles.
+   - Subfigure titles must contrast with their backgrounds.
+   - Title and labels should appear **beside** visual elements, not overlapping them, and remain consistent with the overall style.
 
 5. Content Rules:
    - Do not copy input sentences.
    - Extract structure, relationships, and process flow.
    - Do not invent steps beyond what is logically implied by the input.
    - Keep all descriptions high-level, abstract, and visually oriented.
+   - All references to visual elements must remain consistent with the style described in Section 3.
 
 6. Output Constraints:
    - Produce only one JSON dictionary.
    - No commentary, no meta explanations, no markdown.
+
 """
 
     # task_prompt template for generating figure description (Hand-drawn style with 3D elements)
     task_prompt_for_figure_desc_generator = """
 Below is the technical details provided by the user. Your task is to abstract it into a visually oriented figure description following all rules stated in the SYSTEM_PROMPT.
 
-Add this to the beginning of your desciption:
+Add this to the beginning of your description:
 
 **Special Notice**
 
 * **Text Placement**:
-  • Ensure the text is positioned **beside** the image elements, not on top of them, for better clarity and separation. Maintain sufficient space between text and visual elements to avoid overlap.
-  • **The rectangular area occupied by the text should not overlap with the area occupied by visual elements.** The boundaries of the text and visual elements must be clearly separated, ensuring that their corresponding spaces do not intersect.
+  • Ensure the text is positioned **beside** the image elements, not on top of them.  
+  • Maintain clear separation so text blocks do not overlap visual areas.
 
 * **Subfigure Separation**:
-  • Ensure there are **clear boundaries** between each subfigure. The subfigures should not overlap or have visual elements that cross the boundary lines. Each subfigure should feel like a distinct and separate visual area, with its own clearly defined space. Don't use arrows across the divider to connect different subfigures.
-
+  • Ensure each subfigure has **crisp, non-overlapping boundaries**.  
+  • No arrows or elements may cross from one subfigure into another.
 
 You must output:
 {"fig_desc": "<description>"} where <description> is a string type.
@@ -1868,19 +1876,6 @@ USER CONTENT START
 {paper_idea}
 USER CONTENT END
 --------------------
-
-Please generate a figure description with:
-- Multiple subfigures corresponding to the conceptual steps or components implied by the content
-- **Hand-drawn style** with **3D or isometric visual elements** (rather than flat icons)
-- **Pastel macaron backgrounds** (one distinct background per subfigure)
-- Fine gray or black dividers between sections
-- Comic Sans MS font
-- A main title (provided by the user at runtime) placed centered at the top in a slightly larger font size
-- Concise titles within each subfigure, placed beside the visual elements. (not overlaid on top)
-- A structured output including: Overall Layout, Subfigures, Overall Design and Color Scheme, Figure Title and Labels, Summary
-- Strict abstraction: no examples, no additional invented content
-
-Remember: Only output the JSON dictionary.
 """
 
 

@@ -363,7 +363,7 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
         Path("./outputs/paper2figure") / time.strftime("%Y%m%d_%H%M%S")
     )
     os.makedirs(state.result_path, exist_ok=True)
-    state.mask_detail_level = 2
+    state.mask_detail_level = 5
 
     # -------- 异步执行 -------- #
     log.critical(f'req: {req} !!!!!!!!\n')

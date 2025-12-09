@@ -70,13 +70,13 @@ async def main() -> None:
         model="gpt-4o",
         sam2_model="/data0/hzy/paper2figure/models/facebook/sam2.1-hiera-tiny",
         gen_fig_model="gemini-3-pro-image-preview",
-        json_file=f"{PROJECT_ROOT}/tests/test.jsonl",
+        # json_file=f"{PROJECT_ROOT}/tests/test.jsonl",
         target="Create Figures For Papers",
-        python_file_path=str(python_file_path),  # pipeline 的输出脚本路径
-        need_debug= False,  # 是否需要 Debug
-        max_debug_rounds= 3,
-        session_id=session_id,
-        cache_dir="dataflow_cache"
+        # python_file_path=str(python_file_path),  # pipeline 的输出脚本路径
+        # need_debug= False,  # 是否需要 Debug
+        # max_debug_rounds= 3,
+        # session_id=session_id,
+        # cache_dir="dataflow_cache"
     )
 
     # -------- 初始化 Paper2FigureState -------- #
@@ -84,11 +84,11 @@ async def main() -> None:
     state.temp_data["round"] = 0
     state.paper_file = 'data/GovBench_ACL_Template.pdf'
     # state.input_type = 'FIGURE'
-    # state.fig_draft_path = '/home/ubuntu/liuzhou/hzy/paper2figure/gen_gemini2.png'
+    # state.fig_draft_path = '/home/ubuntu/liuzhou/hzy/DataFlow-Agent/tmps/1765180984.jpg'
     state.result_path = f'./outputs/{time.strftime("%Y%m%d_%H%M%S")}'
     os.makedirs(state.result_path, exist_ok=True)
 
-    state.mask_detail_level = 3
+    state.mask_detail_level = 5
     
     # state.size = '1024x1024'
     # -------- 构建并运行流水线图 -------- #
