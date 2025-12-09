@@ -29,7 +29,12 @@ from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 
 from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
-from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove
+from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove, local_tool_for_raster_to_svg
+from dataflow_agent.toolkits.imtool.sam_tool import segment_layout_boxes
+from dataflow_agent.toolkits.imtool.mineru_tool import (
+    svg_to_emf,
+    recursive_mineru_layout,
+)
 from dataflow_agent.agentroles import create_graph_agent
 
 import re, pdfplumber, PyPDF2, time, shutil, fitz
@@ -38,10 +43,10 @@ from PIL import Image
 
 from dataflow_agent.utils import (
     build_output_directory,
-    recursive_run_mineru,
     add_image_element,
     add_text_element,
     setup_presentation_size,
+    get_project_root,
 )
 
 from pathlib import Path
@@ -52,11 +57,29 @@ from pptx.dml.color import RGBColor
 
 log = get_logger(__name__)
 
+def _ensure_result_path(state: Paper2FigureState) -> str:
+    """
+    统一本次 paper2figure_with_sam workflow 的根输出目录：
+    - 如果 state.result_path 已存在（通常由调用方传入），直接使用；
+    - 否则：使用 get_project_root() / "outputs" / "paper2figure" / <timestamp>，
+      并写回 state.result_path，后续节点共享同一目录。
+    """
+    raw = getattr(state, "result_path", None)
+    if raw:
+        return raw
+
+    root = get_project_root()
+    ts = int(time.time())
+    base_dir = (root / "outputs" / "paper2figure" / str(ts)).resolve()
+    base_dir.mkdir(parents=True, exist_ok=True)
+    state.result_path = str(base_dir)
+    return state.result_path
+
 def _ts_name(stem: str, ext: str = ".png") -> str:
     timestamp = int(time.time())  # 获取当前时间戳（秒）
     return f"./{stem}{timestamp}{ext}"
 
-@register("paper2fig")
+@register("paper2fig_with_sam")
 def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
     """
     Workflow factory: dfa run --wf paper2fig
@@ -66,14 +89,6 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
 
     # ----------------------------------------------------------------------
     # TOOLS (pre_tool definitions)
-    # ----------------------------------------------------------------------
-    # 例:
-    # @builder.pre_tool("purpose", "step1")
-    # def _purpose(state: MainState):
-    #     return "这里放入字符串 / 数值 / 列表 / 字典等供 prompt 使用"
-
-    # @builder.post_tool('','')
-    # def _post_tool1():
     # ----------------------------------------------------------------------
     @builder.pre_tool("paper_content", "paper_idea_extractor")
     def _get_abstract_intro(state: Paper2FigureState):
@@ -89,21 +104,17 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         except Exception:
             paper_title = "Unknown Title"
 
-        # 2. Read PDF text, collect lines
-        # abs_and_intro = read_intro_from_paper(state.paper_file)
-
         # Open the PDF file using the path from state
         file_path = state.paper_file
         pdf_document = fitz.open(file_path)
 
-        # Extract text from the first 5 pages
+        # Extract text from the first 10 pages
         text = ""
-        for page_num in range(min(10, len(pdf_document))):  # Limit to first 5 pages
+        for page_num in range(min(10, len(pdf_document))):
             page = pdf_document.load_page(page_num)
-            text += page.get_text("text")  # Extract text content from the page
+            text += page.get_text("text")
 
-        # Store the extracted content in state
-        content = text.strip()  # Strip any leading/trailing whitespace
+        content = text.strip()
 
         final_text = (
             f"The title of the paper is {paper_title}\n\n"
@@ -141,13 +152,13 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
 
     async def figure_generator_node(state: Paper2FigureState) -> Paper2FigureState:
         """
-        图像生成或编辑节点
+        图像生成或编辑节点：
+        1) 先生成带内容的图 (fig_draft_path)
+        2) 再基于该图进行一次固定提示词的二次编辑，生成空框模板图 (fig_layout_path)
         """
         prompt = state.agent_results.get("figure_desc_generator").get("results").get("fig_desc", {})
         safe_prompt = json.dumps(prompt, ensure_ascii=False)  # 确保中文字符正常显示
-        
-        # prompt = "a cat in a tree."
-        
+
         edit_prompt = state.request.get("edit_prompt")
         image_path = state.request.get("prev_image")
 
@@ -156,29 +167,116 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
 
         log.info(f'final_prompt{final_prompt} - edit_prompt：{edit_prompt} - image_path：{image_path} - prompt：{safe_prompt}')
 
-        save_path = _ts_name("tmps/", ".jpg")
+        # 统一输出根目录（outputs/paper2figure/<ts>）
+        result_root = Path(_ensure_result_path(state))
+        result_root.mkdir(parents=True, exist_ok=True)
 
-        # log.critical(f'use_edit: {False if image_path == "" else True}')
+        # 1) 生成带内容的图，直接存到 result_root
+        fig_name = f"fig_{int(time.time())}.jpg"
+        save_path = str(result_root / fig_name)
 
         await generate_or_edit_and_save_image_async(
             prompt=final_prompt,
             save_path=save_path,
-            aspect_ratio = state.aspect_ratio,
+            aspect_ratio=state.aspect_ratio,
             api_url=state.request.chat_api_url,
-            api_key=os.getenv("DF_API_KEY") if os.getenv("DF_API_KEY")=="" else state.request.chat_api_key, 
+            api_key=os.getenv("DF_API_KEY") or state.request.chat_api_key,
             model=state.request.gen_fig_model,
             image_path=image_path,
-            use_edit= True if image_path else False
-            # edit_prompt=edit_prompt,
+            use_edit=True if image_path else False
         )
         state.agent_results["gen_img"] = {"path": save_path}
         state.fig_draft_path = save_path
-        shutil.copy(save_path, state.result_path)
+
+        # 2) 基于第一次生成的图，做一次“空模板”二次编辑，也放在 result_root
+        TEMPLATE_EDIT_PROMPT = (
+            "Keep only the outermost rectangles and arrows(if any in the original box).\n"
+            "Remove all inner content including title, subtitles, icons, explainary texts and all that.\n"
+            "Keep the layout exactly the same.\n"
+            "Output a description of an empty template composed of these boxes."
+        )
+
+        layout_name = f"layout_{int(time.time())}.jpg"
+        layout_save_path = str(result_root / layout_name)
+        await generate_or_edit_and_save_image_async(
+            prompt=TEMPLATE_EDIT_PROMPT,
+            save_path=layout_save_path,
+            aspect_ratio=state.aspect_ratio,
+            api_url=state.request.chat_api_url,
+            api_key=os.getenv("DF_API_KEY") or state.request.chat_api_key,
+            model=state.request.gen_fig_model,
+            image_path=save_path,
+            use_edit=True,
+        )
+        state.fig_layout_path = layout_save_path
+        state.agent_results["gen_img_template"] = {"path": layout_save_path}
+
+        return state
+
+    async def figure_layout_sam_node(state: Paper2FigureState) -> Paper2FigureState:
+        """
+        针对二次编辑后的空框模板图 (fig_layout_path) 进行:
+        SAM 自动分割 -> 过滤 -> 裁剪子图 -> PNG->SVG->EMF，
+        结果写入 state.layout_items，仅作为 PPT 背景框架层。
+        """
+        img_path = Path(state.fig_layout_path)
+        if not img_path.exists():
+            log.error(f"[figure_layout_sam] fig_layout_path 不存在: {img_path}")
+            return state
+
+        base_dir = Path(_ensure_result_path(state))
+        out_dir = base_dir / "layout_items"
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1. SAM 分割 + 过滤 + 裁剪子图
+        layout_items = segment_layout_boxes(
+            image_path=str(img_path),
+            output_dir=str(out_dir),
+            # 这里的参数可以根据 mask_detail_level 调整
+            min_area=200,
+            min_score=0.0,
+            iou_threshold=0.3,
+            top_k=None,
+            nms_by="bbox",
+        )
+
+        # 2. 每个 layout PNG 转 SVG -> EMF
+        for idx, it in enumerate(layout_items):
+            png_path = it.get("png_path")
+            if not png_path:
+                continue
+
+            svg_path = out_dir / f"layout_{idx}.svg"
+            svg_abs = local_tool_for_raster_to_svg(
+                {
+                    "image_path": png_path,
+                    "output_svg": str(svg_path),
+                    "colormode": "color",
+                    "hierarchical": "stacked",
+                    "mode": "spline",
+                }
+            )
+            it["svg_path"] = svg_abs
+
+            emf_path = out_dir / f"layout_{idx}.emf"
+            try:
+                emf_abs = svg_to_emf(svg_abs, str(emf_path))
+                it["emf_path"] = emf_abs
+            except Exception as e:
+                log.error(f"[figure_layout_sam] svg_to_emf failed for {svg_abs}: {e}")
+                it["emf_path"] = None
+
+        state.layout_items = layout_items
+        log.info(f"[figure_layout_sam] 共生成 {len(layout_items)} 个布局元素")
         return state
 
     async def figure_mask_generator_node(state: Paper2FigureState) -> Paper2FigureState:
         """
         生成Figure进行元素切割，并提取 bbox + image_path 信息，递归处理子图。
+        使用 MinerU HTTP 对原始带内容的图 (fig_draft_path) 做解析，得到内容层元素。
+        规则：
+        - 标题块(type == 'title') 保留为 text；
+        - 其它所有块一律从顶层图裁剪出子图，当作 image，用于 icon / 局部视觉元素。
         """
 
         img_path = Path(state.fig_draft_path)
@@ -186,16 +284,118 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             log.error(f"[figure_mask] fig_draft_path 不存在: {img_path}")
             return state
 
-        out_dir = build_output_directory(img_path)
+        # MinerU 所有中间结果统一放在本次 outputs 下
+        base_dir = Path(_ensure_result_path(state))
+        out_dir = base_dir / "mineru_recursive"
+        out_dir.mkdir(parents=True, exist_ok=True)
         log.info(f"[figure_mask] MinerU 输出目录: {out_dir}")
 
-        # 1. 调用递归的 mineru 处理，获取元素列表
-        print("mask detail level", state.mask_detail_level)
-        items = await recursive_run_mineru(img_path, out_dir, state.mask_detail_level)
+        # MinerU 端口：优先从 state.request.mineru_port 读取，默认 8001
+        port = getattr(state.request, "mineru_port", 8001)
+        max_depth = getattr(state, "mask_detail_level", 2)
+
+        log.critical(f"mask detail level : {max_depth} ")
+        log.critical(f'[img_path]: {img_path}')
+        log.critical(f'[mineru_port]: {port}')
+
+        # 1. 调用新的 HTTP MinerU 递归处理，获取元素列表（归一化坐标）
+        mineru_items = await recursive_mineru_layout(
+            image_path=str(img_path),
+            port=port,
+            max_depth=max_depth,
+            output_dir=out_dir,
+        )
+
+        # 顶层图像尺寸，用于 norm->pixel 映射与裁剪
+        top_img = Image.open(state.fig_draft_path)
+        top_w, top_h = top_img.size
+
+        # 图标原图输出目录
+        icons_raw_dir = base_dir / "icons_raw"
+        icons_raw_dir.mkdir(parents=True, exist_ok=True)
+
+        fig_mask = []
+        icon_count = 0
+        text_count = 0
+
+        for idx, it in enumerate(mineru_items):
+            elem_type_raw = it.get("type") or ""
+            elem_type = elem_type_raw.lower()
+            bbox = it.get("bbox")
+            text = it.get("text") or ""
+
+            if not bbox or len(bbox) != 4:
+                continue
+
+            # 归一化 -> 像素坐标
+            x1n, y1n, x2n, y2n = bbox
+            x1 = int(round(x1n * top_w))
+            y1 = int(round(y1n * top_h))
+            x2 = int(round(x2n * top_w))
+            y2 = int(round(y2n * top_h))
+
+            if x2 <= x1 or y2 <= y1:
+                continue
+
+            px_bbox = [x1, y1, x2, y2]
+
+            # 1) 标题类块：仍然作为文本
+            if elem_type in ["title"]:
+                fig_mask.append(
+                    {
+                        "type": "text",
+                        "bbox": px_bbox,
+                        "text": text,
+                        "text_level": 1,
+                        "page_idx": 0,
+                    }
+                )
+                text_count += 1
+                continue
+
+            # 2) 其它所有块：一律裁图，当作 image，用于 icon / 元素图层
+            try:
+                crop = top_img.crop((x1, y1, x2, y2))
+                icon_path = icons_raw_dir / f"blk_{idx}.png"
+                crop.save(icon_path)
+                icon_abs = str(icon_path)
+                fig_mask.append(
+                    {
+                        "type": "image",
+                        "bbox": px_bbox,
+                        "img_path": icon_abs,
+                        "page_idx": 0,
+                    }
+                )
+                icon_count += 1
+            except Exception as e:
+                log.error(f"[figure_mask] 裁剪子图失败 idx={idx}, bbox={px_bbox}: {e}")
+                # 兜底：作为普通文本
+                fig_mask.append(
+                    {
+                        "type": "text",
+                        "bbox": px_bbox,
+                        "text": text,
+                        "text_level": None,
+                        "page_idx": 0,
+                    }
+                )
+                text_count += 1
+
+        type_counter = {}
+        for e in fig_mask:
+            t = e.get("type")
+            type_counter[t] = type_counter.get(t, 0) + 1
+
+        log.info(
+            f"[figure_mask] fig_mask size = {len(fig_mask)}, "
+            f"type distribution = {type_counter}, "
+            f"title_text={text_count}, icons(raw)={icon_count}"
+        )
 
         # 更新 state 的 fig_mask 信息
-        state.fig_mask = items
-        log.info(f"[figure_mask] 共解析出 {len(items)} 个元素")
+        state.fig_mask = fig_mask
+        log.info(f"[figure_mask] 共解析出 {len(fig_mask)} 个元素 (via MinerU HTTP, pixel bbox + raw icons)")
 
         return state
     
@@ -203,78 +403,119 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         """
         把Mask里面的图标去除背景
         """
+        base_dir = Path(_ensure_result_path(state))
+        icons_dir = base_dir / "icons"
+        icons_dir.mkdir(parents=True, exist_ok=True)
+
+        img_cnt = 0
         for item in state.fig_mask:
             if item.get('type') in ['image', 'table']:
+                img_cnt += 1
                 output_path = local_tool_for_bg_remove({
                     "image_path": item.get('img_path'),
                     "model_path": state.request.bg_rm_model,
-                    "output_dir": state.result_path + "/icons"
+                    "output_dir": str(icons_dir)
                 })
                 if output_path:
                     item['img_path'] = output_path
-                log.info(f"{item.get('img_path')} background removed.")
+                    log.info(f"[figure_icon_bg_remover] background removed: {output_path}")
+                else:
+                    log.warning(f"[figure_icon_bg_remover] bg remove failed for {item.get('img_path')}")
+        log.info(f"[figure_icon_bg_remover] processed image/table elements: {img_cnt}")
+
+        return state
 
     async def figure_ppt_generation_node(state: Paper2FigureState) -> Paper2FigureState:
         """
-        基于图片的mask信息生成五页PPT，每一页使用不同的背景色
+        生成单页 PPT：
+        - 页面尺寸与原始带内容图 fig_draft_path 一致
+        - 背景为白色
+        - 底层：根据 layout_items 的 EMF 元素按 bbox 放置
+        - 上层：根据 MinerU 的 fig_mask 元素按原逻辑放置文本/图片/表格
         """
         try:
-            # 从state获取输出目录
-            output_dir = Path(state.result_path)
+            from pptx.util import Emu
+
+            # 从state获取输出目录（若未设置则自动初始化 outputs/paper2figure/<timestamp>）
+            output_dir = Path(_ensure_result_path(state))
             output_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # 生成唯一文件名
             timestamp = int(time.time())
             ppt_filename = f"presentation_{timestamp}.pptx"
             ppt_path = output_dir / ppt_filename
-            state.ppt_path = ppt_path
 
             # 创建Presentation对象
             prs = Presentation()
-            
-            # 设置PPT尺寸
+
+            # 设置PPT尺寸，依据原始带内容图
             img = Image.open(state.fig_draft_path)
             width_px, height_px = img.size
             slide_width_px, slide_height_px = setup_presentation_size(prs, width_px, height_px)
-            
-            # 预定义的五个背景色
-            background_colors = ['#BCE0FE', '#E2F0D9', '#F2F2F2', '#FFF2CC', '#F2DCDB']
-            
-            # 创建五张幻灯片，每张幻灯片使用不同的背景色
-            for i, selected_color in enumerate(background_colors):
-                # 创建单页幻灯片
-                blank_slide_layout = prs.slide_layouts[6]
-                slide = prs.slides.add_slide(blank_slide_layout)
-                
-                # 设置背景色
-                background = slide.background
-                fill = background.fill
-                fill.solid()
-                fill.fore_color.rgb = RGBColor(
-                    int(selected_color[1:3], 16), 
-                    int(selected_color[3:5], 16), 
-                    int(selected_color[5:7], 16)
-                )
-                
-                # 添加所有元素到单页幻灯片
-                for element in state.fig_mask:
-                    elem_type = element.get('type', '')
-                    
-                    if elem_type == 'text':
-                        add_text_element(slide, element)
-                    elif elem_type in ['image', 'table']:
-                        add_image_element(slide, element)
-            
+
+            # 创建单页幻灯片
+            blank_slide_layout = prs.slide_layouts[6]
+            slide = prs.slides.add_slide(blank_slide_layout)
+
+            # 白色背景
+            background = slide.background
+            fill = background.fill
+            fill.solid()
+            fill.fore_color.rgb = RGBColor(255, 255, 255)
+
+            # 1) 先渲染 layout_items (SAM + SVG + EMF 背景层)
+            layout_drawn = 0
+            for item in state.layout_items or []:
+                emf_path = item.get("emf_path")
+                bbox = item.get("bbox")
+                if not emf_path or not bbox:
+                    continue
+
+                if not os.path.exists(emf_path):
+                    log.warning(f"[figure_ppt_generation] emf_path 不存在: {emf_path}")
+                    continue
+
+                x1, y1, x2, y2 = bbox
+                left_px = x1 * slide_width_px
+                top_px = y1 * slide_height_px
+                width_box_px = (x2 - x1) * slide_width_px
+                height_box_px = (y2 - y1) * slide_height_px
+
+                left = Emu(left_px)
+                top = Emu(top_px)
+                width = Emu(width_box_px)
+                height = Emu(height_box_px)
+
+                try:
+                    slide.shapes.add_picture(emf_path, left, top, width, height)
+                    layout_drawn += 1
+                except Exception as e:
+                    log.error(f"[figure_ppt_generation] add_picture EMF 失败: {emf_path}, {e}")
+
+            # 2) 再渲染 MinerU fig_mask（内容层）
+            img_drawn = 0
+            text_drawn = 0
+            for element in state.fig_mask or []:
+                elem_type = element.get('type', '')
+
+                if elem_type == 'text':
+                    add_text_element(slide, element)
+                    text_drawn += 1
+                elif elem_type in ['image', 'table']:
+                    add_image_element(slide, element)
+                    img_drawn += 1
+
             # 保存PPT
             prs.save(str(ppt_path))
             state.ppt_path = ppt_path
             print(f"PPT generated successfully: {ppt_path}")
             print(f"Slide size: {slide_width_px}x{slide_height_px} pixels")
-            print(f"Total elements added: {len(state.fig_mask)}")
-        
+            print(f"Total layout items: {len(state.layout_items)}, drawn: {layout_drawn}")
+            print(f"Total content elements added: {len(state.fig_mask)}, text_drawn={text_drawn}, img_drawn={img_drawn}")
+
         except Exception as e:
             print(f"Error generating PPT: {e}")
-        
+
         return state
 
     # ==============================================================
@@ -294,11 +535,21 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             log.error(f"Invalid input type: {state.request.input_type}")
             return "_end_"
 
+    def _init_result_path(state: Paper2FigureState) -> Paper2FigureState:
+        """
+        _start_ 节点：确保本次 workflow 有一个统一的 result_path 根目录。
+        - 若用户已在 state.result_path 传入自定义目录，则直接使用该目录；
+        - 若未传入，则初始化为 get_project_root()/outputs/paper2figure/<timestamp>。
+        """
+        _ensure_result_path(state)
+        return state
+
     nodes = {
-        '_start_': lambda state: state,
+        '_start_': _init_result_path,
         "paper_idea_extractor": paper_idea_extractor_node,
         "figure_desc_generator": figure_desc_generator_node,
         "figure_generator": figure_generator_node,
+        "figure_layout_sam": figure_layout_sam_node,
         "figure_mask_generator": figure_mask_generator_node,
         "figure_icon_bg_remover": figure_icon_bg_remover_node,
         "figure_ppt_generator": figure_ppt_generation_node,
@@ -311,7 +562,8 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
     edges = [
         ("paper_idea_extractor", "figure_desc_generator"),
         ("figure_desc_generator", "figure_generator"),
-        ("figure_generator", "figure_mask_generator"),
+        ("figure_generator", "figure_layout_sam"),
+        ("figure_layout_sam", "figure_mask_generator"),
         ("figure_mask_generator", "figure_icon_bg_remover"),
         ("figure_icon_bg_remover", "figure_ppt_generator"),
         ("figure_ppt_generator", "_end_"),
@@ -319,103 +571,3 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
 
     builder.add_nodes(nodes).add_edges(edges).add_conditional_edge("_start_", set_entry_node)
     return builder
-
-
-    # async def figure_mask_generator_node(state: Paper2FigureState) -> Paper2FigureState:
-    #     """
-    #     生成Figure进行元素切割，并提取 bbox + image_path 信息。
-    #     """
-
-    #     img_path = Path(state.fig_draft_path)
-    #     if not img_path.exists():
-    #         log.error(f"[figure_mask] fig_draft_path 不存在: {img_path}")
-    #         return state
-
-    #     out_dir = build_output_directory(img_path)
-    #     log.info(f"[figure_mask] MinerU 输出目录: {out_dir}")
-
-    #     # --- 1. 调用 mineru ---
-    #     ok = await run_mineru(img_path, out_dir)
-    #     if not ok:
-    #         return state
-
-    #     # --- 2. 找 JSON ---
-    #     content_json = locate_content_json(out_dir)
-    #     if content_json is None:
-    #         return state
-
-    #     # --- 3. 读取内容并修复路径 ---
-    #     items = load_and_fix_items(content_json, out_dir)
-    #     log.info(f"Layout Detection Info:  {items}")
-    #     state.fig_mask = items
-
-    #     log.info(f"[figure_mask] 共解析出 {len(items)} 个元素")
-    #     return state
-
-    # 假设你的模型路径现在存储在 state.request.sam2_model_path
-    # async def figure_mask_generator_node(state: Paper2FigureState) -> Paper2FigureState:
-    #     """
-    #     生成Figure进行元素切割，保留坐标
-    #     """
-
-    #     # 从state中获取模型路径
-    #     model_path = state.request.sam2_model
-
-    #     # 加载模型
-    #     generator = pipeline("mask-generation", model=model_path, device=0)
-
-    #     # 获取原图路径
-    #     original_image_path = state.fig_draft_path
-
-    #     # 生成掩码
-    #     outputs = generator(original_image_path, points_per_batch=64)
-
-    #     # 加载原图
-    #     original_image = Image.open(original_image_path)
-
-    #     # 创建子图保存的目录
-    #     base_name = os.path.splitext(os.path.basename(original_image_path))[0]  # 去掉文件后缀
-    #     save_dir = os.path.join(os.path.dirname(original_image_path), f"{base_name}_sub_images")
-    #     os.makedirs(save_dir, exist_ok=True)
-
-    #     # 初始化一个空的mask信息列表
-    #     mask_info = []
-    #     valid_mask_count = 0
-
-    #     # 遍历每个掩码，裁剪并保存子图
-    #     for i, mask in enumerate(outputs["masks"]):
-    #         # 转换mask为numpy数组 (binary: 0 and 1)
-    #         mask_array = mask.numpy().astype(np.uint8)
-
-    #         # 获取mask的bounding box（坐标范围）
-    #         y_coords, x_coords = np.where(mask_array == 1)  # 获取掩码区域的所有坐标
-    #         if len(y_coords) == 0 or len(x_coords) == 0:
-    #             continue  # 如果没有找到有效的掩码区域，跳过
-
-    #         # 计算bounding box
-    #         top_left = (x_coords.min(), y_coords.min())  # (x_min, y_min)
-    #         bottom_right = (x_coords.max(), y_coords.max())  # (x_max, y_max)
-
-    #         # 裁剪原图得到子图
-    #         sub_image = original_image.crop((top_left[0], top_left[1], bottom_right[0], bottom_right[1]))
-
-    #         # 保存子图到指定目录
-    #         sub_image_path = os.path.join(save_dir, f"sub_image_{i}.png")
-    #         sub_image.save(sub_image_path)
-
-    #         # 将子图的路径和坐标保存到mask_info
-    #         mask_info.append({
-    #             "sub_image_path": sub_image_path,
-    #             "box_coord": [top_left, bottom_right]
-    #         })
-    #         valid_mask_count += 1
-
-    #     # 将生成的mask信息保存到state.mask_info
-    #     state.mask_info = mask_info
-        
-    #     # 只在关键结果处添加提示信息
-    #     log.info(f"✅ 图像掩码生成完成，共处理 {valid_mask_count}/{len(outputs['masks'])} 个有效掩码")
-    #     log.info(f"📁 子图保存目录: {save_dir}")
-    #     log.info(f"📊 生成的掩码信息数量: {len(mask_info)}")
-
-    #     return state

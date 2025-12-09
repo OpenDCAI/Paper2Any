@@ -23,6 +23,7 @@ from mineru_vl_utils import MinerUClient
 # 1. two_step_extract (sync)
 # ---------------------------------------
 def run_two_step_extract(image_path: str, port: int):
+    """同步调用 MinerU two_step_extract，处理单张图片并返回结构化结果。"""
     image = Image.open(image_path)
     client = MinerUClient(
         backend="http-client",
@@ -35,6 +36,7 @@ def run_two_step_extract(image_path: str, port: int):
 # 2. batch_two_step_extract (sync)
 # ---------------------------------------
 def run_batch_two_step_extract(image_paths: list[str], port: int):
+    """同步批量调用 MinerU two_step_extract，处理多张图片并返回结果列表。"""
     images = [Image.open(p) for p in image_paths]
     client = MinerUClient(
         backend="http-client",
@@ -47,6 +49,7 @@ def run_batch_two_step_extract(image_paths: list[str], port: int):
 # 3. aio_two_step_extract (async)
 # ---------------------------------------
 async def run_aio_two_step_extract(image_path: str, port: int):
+    """异步调用 MinerU two_step_extract，处理单张图片并返回结构化结果。"""
     image = Image.open(image_path)
     client = MinerUClient(
         backend="http-client",
@@ -59,6 +62,7 @@ async def run_aio_two_step_extract(image_path: str, port: int):
 # 4. aio_batch_two_step_extract (async)
 # ---------------------------------------
 async def run_aio_batch_two_step_extract(image_paths: list[str], port: int):
+    """异步批量调用 MinerU two_step_extract，处理多张图片并返回结果列表。"""
     images = [Image.open(p) for p in image_paths]
     client = MinerUClient(
         backend="http-client",
@@ -217,6 +221,7 @@ def crop_mineru_blocks_with_meta(
 
 def svg_to_emf(svg_path: str, emf_path: str) -> str:
     """
+    使用 Inkscape 将 SVG 文件转换为 EMF 矢量图，返回生成的 EMF 路径。
     使用 Inkscape 将 SVG 转换为 EMF 矢量图。
 
     依赖

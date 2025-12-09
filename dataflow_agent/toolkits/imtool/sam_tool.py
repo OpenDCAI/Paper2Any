@@ -1028,6 +1028,60 @@ def save_sam_instances(
     return saved_paths
 
 
+def segment_layout_boxes(
+    image_path: str,
+    output_dir: str,
+    checkpoint: str = "sam_b.pt",
+    device: str = "cuda",
+    min_area: int = 0,
+    min_score: float = 0.0,
+    iou_threshold: float = 0.5,
+    top_k: Optional[int] = None,
+    nms_by: str = "bbox",
+) -> List[Dict[str, Any]]:
+    """
+    针对空框模板图做 SAM 分割，过滤 + NMS + 裁剪，返回每个框的 bbox + patch PNG 路径。
+
+    该函数主要服务于 paper2figure_with_sam 工作流中的“背景框架层”生成：
+    - 输入为二次编辑后的空框模板图（fig_layout_path）；
+    - 不关心具体语义，只需要稳定的矩形/箭头布局；
+    - 输出 items 将在后续被转换为 SVG / EMF 并按 bbox 映射回 PPT。
+    """
+    # 1) SAM 自动分割
+    items = run_sam_auto(image_path, checkpoint=checkpoint, device=device)
+
+    # 2) 过滤 + NMS + Top-K
+    items = postprocess_sam_items(
+        items,
+        min_area=min_area,
+        min_score=min_score,
+        iou_threshold=iou_threshold,
+        top_k=top_k,
+        nms_by=nms_by,
+        score_key_for_nms="score",
+        sort_key_for_topk="area",
+    )
+
+    # 3) 将每个实例按 bbox 裁剪为 PNG 小图
+    saved_paths = save_sam_instances(
+        image_path=image_path,
+        items=items,
+        output_dir=output_dir,
+        prefix="layout_",
+        mode="bbox",
+    )
+
+    # 4) 绑定 png_path & type
+    for i, p in enumerate(saved_paths):
+        if i >= len(items):
+            break
+        items[i]["png_path"] = p
+        # 标记为布局框，和 MinerU 的 type 区分开
+        items[i]["type"] = "layout_box"
+
+    return items
+
+
 # -----------------------------------------------------------------------------
 # 6. Simple demo main for quick testing
 # -----------------------------------------------------------------------------
