@@ -47,12 +47,14 @@ from dataflow_agent.utils import (
     add_text_element,
     setup_presentation_size,
     get_project_root,
+    pixels_to_inches,
 )
 
 from pathlib import Path
 import time, random
 from pptx import Presentation
 from pptx.dml.color import RGBColor 
+from pptx.util import Inches
 
 
 log = get_logger(__name__)
@@ -218,6 +220,11 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         针对二次编辑后的空框模板图 (fig_layout_path) 进行:
         SAM 自动分割 -> 过滤 -> 裁剪子图 -> PNG->SVG->EMF，
         结果写入 state.layout_items，仅作为 PPT 背景框架层。
+
+        注意：
+        - segment_layout_boxes 返回的 bbox 是基于 layout 图像尺寸的归一化坐标 [0,1]；
+        - 这里显式转换一份像素坐标 bbox_px，后面插入 PPT 时统一按像素 → 英寸 → Emu 的规则处理，
+          和 add_image_element / add_text_element 的坐标系保持一致，避免 EMF 位置/尺寸错乱导致“看不到”的问题。
         """
         img_path = Path(state.fig_layout_path)
         if not img_path.exists():
@@ -240,11 +247,32 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             nms_by="bbox",
         )
 
-        # 2. 每个 layout PNG 转 SVG -> EMF
+        # layout 图实际像素尺寸，用于把归一化 bbox 转为像素 bbox
+        try:
+            layout_img = Image.open(str(img_path))
+            layout_w, layout_h = layout_img.size
+        except Exception as e:
+            log.error(f"[figure_layout_sam] 打开 layout 图失败: {e}")
+            layout_w, layout_h = 1024, 1024  # 兜底，和默认 slide 尺寸一致
+
+        # 2. 每个 layout PNG 转 SVG -> EMF，并补充像素坐标 bbox_px
         for idx, it in enumerate(layout_items):
             png_path = it.get("png_path")
             if not png_path:
                 continue
+
+            # 将归一化 bbox 映射到像素坐标，和 fig_mask 的像素 bbox 保持一致
+            bbox = it.get("bbox")
+            if bbox and len(bbox) == 4:
+                x1n, y1n, x2n, y2n = bbox
+                x1 = int(round(x1n * layout_w))
+                y1 = int(round(y1n * layout_h))
+                x2 = int(round(x2n * layout_w))
+                y2 = int(round(y2n * layout_h))
+                if x2 > x1 and y2 > y1:
+                    it["bbox_px"] = [x1, y1, x2, y2]
+                else:
+                    log.warning(f"[figure_layout_sam] 无效 bbox: {bbox} -> 像素 [{x1},{y1},{x2},{y2}]")
 
             svg_path = out_dir / f"layout_{idx}.svg"
             svg_abs = local_tool_for_raster_to_svg(
@@ -268,6 +296,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
 
         state.layout_items = layout_items
         log.info(f"[figure_layout_sam] 共生成 {len(layout_items)} 个布局元素")
+        log.info(f'state.layout_items : {state.layout_items}')
         return state
 
     async def figure_mask_generator_node(state: Paper2FigureState) -> Paper2FigureState:
@@ -428,14 +457,15 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
     async def figure_ppt_generation_node(state: Paper2FigureState) -> Paper2FigureState:
         """
         生成单页 PPT：
-        - 页面尺寸与原始带内容图 fig_draft_path 一致
-        - 背景为白色
-        - 底层：根据 layout_items 的 EMF 元素按 bbox 放置
-        - 上层：根据 MinerU 的 fig_mask 元素按原逻辑放置文本/图片/表格
+        - 第 1 页：原始组合页（layout EMF + MinerU 文本 + 图像）
+        - 第 2 页：仅渲染所有 layout_items 的 EMF，用于检查 SAM 框架
+
+        关键点：
+        - layout_items 在 figure_layout_sam_node 中已经给出了像素坐标 bbox_px；
+        - 这里完全沿用 add_text_element / add_image_element 使用的“像素 → 英寸 → Emu”规则，
+          确保 EMF 背景框和内容层在同一几何坐标系下，避免因为单位不一致导致 EMF 肉眼不可见。
         """
         try:
-            from pptx.util import Emu
-
             # 从state获取输出目录（若未设置则自动初始化 outputs/paper2figure/<timestamp>）
             output_dir = Path(_ensure_result_path(state))
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -453,12 +483,62 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             width_px, height_px = img.size
             slide_width_px, slide_height_px = setup_presentation_size(prs, width_px, height_px)
 
-            # 创建单页幻灯片
+            # 空白布局
             blank_slide_layout = prs.slide_layouts[6]
-            slide = prs.slides.add_slide(blank_slide_layout)
+
+            def _add_layout_emf(slide, item) -> bool:
+                """
+                将 layout_item 中的 EMF 按像素 bbox 放到 slide 上，坐标逻辑与 add_image_element 保持一致。
+                返回是否成功绘制。
+                """
+                emf_path = item.get("emf_path")
+                if not emf_path or not os.path.exists(emf_path):
+                    if emf_path:
+                        log.warning(f"[figure_ppt_generation] emf_path 不存在: {emf_path}")
+                    return False
+
+                # 优先使用像素 bbox_px，其次退回原始 bbox（假定已是像素坐标）
+                bbox = item.get("bbox_px") or item.get("bbox")
+                if not bbox or len(bbox) != 4:
+                    log.warning(f"[figure_ppt_generation] layout_item 缺少有效 bbox: {item}")
+                    return False
+
+                x1, y1, x2, y2 = bbox
+                if x2 <= x1 or y2 <= y1:
+                    log.warning(f"[figure_ppt_generation] 非法 bbox 像素坐标: {bbox}")
+                    return False
+
+                # 像素 → 英寸，完全沿用 utils.pixels_to_inches 的规则
+                left_in = pixels_to_inches(x1)
+                top_in = pixels_to_inches(y1)
+                width_in = pixels_to_inches(x2 - x1)
+                height_in = pixels_to_inches(y2 - y1)
+
+                log.info(f"[figure_ppt_generation] 添加 EMF：")
+                log.info(f"  bbox 像素: [{x1}, {y1}, {x2}, {y2}]")
+                log.info(f"  英寸坐标: left={left_in:.2f}, top={top_in:.2f}, width={width_in:.2f}, height={height_in:.2f}")
+                log.info(f"  emf_path: {emf_path}")
+
+                try:
+                    slide.shapes.add_picture(
+                        emf_path,
+                        Inches(left_in),
+                        Inches(top_in),
+                        Inches(width_in),
+                        Inches(height_in),
+                    )
+                    return True
+                except Exception as e:
+                    log.error(f"[figure_ppt_generation] add_picture EMF 失败: {emf_path}, {e}")
+                    return False
+
+            # =========================
+            # 第 1 页：完整组合页
+            # =========================
+            slide_main = prs.slides.add_slide(blank_slide_layout)
 
             # 白色背景
-            background = slide.background
+            background = slide_main.background
             fill = background.fill
             fill.solid()
             fill.fore_color.rgb = RGBColor(255, 255, 255)
@@ -466,31 +546,8 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             # 1) 先渲染 layout_items (SAM + SVG + EMF 背景层)
             layout_drawn = 0
             for item in state.layout_items or []:
-                emf_path = item.get("emf_path")
-                bbox = item.get("bbox")
-                if not emf_path or not bbox:
-                    continue
-
-                if not os.path.exists(emf_path):
-                    log.warning(f"[figure_ppt_generation] emf_path 不存在: {emf_path}")
-                    continue
-
-                x1, y1, x2, y2 = bbox
-                left_px = x1 * slide_width_px
-                top_px = y1 * slide_height_px
-                width_box_px = (x2 - x1) * slide_width_px
-                height_box_px = (y2 - y1) * slide_height_px
-
-                left = Emu(left_px)
-                top = Emu(top_px)
-                width = Emu(width_box_px)
-                height = Emu(height_box_px)
-
-                try:
-                    slide.shapes.add_picture(emf_path, left, top, width, height)
+                if _add_layout_emf(slide_main, item):
                     layout_drawn += 1
-                except Exception as e:
-                    log.error(f"[figure_ppt_generation] add_picture EMF 失败: {emf_path}, {e}")
 
             # 2) 再渲染 MinerU fig_mask（内容层）
             img_drawn = 0
@@ -499,19 +556,34 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
                 elem_type = element.get('type', '')
 
                 if elem_type == 'text':
-                    add_text_element(slide, element)
+                    add_text_element(slide_main, element)
                     text_drawn += 1
                 elif elem_type in ['image', 'table']:
-                    add_image_element(slide, element)
+                    add_image_element(slide_main, element)
                     img_drawn += 1
+
+            # =========================
+            # 第 2 页：仅 EMF 调试页
+            # =========================
+            slide_emf = prs.slides.add_slide(blank_slide_layout)
+            bg2 = slide_emf.background
+            fill2 = bg2.fill
+            fill2.solid()
+            fill2.fore_color.rgb = RGBColor(255, 255, 255)
+
+            layout_debug_drawn = 0
+            for item in state.layout_items or []:
+                if _add_layout_emf(slide_emf, item):
+                    layout_debug_drawn += 1
 
             # 保存PPT
             prs.save(str(ppt_path))
             state.ppt_path = ppt_path
             print(f"PPT generated successfully: {ppt_path}")
             print(f"Slide size: {slide_width_px}x{slide_height_px} pixels")
-            print(f"Total layout items: {len(state.layout_items)}, drawn: {layout_drawn}")
-            print(f"Total content elements added: {len(state.fig_mask)}, text_drawn={text_drawn}, img_drawn={img_drawn}")
+            print(f"[MAIN] Total layout items: {len(state.layout_items)}, drawn: {layout_drawn}")
+            print(f"[MAIN] Total content elements added: {len(state.fig_mask)}, text_drawn={text_drawn}, img_drawn={img_drawn}")
+            print(f"[EMF_ONLY] layout items drawn: {layout_debug_drawn}")
 
         except Exception as e:
             print(f"Error generating PPT: {e}")
