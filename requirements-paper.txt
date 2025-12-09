@@ -20,3 +20,6 @@ timm
 
 cairosvg
 vtracer
+ultralytics
+transformers
+scikit-image
