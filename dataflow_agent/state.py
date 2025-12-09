@@ -343,10 +343,11 @@ class PlanningState(MainState):
 
 @dataclass
 class Paper2FigureRequest(MainRequest):
-    gen_fig_model: str = "gemini-2.5-flash-image-preview",
-    # gen_fig_model: str = "gemini-3-pro-image-preview",
+    gen_fig_model: str = "gemini-2.5-flash-image-preview"
+    # gen_fig_model: str = "gemini-3-pro-image-preview"
     sam2_model: str = "models/facebook/sam2.1-hiera-tiny"
     bg_rm_model: str = "models/RMBG-2.0"
+    input_type: str = "PDF"
 
 @dataclass
 class Paper2FigureState(MainState):
@@ -354,8 +355,14 @@ class Paper2FigureState(MainState):
     fig_desc: str = ''
     aspect_ratio: str = '16:9'
     paper_file: str = ''
+    # 原始带内容的图像路径
     fig_draft_path: str = ''
-    fig_mask: List[Dict[str, Any]] = field(default_factory=dict)
+    # MinerU 解析得到的内容元素（文本 / 图片 / 表格等）
+    fig_mask: List[Dict[str, Any]] = field(default_factory=list)
+    # 二次编辑后的空框模板图（仅外层矩形和箭头）
+    fig_layout_path: str = ''
+    # SAM + SVG + EMF 形成的布局元素（仅背景框架层）
+    layout_items: List[Dict[str, Any]] = field(default_factory=list)
     result_path: str = ''
     ppt_path: str = ''
     mask_detail_level: int = 2
@@ -372,4 +379,4 @@ class Paper2FigureState(MainState):
     # 带文字版本的svg图片
     svg_full_img_path: str = "" 
     # 背景svg code：
-    svg_bg_code : str = "" 
+    svg_bg_code : str = ""
