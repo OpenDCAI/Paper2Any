@@ -174,7 +174,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         result_root.mkdir(parents=True, exist_ok=True)
 
         # 1) 生成带内容的图，直接存到 result_root
-        fig_name = f"fig_{int(time.time())}.jpg"
+        fig_name = f"fig_{int(time.time())}.png"
         save_path = str(result_root / fig_name)
 
         await generate_or_edit_and_save_image_async(
@@ -198,7 +198,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             "Output a description of an empty template composed of these boxes."
         )
 
-        layout_name = f"layout_{int(time.time())}.jpg"
+        layout_name = f"layout_{int(time.time())}.png"
         layout_save_path = str(result_root / layout_name)
         await generate_or_edit_and_save_image_async(
             prompt=TEMPLATE_EDIT_PROMPT,
