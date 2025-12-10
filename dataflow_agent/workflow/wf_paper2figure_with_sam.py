@@ -239,6 +239,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         layout_items = segment_layout_boxes(
             image_path=str(img_path),
             output_dir=str(out_dir),
+            checkpoint= f'{get_project_root()}/sam_b.pt',
             # 这里的参数可以根据 mask_detail_level 调整
             min_area=200,
             min_score=0.0,

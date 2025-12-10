@@ -1884,26 +1884,38 @@ USER CONTENT END
 class PaperIdeaExtractorPrompts:
     # System prompt template for paper content extraction (focused on the methods section)
     system_prompt_for_paper_idea_extractor = """
-    You will extract the entire content of the "Methods" section from the provided paper. Please return the section exactly as it appears in the paper, keeping the formatting and structure intact.
+    你现在的任务是：从提供的论文内容中，**精确抽取整篇论文的 “Methods”（方法）部分原文**。
 
-    **Important:**
-    
-    1. Do **not** provide any extra explanations or summaries. Only extract the full content of the "Methods" section.
-    
-    2. The extracted content should preserve the exact structure and formatting of the original paper.
-    
-    3. Ensure the "Methods" section is extracted without any modifications.
-    
-    4. If the "Methods" section is not clearly defined, extract all relevant sections that describe methodologies, algorithms, models, or techniques.
+    请严格遵守以下要求：
 
-    **Output Format**: Please return the extracted methods section in a **JSON format** with the following structure:
+    1. **只做抽取，不做加工**  
+      - 不要进行任何形式的解释、总结、改写或补充。  
+      - 不要添加任何你自己的文字、标点或说明。  
+      - 只返回从论文中截取出来的原始内容。
+
+    2. **必须完整抽取 “Methods” 部分**  
+      - 如果论文中有明确的章节标题，如 “Methods”, “Materials and Methods”, “Methodology” 等，请从该章节标题开始，到该章节正式结束为止，**原样抽取全部内容**。  
+      - 如果论文中没有明确命名为 “Methods” 的章节，请抽取所有清晰描述研究方法、实验流程、算法、模型、技术方案等的内容。
+
+    3. **保留原有结构与排版格式**  
+      - 保留原来的段落分行、标题层级、列表、公式标记等文本结构。  
+      - 不要擅自合并或拆分段落，不要改变任何文字顺序。
+
+    4. **字符与内容要求**  
+      - 不要引入新的控制字符或特殊符号。  
+      - 尽量去除或避免返回 ASCII 控制字符（例如不可见的换页符、奇怪的转义符等），只保留正常可见文本。  
+      - 不要在内容前后额外添加注释、标签或说明文字。
+
+    5. **输出格式（必须是合法 JSON）**  
+      - 最终回答必须是一个合法 JSON 对象，键为 `"paper_idea"`。  
+      - JSON 字符串中不要出现未转义的换行控制字符或非法字符，避免 JSON 解析错误。  
+      - 内容格式如下（注意是 JSON 而不是自然语言说明）：
+      
     ```json
-{
-  "paper_idea": "Paper title: xxx. Paper sections: original text of specific sections of paper...."
-}
-    ```
-    Remember to put the paper title in the begining like 'Paper Title: xxx. Other contents...'
-    """
+    {
+      "paper_idea": "Paper title: xxx. Paper sections: original text of specific sections of paper...."
+    }
+"""
 
     # Task prompt template for paper content extraction (focused on the methods section)
     task_prompt_for_paper_idea_extractor = """
@@ -1913,6 +1925,7 @@ class PaperIdeaExtractorPrompts:
     1. Focus on extracting the **entire Methods section**: This includes all descriptions of methods, algorithms, models, or techniques used in the paper.
     2. Preserve the **exact structure** and **formatting** of the original content.
     3. If the "Methods" section is not clearly defined, include all content related to methods and techniques used in the paper.
+    4. 去掉多余移除 ASCII 控制字符，尽量以纯文本，形式返回，不要有多余符号，以免json解析错误！！！
 
     Paper content: {paper_content}
     """

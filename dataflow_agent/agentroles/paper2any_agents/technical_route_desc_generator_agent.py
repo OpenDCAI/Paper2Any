@@ -60,7 +60,9 @@ class TechnicalRouteDescGenerator(BaseAgent):
         """
         # TODO: 按需补充
         return {
-            "paper_idea": pre_tool_results.get("paper_idea", "")
+            "paper_idea": pre_tool_results.get("paper_idea", ""), 
+            "style": pre_tool_results.get("style", ""),
+            "lang": self.state.request.language
         }
 
     def get_default_pre_tool_results(self) -> Dict[str, Any]:
