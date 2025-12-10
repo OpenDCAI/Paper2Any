@@ -29,7 +29,7 @@ from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 
 from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
-from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove
+from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove_batch
 from dataflow_agent.agentroles import create_graph_agent
 
 import re, pdfplumber, PyPDF2, time, shutil, fitz
@@ -39,6 +39,7 @@ from PIL import Image
 from dataflow_agent.utils import (
     build_output_directory,
     recursive_run_mineru,
+    recursive_run_mineru_http,
     add_image_element,
     add_text_element,
     setup_presentation_size,
@@ -48,6 +49,7 @@ from pathlib import Path
 import time, random
 from pptx import Presentation
 from pptx.dml.color import RGBColor 
+from pptx.util import Inches, Pt
 
 
 log = get_logger(__name__)
@@ -165,7 +167,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             save_path=save_path,
             aspect_ratio = state.aspect_ratio,
             api_url=state.request.chat_api_url,
-            api_key=os.getenv("DF_API_KEY") if os.getenv("DF_API_KEY")=="" else state.request.chat_api_key, 
+            api_key=state.request.api_key, 
             model=state.request.gen_fig_model,
             image_path=image_path,
             use_edit= True if image_path else False
@@ -191,35 +193,62 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
 
         # 1. 调用递归的 mineru 处理，获取元素列表
         print("mask detail level", state.mask_detail_level)
-        items = await recursive_run_mineru(img_path, out_dir, state.mask_detail_level)
+        items = await recursive_run_mineru_http(img_path, out_dir, port=state.mineru_port, max_depth=state.mask_detail_level)
 
         # 更新 state 的 fig_mask 信息
         state.fig_mask = items
         log.info(f"[figure_mask] 共解析出 {len(items)} 个元素")
+        log.info(f"{json.dumps(items,indent=2)}")
+        with open(out_dir / "mineru_result.json", "w", encoding="utf-8") as f:
+            json.dump(items, f, indent=2, ensure_ascii=False)
 
         return state
     
     async def figure_icon_bg_remover_node(state: Paper2FigureState) -> Paper2FigureState:
         """
-        把Mask里面的图标去除背景
+        批量去除 Mask 中 image/table 元素的背景。
+        使用 local_tool_for_bg_remove_batch 进行一次性处理。
         """
+
+        # ---- 收集所有需要处理的图片路径（保持顺序） ----
+        img_items = []
+        image_path_list = []
+
         for item in state.fig_mask:
-            if item.get('type') in ['image', 'table']:
-                output_path = local_tool_for_bg_remove({
-                    "image_path": item.get('img_path'),
-                    "model_path": state.request.bg_rm_model,
-                    "output_dir": state.result_path + "/icons"
-                })
-                if output_path:
-                    item['img_path'] = output_path
-                log.info(f"{item.get('img_path')} background removed.")
+            if item.get("type") in ["image", "table"] and item.get("img_path"):
+                img_items.append(item)
+                image_path_list.append(item["img_path"])
+
+        # 若没有图片需要处理，直接返回
+        if not image_path_list:
+            log.info("[figure_icon_bg_remover] No images to remove background.")
+            return state
+
+        log.info(f"[figure_icon_bg_remover] Batch removing background for {len(image_path_list)} images")
+
+        # ---- 调用 batch 背景去除接口 ----
+        output_list = local_tool_for_bg_remove_batch({
+            "image_path_list": image_path_list,
+            "model_path": state.request.bg_rm_model,
+            "output_dir": state.result_path + "/icons"
+        })
+
+        # ---- 回写结果 ----
+        for item, out_path in zip(img_items, output_list):
+            if out_path:
+                item["img_path"] = out_path
+                log.info(f"[figure_icon_bg_remover] BG removed → {out_path}")
+
+        return state
 
     async def figure_ppt_generation_node(state: Paper2FigureState) -> Paper2FigureState:
         """
-        基于图片的mask信息生成五页PPT，每一页使用不同的背景色
+        基于图片的mask信息生成PPT：
+        - 第1页：Mask 重建后的布局内容
+        - 第2页：只放一张 fig_draft 大图（满屏）
         """
         try:
-            # 从state获取输出目录
+            # 输出目录
             output_dir = Path(state.result_path)
             output_dir.mkdir(parents=True, exist_ok=True)
             
@@ -231,63 +260,90 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
 
             # 创建Presentation对象
             prs = Presentation()
-            
+
             # 设置PPT尺寸
             img = Image.open(state.fig_draft_path)
             width_px, height_px = img.size
             slide_width_px, slide_height_px = setup_presentation_size(prs, width_px, height_px)
-            
-            # 预定义的五个背景色
+
+            # -------------------------
+            # 📌 第 1 页：Mask 重建内容
+            # -------------------------
             background_colors = ['#BCE0FE', '#E2F0D9', '#F2F2F2', '#FFF2CC', '#F2DCDB']
-            
-            # 创建五张幻灯片，每张幻灯片使用不同的背景色
-            for i, selected_color in enumerate(background_colors):
-                # 创建单页幻灯片
-                blank_slide_layout = prs.slide_layouts[6]
-                slide = prs.slides.add_slide(blank_slide_layout)
-                
-                # 设置背景色
-                background = slide.background
-                fill = background.fill
-                fill.solid()
-                fill.fore_color.rgb = RGBColor(
-                    int(selected_color[1:3], 16), 
-                    int(selected_color[3:5], 16), 
-                    int(selected_color[5:7], 16)
-                )
-                
-                # 添加所有元素到单页幻灯片
-                for element in state.fig_mask:
-                    elem_type = element.get('type', '')
-                    
-                    if elem_type == 'text':
-                        add_text_element(slide, element)
-                    elif elem_type in ['image', 'table']:
-                        add_image_element(slide, element)
-            
-            # 保存PPT
+            selected_color = random.choice(background_colors)
+
+            blank_slide_layout = prs.slide_layouts[6]
+            slide = prs.slides.add_slide(blank_slide_layout)
+
+            # 设置背景色
+            background = slide.background
+            fill = background.fill
+            fill.solid()
+            fill.fore_color.rgb = RGBColor(
+                int(selected_color[1:3], 16), 
+                int(selected_color[3:5], 16), 
+                int(selected_color[5:7], 16)
+            )
+
+            # 添加解析出的元素到第一页
+            for element in state.fig_mask:
+                elem_type = element.get('type', '')
+                if elem_type == 'text':
+                    add_text_element(slide, element)
+                elif elem_type in ['image', 'table']:
+                    add_image_element(slide, element)
+
+            # -------------------------
+            # 📌 第 2 页：只插入 fig_draft 原图
+            # -------------------------
+            slide2 = prs.slides.add_slide(blank_slide_layout)
+
+            draft_img_path = state.fig_draft_path
+            draft_img = Image.open(draft_img_path)
+            draft_w, draft_h = draft_img.size
+
+            # 页面大小（英寸转换 px 已在 setup 中确定）
+            page_w = prs.slide_width
+            page_h = prs.slide_height
+
+            # 计算缩放以适配页面（保持比例）
+            ratio_w = page_w / Inches(draft_w / 96)
+            ratio_h = page_h / Inches(draft_h / 96)
+            ratio = min(ratio_w, ratio_h)
+
+            # 转换为最终尺寸
+            final_w = Inches(draft_w / 96) * ratio
+            final_h = Inches(draft_h / 96) * ratio
+
+            left = (page_w - final_w) / 2
+            top = (page_h - final_h) / 2
+
+            slide2.shapes.add_picture(str(draft_img_path), left, top, width=final_w, height=final_h)
+
+            # -------------------------
+            # 保存 PPT
+            # -------------------------
             prs.save(str(ppt_path))
-            state.ppt_path = ppt_path
             print(f"PPT generated successfully: {ppt_path}")
-            print(f"Slide size: {slide_width_px}x{slide_height_px} pixels")
+            print(f"Slide size: {slide_width_px}x{slide_height_px} px")
             print(f"Total elements added: {len(state.fig_mask)}")
-        
+
         except Exception as e:
             print(f"Error generating PPT: {e}")
-        
+
         return state
 
     # ==============================================================
     # 注册 nodes / edges
     # ==============================================================
     def set_entry_node(state: Paper2FigureState) -> str:
-        if(state.request.input_type == "PDF"):
+        if(state.input_type == "PDF"):
             log.critical(f'进入PDF node ......')
             return "paper_idea_extractor"
-        elif(state.request.input_type == "TEXT"):
+        elif(state.input_type == "TEXT"):
             log.critical(f'进入TEXT node ......')
             return "figure_desc_generator"
-        elif(state.request.input_type == "FIGURE"):
+        elif(state.input_type == "FIGURE"):
             log.critical(f'进入FIGURE node ......')
             return "figure_mask_generator"
         else:
@@ -314,6 +370,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         ("figure_generator", "figure_mask_generator"),
         ("figure_mask_generator", "figure_icon_bg_remover"),
         ("figure_icon_bg_remover", "figure_ppt_generator"),
+        # ("figure_mask_generator", "figure_ppt_generator"),
         ("figure_ppt_generator", "_end_"),
     ]
 

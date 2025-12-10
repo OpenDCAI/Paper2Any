@@ -348,6 +348,8 @@ class Paper2FigureRequest(MainRequest):
     sam2_model: str = "models/facebook/sam2.1-hiera-tiny"
     bg_rm_model: str = "models/RMBG-2.0"
     input_type: str = "PDF"
+    #  科研绘图复杂度    
+    figure_complex: str = "complex"
 
 @dataclass
 class Paper2FigureState(MainState):
@@ -373,6 +375,7 @@ class Paper2FigureState(MainState):
     # 技术路线图使用属性 ==============================
     figure_tec_svg_content: str = ""
     svg_img_path: str = ""
+    mineru_port: int = 8001
     svg_file_path: str = "" # svg 带文字图的 地址
     svg_bg_file_path: str = ""
     # 带文字版本的svg图片

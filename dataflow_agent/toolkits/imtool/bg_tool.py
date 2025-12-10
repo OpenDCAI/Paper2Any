@@ -166,6 +166,44 @@ class BriaRMBG2Remover:
         print(f"抠图完成: {out_path}")
         return str(out_path)
 
+    def remove_background_batch(self, image_paths: list[str]) -> list[str]:
+        """
+        批量背景去除（一次加载模型，逐张处理）
+        返回输出文件路径列表
+        """
+        results = []
+
+        for image_path in image_paths:
+            image_path = Path(image_path)
+            print(f"[Batch] 开始抠图: {image_path}")
+
+            # Load image
+            image = Image.open(image_path).convert("RGB")
+            input_tensor = self.transform_image(image).unsqueeze(0).to(self.device)
+
+            # Predict mask
+            with torch.no_grad():
+                preds = self.model(input_tensor)[-1].sigmoid().cpu()
+
+            pred = preds[0].squeeze()
+            pred_pil = transforms.ToPILImage()(pred)
+
+            # Resize mask back to original size
+            mask = pred_pil.resize(image.size)
+
+            # Apply alpha mask
+            out = image.copy()
+            out.putalpha(mask)
+
+            # Save output
+            out_path = self.output_dir / f"{image_path.stem}_bg_removed.png"
+            out.save(out_path)
+
+            print(f"[Batch] 抠图完成: {out_path}")
+            results.append(str(out_path))
+
+        return results
+
 
 # class BriaRMBG2Remover:
 #     """使用 BRIA-RMBG 2.0 模型进行高质量抠图"""
@@ -228,6 +266,13 @@ def local_tool_for_bg_remove(req: dict) -> str:
         output_dir=req.get("output_dir"),
     )
     return remover.remove_background(req["image_path"])
+
+def local_tool_for_bg_remove_batch(req: dict) -> str:
+    """暴露统一接口"""
+    remover = BriaRMBG2Remover(
+        model_path=req.get("model_path"), output_dir=req.get("output_dir")
+    )
+    return remover.remove_background_batch(req["image_path_list"])
 
 
 def get_bg_remove_desc(lang: str = "zh") -> str:

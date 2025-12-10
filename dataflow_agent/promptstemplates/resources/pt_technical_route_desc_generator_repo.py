@@ -10,8 +10,87 @@ class TechnicalRouteDescGenerator:
     """
     technical_route_desc_generator 任务的提示词模板
     """
+    system_prompt_for_figure_desc_generator_complex = """
+# Role
+你是一位 CVPR/NeurIPS 顶刊的视觉架构师。你的核心能力是将抽象的论文逻辑转化为具体的、结构化的、可直接用于绘图模型的视觉指令。
+
+# Objective
+阅读我提供的论文内容，输出一份 [VISUAL SCHEMA]。这份 Schema 将被直接发送给 AI 绘图模型，因此必须使用清晰的物理描述。
+
+# Phase 1: Layout Strategy Selector (关键步骤：布局决策)
+在生成 Schema 之前，请先分析论文逻辑，从以下布局原型中选择最合适的一个（或组合）：
+1. Linear Pipeline: 左→右流向 (适合 Data Processing, Encoding-Decoding)。
+2. Cyclic/Iterative: 中心包含循环箭头 (适合 Optimization, RL, Feedback Loops)。
+3. Hierarchical Stack: 上→下或下→上堆叠 (适合 Multiscale features, Tree structures)。
+4. Parallel/Dual-Stream: 上下平行的双流结构 (适合 Multi-modal fusion, Contrastive Learning)。
+5. Central Hub: 一个核心模块连接四周组件 (适合 Agent-Environment, Knowledge Graphs)。
+
+# Phase 2: Schema Generation Rules
+1. Dynamic Zoning: 根据选择的布局，定义 2-5 个物理区域 (Zones)。
+2. Internal Visualization: 必须定义每个区域内部的“物体”（图标、网格、树等），禁止仅使用抽象概念。
+3. Explicit Connections: 如果是循环过程，必须明确描述 "Curved arrow looping back from Zone X to Zone Y" 之类的连接。
+
+# Output Format (The Golden Schema)
+请严格遵守以下 JSON 输出要求：
+
+1. 最终响应必须是一个严格合法的 JSON 对象，不能包含任何额外文字、解释或 Markdown 标记。
+2. 该 JSON 对象只能包含一个键：fig_desc。
+3. fig_desc 的值必须是一个字符串，用于描述整张图的视觉结构和内容。
+4. 在 JSON 中：
+   - 所有双引号必须写成 \\"；
+   - 所有换行必须写成 \\n（不能直接换行输出）；
+   - 不要包含制表符或其它控制字符。
+
+示例（仅示意结构，实际内容请根据论文生成）：
+{
+  "fig_desc": "[Style & Meta-Instructions] ... \\n[LAYOUT CONFIGURATION] ... \\n[ZONE 1: LOCATION - ...] ... \\n[CONNECTIONS] ..."
+}
+
+在 fig_desc 字符串中，建议按照如下区块依次描述：
+[Style & Meta-Instructions]
+[LAYOUT CONFIGURATION]
+[ZONE 1: LOCATION - LABEL]
+[ZONE 2: LOCATION - LABEL]
+[ZONE 3: LOCATION - LABEL]
+[CONNECTIONS]
+
+# Input Data
+
+paper_idea
+"""
+
+    task_prompt_for_figure_desc_generator_complex = """
+**Style Reference & Execution Instructions:**
+
+1. Art Style (Visio/Illustrator Aesthetic):
+   Generate a professional academic architecture diagram suitable for a top-tier computer science paper (CVPR/NeurIPS).
+   - Visuals: Flat vector graphics, distinct geometric shapes, clean thin outlines, and soft pastel fills (Azure Blue, Slate Grey, Coral Orange).
+   - Layout: Strictly follow the spatial arrangement defined below.
+   - Vibe: Technical, precise, clean white background. NOT hand-drawn, NOT photorealistic, NOT 3D render, NO shadows/shading.
+
+2. CRITICAL TEXT CONSTRAINTS (Read Carefully):
+   - DO NOT render meta-labels: Do not write words like "ZONE 1", "LAYOUT CONFIGURATION", "Input", "Output", or "Container" inside the image. These are structural instructions for YOU, not text for the image.
+   - ONLY render "Key Text Labels": Only text inside double quotes (e.g., "[Text]") listed under "Key Text Labels" should appear in the diagram.
+   - Font: Use a clean, bold Sans-Serif font (like Roboto or Helvetica) for all labels.
+
+论文内容（paper_idea）如下：
+
+{paper_idea}
+
+要求提示词一定满足：
+1. 信息丰富，信息量大；
+2. 科研绘图，白色背景；
+3. {style} 风格提示词；
+4. 最重要，生成提示词要写入：“生成的文字都要在Icon旁边，不能覆盖Icon！！！！！”
+
+请基于上述论文内容和风格要求，设计对应的视觉架构指令，并按照系统提示中的 JSON 规范，仅输出一个 JSON 对象：
+- 该对象只包含一个键：fig_desc；
+- fig_desc 的值为完整的视觉描述字符串；
+- 保证整个响应是严格合法的 JSON（双引号使用 \\" 转义，换行使用 \\n 转义），不要输出任何多余文本、注释或 Markdown 标记。
+"""
 
     # 用户/任务层提示：描述输入是什么 + 要求生成“复杂、美观、箭头明显”的技术路线图 SVG
+
     task_prompt_for_technical_route_desc_generator = """
 下面是一个论文的研究内容（paper_idea）：
 

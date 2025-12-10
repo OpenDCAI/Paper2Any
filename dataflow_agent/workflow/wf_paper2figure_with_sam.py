@@ -140,7 +140,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         """
         提取论文的关键贡献点
         """
-        paper_idea_extractor = create_graph_agent("paper_idea_extractor", tool_manager=get_tool_manager())
+        paper_idea_extractor = create_graph_agent("paper_idea_extractor")
         state = await paper_idea_extractor.execute(state, use_agent=True)
         return state
     
@@ -148,7 +148,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         """
         图标提示词生成器节点
         """
-        figure_desc_generator = create_graph_agent("figure_desc_generator", tool_manager=get_tool_manager())
+        figure_desc_generator = create_graph_agent("figure_desc_generator")
         state = await figure_desc_generator.execute(state, use_agent=True)
         return state
 
@@ -296,7 +296,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
 
         state.layout_items = layout_items
         log.info(f"[figure_layout_sam] 共生成 {len(layout_items)} 个布局元素")
-        log.info(f'state.layout_items : {state.layout_items}')
+        # log.info(f'state.layout_items : {state.layout_items}')
         return state
 
     async def figure_mask_generator_node(state: Paper2FigureState) -> Paper2FigureState:
@@ -321,7 +321,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
 
         # MinerU 端口：优先从 state.request.mineru_port 读取，默认 8001
         port = getattr(state.request, "mineru_port", 8001)
-        max_depth = getattr(state, "mask_detail_level", 2)
+        max_depth = getattr(state, "mask_detail_level", 3)
 
         log.critical(f"mask detail level : {max_depth} ")
         log.critical(f'[img_path]: {img_path}')
@@ -334,6 +334,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             max_depth=max_depth,
             output_dir=out_dir,
         )
+        log.info(f"mineru_items : {mineru_items}")
 
         # 顶层图像尺寸，用于 norm->pixel 映射与裁剪
         top_img = Image.open(state.fig_draft_path)
@@ -347,69 +348,210 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         icon_count = 0
         text_count = 0
 
-        for idx, it in enumerate(mineru_items):
-            elem_type_raw = it.get("type") or ""
-            elem_type = elem_type_raw.lower()
-            bbox = it.get("bbox")
-            text = it.get("text") or ""
+        # 如果 MinerU 只返回了 1 个整体元素：按 SAM 布局切子图，再对每个子图单独跑 MinerU，
+        # 以便获取该布局块内部的文字和更细粒度元素。底图始终使用 fig_draft_path。
+        if len(mineru_items) == 1:
+            from dataflow_agent.toolkits.imtool.mineru_tool import run_aio_two_step_extract
 
-            if not bbox or len(bbox) != 4:
-                continue
+            layout_items = getattr(state, "layout_items", None) or []
+            log.info(f"[figure_mask] mineru_items size=1, 使用 SAM 布局({len(layout_items)} 个)进行二次 MinerU 拆分")
 
-            # 归一化 -> 像素坐标
-            x1n, y1n, x2n, y2n = bbox
-            x1 = int(round(x1n * top_w))
-            y1 = int(round(y1n * top_h))
-            x2 = int(round(x2n * top_w))
-            y2 = int(round(y2n * top_h))
+            # 子图保存目录
+            sub_root_dir = base_dir / "mineru_sub_images"
+            sub_root_dir.mkdir(parents=True, exist_ok=True)
 
-            if x2 <= x1 or y2 <= y1:
-                continue
+            for layout_idx, layout_it in enumerate(layout_items):
+                # 优先使用在 figure_layout_sam_node 中写入的像素 bbox_px；否则退回 bbox 视为像素坐标
+                bbox_px = layout_it.get("bbox_px") or layout_it.get("bbox")
+                if not bbox_px or len(bbox_px) != 4:
+                    continue
+                lx1, ly1, lx2, ly2 = bbox_px
+                # 粗筛 bbox
+                if lx2 <= lx1 or ly2 <= ly1:
+                    continue
 
-            px_bbox = [x1, y1, x2, y2]
+                # 边界裁剪到顶层图尺寸
+                lx1 = max(0, min(top_w, int(round(lx1))))
+                ly1 = max(0, min(top_h, int(round(ly1))))
+                lx2 = max(0, min(top_w, int(round(lx2))))
+                ly2 = max(0, min(top_h, int(round(ly2))))
+                if lx2 <= lx1 or ly2 <= ly1:
+                    continue
 
-            # 1) 标题类块：仍然作为文本
-            if elem_type in ["title"]:
-                fig_mask.append(
-                    {
-                        "type": "text",
-                        "bbox": px_bbox,
-                        "text": text,
-                        "text_level": 1,
-                        "page_idx": 0,
-                    }
-                )
-                text_count += 1
-                continue
+                # 1) 从原始 fig_draft_path 裁出当前布局块子图
+                try:
+                    sub_img = top_img.crop((lx1, ly1, lx2, ly2))
+                except Exception as e:
+                    log.error(f"[figure_mask] 裁剪 SAM 子图失败 layout_idx={layout_idx}, bbox=({lx1},{ly1},{lx2},{ly2}): {e}")
+                    continue
 
-            # 2) 其它所有块：一律裁图，当作 image，用于 icon / 元素图层
-            try:
-                crop = top_img.crop((x1, y1, x2, y2))
-                icon_path = icons_raw_dir / f"blk_{idx}.png"
-                crop.save(icon_path)
-                icon_abs = str(icon_path)
-                fig_mask.append(
-                    {
-                        "type": "image",
-                        "bbox": px_bbox,
-                        "img_path": icon_abs,
-                        "page_idx": 0,
-                    }
-                )
-                icon_count += 1
-            except Exception as e:
-                log.error(f"[figure_mask] 裁剪子图失败 idx={idx}, bbox={px_bbox}: {e}")
-                # 兜底：作为普通文本
-                fig_mask.append(
-                    {
-                        "type": "text",
-                        "bbox": px_bbox,
-                        "text": text,
-                        "text_level": None,
-                        "page_idx": 0,
-                    }
-                )
-                text_count += 1
+                sub_dir = sub_root_dir / f"layout_{layout_idx}"
+                sub_dir.mkdir(parents=True, exist_ok=True)
+                sub_path = sub_dir / f"sam_sub_{layout_idx}.png"
+                try:
+                    sub_img.save(sub_path)
+                except Exception as e:
+                    log.error(f"[figure_mask] 保存 SAM 子图失败 layout_idx={layout_idx}, path={sub_path}: {e}")
+                    continue
+
+                # 2) 对子图再次调用 MinerU（只做一层 two_step_extract，不再递归）
+                try:
+                    sub_blocks = await run_aio_two_step_extract(str(sub_path), port=port)
+                except Exception as e:
+                    log.error(f"[figure_mask] 子图 MinerU 解析失败 layout_idx={layout_idx}, path={sub_path}: {e}")
+                    continue
+
+                sub_w, sub_h = sub_img.size
+
+                # 3) 遍历子图内的 MinerU block，映射到整图像素坐标系
+                for blk_idx, blk in enumerate(sub_blocks):
+                    blk_type_raw = blk.get("type") or ""
+                    blk_type = blk_type_raw.lower()
+                    bbox_norm = blk.get("bbox")
+                    text = blk.get("text") or blk.get("content") or ""
+                    if not bbox_norm or len(bbox_norm) != 4:
+                        continue
+
+                    sx1n, sy1n, sx2n, sy2n = bbox_norm
+                    # 规整到 [0,1]，避免越界
+                    sx1n = max(0.0, min(1.0, float(sx1n)))
+                    sy1n = max(0.0, min(1.0, float(sy1n)))
+                    sx2n = max(0.0, min(1.0, float(sx2n)))
+                    sy2n = max(0.0, min(1.0, float(sy2n)))
+                    if sx2n <= sx1n or sy2n <= sy1n:
+                        continue
+
+                    # 子图归一化 -> 子图像素
+                    sx1 = int(round(sx1n * sub_w))
+                    sy1 = int(round(sy1n * sub_h))
+                    sx2 = int(round(sx2n * sub_w))
+                    sy2 = int(round(sy2n * sub_h))
+                    if sx2 <= sx1 or sy2 <= sy1:
+                        continue
+
+                    # 子图像素 -> 整图像素（加上布局块的偏移）
+                    gx1 = lx1 + sx1
+                    gy1 = ly1 + sy1
+                    gx2 = lx1 + sx2
+                    gy2 = ly1 + sy2
+
+                    # 再次 clamp 到整图范围
+                    gx1 = max(0, min(top_w, gx1))
+                    gy1 = max(0, min(top_h, gy1))
+                    gx2 = max(0, min(top_w, gx2))
+                    gy2 = max(0, min(top_h, gy2))
+                    if gx2 <= gx1 or gy2 <= gy1:
+                        continue
+
+                    px_bbox = [gx1, gy1, gx2, gy2]
+
+                    # 文本块：直接作为 text 元素
+                    if blk_type in ["title", "text"]:
+                        fig_mask.append(
+                            {
+                                "type": "text",
+                                "bbox": px_bbox,
+                                "text": text,
+                                "text_level": 1 if blk_type == "title" else None,
+                                "page_idx": 0,
+                            }
+                        )
+                        text_count += 1
+                    else:
+                        # 非文本块：从顶层图再次裁剪成小图，作为 image 元素
+                        try:
+                            crop = top_img.crop((gx1, gy1, gx2, gy2))
+                            icon_path = icons_raw_dir / f"blk_sub_{layout_idx}_{blk_idx}.png"
+                            crop.save(icon_path)
+                            fig_mask.append(
+                                {
+                                    "type": "image",
+                                    "bbox": px_bbox,
+                                    "img_path": str(icon_path),
+                                    "page_idx": 0,
+                                }
+                            )
+                            icon_count += 1
+                        except Exception as e:
+                            log.error(
+                                f"[figure_mask] 子块裁剪失败 layout_idx={layout_idx}, blk_idx={blk_idx}, bbox={px_bbox}: {e}"
+                            )
+                            # 兜底：退化为文本元素，保持兼容
+                            fig_mask.append(
+                                {
+                                    "type": "text",
+                                    "bbox": px_bbox,
+                                    "text": text,
+                                    "text_level": None,
+                                    "page_idx": 0,
+                                }
+                            )
+                            text_count += 1
+        else:
+            # 正常路径：MinerU 输出多个元素，仍按原逻辑基于 fig_draft_path 裁剪
+            for idx, it in enumerate(mineru_items):
+                elem_type_raw = it.get("type") or ""
+                elem_type = elem_type_raw.lower()
+                bbox = it.get("bbox")
+                text = it.get("text") or ""
+
+                if not bbox or len(bbox) != 4:
+                    continue
+
+                # 归一化 -> 像素坐标（基于原始 fig_ 图尺寸）
+                x1n, y1n, x2n, y2n = bbox
+                x1 = int(round(x1n * top_w))
+                y1 = int(round(y1n * top_h))
+                x2 = int(round(x2n * top_w))
+                y2 = int(round(y2n * top_h))
+
+                if x2 <= x1 or y2 <= y1:
+                    continue
+
+                px_bbox = [x1, y1, x2, y2]
+
+                # 1) 标题类块：仍然作为文本
+                if elem_type in ["title"]:
+                    fig_mask.append(
+                        {
+                            "type": "text",
+                            "bbox": px_bbox,
+                            "text": text,
+                            "text_level": 1,
+                            "page_idx": 0,
+                        }
+                    )
+                    text_count += 1
+                    continue
+
+                # 2) 其它所有块：一律裁图，当作 image，用于 icon / 元素图层
+                try:
+                    crop = top_img.crop((x1, y1, x2, y2))
+                    icon_path = icons_raw_dir / f"blk_{idx}.png"
+                    crop.save(icon_path)
+                    icon_abs = str(icon_path)
+                    fig_mask.append(
+                        {
+                            "type": "image",
+                            "bbox": px_bbox,
+                            "img_path": icon_abs,
+                            "page_idx": 0,
+                        }
+                    )
+                    icon_count += 1
+                except Exception as e:
+                    log.error(f"[figure_mask] 裁剪子图失败 idx={idx}, bbox={px_bbox}: {e}")
+                    # 兜底：作为普通文本
+                    fig_mask.append(
+                        {
+                            "type": "text",
+                            "bbox": px_bbox,
+                            "text": text,
+                            "text_level": None,
+                            "page_idx": 0,
+                        }
+                    )
+                    text_count += 1
 
         type_counter = {}
         for e in fig_mask:
@@ -424,7 +566,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
 
         # 更新 state 的 fig_mask 信息
         state.fig_mask = fig_mask
-        log.info(f"[figure_mask] 共解析出 {len(fig_mask)} 个元素 (via MinerU HTTP, pixel bbox + raw icons)")
+        log.info(f"[figure_mask] 共解析出 {len(fig_mask)} 个元素 (via MinerU HTTP + SAM fallback, pixel bbox + raw icons)")
 
         return state
     
