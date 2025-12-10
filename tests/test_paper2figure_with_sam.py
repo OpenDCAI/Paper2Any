@@ -12,7 +12,7 @@ import pytest
 
 from dataflow_agent.state import Paper2FigureState, Paper2FigureRequest
 from dataflow_agent.workflow import run_workflow
-
+from dataflow_agent.utils import get_project_root
 
 # ============ 核心异步流程 ============
 async def run_paper2figure_with_sam_pipeline() -> Paper2FigureState:
@@ -20,7 +20,7 @@ async def run_paper2figure_with_sam_pipeline() -> Paper2FigureState:
     执行 paper2figure_with_sam 工作流的测试流程
     """
     req = Paper2FigureRequest(
-        gen_fig_model = "gemini-2.5-flash-image-preview"
+        gen_fig_model = "gemini-3-pro-image-preview"
     )
 # gemini-3-pro-image-preview gemini-2.5-flash-image-preview
     state = Paper2FigureState(
@@ -28,7 +28,7 @@ async def run_paper2figure_with_sam_pipeline() -> Paper2FigureState:
         agent_results={},
         # paper_idea="This is a test description for paper2figure_with_sam.",
         request=req,
-        paper_file="/home/ubuntu/liuzhou/myproj/dev/DataFlow-Agent/tests/2506.02454v1.pdf",
+        paper_file=f"{get_project_root()}/tests/2506.02454v1.pdf",
     )
 
     # 对应 wf_paper2figure_with_sam.py 中的 @register("paper2fig_with_sam")

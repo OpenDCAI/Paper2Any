@@ -15,15 +15,19 @@ class FigureDescGenerator(BaseAgent):
 
     @property
     def system_prompt_template_name(self) -> str:
-        if getattr(self.state.request, "figure_complex", "") == "easy":
+        if getattr(self.state.request, "figure_complex", "") == "kartoon":
             return "system_prompt_for_figure_desc_generator"
+        elif getattr(self.state.request, "figure_complex", "") == "free":
+            return  "system_prompt_for_figure_desc_generator_free"
         else:
             return  "system_prompt_for_figure_desc_generator_complex"
 
     @property
     def task_prompt_template_name(self) -> str:
-        if getattr(self.state.request, "figure_complex", "") == "easy":
+        if getattr(self.state.request, "figure_complex", "") == "kartoon":
             return "task_prompt_for_figure_desc_generator"
+        elif getattr(self.state.request, "figure_complex", "") == "free":
+            return  "task_prompt_for_figure_desc_generator_free"
         else:
             return "task_prompt_for_figure_desc_generator_complex"
 

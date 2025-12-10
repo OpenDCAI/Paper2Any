@@ -349,7 +349,7 @@ class Paper2FigureRequest(MainRequest):
     bg_rm_model: str = "models/RMBG-2.0"
     input_type: str = "PDF"
     #  科研绘图复杂度    
-    figure_complex: str = "complex"
+    figure_complex: str = "free"
 
 @dataclass
 class Paper2FigureState(MainState):
