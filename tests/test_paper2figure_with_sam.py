@@ -22,7 +22,7 @@ async def run_paper2figure_with_sam_pipeline() -> Paper2FigureState:
     req = Paper2FigureRequest(
         gen_fig_model = "gemini-2.5-flash-image-preview"
     )
-
+# gemini-3-pro-image-preview gemini-2.5-flash-image-preview
     state = Paper2FigureState(
         messages=[],
         agent_results={},

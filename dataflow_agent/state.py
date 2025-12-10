@@ -348,6 +348,8 @@ class Paper2FigureRequest(MainRequest):
     sam2_model: str = "models/facebook/sam2.1-hiera-tiny"
     bg_rm_model: str = "models/RMBG-2.0"
     input_type: str = "PDF"
+    #  科研绘图复杂度    
+    figure_complex: str = "complex"
 
 @dataclass
 class Paper2FigureState(MainState):
