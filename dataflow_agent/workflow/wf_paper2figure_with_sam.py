@@ -242,9 +242,9 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             # 这里的参数可以根据 mask_detail_level 调整
             min_area=200,
             min_score=0.0,
-            iou_threshold=0.3,
-            top_k=None,
-            nms_by="bbox",
+            iou_threshold=0.2,
+            top_k=10,
+            nms_by="mask",
         )
 
         # layout 图实际像素尺寸，用于把归一化 bbox 转为像素 bbox
