@@ -251,5 +251,6 @@ models/*
 outputs/*
 tmps/*
 data/*
+sam_b.pt
 # fastapi
 fastapi_app/outputs/

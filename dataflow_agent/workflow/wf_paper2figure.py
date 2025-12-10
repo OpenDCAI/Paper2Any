@@ -267,7 +267,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             
             # 保存PPT
             prs.save(str(ppt_path))
-            
+            state.ppt_path = ppt_path
             print(f"PPT generated successfully: {ppt_path}")
             print(f"Slide size: {slide_width_px}x{slide_height_px} pixels")
             print(f"Total elements added: {len(state.fig_mask)}")
@@ -281,14 +281,17 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
     # 注册 nodes / edges
     # ==============================================================
     def set_entry_node(state: Paper2FigureState) -> str:
-        if(state.input_type == "PDF"):
+        if(state.request.input_type == "PDF"):
+            log.critical(f'进入PDF node ......')
             return "paper_idea_extractor"
-        elif(state.input_type == "TEXT"):
+        elif(state.request.input_type == "TEXT"):
+            log.critical(f'进入TEXT node ......')
             return "figure_desc_generator"
-        elif(state.input_type == "FIGURE"):
+        elif(state.request.input_type == "FIGURE"):
+            log.critical(f'进入FIGURE node ......')
             return "figure_mask_generator"
         else:
-            log.error(f"Invalid input type: {state.input_type}")
+            log.error(f"Invalid input type: {state.request.input_type}")
             return "_end_"
 
     nodes = {

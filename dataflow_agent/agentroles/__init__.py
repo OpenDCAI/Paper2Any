@@ -224,7 +224,7 @@ def create_react_agent(
         name: 代理角色名称
         max_retries: 最大重试次数，默认3次
         tool_manager: 工具管理器实例，默认为全局工具管理器
-        validators: 自定义验证器列表，用于验证执行结果是否符合预期
+        validators: 自定义验证器列表，用于验证执行结果是否符合预期, List[Func]
         **kwargs: 配置参数，支持以下参数：
             - model_name: 模型名称
             - temperature: 采样温度 (0.0-1.0)，默认0.0
@@ -311,8 +311,9 @@ def create_vlm_agent(
             - parser_config: 解析器配置字典
             - ignore_history: 是否忽略历史消息，默认True
             - message_history: 消息历史管理器
-            - max_image_size: 最大图像尺寸，默认(1024, 1024)
+            - max_image_size: 最大图像尺寸，默认(1024, 1024)（Dalle-3）
             - additional_params: 额外VLM参数字典，默认空字典
+                - 比如 aspect_ratio 生成图像比例（只适合Gemini）
             - chat_api_url: 自定义Chat API URL
     
     Returns:

@@ -5,7 +5,7 @@ import Paper2PptPage from './components/Paper2PptPage';
 import { Workflow, Zap } from 'lucide-react';
 
 function App() {
-  const [activePage, setActivePage] = useState<'paper2graph' | 'paper2ppt'>('paper2graph');
+  const [activePage, setActivePage] = useState<'paper2figure' | 'paper2ppt'>('paper2figure');
 
   return (
     <div className="w-screen h-screen bg-[#0a0a1a] overflow-hidden relative">
@@ -33,14 +33,14 @@ function App() {
             {/* 页面切换 Tab */}
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setActivePage('paper2graph')}
+                onClick={() => setActivePage('paper2figure')}
                 className={`px-3 py-1.5 rounded-full text-sm ${
-                  activePage === 'paper2graph'
+                  activePage === 'paper2figure'
                     ? 'bg-primary-500 text-white shadow'
                     : 'glass text-gray-300 hover:bg-white/10'
                 }`}
               >
-                Paper2Graph 生成科研绘图
+                Paper2Figure 生成科研绘图
               </button>
               <button
                 onClick={() => setActivePage('paper2ppt')}
@@ -59,7 +59,7 @@ function App() {
               <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 transition-colors glow">
                 <Zap size={18} className="text-white" />
                 <span className="text-sm text-white font-medium">
-                  {activePage === 'paper2graph' ? 'Paper2Graph' : 'Paper2PPT'}
+                  {activePage === 'paper2figure' ? 'Paper2Figure' : 'Paper2PPT'}
                 </span>
               </button>
             </div>
@@ -70,7 +70,7 @@ function App() {
       {/* 主内容区 */}
       <main className="absolute top-16 bottom-0 left-0 right-0 flex">
         <div className="flex-1">
-          {activePage === 'paper2graph' ? <Paper2GraphPage /> : <Paper2PptPage />}
+          {activePage === 'paper2figure' ? <Paper2GraphPage /> : <Paper2PptPage />}
         </div>
       </main>
 
