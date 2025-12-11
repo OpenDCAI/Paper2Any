@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from fastapi_app.schemas import Paper2FigureRequest, Paper2FigureResponse
 from fastapi_app.workflow_adapters import run_paper2figure_wf_api
 from dataflow_agent.utils import get_project_root
+import os
 
 # 简单的邀请码校验：从本地文本文件加载白名单
 INVITE_CODES_FILE = Path(os.getenv("INVITE_CODES_FILE", f"{get_project_root()}/invite_codes.txt"))

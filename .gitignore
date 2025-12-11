@@ -252,3 +252,4 @@ outputs/*
 tmps/*
 data/*
 sam_b.pt
+nohup.out
