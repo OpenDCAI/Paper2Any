@@ -293,7 +293,7 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
                         svg_path,
                         emf_abs,
                     )
-                    inserted = _insert_emf(emf_abs)
+                    inserted = _insert_emf(svg_path)
                     if inserted:
                         log.info(
                             "technical_ppt_generator_node: 使用 EMF 插入技术路线图成功: %s",

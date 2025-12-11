@@ -698,25 +698,41 @@ const Paper2FigurePage = () => {
                 {graphType === 'tech_route' && (pptPath || svgPath || svgPreviewPath) && (
                   <div className="mt-2 space-y-2">
                     {pptPath && (
-                      <a
-                        href={pptPath}
-                        download
-                        className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-400/60 text-emerald-300 text-xs py-2 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
-                      >
-                        <CheckCircle2 size={14} />
-                        <span>下载技术路线图 PPT：{pptPath.split('/').pop()}</span>
-                      </a>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!pptPath) return;
+                            // 在新标签页打开后端返回的完整 PPT 链接
+                            window.open(pptPath, '_blank');
+                          }}
+                          className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-400/60 text-emerald-300 text-xs py-2 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+                        >
+                          <CheckCircle2 size={14} />
+                          <span>下载技术路线图 PPT：{pptPath.split('/').pop()}</span>
+                        </button>
+
+                        <div className="text-[11px] text-gray-300 bg-black/30 border border-white/10 rounded-md px-2 py-1.5">
+                          <div>如果下载失败，请复制下面链接到浏览器地址栏打开：</div>
+                          <div className="mt-1 break-all text-primary-200 underline decoration-dotted">
+                            {pptPath}
+                          </div>
+                        </div>
+                      </>
                     )}
 
                     {svgPath && (
-                      <a
-                        href={svgPath}
-                        download
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!svgPath) return;
+                          window.open(svgPath, '_blank');
+                        }}
                         className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-sky-400/60 text-sky-300 text-xs py-2 bg-sky-500/10 hover:bg-sky-500/20 transition-colors"
                       >
                         <ImageIcon size={14} />
                         <span>下载 SVG 源文件：{svgPath.split('/').pop()}</span>
-                      </a>
+                      </button>
                     )}
 
                     {svgPreviewPath && (
