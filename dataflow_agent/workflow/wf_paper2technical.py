@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+import re
 
 from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
@@ -146,6 +147,35 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         state = await agent.execute(state=state)
         return state
 
+    def _svg_has_cjk(text: str) -> bool:
+        """简单判断 SVG 中是否包含中文字符，用于日志和调试。"""
+        return bool(re.search(r"[\u4e00-\u9fff]", text))
+
+
+    def _inject_chinese_font(svg_code: str) -> str:
+        """
+        如果 SVG 中没有设定中文友好的 font-family，则注入一段全局样式，
+        指定一组 CJK 字体作为优先字体。
+
+        注意：字体名请根据实际安装的字体调整。
+        """
+        if "font-family" in svg_code:
+            return svg_code
+
+        idx = svg_code.find(">")
+        if idx == -1:
+            return svg_code
+
+        style_block = """
+  <style type="text/css">
+    text, tspan {
+      font-family: "Noto Sans CJK SC", "Microsoft YaHei", "SimHei", "SimSun", "WenQuanYi Zen Hei", sans-serif;
+    }
+  </style>
+"""
+        return svg_code[: idx + 1] + style_block + svg_code[idx + 1 :]
+
+
     async def technical_route_desc_generator_node(state: Paper2FigureState) -> Paper2FigureState:
         """
         节点 2: 技术路线图描述生成器
@@ -172,6 +202,13 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         # --------------------------------------------------------------
         svg_code = getattr(state, "figure_tec_svg_content", None)
         if svg_code:
+            # 日志：是否包含中文
+            if _svg_has_cjk(svg_code):
+                log.info("technical_route_desc_generator_node: 检测到 SVG 中包含中文字符")
+
+            # 如果 SVG 未显式指定 font-family，则注入一组中文友好的字体
+            svg_code = _inject_chinese_font(svg_code)
+
             # 确保本次 workflow 的根输出目录已确定
             base_dir = Path(_ensure_result_path(state))
             base_dir.mkdir(parents=True, exist_ok=True)

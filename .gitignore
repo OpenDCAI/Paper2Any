@@ -253,3 +253,5 @@ tmps/*
 data/*
 sam_b.pt
 nohup.out
+
+invite_codes.txt

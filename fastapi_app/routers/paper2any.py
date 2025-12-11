@@ -13,6 +13,9 @@ from fastapi_app.schemas import Paper2FigureRequest, Paper2FigureResponse
 from fastapi_app.workflow_adapters import run_paper2figure_wf_api
 from dataflow_agent.utils import get_project_root
 import os
+from dataflow_agent.logger import get_logger
+
+log = get_logger(__name__)
 
 # 简单的邀请码校验：从本地文本文件加载白名单
 INVITE_CODES_FILE = Path(os.getenv("INVITE_CODES_FILE", f"{get_project_root()}/invite_codes.txt"))
@@ -24,9 +27,9 @@ def _to_outputs_url(abs_path: str, request: Request | None = None) -> str:
     project_root = get_project_root()
     outputs_root = project_root / "outputs"
     
-    print(f'[DEBUG] project_root: {project_root}')
-    print(f'[DEBUG] outputs_root: {outputs_root}')
-    print(f'[DEBUG] abs_path: {abs_path}')
+    log.info(f'[DEBUG] project_root: {project_root}')
+    log.info(f'[DEBUG] outputs_root: {outputs_root}')
+    log.info(f'[DEBUG] abs_path: {abs_path}')
 
     p = Path(abs_path)
     try:
@@ -40,16 +43,16 @@ def _to_outputs_url(abs_path: str, request: Request | None = None) -> str:
             # 降级：使用相对路径
             url = f"/outputs/{rel.as_posix()}"
         
-        print(f'[DEBUG] generated URL: {url}')
+        log.warning(f'[DEBUG] generated URL: {url}')
         return url
     except ValueError as e:
-        print(f'[ERROR] Path conversion failed: {e}')
+        log.error(f'[ERROR] Path conversion failed: {e}')
         if '/outputs/' in abs_path:
             idx = abs_path.index('/outputs/')
             fallback_url = abs_path[idx:]
-            print(f'[WARN] Using fallback URL: {fallback_url}')
+            log.warning(f'[WARN] Using fallback URL: {fallback_url}')
             return fallback_url
-        print(f'[ERROR] Cannot convert path to URL: {abs_path}')
+        log.error(f'[ERROR] Cannot convert path to URL: {abs_path}')
         return abs_path
 
 def load_invite_codes() -> set[str]:
@@ -135,6 +138,56 @@ def create_dummy_pptx(output_path: Path, title: str, content: str) -> None:
     content_placeholder.text = content
 
     prs.save(output_path)
+
+
+@router.get("/paper2figure/history_files")
+async def list_paper2figure_history_files(
+    request: Request,
+    invite_code: str,
+):
+    """
+    根据邀请码，列出该邀请码下面二级子目录中的所有历史输出文件（pptx/png/svg），
+    即：outputs/{invite_code}/*/*.{pptx,png,svg} 以及 outputs/{invite_code}/*/*/{files} 这一层，
+    不再往更深层递归。返回 URL 列表，前端可直接打开/下载。
+    """
+    # 邀请码校验
+    validate_invite_code(invite_code)
+
+    project_root = get_project_root()
+    base_dir = project_root / "outputs" / invite_code
+
+    if not base_dir.exists():
+        return {
+            "success": True,
+            "files": [],
+        }
+
+    file_urls: list[str] = []
+
+    # 第一层：invite_code/level1
+    for level1 in base_dir.iterdir():
+        if not level1.is_dir():
+            continue
+
+        # 第二层：invite_code/level1/level2
+        for level2 in level1.iterdir():
+            if level2.is_file():
+                # 若 level2 直接是文件，也纳入
+                if level2.suffix.lower() in {".pptx", ".png", ".svg"}:
+                    file_urls.append(_to_outputs_url(str(level2), request))
+            elif level2.is_dir():
+                # 只取该目录里的直接文件，不再往下递归
+                for p in level2.iterdir():
+                    if p.is_file() and p.suffix.lower() in {".pptx", ".png", ".svg"}:
+                        file_urls.append(_to_outputs_url(str(p), request))
+
+    # 排序：按路径字符串倒序，粗略实现“新文件在前”
+    file_urls.sort(reverse=True)
+
+    return {
+        "success": True,
+        "files": file_urls,
+    }
 
 
 @router.post("/paper2figure/generate")
@@ -256,6 +309,7 @@ async def generate_paper2figure(
         graph_type=graph_type,
         style=style,
         figure_complex=final_figure_complex,
+        invite_code=invite_code,
     )
 
     # 6. 重任务段：受信号量保护，调用真实 workflow
@@ -387,6 +441,7 @@ async def generate_paper2figure_json(
         aspect_ratio="16:9",
         graph_type=graph_type,
         style=style,
+        invite_code=invite_code,
     )
 
     # 6. 重任务段：受信号量保护，调用真实 workflow
@@ -400,11 +455,18 @@ async def generate_paper2figure_json(
     safe_svg = _to_outputs_url(p2f_resp.svg_filename, request) if p2f_resp.svg_filename else ""
     safe_png = _to_outputs_url(p2f_resp.svg_image_filename, request) if p2f_resp.svg_image_filename else ""
 
+    # 新增：将本次任务输出目录下所有相关文件路径转换为 URL
+    safe_all_files: list[str] = []
+    for abs_path in getattr(p2f_resp, "all_output_files", []) or []:
+        if abs_path:
+            safe_all_files.append(_to_outputs_url(abs_path, request))
+
     return Paper2FigureResponse(
         success=p2f_resp.success,
         ppt_filename=safe_ppt,
         svg_filename=safe_svg,
         svg_image_filename=safe_png,
+        all_output_files=safe_all_files,
     )
 
 

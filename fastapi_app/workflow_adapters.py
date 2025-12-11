@@ -381,20 +381,21 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
 
     if graph_type == "model_arch":
         wf_name = "paper2fig_with_sam"
-        result_root = project_root / "outputs" / "paper2fig" / ts
+        result_root =  project_root / "outputs" / req.invite_code / "paper2fig" / ts
     elif graph_type == "tech_route":
         wf_name = "paper2technical"
-        result_root = project_root / "outputs" / "paper2tec" / ts
+        result_root = project_root / "outputs" / req.invite_code / "paper2tec" / ts
     elif graph_type == "exp_data":
         # TODO: 后续接入 paper2exp workflow
         wf_name = "paper2fig_with_sam"
-        result_root = project_root / "outputs" / "paper2exp" / ts
+        result_root = project_root / "outputs" / req.invite_code / "paper2exp" / ts
     else:
         wf_name = "paper2fig_with_sam"
-        result_root = project_root / "outputs" / "paper2fig" / ts
+        result_root = project_root / "outputs" / req.invite_code / "paper2fig" / ts
 
     result_root.mkdir(parents=True, exist_ok=True)
     state.result_path = str(result_root)
+    log.critical(f"[paper2figure] result_path: {state.result_path} !!!!!!!!\n")
     state.mask_detail_level = 2
 
     # -------- 异步执行 -------- #
@@ -431,9 +432,21 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
         svg_filename = ""
         svg_image_filename = ""
 
+    # 收集本次任务输出目录下的所有 PPTX / PNG / SVG 文件绝对路径
+    all_output_files: list[str] = []
+    try:
+        result_root_path = Path(state.result_path)
+        if result_root_path.exists():
+            for p in result_root_path.rglob("*"):
+                if p.is_file() and p.suffix.lower() in {".pptx", ".png", ".svg"}:
+                    all_output_files.append(str(p))
+    except Exception as e:  # pragma: no cover
+        log.warning(f"[paper2figure] 收集输出文件列表失败: {e}")
+
     return Paper2FigureResponse(
         success=True,
         ppt_filename=ppt_filename,
         svg_filename=svg_filename,
         svg_image_filename=svg_image_filename,
+        all_output_files=all_output_files,
     )

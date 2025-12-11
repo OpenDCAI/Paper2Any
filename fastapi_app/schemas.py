@@ -164,6 +164,8 @@ class Paper2FigureRequest(BaseModel):
     # 指定生成图像的长宽比，例如：
     # 1:1（正方形）、16:9（横向宽屏）、9:16（竖屏）、4:3、3:4 以及 21:9 超宽屏。
 
+    invite_code: str = ""
+
     # ---------------------- 兼容 dict 风格访问 ----------------------
     def get(self, key: str, default=None):
         """
@@ -178,3 +180,4 @@ class Paper2FigureResponse(BaseModel):
     ppt_filename: str = ""  # 生成PPT的路径
     svg_filename: str = ""  # 技术路线 SVG 源文件路径（graph_type=tech_route 时有效）
     svg_image_filename: str = ""  # 技术路线 PNG 渲染图路径（graph_type=tech_route 时有效）
+    all_output_files: List[str] = []  # 本次任务产生的所有输出文件路径（稍后在路由层转换为 URL）
