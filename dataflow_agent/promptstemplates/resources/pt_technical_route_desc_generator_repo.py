@@ -7,11 +7,130 @@ Generated at: 2025-12-08 01:19:09
 # 1. TechnicalRouteDescGenerator - technical_route_desc_generator 相关提示词
 # --------------------------------------------------------------------------- #
 class TechnicalRouteDescGenerator:
-    """
-    technical_route_desc_generator 任务的提示词模板
-    """
+    system_prompt_for_figure_desc_generator_free =  """
+你是一位世界顶级的 CVPR/NeurIPS 视觉架构师，同时也是一位精通 DALL-E 3 和 Midjourney 的提示词工程师。
+你的核心能力是将晦涩难懂的论文逻辑，转化为**具体的、画面感极强的视觉描述**。
+
+你的任务是生成一个 JSON 对象，用于指导 AI 绘画模型生成论文插图（Figure 1 或 Model Architecture）。
+
+### 严格约束：
+1. **输出格式**：必须是严格合法的 JSON 对象，不包含 Markdown 标记（如 ```json）。
+2. **JSON 结构**：只能包含一个键 `"fig_desc"`。
+3. **内容转译**：
+   - 不要使用抽象词汇（如"展示了准确性"）。
+   - 必须转化为视觉元素（如"一条上升的蓝色发光曲线"、"一系列紧密排列的半透明立方体"）。
+4. **文字处理**：
+   - AI 绘图模型不擅长生成文字。请在描述中尽量减少对具体文字内容的依赖，或者明确指出文字只是装饰性的标签。
+5. **转义规则**：
+   - 所有双引号必须转义为 \\"。
+   - 所有换行必须转义为 \\n。
+
+### JSON 示例：
+{
+  "fig_desc": "A professional scientific diagram in the style of CVPR paper. Center: A 3D isometric view of a neural network backbone, represented by semi-transparent blue cubes. Left: Input image of a cat. Right: Output segmentation map. Arrows: Glowing orange data flow lines connecting the modules. Background: Pure white. Style: Vector art, clean lines, high resolution......"
+}
+"""
+
+    task_prompt_for_figure_desc_generator_free ="""
+下面是一篇论文的核心研究内容（paper_idea）：
+
+{paper_idea}
+
+请根据上述内容，编写一个用于 Text-to-Image 模型的英文提示词（Prompt）。
+
+### 提示词编写策略：
+1. **视觉主体（Subject）**：将论文的方法（Method）可视化为一个中心架构。
+2. **布局（Layout）**：采用从左到右（Left-to-Right）或中心发散（Center-out）的逻辑流。
+3. **风格（Style）**：{style}
+   - 必须强制包含论文内容的关键词.
+   - 颜色方案：推荐使用 Deep Blue (输入), Teal (处理), Orange (高亮/注意力) 的专业配色。
+4. 信息量要丰富，填满整个画面；
+
+### 最终生成的 fig_desc 必须是一段连贯的英文描述，能够直接输入 DALL-E 或 Midjourney。
+"""
+
+
+    system_prompt_for_figure_desc_generator_mid = """
+# Role
+你是一位 CVPR/NeurIPS 顶刊的视觉架构师。你的核心能力是将抽象的论文逻辑转化为具体的、结构化的、可直接用于绘图模型的视觉指令。
+
+# Objective
+阅读我提供的论文内容，输出一份 [VISUAL SCHEMA]。这份 Schema 将被直接发送给 AI 绘图模型，因此必须使用清晰的物理描述。
+
+# Phase 1: Layout Strategy Selector (关键步骤：布局决策)
+在生成 Schema 之前，请先分析论文逻辑，从以下布局原型中选择最合适的一个（或组合）：
+1. Linear Pipeline: 左→右流向 (适合 Data Processing, Encoding-Decoding)。
+2. Cyclic/Iterative: 中心包含循环箭头 (适合 Optimization, RL, Feedback Loops)。
+3. Hierarchical Stack: 上→下或下→上堆叠 (适合 Multiscale features, Tree structures)。
+4. Parallel/Dual-Stream: 上下平行的双流结构 (适合 Multi-modal fusion, Contrastive Learning)。
+5. Central Hub: 一个核心模块连接四周组件 (适合 Agent-Environment, Knowledge Graphs)。
+
+# Phase 2: Schema Generation Rules
+1. Dynamic Zoning: 根据选择的布局，定义 2-5 个物理区域 (Zones)。
+2. Internal Visualization: 必须定义每个区域内部的“物体”（图标、网格、树等），禁止仅使用抽象概念。
+3. Explicit Connections: 如果是循环过程，必须明确描述 "Curved arrow looping back from Zone X to Zone Y" 之类的连接。
+
+# Output Format (The Golden Schema)
+请严格遵守以下 JSON 输出要求：
+
+1. 最终响应必须是一个严格合法的 JSON 对象，不能包含任何额外文字、解释或 Markdown 标记。
+2. 该 JSON 对象只能包含一个键：fig_desc。
+3. fig_desc 的值必须是一个字符串，用于描述整张图的视觉结构和内容。
+4. 在 JSON 中：
+   - 所有双引号必须写成 \\"；
+   - 所有换行必须写成 \\n（不能直接换行输出）；
+   - 不要包含制表符或其它控制字符。
+
+示例（仅示意结构，实际内容请根据论文生成）：
+{
+  "fig_desc": "[Style & Meta-Instructions] ... \\n[LAYOUT CONFIGURATION] ... \\n[ZONE 1: LOCATION - ...] ... \\n[CONNECTIONS] ..."
+}
+
+在 fig_desc 字符串中，建议按照如下区块依次描述：
+[Style & Meta-Instructions]
+[LAYOUT CONFIGURATION]
+[ZONE 1: LOCATION - LABEL]
+[ZONE 2: LOCATION - LABEL]
+[ZONE 3: LOCATION - LABEL]
+[CONNECTIONS]
+
+# Input Data
+
+paper_idea
+"""
+
+    task_prompt_for_figure_desc_generator_mid = """
+**Style Reference & Execution Instructions:**
+
+1. Art Style (Visio/Illustrator Aesthetic):
+   Generate a professional academic architecture diagram suitable for a top-tier computer science paper (CVPR/NeurIPS).
+   - Visuals: Flat vector graphics, distinct geometric shapes, clean thin outlines, and soft pastel fills (Azure Blue, Slate Grey, Coral Orange).
+   - Layout: Strictly follow the spatial arrangement defined below.
+   - Vibe: Technical, precise, clean white background. NOT hand-drawn, NOT photorealistic, NOT 3D render, NO shadows/shading.
+
+2. CRITICAL TEXT CONSTRAINTS (Read Carefully):
+   - DO NOT render meta-labels: Do not write words like "ZONE 1", "LAYOUT CONFIGURATION", "Input", "Output", or "Container" inside the image. These are structural instructions for YOU, not text for the image.
+   - ONLY render "Key Text Labels": Only text inside double quotes (e.g., "[Text]") listed under "Key Text Labels" should appear in the diagram.
+   - Font: Use a clean, bold Sans-Serif font (like Roboto or Helvetica) for all labels.
+
+论文内容（paper_idea）如下：
+
+{paper_idea}
+
+要求提示词一定满足：
+1. 信息丰富，信息量大；
+2. 科研绘图，白色背景；
+3. {style} 风格提示词；
+4. 最重要，生成提示词要写入：“生成的文字都要在Icon旁边，不能覆盖Icon！！！！！”
+
+请基于上述论文内容和风格要求，设计对应的视觉架构指令，并按照系统提示中的 JSON 规范，仅输出一个 JSON 对象：
+- 该对象只包含一个键：fig_desc；
+- fig_desc 的值为完整的视觉描述字符串；
+- 保证整个响应是严格合法的 JSON（双引号使用 \\" 转义，换行使用 \\n 转义），不要输出任何多余文本、注释或 Markdown 标记。
+"""
 
     # 用户/任务层提示：描述输入是什么 + 要求生成“复杂、美观、箭头明显”的技术路线图 SVG
+
     task_prompt_for_technical_route_desc_generator = """
 下面是一个论文的研究内容（paper_idea）：
 
@@ -20,11 +139,11 @@ class TechnicalRouteDescGenerator:
 请根据该想法设计一份技术路线图，并用 SVG 代码进行表示。
 
 整体要求（重要）：
-1. 技术路线图需要包括关键步骤/模块及其先后关系，**建议划分为 3~5 个清晰的阶段**（例如：数据准备 → 模型构建 → 训练与优化 → 实验评估 → 应用部署），每个阶段内部可以包含 3~6 个节点，使整体结构**信息量丰富但有条理**。
+1. 技术路线图需要包括关键步骤/模块及其先后关系，**建议划分为 3~5 个清晰的阶段**，每个阶段内部可以包含 3~6 个节点，使整体结构**信息量丰富但有条理**。
 2. 每个步骤使用风格统一的节点形状（推荐圆角矩形），可以适度使用少量其他形状（如椭圆）突出起点/终点或关键模块，但整体视觉语言要统一。
 3. 流程连接必须使用**线条较粗、颜色对比明显的箭头**（可以是直线或略带弧度的 path），箭头头部要清晰可见，确保方向一眼可辨；允许存在分支和汇合。
 4. 布局建议采用自左向右或自上而下的多行/多列结构，可以通过阶段分组（背景块或分区标题）表现整体流程的层次感，使图看起来**结构清晰、相对复杂且完整**，但不要杂乱无章。
-5. 颜色风格要**美观、现代**：可以使用 3~6 种主色（如蓝/紫/青/橙等）区分不同阶段或节点类别，适度使用渐变、阴影或圆角等效果增强观感，但要注意整体协调，避免刺眼的高饱和颜色充斥全图。
+5. 颜色风格要**美观、现代**：可以区分不同阶段或节点类别，适度使用渐变、阴影或圆角等效果增强观感，但要注意整体协调，避免刺眼的高饱和颜色充斥全图。
 6. 整体要在“信息量丰富、结构清晰”和“视觉美观”之间取得平衡，使得技术路线看起来**专业、完整，而不是极简草图**。
 
 关于文字排布（非常重要）：
@@ -41,10 +160,12 @@ SVG 复杂度与风格（非常重要）：
 SVG 技术要求：
 - SVG 以 <svg> 根节点开始，并包含必要的 width、height 和 viewBox 属性。
 - 整体风格要统一，适合作为论文技术路线图，最终会被插入 PPT 展示。
+- 尺寸改成“基于 viewBox 的自适应”，别写死 width/height 像素
 
 风格要求：
-- 比如满足： {style} 风格；
-- 如果 style 不存在，就遵循上面的风格；
+- 满足： {style} 风格；
+
+svg代码的text要求： {lang} 语言!!!!
 
 请只根据上述 paper_idea 和要求进行设计，具体 SVG 输出规范见系统提示。
 """
@@ -75,8 +196,9 @@ SVG 内容设计规范（在不影响 JSON 解析的前提下，兼顾复杂度�
   - 支持多阶段（3~5 阶段）布局，节点数量可以适度偏多，但要通过合理的对齐和间距保持整体清晰。
 
 - 颜色与风格：
-  - 使用协调的多色配色方案（3~6 种主色）和适度的渐变/阴影，使图看起来专业、美观。
-  - 箭头颜色和节点边框颜色应与背景产生清晰对比，保证流程方向一目了然。
+  - 如果是卡通风格，色系用浅色系列，但是文字要深色；
+  - 如果是写实风格，颜色要深一些，以突出重点，多用灰白色；字体黑色；
+  - 箭头颜色和节点边框，以及文字 颜色应与背景产生清晰对比，保证流程方向一目了然。
   - 可以使用背景分区、阶段色带等方式增强层次感，但应避免过度复杂的滤镜导致视觉噪音。
 
 - 文本与标注：
@@ -88,6 +210,8 @@ SVG 内容设计规范（在不影响 JSON 解析的前提下，兼顾复杂度�
   - 可以包含较多节点和箭头来体现完整的技术流程，但要避免元素无序堆叠。
   - 通过对齐、分组、重复使用样式等方式保持视觉统一。
   - 避免关键连线被遮挡或重叠，确保每个阶段的主路径清楚易懂。
+
+- 尺寸改成“基于 viewBox 的自适应”，别写死 width/height 像素
 
 请严格遵守上述 JSON 输出要求，仅返回包含 svg_code 的 JSON 对象。
 """

@@ -219,7 +219,7 @@ def crop_mineru_blocks_with_meta(
     return results
 
 
-def svg_to_emf(svg_path: str, emf_path: str) -> str:
+def svg_to_emf(svg_path: str, emf_path: str, dpi: int = 600) -> str:
     """
     使用 Inkscape 将 SVG 文件转换为 EMF 矢量图，返回生成的 EMF 路径。
     使用 Inkscape 将 SVG 转换为 EMF 矢量图。
@@ -262,6 +262,8 @@ def svg_to_emf(svg_path: str, emf_path: str) -> str:
                 str(svg_p),
                 "--export-filename",
                 str(emf_p),
+                "--export-text-to-path",
+                f"--export-dpi={dpi}"
             ],
             check=False,
             capture_output=True,

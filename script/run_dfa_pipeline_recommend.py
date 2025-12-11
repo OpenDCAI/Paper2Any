@@ -57,7 +57,7 @@ async def main() -> None:
     PROJECT_ROOT: Path = get_project_root()  # e.g. /mnt/DataFlow/lz/proj/dataflow-agent-kupasi
     TMPS_DIR: Path = PROJECT_ROOT / "dataflow_agent" / "tmps"
 
-    session_id = base64.urlsafe_b64encode("username=liuzhou".encode()).decode()
+    session_id = base64.urlsafe_b64encode("username=xxx".encode()).decode()
     SESSION_DIR: Path = TMPS_DIR / session_id
     SESSION_DIR.mkdir(parents=True, exist_ok=True)
 

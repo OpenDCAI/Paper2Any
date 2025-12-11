@@ -27,7 +27,7 @@ async def run_paper2technical_pipeline() -> Paper2FigureState:
         agent_results={},
         paper_idea="This is a test description for technical route.",
         request=req,
-        paper_file = "/home/ubuntu/liuzhou/myproj/dev/DataFlow-Agent/tests/2506.02454v1.pdf"
+        paper_file = f"{get_project_root()}/tests/2506.02454v1.pdf"
     )
 
     # final_state: Paper2FigureState = await run_workflow("paper2technical", state)

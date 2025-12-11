@@ -1924,65 +1924,73 @@ Your responsibilities:
 2. Figure Description Requirements:
    - Provide a single figure_description block that includes:
        • Overall Layout
-       • A sequence of Subfigures(4~6 subfigures) (derived from the structure of the input)
+       • A sequence of Subfigures (4–6 subfigures) (derived from the structure of the input)
        • Overall Design and Color Scheme
        • Figure Title and Labels
        • Summary
 
-    * Each subfigure must include:
-      * A concise and meaningful title
-      * Background color suggestion in pastel macaron tones
-      * Layout guidance: Each subfigure must be divided into **three distinct parts** arranged from top to bottom:
-        1. **Subtitle**: A concise title for the subfigure, placed at the top.
-        2. **Visual Elements**: This section contains the 3D or isometric hand-drawn visual elements (shapes, blocks, symbols) with depth and dimension, placed below the subtitle.
-        3. **Key Concepts**: This section includes essential, high-level keywords or brief descriptions related to the visual elements.These keywords should be neatly aligned along the left and right edges and the bottom of the subfigure, not overlapping with the visual elements. The text should provide concise, abstract representations of the visual content.
+   * Each subfigure must include:
+      * A concise title
+      * A background-color suggestion (pastel macaron tone)
+      * Layout guidance: Each subfigure must be divided into **three distinct parts** from top to bottom:
+        1. **Subtitle** (top area)
+        2. **Visual Elements** (middle area; must follow the overall figure style)
+        3. **Key Concepts** (bottom area; aligned along edges, not overlapping with visuals)
 
-3. Mandatory Visual Style Requirements:
-   - **Hand-drawn style**:
-       • Use a **sketched, hand-drawn look**, with softer lines and shading for a more artistic effect.
-       • Include **3D or isometric** elements in the visuals for depth, rather than flat icons.
-   - **Macaron Color Scheme**:
-       • Each subfigure should use a different soft pastel background (light blue, pink, lavender, beige).
-       • Use gradients to provide some dimension to the background, adding to the hand-drawn look.
-   - **Dividers**:
-       • Use thin, obvious black lines to clearly separate subfigures.
-   - **Font**:
-       • Use Comic Sans MS for all text.
-   - **Aspect Ratio**:
-       • Prefer an overall **4:3 layout** unless the content suggests otherwise.
+3.  **STYLE SPECIFICATION (All style-related requirements are centralized here)**  
+    The entire figure MUST follow these visual style rules:
+    - **Hand-drawn Style**:
+        • Sketched, slightly imperfect strokes  
+        • Softer lines & shading  
+    - **3D / Isometric Elements**:
+        • Visual blocks, shapes, or modules must include depth or isometric perspective  
+    - **Pastel Macaron Color Scheme**:
+        • Each subfigure uses a different soft pastel shade (light blue, lavender, pink, beige, mint, etc.)  
+        • Gentle gradient background for subtle depth  
+    - **Dividers**:
+        • Thin black lines separating subfigures  
+    - **Font**:
+        • Comic Sans MS everywhere  
+    - **Aspect Ratio**:
+        • Prefer 4:3 overall structure  
+
+    *In other parts of the prompt, when referring to visual elements, use phrasing such as “consistent with the overall style” instead of repeating this specification.*
 
 4. Title and Label Requirements:
    - The figure includes a main title supplied by the user at runtime.
-     • The title must be placed centered at the top.
-     • It should appear visually larger than subfigure titles.
-   - Each subfigure should have its own concise internal label/title that contrasts well with its background and should be neatly aligned along the left and right edges and the bottom of the subfigure, not overlapping with the visual elements.
+     • Centered at the top.
+     • Slightly larger than subfigure titles.
+   - Subfigure titles must contrast with their backgrounds.
+   - Title and labels should appear **beside** visual elements, not overlapping them, and remain consistent with the overall style.
 
 5. Content Rules:
    - Do not copy input sentences.
    - Extract structure, relationships, and process flow.
    - Do not invent steps beyond what is logically implied by the input.
    - Keep all descriptions high-level, abstract, and visually oriented.
+   - All references to visual elements must remain consistent with the style described in Section 3.
 
 6. Output Constraints:
    - Produce only one JSON dictionary.
    - No commentary, no meta explanations, no markdown.
+
 """
 
     # task_prompt template for generating figure description (Hand-drawn style with 3D elements)
     task_prompt_for_figure_desc_generator = """
 Below is the technical details provided by the user. Your task is to abstract it into a visually oriented figure description following all rules stated in the SYSTEM_PROMPT.
 
-Add this to the beginning of your desciption:
+Add this to the beginning of your description:
 
 **Special Notice**
 
 * **Text Placement**:
-  • Ensure the text is positioned **beside** the image elements, not on top of them, for better clarity and separation. Maintain sufficient space between text and visual elements to avoid overlap.
-  • **The rectangular area occupied by the text should not overlap with the area occupied by visual elements.** The boundaries of the text and visual elements must be clearly separated, ensuring that their corresponding spaces do not intersect.
+  • Ensure the text is positioned **beside** the image elements, not on top of them.  
+  • Maintain clear separation so text blocks do not overlap visual areas.
 
 * **Subfigure Separation**:
-  • Ensure there are **clear boundaries** between each subfigure. The subfigures should not overlap or have visual elements that cross the boundary lines. Each subfigure should feel like a distinct and separate visual area, with its own clearly defined space. Don't use arrows across the divider to connect different subfigures.
-
+  • Ensure each subfigure has **crisp, non-overlapping boundaries**.  
+  • No arrows or elements may cross from one subfigure into another.
 
 You must output:
 {"fig_desc": "<description>"} where <description> is a string type.
@@ -1991,22 +1999,15 @@ Do not include any explanations outside the JSON.
 
 --------------------
 USER CONTENT START
+
 {paper_idea}
+
 USER CONTENT END
 --------------------
 
-Please generate a figure description with:
-- Multiple subfigures corresponding to the conceptual steps or components implied by the content
-- **Hand-drawn style** with **3D or isometric visual elements** (rather than flat icons)
-- **Pastel macaron backgrounds** (one distinct background per subfigure)
-- Fine gray or black dividers between sections
-- Comic Sans MS font
-- A main title (provided by the user at runtime) placed centered at the top in a slightly larger font size
-- Concise titles within each subfigure, placed beside the visual elements. (not overlaid on top)
-- A structured output including: Overall Layout, Subfigures, Overall Design and Color Scheme, Figure Title and Labels, Summary
-- Strict abstraction: no examples, no additional invented content
-
-Remember: Only output the JSON dictionary.
+--------------------
+提示词风格： {style}
+--------------------
 """
 
 
@@ -2015,26 +2016,38 @@ Remember: Only output the JSON dictionary.
 class PaperIdeaExtractorPrompts:
     # System prompt template for paper content extraction (focused on the methods section)
     system_prompt_for_paper_idea_extractor = """
-    You will extract the entire content of the "Methods" section from the provided paper. Please return the section exactly as it appears in the paper, keeping the formatting and structure intact.
+    你现在的任务是：从提供的论文内容中，**精确抽取整篇论文的 “Methods”（方法）部分原文**。
 
-    **Important:**
-    
-    1. Do **not** provide any extra explanations or summaries. Only extract the full content of the "Methods" section.
-    
-    2. The extracted content should preserve the exact structure and formatting of the original paper.
-    
-    3. Ensure the "Methods" section is extracted without any modifications.
-    
-    4. If the "Methods" section is not clearly defined, extract all relevant sections that describe methodologies, algorithms, models, or techniques.
+    请严格遵守以下要求：
 
-    **Output Format**: Please return the extracted methods section in a **JSON format** with the following structure:
+    1. **只做抽取，不做加工**  
+      - 不要进行任何形式的解释、总结、改写或补充。  
+      - 不要添加任何你自己的文字、标点或说明。  
+      - 只返回从论文中截取出来的原始内容。
+
+    2. **必须完整抽取 “Methods” 部分**  
+      - 如果论文中有明确的章节标题，如 “Methods”, “Materials and Methods”, “Methodology” 等，请从该章节标题开始，到该章节正式结束为止，**原样抽取全部内容**。  
+      - 如果论文中没有明确命名为 “Methods” 的章节，请抽取所有清晰描述研究方法、实验流程、算法、模型、技术方案等的内容。
+
+    3. **保留原有结构与排版格式**  
+      - 保留原来的段落分行、标题层级、列表、公式标记等文本结构。  
+      - 不要擅自合并或拆分段落，不要改变任何文字顺序。
+
+    4. **字符与内容要求**  
+      - 不要引入新的控制字符或特殊符号。  
+      - 尽量去除或避免返回 ASCII 控制字符（例如不可见的换页符、奇怪的转义符等），只保留正常可见文本。  
+      - 不要在内容前后额外添加注释、标签或说明文字。
+
+    5. **输出格式（必须是合法 JSON）**  
+      - 最终回答必须是一个合法 JSON 对象，键为 `"paper_idea"`。  
+      - JSON 字符串中不要出现未转义的换行控制字符或非法字符，避免 JSON 解析错误。  
+      - 内容格式如下（注意是 JSON 而不是自然语言说明）：
+      
     ```json
-{
-  "paper_idea": "Paper title: xxx. Paper sections: original text of specific sections of paper...."
-}
-    ```
-    Remember to put the paper title in the begining like 'Paper Title: xxx. Other contents...'
-    """
+    {
+      "paper_idea": "Paper title: xxx. Paper sections: original text of specific sections of paper...."
+    }
+"""
 
     # Task prompt template for paper content extraction (focused on the methods section)
     task_prompt_for_paper_idea_extractor = """
@@ -2044,6 +2057,7 @@ class PaperIdeaExtractorPrompts:
     1. Focus on extracting the **entire Methods section**: This includes all descriptions of methods, algorithms, models, or techniques used in the paper.
     2. Preserve the **exact structure** and **formatting** of the original content.
     3. If the "Methods" section is not clearly defined, include all content related to methods and techniques used in the paper.
+    4. 去掉多余移除 ASCII 控制字符，尽量以纯文本，形式返回，不要有多余符号，以免json解析错误！！！
 
     Paper content: {paper_content}
     """

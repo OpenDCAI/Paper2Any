@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Literal
-
+from dataflow_agent.utils import get_project_root
 from pydantic import BaseModel
 
 
@@ -136,6 +136,10 @@ class Paper2FigureRequest(BaseModel):
     chat_api_url: str = "http://123.129.219.111:3000/v1/"
     # 与大模型交互使用的 API URL
 
+    # ---------------------- 图类型 & 难度设置 ----------------------
+    figure_complex: str = "easy"
+    # 绘图难度：仅在 graph_type == "model_arch" 时生效，前端透传 easy/mid/hard
+
     chat_api_key: str = "fill the key"
     # chat_api_url 对应的 API KEY；用于访问后端 LLM 服务
 
@@ -148,8 +152,8 @@ class Paper2FigureRequest(BaseModel):
     gen_fig_model: str = "gemini-3-pro-image-preview"
     # 用于生成插图 / 构图草图的图像模型名称
     # 模型名和雨茶官网一致
-    
-    bg_rm_model: str = "/home/ubuntu/liuzhou/hzy/DataFlow-Agent/models/RMBG-2.0"
+
+    bg_rm_model: str = f"{get_project_root()}/models/RMBG-2.0"
 
     # ---------------------- 输入类型设置 ----------------------
     input_type: Literal["PDF", "TEXT", "FIGURE"] = "PDF"
@@ -158,17 +162,19 @@ class Paper2FigureRequest(BaseModel):
     # - "TEXT": 输入为纯文本内容
     # - "FIGURE": 输入为图片文件路径（如 JPG/PNG），用于图像解析或转图
 
-
-    input_content: str = ''
+    input_content: str = ""
     # 输入内容本体（字符串类型），含义由 input_type 决定：
     # - 当 input_type = "PDF"   时：input_content 为 PDF **文件路径**
     # - 当 input_type = "FIGURE" 时：input_content 为 图片 **文件路径**
     # - 当 input_type = "TEXT"   时：input_content 为 **纯文本内容本身**
     # 注意：此参数始终为字符串，不做类型变化。
 
-
     # ---------------------- 输出图像比例设置 ----------------------
     aspect_ratio: Literal["1:1", "16:9", "9:16", "4:3", "3:4", "21:9"] = "16:9"
+    # 图类型：模型架构图 / 技术路线图 / 实验数据图
+    graph_type: Literal["model_arch", "tech_route", "exp_data"] = "model_arch"
+    # 风格：卡通 / 写实（具体取值前端透传）
+    style: str = "cartoon"
     # 指定生成图像的长宽比，例如：
     # 1:1（正方形）、16:9（横向宽屏）、9:16（竖屏）、4:3、3:4 以及 21:9 超宽屏。
 
@@ -183,4 +189,6 @@ class Paper2FigureRequest(BaseModel):
 
 class Paper2FigureResponse(BaseModel):
     success: bool
-    ppt_filename: str = '' # 生成PPT的路径
+    ppt_filename: str = ""  # 生成PPT的路径
+    svg_filename: str = ""  # 技术路线 SVG 源文件路径（graph_type=tech_route 时有效）
+    svg_image_filename: str = ""  # 技术路线 PNG 渲染图路径（graph_type=tech_route 时有效）

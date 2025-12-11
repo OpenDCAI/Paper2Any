@@ -24,9 +24,8 @@ from dataflow_agent.toolkits.imtool.bg_tool import (
     local_tool_for_raster_to_svg,
 )
 from dataflow_agent.toolkits.imtool.mineru_tool import svg_to_emf
-from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
-
+from dataflow_agent.logger import get_logger
 log = get_logger(__name__)
 
 
@@ -108,7 +107,6 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         log.info("paper_content 提取完成")
         return final_text
 
-    # 2) 提供给技术路线图描述生成器的“论文核心想法/摘要”
     @builder.pre_tool("paper_idea", "technical_route_desc_generator")
     def _get_paper_idea(state: Paper2FigureState):
         """
@@ -118,6 +116,11 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         - 在 TEXT 模式下，可以直接由调用方事先把概要写入 state.paper_idea。
         """
         return state.paper_idea or ""
+
+    @builder.pre_tool("style", "technical_route_desc_generator")
+    def _get_paper_idea(state: Paper2FigureState):
+
+        return state.request.style or ""
 
     # ----------------------------------------------------------------------
 
@@ -200,50 +203,51 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
 
         return state
 
-
     async def technical_ppt_generator_node(state: Paper2FigureState) -> Paper2FigureState:
         """
-        节点 4: 基于技术路线 SVG 生成 PPT
+        节点 4: 基于技术路线图 PNG 生成 PPT
 
-        - 根据前面步骤生成的 SVG 代码（整图），
+        - 根据前面步骤生成的 PNG 整图（state.svg_img_path），
           生成用于展示技术路线图的 PPT。
-        - 不再依赖 MinerU 进行图像分割，只需要将整张 SVG 转成 EMF 插入 PPT。
+        - 优先进行 SVG -> EMF 转换插入矢量图，失败时回退 PNG。
         """
         from pptx import Presentation
+        from PIL import Image
 
-        # 输出目录：统一使用本次 workflow 的根输出目录
-        run_root = Path(_ensure_result_path(state))
-        output_dir = run_root
-        output_dir.mkdir(parents=True, exist_ok=True)
+        # ✅ 临时提高 PIL 图像大小限制，防止 decompression bomb 错误
+        original_max_pixels = Image.MAX_IMAGE_PIXELS
+        Image.MAX_IMAGE_PIXELS = None  # 或设置为更大的值，如 500_000_000
 
-        timestamp = int(time.time())
-        ppt_path = output_dir / f"technical_route_{timestamp}.pptx"
+        try:
+            # 输出目录：统一使用本次 workflow 的根输出目录
+            run_root = Path(_ensure_result_path(state))
+            output_dir = run_root
+            output_dir.mkdir(parents=True, exist_ok=True)
 
-        prs = Presentation()
-        blank_slide_layout = prs.slide_layouts[6]
+            timestamp = int(time.time())
+            ppt_path = output_dir / f"technical_route_{timestamp}.pptx"
 
-        slide_width = prs.slide_width
-        slide_height = prs.slide_height
+            prs = Presentation()
+            blank_slide_layout = prs.slide_layouts[6]
 
-        # ------------------------------------------------------------------
-        # 第 1 页：技术路线图（整张 SVG 转 EMF 插入）
-        # ------------------------------------------------------------------
-        slide = prs.slides.add_slide(blank_slide_layout)
+            slide_width = prs.slide_width
+            slide_height = prs.slide_height
 
-        svg_path = getattr(state, "svg_file_path", None)
-        if svg_path:
-            try:
-                emf_output_dir = output_dir / "ppt_emf"
-                emf_output_dir.mkdir(parents=True, exist_ok=True)
+            # ------------------------------------------------------------------
+            # 第 1 页：技术路线图（优先 SVG-cmf，失败则回退 PNG）
+            # ------------------------------------------------------------------
+            slide = prs.slides.add_slide(blank_slide_layout)
 
-                svg_p = Path(svg_path)
-                emf_path = str((emf_output_dir / f"{svg_p.stem}.emf").resolve())
+            svg_path = getattr(state, "svg_file_path", None)
+            png_path = getattr(state, "svg_img_path", None)
 
-                # SVG -> EMF（保持矢量特性）
-                emf_abs = svg_to_emf(str(svg_p), emf_path)
-
-                # 将 EMF 插入 PPT，按 80% 宽度缩放并居中
-                pic = slide.shapes.add_picture(emf_abs, 0, 0)
+            def _insert_picture(pic_path: str) -> bool:
+                """通用插图函数：按 80% 宽度缩放并居中。"""
+                try:
+                    pic = slide.shapes.add_picture(pic_path, 0, 0)
+                except Exception as e:
+                    log.error(f"technical_ppt_generator_node: 插入图片失败: {e}")
+                    return False
 
                 if pic.width and pic.width > 0:
                     scale = (slide_width * 0.8) / pic.width
@@ -255,28 +259,97 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
 
                 pic.left = int((slide_width - pic.width) / 2)
                 pic.top = int((slide_height - pic.height) / 2)
-            except Exception as e:
-                log.error(f"technical_ppt_generator_node: SVG -> EMF 或插入 PPT 失败: {e}")
+                return True
 
-        else:
-            log.warning("technical_ppt_generator_node: state.svg_file_path 为空，第一页将为空白")
+            def _insert_emf(emf_path: str) -> bool:
+                """EMF 插图函数：按 80% 宽度缩放并居中。"""
+                try:
+                    pic = slide.shapes.add_picture(emf_path, 0, 0)
+                except Exception as e:
+                    log.error(f"technical_ppt_generator_node: 插入 EMF 失败: {e}")
+                    return False
 
-        # ------------------------------------------------------------------
-        # 第 2 页：操作提示页（写上“右键转换成形状”）
-        # ------------------------------------------------------------------
-        slide2 = prs.slides.add_slide(blank_slide_layout)
-        left = int(slide_width * 0.1)
-        top = int(slide_height * 0.3)
-        width = int(slide_width * 0.8)
-        height = int(slide_height * 0.4)
+                if pic.width and pic.width > 0:
+                    scale = (slide_width * 0.8) / pic.width
+                else:
+                    scale = 1.0
 
-        textbox = slide2.shapes.add_textbox(left, top, width, height)
-        text_frame = textbox.text_frame
-        text_frame.text = "右键转换成形状"
+                pic.width = int(pic.width * scale)
+                pic.height = int(pic.height * scale)
 
-        prs.save(str(ppt_path))
-        state.ppt_path = str(ppt_path)
-        log.info(f"technical_ppt_generator_node: PPT 已生成: {ppt_path}")
+                pic.left = int((slide_width - pic.width) / 2)
+                pic.top = int((slide_height - pic.height) / 2)
+                return True
+
+            inserted = False
+            emf_path = output_dir / f"technical_route_{timestamp}.emf"
+
+            # 优先 SVG -> EMF -> PPT（矢量）
+            if svg_path:
+                try:
+                    emf_abs = svg_to_emf(svg_path, str(emf_path))
+                    log.info(
+                        "technical_ppt_generator_node: SVG 转 EMF 成功: %s -> %s",
+                        svg_path,
+                        emf_abs,
+                    )
+                    inserted = _insert_emf(svg_path)
+                    if inserted:
+                        log.info(
+                            "technical_ppt_generator_node: 使用 EMF 插入技术路线图成功: %s",
+                            emf_abs,
+                        )
+                except Exception as e:
+                    log.error(
+                        "technical_ppt_generator_node: SVG->EMF 失败，准备回退到 PNG: %s",
+                        e,
+                    )
+                    inserted = False
+
+            # 如果 EMF 失败或不可用，则回退到 PNG（位图）
+            if (not inserted) and png_path:
+                try:
+                    ok = _insert_picture(png_path)
+                    if ok:
+                        log.info(
+                            "technical_ppt_generator_node: 使用 PNG 插入技术路线图成功: %s",
+                            png_path,
+                        )
+                    else:
+                        log.error(
+                            "technical_ppt_generator_node: PNG 插入失败，第一页可能为空白"
+                        )
+                except Exception as e:
+                    log.error(
+                        "technical_ppt_generator_node: PNG 插入失败，第一页将为空白: %s",
+                        e,
+                    )
+
+            if (not inserted) and (not png_path):
+                log.warning(
+                    "technical_ppt_generator_node: svg_file_path / svg_img_path 均为空，"
+                    "第一页将为空白"
+                )
+
+            # ------------------------------------------------------------------
+            # 第 2 页：操作提示页（写上“右键转换成形状”）
+            # ------------------------------------------------------------------
+            slide2 = prs.slides.add_slide(blank_slide_layout)
+            left = int(slide_width * 0.1)
+            top = int(slide_height * 0.3)
+            width = int(slide_width * 0.8)
+            height = int(slide_height * 0.4)
+
+            textbox = slide2.shapes.add_textbox(left, top, width, height)
+            text_frame = textbox.text_frame
+            text_frame.text = "右键转换成形状"
+
+            prs.save(str(ppt_path))
+            state.ppt_path = str(ppt_path)
+            log.info(f"technical_ppt_generator_node: PPT 已生成: {ppt_path}")
+        finally:
+            # ✅ 恢复原始限制
+            Image.MAX_IMAGE_PIXELS = original_max_pixels
 
         return state
 

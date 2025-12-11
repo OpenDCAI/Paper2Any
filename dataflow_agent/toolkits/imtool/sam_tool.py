@@ -1099,14 +1099,15 @@ if __name__ == "__main__":
     - Run Felzenszwalb graph-based segmentation and save boundary visualization.
 
     All outputs are written to:
-        /home/ubuntu/liuzhou/myproj/dev/DataFlow-Agent/outputs
+        /DataFlow-Agent/outputs
     """
     import os
     import cv2
+    from dataflow_agent.utils import get_project_root
 
     # 1. Input/output paths
-    img_path = "/home/ubuntu/liuzhou/myproj/dev/DataFlow-Agent/tests/image.png"
-    out_dir = Path("/home/ubuntu/liuzhou/myproj/dev/DataFlow-Agent/outputs")
+    img_path = f"{get_project_root()}/tests/image.png"
+    out_dir = Path(f"{get_project_root()}/outputs")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"[Demo] Input image: {img_path}")
