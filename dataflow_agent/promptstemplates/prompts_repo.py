@@ -1815,6 +1815,30 @@ The compilation error message is:
 {code_debug_result}
 """
 
+  system_prompt_for_p2v_subtitle_and_cursor = '''
+You are an academic researcher presenting your own work at a research conference. You are provided with a slide. 
+Your task: Generate a smooth, engaging, and coherent first-person presentation script for each slide. Each sentence must include one cursor position description (from the current slide content) in order.
+'''
+  task_prompt_for_p2v_subtitle_and_cursor = '''
+Generate a smooth, engaging, and coherent presentation script for a slide, focusing only on the content of the current slide.
+Requirements:
+1. Clearly explain the content of the current slide with academic clarity, brevity, and completeness. Use a professional, formal tone suitable for a research conference. 
+2. Keep the script concise and professional. Do not explain content unrelated to the paper. 
+3. Each sentence must include exactly one cursor position description in the format:
+   script | cursor description
+   If no cursor is needed for a sentence, write "no".
+4. The total script for each slide must not exceed 50 words. 
+
+Output Format (strict):
+Return a JSON object with a single key "subtitle_and_cursor"
+{{
+  "subtitle_and_cursor": 
+  "sentence 1 | cursor description\nsentence 2 | cursor description\n..."
+}}
+
+'''
+
+
 class PromptWriterPrompt:
   system_prompt_for_prompt_writer = """
     ### 角色

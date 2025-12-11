@@ -247,6 +247,9 @@ class Paper2VideoState(MainState):
     is_beamer_warning: bool = False
     code_debug_result: str = ""
     ppt_path: str = ""
+    slide_img_dir: str = ""
+    subtitle_and_cursor: List[str] = field(default_factory=list)
+    subtitle_and_cursor_path: str = ""
     
 
 

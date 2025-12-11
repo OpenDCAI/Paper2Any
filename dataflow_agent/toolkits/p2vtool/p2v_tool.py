@@ -3,10 +3,36 @@ from __future__ import annotations
 from dataflow_agent.logger import get_logger
 import subprocess
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, List
 
 log = get_logger(__name__)
 import re
+
+def get_image_paths(directory_path: str) -> List[str]:
+    """
+    遍历指定目录及其子目录，查找所有常见的图片文件，并返回它们的路径字符串列表。
+    """
+    # 1. 常用图片文件扩展名列表
+    image_extensions = [
+        '*.png', '*.jpg', '*.jpeg', '*.gif', '*.bmp', '*.svg', '*.webp'
+    ]
+    
+    base_path = Path(directory_path)
+    if not base_path.is_dir():
+        # 如果目录不存在，返回空列表并打印错误
+        print(f"Error: Directory not found at {directory_path}")
+        return []
+
+    found_image_paths: List[str] = []
+    
+    # 2. 递归遍历目录并收集路径
+    for ext in image_extensions:
+        # rglob(ext) 查找所有匹配该扩展名的文件，无论嵌套多深
+        # extend() 将迭代器的所有元素添加到列表中
+        # 使用 str() 确保将 Path 对象转换为字符串路径
+        found_image_paths.extend([str(p) for p in base_path.rglob(ext)]) 
+            
+    return found_image_paths
 
 def extract_beamer_code(text_str):
     match = re.search(r"(\\documentclass(?:\[[^\]]*\])?\{beamer\}.*?\\end\{document\})", text_str, re.DOTALL)
@@ -18,6 +44,7 @@ def compile_tex(beamer_code_path: str):
         raise FileNotFoundError(f"Tex file {tex_path} does not exist.")
     work_dir = tex_path.parent
     try:
+        # 会编译.tex文件，然后创建好一个.pdf文件
         result = subprocess.run(
             ["tectonic", str(tex_path)],
             check=True,

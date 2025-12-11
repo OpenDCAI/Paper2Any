@@ -21,11 +21,12 @@ from dataflow_agent.toolkits.tool_manager import get_tool_manager
 from langchain.tools import tool
 from langgraph.graph import StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
-from dataflow_agent.toolkits.p2vtool.p2v_tool import compile_tex, beamer_code_validator
+from dataflow_agent.toolkits.p2vtool.p2v_tool import compile_tex, beamer_code_validator, get_image_paths
 
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 from pathlib import Path
+from pdf2image import convert_from_path
 
 log = get_logger(__name__)
 
@@ -52,7 +53,7 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         paper_pdf_dir = paper_pdf_path.with_suffix('').parent
         if not paper_pdf_path.with_suffix('').exists():
             #fixme: 这里需要修改为部署机器上的mineru
-            mineru_cmd = ["/home/ubuntu/miniconda3/envs/p2v-model/bin/mineru", "-p", str(paper_pdf_path),  "-o",  str(paper_pdf_dir), "--source", "modelscope"]
+            mineru_cmd = ["/opt/conda/envs/p2v-model/bin/mineru", "-p", str(paper_pdf_path),  "-o",  str(paper_pdf_dir), "--source", "modelscope"]
             subprocess.run(mineru_cmd, shell=False, check=True, text=True, stderr=None,stdout=None,)
             
         paper_base_path = paper_pdf_path.with_suffix('').expanduser().resolve()
@@ -100,6 +101,31 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         beamer_code_path = state.beamer_code_path
         beamer_code = Path(beamer_code_path).read_text(encoding='utf-8')
         return beamer_code
+    
+    @builder.pre_tool("set_subtitle_and_cursor_path", "p2v_subtitle_and_cursor")
+    def set_subtitle_and_cursor_path(state: Paper2VideoState):
+        # 因为是循环调用VLM，所以这里就只调用一次
+        if state.subtitle_and_cursor_path is not "" and state.slide_img_dir is not "":
+            return None
+        '''处理好slide_img，并且处理好路径，同时将最后输出文档的地址写好'''
+        paper_pdf_path = Path(state.request.get("paper_pdf_path", ""))
+        if not paper_pdf_path.exists():
+            log.error(f"PDF 文件不存在: {paper_pdf_path}")
+            return ""
+        paper_base_path = paper_pdf_path.with_suffix('').expanduser().resolve()
+        paper_output_dir = paper_base_path
+        subtitle_and_cursor_path = paper_output_dir/"subtitle_w_cursor.txt"
+        state.subtitle_and_cursor_path = str(subtitle_and_cursor_path)
+
+        slide_img_dir = paper_output_dir/"slide_imgs"
+        slide_img_dir.mkdir(parents=True, exist_ok=True)
+        slide_imgs = convert_from_path(state.ppt_path)
+        for i, img in enumerate(slide_imgs):
+            img_path = slide_img_dir / f"slide_{i+1:03d}.png"
+            img.save(img_path, 'PNG')
+        state.slide_img_dir = str(slide_img_dir)
+        return None
+
     # 后置工具就是让agent选择的工具，可以定制多个；
     # class ModuleListInput(BaseModel):
     #     #这里要写好工具的描述，agent会根据实际上下文输入参数：
@@ -151,12 +177,40 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         from dataflow_agent.agentroles import create_react_agent
         log.info(f"开始执行 p2v_beamer_code_debug node节点")
         agent = create_react_agent(
-            name="p2v_beamer_code_debug",
+            name="p2v_beamer_code_debcug",
             model_name="gpt-4o-2024-11-20",
             max_retries=10,
             validators=[beamer_code_validator],
         )
         state = await agent.execute(state)
+        return state
+    
+    async def subtitle_and_cursor(state: Paper2VideoState) -> Paper2VideoState:
+        log.info(f"开始执行 p2v_subtitle_and_cursor node节点")
+        from dataflow_agent.agentroles import create_vlm_agent
+
+        slide_img_dir = state.slide_img_dir
+        slide_image_path_list = get_image_paths(slide_img_dir)
+        log.info(f"获得了slide_image from {slide_img_dir}, the total images are {len(slide_image_path_list)}")
+        for img_path in slide_image_path_list:
+            agent = create_vlm_agent(
+                name="p2v_subtitle_and_cursor",
+                vlm_mode="understanding",     # 视觉模式: 'understanding', 'generation', 'edit'
+                image_detail="high",          # 图像细节: 'low', 'high', 'auto'
+                model_name="gpt-4o-2024-11-20",  # 视觉模型
+                temperature=0.1,
+                max_image_size=(2048, 2048),  # 最大图像尺寸
+
+                additional_params={
+                    "input_image": img_path,
+                },        # 额外VLM参数，可以存放图片用法为："input_image": image_path
+            )
+            state = await agent.execute(state=state)
+        subtitle_and_cursor_info = "\n###\n".join(state.subtitle_and_cursor)
+        log.info(f"获取了完整的 Subtitle and Cursor 信息：\n {subtitle_and_cursor_info}")
+        subtitle_and_cursor_path = state.subtitle_and_cursor_path
+        log.info(f"内容将写入到文件地址 {subtitle_and_cursor_path}中......")
+        Path(subtitle_and_cursor_path).write_text(subtitle_and_cursor_info, encoding='utf-8')
         return state
     
     async def compile_beamer_condition(state: Paper2VideoState):
@@ -183,9 +237,10 @@ def create_paper2video_graph() -> GenericGraphBuilder:
     # ==============================================================
     nodes = {
         "p2v_extract_pdf": extract_pdf_node,
-        "pdf2ppt": pdf2ppt_node,
         "compile_beamer": compile_beamer_node,
         "p2v_beamer_code_debug": beamer_code_debug_node,
+        "p2v_subtitle_and_cursor": subtitle_and_cursor,
+        "pdf2ppt": pdf2ppt_node,
         '_end_': lambda state: state,  # 终止节点
     }
 
