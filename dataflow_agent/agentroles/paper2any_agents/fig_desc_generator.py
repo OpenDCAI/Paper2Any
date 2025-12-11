@@ -20,7 +20,7 @@ class FigureDescGenerator(BaseAgent):
         elif getattr(self.state.request, "figure_complex", "") == "hard":
             return  "system_prompt_for_figure_desc_generator_free"
         else:
-            return  "system_prompt_for_figure_desc_generator_complex"
+            return  "system_prompt_for_figure_desc_generator_mid"
 
     @property
     def task_prompt_template_name(self) -> str:
@@ -29,7 +29,7 @@ class FigureDescGenerator(BaseAgent):
         elif getattr(self.state.request, "figure_complex", "") == "hard":
             return  "task_prompt_for_figure_desc_generator_free"
         else:
-            return "task_prompt_for_figure_desc_generator_complex"
+            return "task_prompt_for_figure_desc_generator_mid"
 
     def get_task_prompt_params(self, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
         paper_idea = pre_tool_results.get("paper_idea")

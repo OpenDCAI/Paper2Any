@@ -25,6 +25,7 @@ class MainRequest:
     # ② LLM 接口
     chat_api_url: str = "http://123.129.219.111:3000/v1"
     api_key: str = os.getenv("DF_API_KEY", "test")
+    chat_api_key: str = os.getenv("DF_API_KEY", "test") #没区别，但是不想改之前代码了；
 
     # ③ 选用的 LLM 名称
     model: str = "gpt-4o"
@@ -349,7 +350,8 @@ class Paper2FigureRequest(MainRequest):
     bg_rm_model: str = "models/RMBG-2.0"
     input_type: str = "PDF"
     #  科研绘图复杂度    
-    figure_complex: str = "free"
+    figure_complex: str = "hard"
+    style: str = "kartoon"
 
 @dataclass
 class Paper2FigureState(MainState):

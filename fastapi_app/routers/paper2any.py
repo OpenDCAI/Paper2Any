@@ -14,7 +14,7 @@ from fastapi_app.workflow_adapters import run_paper2figure_wf_api
 from dataflow_agent.utils import get_project_root
 
 # 简单的邀请码校验：从本地文本文件加载白名单
-INVITE_CODES_FILE = Path("")
+INVITE_CODES_FILE = Path(os.getenv("INVITE_CODES_FILE", f"{get_project_root()}/invite_codes.txt"))
 
 def _to_outputs_url(abs_path: str, request: Request | None = None) -> str:
     """

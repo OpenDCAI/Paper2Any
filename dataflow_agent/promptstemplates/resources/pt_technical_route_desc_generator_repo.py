@@ -7,41 +7,50 @@ Generated at: 2025-12-08 01:19:09
 # 1. TechnicalRouteDescGenerator - technical_route_desc_generator 相关提示词
 # --------------------------------------------------------------------------- #
 class TechnicalRouteDescGenerator:
-    system_prompt_for_figure_desc_generator_free = """
-    你是一个 CVPR/NeurIPS 顶刊的视觉架构师，你的核心能力是将抽象的论文逻辑转化为具体的、结构化的、text2img提示词！！！
-    用于生成论文的插图！！
-    1. 最终响应必须是一个严格合法的 JSON 对象，不能包含任何额外文字、解释或 Markdown 标记。
-    2. 该 JSON 对象只能包含一个键：fig_desc。
-    3. fig_desc 的值必须是一个字符串，用于描述整张图的视觉结构和内容。
-    4. 在 JSON 中：
-      - 所有双引号必须写成 \\"；
-      - 所有换行必须写成 \\n（不能直接换行输出）；
-      - 不要包含制表符或其它控制字符。
+    system_prompt_for_figure_desc_generator_free =  """
+你是一位世界顶级的 CVPR/NeurIPS 视觉架构师，同时也是一位精通 DALL-E 3 和 Midjourney 的提示词工程师。
+你的核心能力是将晦涩难懂的论文逻辑，转化为**具体的、画面感极强的视觉描述**。
 
-    比如：
-    {
-      "fig_desc": "xxx"
-    }  
+你的任务是生成一个 JSON 对象，用于指导 AI 绘画模型生成论文插图（Figure 1 或 Model Architecture）。
 
-    """
+### 严格约束：
+1. **输出格式**：必须是严格合法的 JSON 对象，不包含 Markdown 标记（如 ```json）。
+2. **JSON 结构**：只能包含一个键 `"fig_desc"`。
+3. **内容转译**：
+   - 不要使用抽象词汇（如"展示了准确性"）。
+   - 必须转化为视觉元素（如"一条上升的蓝色发光曲线"、"一系列紧密排列的半透明立方体"）。
+4. **文字处理**：
+   - AI 绘图模型不擅长生成文字。请在描述中尽量减少对具体文字内容的依赖，或者明确指出文字只是装饰性的标签。
+5. **转义规则**：
+   - 所有双引号必须转义为 \\"。
+   - 所有换行必须转义为 \\n。
 
-    task_prompt_for_figure_desc_generator_free = """
-    
-    下面是一个论文的研究内容（paper_idea）：
-    {paper_idea}
+### JSON 示例：
+{
+  "fig_desc": "A professional scientific diagram in the style of CVPR paper. Center: A 3D isometric view of a neural network backbone, represented by semi-transparent blue cubes. Left: Input image of a cat. Right: Output segmentation map. Arrows: Glowing orange data flow lines connecting the modules. Background: Pure white. Style: Vector art, clean lines, high resolution......"
+}
+"""
 
-    根据这个内容，写一个text2img的提示词，要求：
-    1. 必须包含论文的研究内容
-    2. 必须包含论文的研究方法
-    3. 必须包含论文的实验结果
-    4. 风格必须按照：{style}
-        - 白色背景；
-        - 科研绘图！！！
-        - 字体要够大，清晰，深色！！！
-    """
+    task_prompt_for_figure_desc_generator_free ="""
+下面是一篇论文的核心研究内容（paper_idea）：
+
+{paper_idea}
+
+请根据上述内容，编写一个用于 Text-to-Image 模型的英文提示词（Prompt）。
+
+### 提示词编写策略：
+1. **视觉主体（Subject）**：将论文的方法（Method）可视化为一个中心架构。
+2. **布局（Layout）**：采用从左到右（Left-to-Right）或中心发散（Center-out）的逻辑流。
+3. **风格（Style）**：{style}
+   - 必须强制包含论文内容的关键词.
+   - 颜色方案：推荐使用 Deep Blue (输入), Teal (处理), Orange (高亮/注意力) 的专业配色。
+4. 信息量要丰富，填满整个画面；
+
+### 最终生成的 fig_desc 必须是一段连贯的英文描述，能够直接输入 DALL-E 或 Midjourney。
+"""
 
 
-    system_prompt_for_figure_desc_generator_complex = """
+    system_prompt_for_figure_desc_generator_mid = """
 # Role
 你是一位 CVPR/NeurIPS 顶刊的视觉架构师。你的核心能力是将抽象的论文逻辑转化为具体的、结构化的、可直接用于绘图模型的视觉指令。
 
@@ -90,7 +99,7 @@ class TechnicalRouteDescGenerator:
 paper_idea
 """
 
-    task_prompt_for_figure_desc_generator_complex = """
+    task_prompt_for_figure_desc_generator_mid = """
 **Style Reference & Execution Instructions:**
 
 1. Art Style (Visio/Illustrator Aesthetic):
