@@ -1873,8 +1873,14 @@ Do not include any explanations outside the JSON.
 
 --------------------
 USER CONTENT START
+
 {paper_idea}
+
 USER CONTENT END
+--------------------
+
+--------------------
+提示词风格： {style}
 --------------------
 """
 

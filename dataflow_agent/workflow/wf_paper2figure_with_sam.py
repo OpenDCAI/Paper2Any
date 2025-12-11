@@ -191,11 +191,20 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         state.fig_draft_path = save_path
 
         # 2) 基于第一次生成的图，做一次“空模板”二次编辑，也放在 result_root
+        # TEMPLATE_EDIT_PROMPT = (
+        #     "Keep only the outermost rectangles and arrows(if any in the original box).\n"
+        #     "Remove all inner content including title, subtitles, icons, explainary texts and all that.\n"
+        #     "Keep the layout exactly the same.\n"
+        #     "Output a description of an empty template composed of these boxes."
+        # )
         TEMPLATE_EDIT_PROMPT = (
-            "Keep only the outermost rectangles and arrows(if any in the original box).\n"
-            "Remove all inner content including title, subtitles, icons, explainary texts and all that.\n"
-            "Keep the layout exactly the same.\n"
-            "Output a description of an empty template composed of these boxes."
+        "Transform the original image into a pure layout made ONLY of solid colored blocks:\n"
+        "1. Keep only the outermost rectangles and arrows (if they exist).\n"
+        "2. Delete everything inside them: all titles, subtitles, texts, icons, illustrations, and any inner shapes.\n"
+        "3. Turn each remaining outer shape into a solid color block; remove borders if possible.\n"
+        "4. Keep the layout exactly the same: same positions, sizes, alignment, and spacing.\n"
+        "5. Do NOT add any text, labels, or symbols anywhere.\n"
+        "Finally, output a description of this empty color-block template (no text content at all)."
         )
 
         layout_name = f"layout_{int(time.time())}.png"
@@ -494,7 +503,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
                 elem_type_raw = it.get("type") or ""
                 elem_type = elem_type_raw.lower()
                 bbox = it.get("bbox")
-                text = it.get("text") or ""
+                text = (it.get("text") or it.get("content") or "").strip()
 
                 if not bbox or len(bbox) != 4:
                     continue
@@ -511,21 +520,21 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
 
                 px_bbox = [x1, y1, x2, y2]
 
-                # 1) 标题类块：仍然作为文本
-                if elem_type in ["title"]:
+                # 1) 只要有文字内容，一律作为文本元素
+                if text:
                     fig_mask.append(
                         {
                             "type": "text",
                             "bbox": px_bbox,
                             "text": text,
-                            "text_level": 1,
+                            "text_level": 1 if elem_type == "title" else None,
                             "page_idx": 0,
                         }
                     )
                     text_count += 1
                     continue
 
-                # 2) 其它所有块：一律裁图，当作 image，用于 icon / 元素图层
+                # 2) 没有任何文字内容的块：一律裁图，当作 image，用于 icon / 元素图层
                 try:
                     crop = top_img.crop((x1, y1, x2, y2))
                     icon_path = icons_raw_dir / f"blk_{idx}.png"
@@ -602,11 +611,13 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         生成单页 PPT：
         - 第 1 页：原始组合页（layout EMF + MinerU 文本 + 图像）
         - 第 2 页：仅渲染所有 layout_items 的 EMF，用于检查 SAM 框架
+        - 第 3 页：直接铺满整页的 full 内容 PNG（state.fig_draft_path）
 
         关键点：
         - layout_items 在 figure_layout_sam_node 中已经给出了像素坐标 bbox_px；
         - 这里完全沿用 add_text_element / add_image_element 使用的“像素 → 英寸 → Emu”规则，
           确保 EMF 背景框和内容层在同一几何坐标系下，避免因为单位不一致导致 EMF 肉眼不可见。
+        - full 内容 PNG 页直接使用 fig_draft_path，按原图尺寸换算为英寸铺满整页。
         """
         try:
             # 从state获取输出目录（若未设置则自动初始化 outputs/paper2figure/<timestamp>）
@@ -718,6 +729,32 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             for item in state.layout_items or []:
                 if _add_layout_emf(slide_emf, item):
                     layout_debug_drawn += 1
+
+            # =========================
+            # 第 3 页：full 内容 PNG 原图页（铺满整页）
+            # =========================
+            slide_full = prs.slides.add_slide(blank_slide_layout)
+            bg3 = slide_full.background
+            fill3 = bg3.fill
+            fill3.solid()
+            fill3.fore_color.rgb = RGBColor(255, 255, 255)
+
+            try:
+                # 整幅图从 (0,0) 开始铺满整页，坐标/尺寸仍按像素->英寸转换
+                left_in = pixels_to_inches(0)
+                top_in = pixels_to_inches(0)
+                width_in = pixels_to_inches(width_px)
+                height_in = pixels_to_inches(height_px)
+
+                slide_full.shapes.add_picture(
+                    state.fig_draft_path,
+                    Inches(left_in),
+                    Inches(top_in),
+                    Inches(width_in),
+                    Inches(height_in),
+                )
+            except Exception as e:
+                log.error(f"[figure_ppt_generation] add full PNG on page 3 failed: {e}")
 
             # 保存PPT
             prs.save(str(ppt_path))
