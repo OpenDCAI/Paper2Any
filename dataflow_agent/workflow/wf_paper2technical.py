@@ -24,8 +24,8 @@ from dataflow_agent.toolkits.imtool.bg_tool import (
     local_tool_for_raster_to_svg,
 )
 from dataflow_agent.toolkits.imtool.mineru_tool import svg_to_emf
-from dataflow_agent.gtge import get_project_root
-
+from dataflow_agent.utils import get_project_root
+from dataflow_agent.logger import get_logger
 log = get_logger(__name__)
 
 
