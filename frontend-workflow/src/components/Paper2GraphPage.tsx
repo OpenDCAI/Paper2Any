@@ -998,8 +998,8 @@ const Paper2FigurePage = () => {
               <DemoCard
                 title="论文实验表格文本 → 自动整理实验数据 绘制成 PPT"
                 desc="从文本形式的实验结果描述中抽取指标与对照组，一键生成适合汇报的实验结果 PPTX。"
-                inputImg="/p2f_exp_data_2_input.png"
-                outputImg="/p2f_exp_data_2_output.png"
+                inputImg="/p2f_exp_content_1.png"
+                outputImg="/p2f_exp_content_2.png"
               />
             </div>
           </div>
