@@ -1774,6 +1774,7 @@ The PPT must contain the following chapters (arranged in order), and each chapte
 ·If the source text is long, it is allowed to summarize the content, but the core methods, experimental data and conclusions must be retained.
 ·Must begin as \documentclass{beamer} and end as \end{document}.
 **Don't use "\usepackage{resizebox}" in the code which is not right in grammer.**
+**Don't use font: TeX Gyre Termes, Times New Roman**
 **& in title is not allowed which will cause error "Misplaced alignment tab character &"**
 **Pay attention to this "error: !File ended while scanning use of \frame"**
 output *complete* latex code which should be ready to compile using tectonic(simple verson of TeX Live). Before output check if the code is grammatically correct.
