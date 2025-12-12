@@ -29,7 +29,7 @@ from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 
 from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
-from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove, local_tool_for_raster_to_svg
+from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove, local_tool_for_raster_to_svg, free_bg_rm_model
 from dataflow_agent.toolkits.imtool.sam_tool import segment_layout_boxes, free_sam_model
 from dataflow_agent.toolkits.imtool.mineru_tool import (
     svg_to_emf,
@@ -607,6 +607,13 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
                 else:
                     log.warning(f"[figure_icon_bg_remover] bg remove failed for {item.get('img_path')}")
         log.info(f"[figure_icon_bg_remover] processed image/table elements: {img_cnt}")
+
+        # 抠图完成后，显式释放 RGB2.0 模型占用的显存
+        try:
+            free_bg_rm_model(model_path=state.request.bg_rm_model)
+            log.info("[figure_icon_bg_remover] freed RMBG-2.0 model from GPU")
+        except Exception as e:
+            log.error(f"[figure_icon_bg_remover] free_bg_rm_model failed: {e}")
 
         return state
 

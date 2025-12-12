@@ -60,6 +60,7 @@ const Paper2FigurePage = () => {
   const [lastFilename, setLastFilename] = useState('paper2figure.pptx');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showBanner, setShowBanner] = useState(true);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   // 技术路线图 JSON 返回的资源路径
   const [pptPath, setPptPath] = useState<string | null>(null);
@@ -219,6 +220,38 @@ const Paper2FigurePage = () => {
     setSelectedFile(file);
     setFileKind(kind);
     setError(null);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (!file) {
+      setSelectedFile(null);
+      setFileKind(null);
+      return;
+    }
+
+    const kind = detectFileKind(file);
+    setSelectedFile(file);
+    setFileKind(kind);
+    setError(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
   };
 
   const handleSubmit = async () => {
@@ -539,7 +572,14 @@ const Paper2FigurePage = () => {
 
                   {/* 不同模式内容区域 */}
                   {(uploadMode === 'file' || uploadMode === 'image') && (
-                    <div className="border border-dashed border-gray-300 rounded-xl p-5 flex flex-col items-center justify-center text-center gap-3 bg-white/60">
+                    <div
+                      className={`border border-dashed rounded-xl p-5 flex flex-col items-center justify-center text-center gap-3 bg-white/60 transition-colors ${
+                        isDragOver ? 'border-primary-500 bg-primary-50' : 'border-gray-300'
+                      }`}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                    >
                       <div className="flex items-center justify-center gap-2 text-gray-600 text-sm">
                         <FileText size={20} />
                         <span className="font-medium">
@@ -926,8 +966,8 @@ const Paper2FigurePage = () => {
                 outputImg="/p2f_paper_pdf_img_2.png"
               />
               <DemoCard
-                title="模型结果图 → 可编辑 PPTX"
-                desc="上传由 Gemini 等模型生成的科研配图或示意图截图，智能识别段落层级与要点，自动排版为可编辑的中英文 PPTX。"
+                title="科研配图 / 示意图截图 → 可编辑 PPTX"
+                desc="上传科研配图或示意图截图，自动识别段落层级与要点，自动排版为可编辑的英文 PPTX。"
                 inputImg="/p2f_paper_model_img.png"
                 outputImg="/p2f_paper_modle_img_2.png"
               />
@@ -946,8 +986,8 @@ const Paper2FigurePage = () => {
               <DemoCard
                 title="论文摘要文本 → 符合论文主题的 技术路线图 PPT + SVG"
                 desc="从整篇技术方案 PDF 中提取关键步骤与时间轴，自动生成技术路线时间线 PPTX 与 SVG。"
-                inputImg="/p2f_tech_route_2_input.png"
-                outputImg="/p2f_tech_route_2_output.png"
+                inputImg="/p2t_paper_text.png"
+                outputImg="/p2t_paper_text_2.png"
               />
               <DemoCard
                 title="论文 PDF → 自动提取实验数据 绘制成 PPT"
