@@ -11,6 +11,7 @@ const Paper2PptPage = () => {
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-4o');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [language, setLanguage] = useState<'zh' | 'en'>('zh');
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +73,7 @@ const Paper2PptPage = () => {
     formData.append('invite_code', inviteCode.trim());
     formData.append('file', selectedFile);
     formData.append('file_kind', 'pdf');
+    formData.append('language', language)
 
     try {
       setIsLoading(true);
@@ -297,6 +299,18 @@ const Paper2PptPage = () => {
                         className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder:text-gray-500"
                       />
                     </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-2 font-medium">生成语言</label>
+                      <select
+                        value={language}
+                        onChange={(e) => setLanguage(e.target.value as 'zh' | 'en')}
+                        className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      >
+                        <option value="zh">中文 (zh)</option>
+                        <option value="en">英文 (en)</option>
+                      </select>
+                  </div>
 
                     <div>
                       <label className="block text-sm text-gray-300 mb-2 font-medium">API Key</label>

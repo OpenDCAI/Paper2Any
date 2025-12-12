@@ -112,6 +112,7 @@ class FeaturePaper2VideoRequest(BaseModel):
     api_key: str = "",
     pdf_path: str = "",
     img_path: str = "",
+    language: str = "",
 
 class FeaturePaper2VideoResponse(BaseModel):
     success: bool

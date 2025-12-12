@@ -55,6 +55,7 @@ class P2vExtractPdf(BaseAgent):
         return {
             "pdf_markdown": pre_tool_results.get("pdf_markdown", ""),
             "pdf_images_working_dir": pre_tool_results.get("pdf_images_working_dir", ""),
+            "output_language": pre_tool_results.get("output_language", "English")
         }
 
     def get_default_pre_tool_results(self) -> Dict[str, Any]:

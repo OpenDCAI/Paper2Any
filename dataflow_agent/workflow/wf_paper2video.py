@@ -27,6 +27,7 @@ from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 from pathlib import Path
 from pdf2image import convert_from_path
+from dataflow_agent.toolkits.imtool.mineru_tool import run_mineru_pdf_extract
 
 log = get_logger(__name__)
 
@@ -53,8 +54,7 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         paper_pdf_dir = paper_pdf_path.with_suffix('').parent
         if not paper_pdf_path.with_suffix('').exists():
             #fixme: 这里需要修改为部署机器上的mineru
-            mineru_cmd = ["/opt/conda/envs/p2v-model/bin/mineru", "-p", str(paper_pdf_path),  "-o",  str(paper_pdf_dir), "--source", "modelscope"]
-            subprocess.run(mineru_cmd, shell=False, check=True, text=True, stderr=None,stdout=None,)
+            run_mineru_pdf_extract(str(paper_pdf_path), str(paper_pdf_dir), "modelscope")
             
         paper_base_path = paper_pdf_path.with_suffix('').expanduser().resolve()
         paper_output_dir = paper_base_path
@@ -83,6 +83,15 @@ def create_paper2video_graph() -> GenericGraphBuilder:
             log.error(f"没有生成对应的图片，MinerU 识别图像失败：{images_dir}")
             return ""
         return str(images_dir)
+    
+    @builder.pre_tool("output_language", "p2v_extract_pdf")
+    def get_language(state: Paper2VideoState):
+        language_map = {
+            'en': "English",
+            'zh': "Chinese",
+        }
+        language = state.request.language
+        return language_map.get(language, "English")
         
     @builder.pre_tool("is_beamer_wrong", "p2v_beamer_code_debug")
     def get_is_code_wrong(state: Paper2VideoState):
@@ -168,7 +177,7 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         log.info(f"开始执行compile_beamer_node")
         beamer_code_path = state.beamer_code_path
         state.is_beamer_wrong, state.is_beamer_warning, state.code_debug_result = compile_tex(beamer_code_path)
-        if not state.is_beamer_warning:
+        if not state.is_beamer_wrong:
             log.info(f"Beamer 代码编译成功，无需调试")
             state.ppt_path = state.beamer_code_path.replace(".tex", ".pdf")
         return state
@@ -177,7 +186,7 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         from dataflow_agent.agentroles import create_react_agent
         log.info(f"开始执行 p2v_beamer_code_debug node节点")
         agent = create_react_agent(
-            name="p2v_beamer_code_debcug",
+            name="p2v_beamer_code_debug",
             model_name="gpt-4o-2024-11-20",
             max_retries=10,
             validators=[beamer_code_validator],

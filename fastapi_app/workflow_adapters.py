@@ -326,6 +326,7 @@ async def run_paper_to_video_api(
         model=req.model,
         paper_pdf_path=req.pdf_path,
         user_imgs_path=req.img_path,
+        language=req.language,
     )
     state = Paper2VideoState(request=req, messages=[])
 

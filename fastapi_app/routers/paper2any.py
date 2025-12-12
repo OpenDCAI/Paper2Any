@@ -418,6 +418,7 @@ async def generate_paper2ppt(
     invite_code: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     file_kind: Optional[str] = Form(None),  # 当前前端固定为 'pdf'
+    language: str = Form(...),
 ):
     """
     Paper2PPT 假接口（带邀请码校验）：
@@ -474,6 +475,7 @@ async def generate_paper2ppt(
             api_key=api_key,
             pdf_path=str(abs_input_path),
             img_path="",
+            language=language,
         )
         resp: FeaturePaper2VideoResponse = await paper2video_endpoint(req)
         if not resp.success:

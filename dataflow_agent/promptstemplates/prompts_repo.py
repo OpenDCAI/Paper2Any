@@ -1727,7 +1727,7 @@ Your core competencies include:
 **CRITICAL RULE:** You must ensure the generated LaTeX code is complete, free of common syntax errors (like misplaced '&' or unclosed frames), and ready to compile with Tectonic or TeX Live.
     """
   task_prompt_for_p2v_extract_pdf = r"""
-Please generate a complete English PPT introduction based on the provided **Markdown content** of a research paper, using LaTeX Beamer. (Important!) Perfer more images than heavy text in the ppt.
+Please generate a complete {output_language} PPT introduction based on the provided **Markdown content** of a research paper, using LaTeX Beamer. (Important!) Perfer more images than heavy text in the ppt.
 
 ## Input Data
 The paper content is provided in Markdown format below. You need to parse this Markdown text to extract structure, text, mathematical formulas, image paths, and tables.
@@ -1767,7 +1767,10 @@ The PPT must contain the following chapters (arranged in order), and each chapte
 ## Other instruction
 ·(Important!) Perfer more images than heavy text. **The number of slides should be around 10.** 
 ·Table content should first extract real data from the source document.
-·All content should be in English.
+·All content should be in {output_language}.
+·If the {output_language} is Chinese, you must include the following necessary packages in the LaTeX preamble:
+\usepackage{fontspec} 
+\usepackage{ctex}
 ·If the source text is long, it is allowed to summarize the content, but the core methods, experimental data and conclusions must be retained.
 ·Must begin as \documentclass{beamer} and end as \end{document}.
 **Don't use "\usepackage{resizebox}" in the code which is not right in grammer.**
