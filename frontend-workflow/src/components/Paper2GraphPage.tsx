@@ -665,7 +665,7 @@ const Paper2FigurePage = () => {
                       type="text"
                       value={llmApiUrl}
                       onChange={e => setLlmApiUrl(e.target.value)}
-                      placeholder="例如：https://api.openai.com/v1/chat/completions"
+                      placeholder="例如：https://api.apiyi.com/v1"
                       className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     />
                   </div>

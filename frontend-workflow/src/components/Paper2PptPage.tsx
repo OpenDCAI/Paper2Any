@@ -3,11 +3,25 @@ import { FileText, UploadCloud, Settings2, Download, Loader2, CheckCircle2, Aler
 
 const BACKEND_API = '/api/paper2ppt/generate';
 
+// 生成阶段定义（科幻感假进度条）
+type GenerationStage = {
+  id: number;
+  message: string;
+  duration: number; // 秒
+};
+
+const GENERATION_STAGES: GenerationStage[] = [
+  { id: 1, message: '正在分析论文结构...', duration: 20 },
+  { id: 2, message: '正在提取关键信息...', duration: 20 },
+  { id: 3, message: '正在生成 PPT 大纲...', duration: 20 },
+  { id: 4, message: '正在渲染幻灯片样式...', duration: 20 },
+];
+
 const Paper2PptPage = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [inviteCode, setInviteCode] = useState('');
 
-  const [llmApiUrl, setLlmApiUrl] = useState('https://api.openai.com/v1/chat/completions');
+  const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-4o');
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -20,6 +34,13 @@ const Paper2PptPage = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showBanner, setShowBanner] = useState(true);
 
+  // 拖拽状态
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  // 科幻进度条阶段状态
+  const [currentStage, setCurrentStage] = useState(0);
+  const [stageProgress, setStageProgress] = useState(0);
+
   useEffect(() => {
     return () => {
       if (downloadUrl) {
@@ -27,6 +48,60 @@ const Paper2PptPage = () => {
       }
     };
   }, [downloadUrl]);
+
+  // 管理科幻进度条的计时（假的进度，仅由 isLoading 控制）
+  useEffect(() => {
+    if (!isLoading) {
+      setCurrentStage(0);
+      setStageProgress(0);
+      return;
+    }
+
+    let stageTimer: ReturnType<typeof setTimeout>;
+    let progressTimer: ReturnType<typeof setInterval>;
+    let currentStageIndex = 0;
+    let elapsedTime = 0;
+
+    const updateProgress = () => {
+      elapsedTime += 0.5;
+      const currentStageDuration = GENERATION_STAGES[currentStageIndex].duration;
+      const progress = Math.min(
+        ((elapsedTime % currentStageDuration) / currentStageDuration) * 100,
+        100,
+      );
+      setStageProgress(progress);
+    };
+
+    const advanceStage = () => {
+      if (currentStageIndex < GENERATION_STAGES.length - 1) {
+        currentStageIndex++;
+        setCurrentStage(currentStageIndex);
+        elapsedTime = 0;
+        setStageProgress(0);
+      }
+    };
+
+    // 每 0.5 秒更新进度条
+    progressTimer = setInterval(updateProgress, 500);
+
+    // 按阶段时长切换阶段
+    const scheduleNextStage = () => {
+      const duration = GENERATION_STAGES[currentStageIndex].duration * 1000;
+      stageTimer = setTimeout(() => {
+        advanceStage();
+        if (currentStageIndex < GENERATION_STAGES.length - 1) {
+          scheduleNextStage();
+        }
+      }, duration);
+    };
+
+    scheduleNextStage();
+
+    return () => {
+      clearTimeout(stageTimer);
+      clearInterval(progressTimer);
+    };
+  }, [isLoading]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -42,6 +117,42 @@ const Paper2PptPage = () => {
     }
     setSelectedFile(file);
     setError(null);
+  };
+
+  // 拖拽上传处理（参考 Paper2GraphPage）
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (!file) {
+      setSelectedFile(null);
+      return;
+    }
+
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (ext !== 'pdf') {
+      setError('仅支持 PDF 格式');
+      setSelectedFile(null);
+      return;
+    }
+    setSelectedFile(file);
+    setError(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
   };
 
   const handleSubmit = async () => {
@@ -73,7 +184,7 @@ const Paper2PptPage = () => {
     formData.append('invite_code', inviteCode.trim());
     formData.append('file', selectedFile);
     formData.append('file_kind', 'pdf');
-    formData.append('language', language)
+    formData.append('language', language);
 
     try {
       setIsLoading(true);
@@ -143,7 +254,7 @@ const Paper2PptPage = () => {
                 <span className="text-xs font-bold text-white">开源项目</span>
               </div>
               
-              <span className="text-sm font-medium text-white">
+              <span className="text-sm font-medium text白">
                 🚀 探索更多 AI 数据处理工具
               </span>
             </div>
@@ -153,7 +264,7 @@ const Paper2PptPage = () => {
                 href="https://github.com/OpenDCAI/DataFlow"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
+                className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg白 text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
               >
                 <Github size={14} />
                 <span>DataFlow</span>
@@ -164,7 +275,7 @@ const Paper2PptPage = () => {
                 href="https://github.com/OpenDCAI/DataFlow-Agent"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
+                className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg白 text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
               >
                 <Github size={14} />
                 <span>DataFlow-Agent</span>
@@ -216,8 +327,15 @@ const Paper2PptPage = () => {
                       上传学术论文、研究报告或技术文档的 PDF 文件，系统会自动提取关键内容，生成结构化的 PPTX 演示文稿。
                     </p>
 
-                    {/* PDF 上传区域 */}
-                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-10 flex flex-col items-center justify-center text-center gap-4 bg-gradient-to-br from-white to-purple-50/30 hover:border-purple-400 transition-all group">
+                    {/* PDF 上传区域（支持拖拽） */}
+                    <div
+                      className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center text-center gap-4 bg-gradient-to-br from-white to-purple-50/30 hover:border-purple-400 transition-all group ${
+                        isDragOver ? 'border-purple-500 bg-purple-50/80' : 'border-gray-300'
+                      }`}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                    >
                       <div className="flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-purple-50 to-purple-100 group-hover:from-purple-100 group-hover:to-purple-200 transition-all">
                         <UploadCloud size={36} className="text-purple-600" />
                       </div>
@@ -295,7 +413,7 @@ const Paper2PptPage = () => {
                         type="text"
                         value={llmApiUrl}
                         onChange={e => setLlmApiUrl(e.target.value)}
-                        placeholder="https://api.openai.com/v1/chat/completions"
+                        placeholder="https://api.apiyi.com/v1"
                         className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder:text-gray-500"
                       />
                     </div>
@@ -310,7 +428,7 @@ const Paper2PptPage = () => {
                         <option value="zh">中文 (zh)</option>
                         <option value="en">英文 (en)</option>
                       </select>
-                  </div>
+                    </div>
 
                     <div>
                       <label className="block text-sm text-gray-300 mb-2 font-medium">API Key</label>
@@ -347,6 +465,75 @@ const Paper2PptPage = () => {
                     {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
                     <span>生成 PPTX</span>
                   </button>
+
+                  {/* 科幻感假进度条（参考 Paper2GraphPage） */}
+                  {isLoading && !error && !successMessage && (
+                    <div className="flex flex-col gap-3 mt-2 text-xs rounded-lg border border-purple-400/40 bg-purple-500/10 px-3 py-3">
+                      <div className="flex items-center gap-2 text-purple-200">
+                        <Loader2 size={14} className="animate-spin" />
+                        <span className="font-medium">{GENERATION_STAGES[currentStage].message}</span>
+                      </div>
+                      
+                      {/* 多段水平进度条 */}
+                      <div className="flex gap-1">
+                        {GENERATION_STAGES.map((stage, index) => (
+                          <div
+                            key={stage.id}
+                            className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${
+                              index < currentStage
+                                ? 'bg-purple-400'
+                                : index === currentStage
+                                ? 'bg-gradient-to-r from-purple-400 to-pink-400'
+                                : 'bg-purple-950/60'
+                            }`}
+                            style={{
+                              width: index === currentStage ? `${stageProgress}%` : undefined,
+                            }}
+                          />
+                        ))}
+                      </div>
+
+                      {/* 阶段说明 + 科幻小圆点 */}
+                      <div className="space-y-1.5 text-[11px] text-purple-200/80">
+                        <div className="flex items-center gap-1.5">
+                          <div className={`w-1.5 h-1.5 rounded-full ${
+                            currentStage >= 0 ? 'bg-purple-400 animate-pulse' : 'bg-purple-950/60'
+                          }`} />
+                          <span className={currentStage >= 0 ? 'text-purple-100 font-medium' : ''}>
+                            分析论文结构
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className={`w-1.5 h-1.5 rounded-full ${
+                            currentStage >= 1 ? 'bg-purple-400 animate-pulse' : 'bg-purple-950/60'
+                          }`} />
+                          <span className={currentStage >= 1 ? 'text-purple-100 font-medium' : ''}>
+                            提取关键信息
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className={`w-1.5 h-1.5 rounded-full ${
+                            currentStage >= 2 ? 'bg-purple-400 animate-pulse' : 'bg-purple-950/60'
+                          }`} />
+                          <span className={currentStage >= 2 ? 'text-purple-100 font-medium' : ''}>
+                            生成 PPT 大纲
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className={`w-1.5 h-1.5 rounded-full ${
+                            currentStage >= 3 ? 'bg-purple-400 animate-pulse' : 'bg-purple-950/60'
+                          }`} />
+                          <span className={currentStage >= 3 ? 'text-purple-100 font-medium' : ''}>
+                            渲染幻灯片样式
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-purple-200/70 pt-1 border-t border-purple-400/20">
+                        预计需要 1-3 分钟，请耐心等待...
+                      </p>
+                    </div>
+                  )}
 
                   {downloadUrl && (
                     <button
