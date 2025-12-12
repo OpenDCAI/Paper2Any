@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
+from fastapi_app.routers import operator_write, pipeline_rec, workflows, paper2video
 from fastapi_app.routers import operator_write, pipeline_rec, workflows
 from fastapi_app.routers import paper2any
 from dataflow_agent.utils import get_project_root
@@ -37,6 +38,7 @@ def create_app() -> FastAPI:
     app.include_router(workflows.router, prefix="/workflows", tags=["workflows"])
     app.include_router(operator_write.router, prefix="/operator", tags=["operator_write"])
     app.include_router(pipeline_rec.router, prefix="/pipeline", tags=["pipeline_recommend"])
+    app.include_router(paper2video.router, prefix="/paper2video", tags=["paper2video"])
     # Paper2Graph / Paper2PPT 假接口，对接前端 /api/*
     app.include_router(paper2any.router, prefix="/api", tags=["paper2any"])
 

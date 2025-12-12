@@ -151,6 +151,26 @@ def crop_mineru_blocks_by_type(
 
     return saved_paths
 
+def run_mineru_pdf_extract(
+    pdf_path: str,
+    output_dir: str = "",
+    source: str = "modelscope",
+):
+    """
+    使用 MinerU 命令行方式提取 PDF 中的结构化内容，
+
+    参数:
+        pdf_path: PDF 文件路径
+        output_dir: 输出目录路径，不存在会自动创建
+        source: 下载模型的源，可选 modelscope、huggingface
+
+    返回:
+        解析的所有图片、markdown格式的内容
+    """
+    mineru_cmd = ["/home/ubuntu/miniconda3/envs/p2v-model/bin/mineru", "-p", str(pdf_path),  "-o",  str(output_dir), "--source", source]
+    subprocess.run(mineru_cmd, shell=False, check=True, text=True, stderr=None,stdout=None,)
+
+
 
 def crop_mineru_blocks_with_meta(
     image_path: str,
