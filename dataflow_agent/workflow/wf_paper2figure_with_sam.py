@@ -29,8 +29,8 @@ from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 
 from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
-from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove, local_tool_for_raster_to_svg
-from dataflow_agent.toolkits.imtool.sam_tool import segment_layout_boxes
+from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove, local_tool_for_raster_to_svg, free_bg_rm_model
+from dataflow_agent.toolkits.imtool.sam_tool import segment_layout_boxes, free_sam_model
 from dataflow_agent.toolkits.imtool.mineru_tool import (
     svg_to_emf,
     recursive_mineru_layout,
@@ -244,11 +244,12 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         out_dir = base_dir / "layout_items"
         out_dir.mkdir(parents=True, exist_ok=True)
 
+        sam_ckpt = f'{get_project_root()}/sam_b.pt'
         # 1. SAM 分割 + 过滤 + 裁剪子图
         layout_items = segment_layout_boxes(
             image_path=str(img_path),
             output_dir=str(out_dir),
-            checkpoint= f'{get_project_root()}/sam_b.pt',
+            checkpoint= sam_ckpt,
             # 这里的参数可以根据 mask_detail_level 调整
             min_area=200,
             min_score=0.0,
@@ -256,6 +257,9 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             top_k=10,
             nms_by="mask",
         )
+        log.info(f"[figure_layout_sam] SAM 分割结果: {len(layout_items)} 个布局元素")
+        # 3. 释放 SAM 模型占用的显存
+        free_sam_model(checkpoint= sam_ckpt)
 
         # layout 图实际像素尺寸，用于把归一化 bbox 转为像素 bbox
         try:
@@ -603,6 +607,13 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
                 else:
                     log.warning(f"[figure_icon_bg_remover] bg remove failed for {item.get('img_path')}")
         log.info(f"[figure_icon_bg_remover] processed image/table elements: {img_cnt}")
+
+        # 抠图完成后，显式释放 RGB2.0 模型占用的显存
+        try:
+            free_bg_rm_model(model_path=state.request.bg_rm_model)
+            log.info("[figure_icon_bg_remover] freed RMBG-2.0 model from GPU")
+        except Exception as e:
+            log.error(f"[figure_icon_bg_remover] free_bg_rm_model failed: {e}")
 
         return state
 

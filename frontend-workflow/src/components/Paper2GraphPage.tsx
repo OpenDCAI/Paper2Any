@@ -10,6 +10,7 @@ type FigureComplex = 'easy' | 'mid' | 'hard';
 
 const BACKEND_API = '/api/paper2figure/generate';
 const JSON_API = '/api/paper2figure/generate_json';
+const HISTORY_API = '/api/paper2figure/history_files';
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'tiff'];
 
@@ -35,6 +36,8 @@ const GENERATION_STAGES: GenerationStage[] = [
   { id: 4, message: '正在合成 PPT...', duration: 30 },
 ];
 
+const STORAGE_KEY = 'paper2figure_config_v1';
+
 const Paper2FigurePage = () => {
   const [uploadMode, setUploadMode] = useState<UploadMode>('file');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -57,11 +60,35 @@ const Paper2FigurePage = () => {
   const [lastFilename, setLastFilename] = useState('paper2figure.pptx');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showBanner, setShowBanner] = useState(true);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   // 技术路线图 JSON 返回的资源路径
   const [pptPath, setPptPath] = useState<string | null>(null);
   const [svgPath, setSvgPath] = useState<string | null>(null);
   const [svgPreviewPath, setSvgPreviewPath] = useState<string | null>(null);
+
+  // 新增：本次任务所有输出文件 URL 列表 + 是否展示输出面板
+  const [allOutputFiles, setAllOutputFiles] = useState<string[]>([]);
+  const [showOutputPanel, setShowOutputPanel] = useState(false);
+
+  // 根据邀请码拉取历史文件列表（所有 graph_type）
+  const fetchHistoryFiles = async (code: string) => {
+    const invite = code.trim();
+    if (!invite) return;
+    try {
+      const res = await fetch(
+        `${HISTORY_API}?invite_code=${encodeURIComponent(invite)}`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const urls: string[] = (data.files || []).map((f: any) =>
+        typeof f === 'string' ? f : f.url,
+      );
+      setAllOutputFiles(urls);
+    } catch (e) {
+      console.error('fetch history files error', e);
+    }
+  };
 
   // 新增：生成阶段状态
   const [currentStage, setCurrentStage] = useState(0);
@@ -74,6 +101,62 @@ const Paper2FigurePage = () => {
       }
     };
   }, [downloadUrl]);
+
+  // 从 localStorage 恢复配置
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as {
+        uploadMode?: UploadMode;
+        textContent?: string;
+        graphType?: GraphType;
+        language?: Language;
+        style?: StyleType;
+        figureComplex?: FigureComplex;
+        inviteCode?: string;
+        llmApiUrl?: string;
+        apiKey?: string;
+        model?: string;
+      };
+
+      if (saved.uploadMode) setUploadMode(saved.uploadMode);
+      if (saved.textContent) setTextContent(saved.textContent);
+      if (saved.graphType) setGraphType(saved.graphType);
+      if (saved.language) setLanguage(saved.language);
+      if (saved.style) setStyle(saved.style);
+      if (saved.figureComplex) setFigureComplex(saved.figureComplex);
+      if (saved.inviteCode) setInviteCode(saved.inviteCode);
+      if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
+      if (saved.apiKey) setApiKey(saved.apiKey);
+      if (saved.model) setModel(saved.model);
+    } catch (e) {
+      console.error('Failed to restore paper2figure config', e);
+    }
+  }, []);
+
+  // 将配置写入 localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const data = {
+      uploadMode,
+      textContent,
+      graphType,
+      language,
+      style,
+      figureComplex,
+      inviteCode,
+      llmApiUrl,
+      apiKey,
+      model,
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.error('Failed to persist paper2figure config', e);
+    }
+  }, [uploadMode, textContent, graphType, language, style, figureComplex, inviteCode, llmApiUrl, apiKey, model]);
 
   // 新增：管理生成阶段的定时器
   useEffect(() => {
@@ -139,6 +222,38 @@ const Paper2FigurePage = () => {
     setError(null);
   };
 
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (!file) {
+      setSelectedFile(null);
+      setFileKind(null);
+      return;
+    }
+
+    const kind = detectFileKind(file);
+    setSelectedFile(file);
+    setFileKind(kind);
+    setError(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
   const handleSubmit = async () => {
     if (isLoading) return;
     setError(null);
@@ -149,11 +264,15 @@ const Paper2FigurePage = () => {
     setSvgPreviewPath(null);
     setCurrentStage(0);
     setStageProgress(0);
+    setShowOutputPanel(true);
 
     if (!inviteCode.trim()) {
       setError('请先输入邀请码');
       return;
     }
+
+    // 点击生成后，立刻根据邀请码加载历史文件列表（所有历史任务）
+    await fetchHistoryFiles(inviteCode);
 
     if (!llmApiUrl.trim() || !apiKey.trim()) {
       setError('请先配置模型 API URL 和 API Key');
@@ -228,12 +347,15 @@ const Paper2FigurePage = () => {
           throw new Error(msg);
         }
 
-        const data: {
+        type Paper2FigureJsonResp = {
           success: boolean;
           ppt_filename: string;
           svg_filename: string;
           svg_image_filename: string;
-        } = await res.json();
+          all_output_files?: string[];
+        };
+
+        const data: Paper2FigureJsonResp = await res.json();
 
         if (!data.success) {
           throw new Error('生成技术路线图失败');
@@ -242,6 +364,7 @@ const Paper2FigurePage = () => {
         setPptPath(data.ppt_filename);
         setSvgPath(data.svg_filename);
         setSvgPreviewPath(data.svg_image_filename);
+        setAllOutputFiles(data.all_output_files ?? []);
         setSuccessMessage('技术路线图已生成，可下载 PPT / SVG 或直接预览 PNG');
       } else {
         // 其他类型：保持原来的 PPTX blob 下载逻辑
@@ -449,7 +572,14 @@ const Paper2FigurePage = () => {
 
                   {/* 不同模式内容区域 */}
                   {(uploadMode === 'file' || uploadMode === 'image') && (
-                    <div className="border border-dashed border-gray-300 rounded-xl p-5 flex flex-col items-center justify-center text-center gap-3 bg-white/60">
+                    <div
+                      className={`border border-dashed rounded-xl p-5 flex flex-col items-center justify-center text-center gap-3 bg-white/60 transition-colors ${
+                        isDragOver ? 'border-primary-500 bg-primary-50' : 'border-gray-300'
+                      }`}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                    >
                       <div className="flex items-center justify-center gap-2 text-gray-600 text-sm">
                         <FileText size={20} />
                         <span className="font-medium">
@@ -703,7 +833,6 @@ const Paper2FigurePage = () => {
                           type="button"
                           onClick={() => {
                             if (!pptPath) return;
-                            // 在新标签页打开后端返回的完整 PPT 链接
                             window.open(pptPath, '_blank');
                           }}
                           className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-400/60 text-emerald-300 text-xs py-2 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
@@ -750,6 +879,59 @@ const Paper2FigurePage = () => {
                   </div>
                 )}
 
+                {/* 新增：邀请码历史任务输出文件列表（所有 graphType 通用） */}
+                {showOutputPanel && (
+                  <div className="mt-3 glass rounded-lg border border-white/10 p-3 text-xs text-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium">邀请码所有任务输出文件列表</span>
+                      {isLoading && (
+                        <span className="flex items-center gap-1 text-primary-200">
+                          <Loader2 size={12} className="animate-spin" />
+                          正在生成中...
+                        </span>
+                      )}
+                    </div>
+
+                    {allOutputFiles.length === 0 ? (
+                      <p className="text-[11px] text-gray-400">
+                        任务正在执行或尚未产生可下载文件，请稍候。生成完成后，这里会显示本次任务下的 PPTX / PNG / SVG 文件。
+                      </p>
+                    ) : (
+                      <ul className="space-y-1 max-h-60 overflow-auto">
+                        {allOutputFiles.map((url: string, idx: number) => {
+                          const name = url.split('/').pop() || `文件${idx + 1}`;
+                          const ext = name.split('.').pop()?.toLowerCase() || '';
+                          let icon: JSX.Element | null = null;
+                          if (ext === 'pptx') icon = <FileText size={12} />;
+                          else if (['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'tiff', 'svg'].includes(ext)) {
+                            icon = <ImageIcon size={12} />;
+                          }
+
+                          return (
+                            <li key={url} className="flex items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() => window.open(url, '_blank')}
+                                className="flex-1 inline-flex items-center gap-2 text-left text-primary-200 hover:text-primary-100 hover:underline"
+                              >
+                                {icon}
+                                <span className="truncate">{name}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => window.open(url, '_blank')}
+                                className="px-2 py-1 rounded border border-primary-400/60 text-[11px] text-primary-200 hover:bg-primary-500/10"
+                              >
+                                打开 / 下载
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
                 {error && (
                   <div className="flex items-start gap-2 text-xs text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-3 py-2 mt-1">
                     <AlertCircle size={14} className="mt-0.5" />
@@ -784,8 +966,8 @@ const Paper2FigurePage = () => {
                 outputImg="/p2f_paper_pdf_img_2.png"
               />
               <DemoCard
-                title="模型结果图 → 可编辑 PPTX"
-                desc="上传由 Gemini 等模型生成的科研配图或示意图截图，智能识别段落层级与要点，自动排版为可编辑的中英文 PPTX。"
+                title="科研配图 / 示意图截图 → 可编辑 PPTX"
+                desc="上传科研配图或示意图截图，自动识别段落层级与要点，自动排版为可编辑的英文 PPTX。"
                 inputImg="/p2f_paper_model_img.png"
                 outputImg="/p2f_paper_modle_img_2.png"
               />
@@ -804,8 +986,8 @@ const Paper2FigurePage = () => {
               <DemoCard
                 title="论文摘要文本 → 符合论文主题的 技术路线图 PPT + SVG"
                 desc="从整篇技术方案 PDF 中提取关键步骤与时间轴，自动生成技术路线时间线 PPTX 与 SVG。"
-                inputImg="/p2f_tech_route_2_input.png"
-                outputImg="/p2f_tech_route_2_output.png"
+                inputImg="/p2t_paper_text.png"
+                outputImg="/p2t_paper_text_2.png"
               />
               <DemoCard
                 title="论文 PDF → 自动提取实验数据 绘制成 PPT"

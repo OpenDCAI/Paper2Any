@@ -23,6 +23,7 @@ Design philosophy:
 # _load_image_pil: 从路径读取图片并转为 RGB 的 PIL.Image。
 # _get_image_size: 返回图片的宽高 (width, height)。
 # _get_sam_model: 懒加载并缓存指定 checkpoint 的 SAM 模型。
+# free_sam_model: 显式释放指定 checkpoint 的 SAM 模型并清理 CUDA 显存。
 # run_sam_auto: 对单张图片运行 SAM 自动分割，返回每个实例的 mask、归一化 bbox 等信息。
 # run_sam_auto_batch: 对多张图片批量运行 SAM 自动分割，按图片返回实例列表。
 # _get_yolo_model: 懒加载并缓存指定权重和设备的 YOLOv8 分割模型。
@@ -75,6 +76,12 @@ try:
     import matplotlib.pyplot as plt
 except Exception:  # pragma: no cover - optional dependency
     plt = None  # type: ignore
+
+# torch 仅用于显式释放 CUDA 显存（free_sam_model 等场景）
+try:  # pragma: no cover - optional dependency
+    import torch
+except Exception:  # pragma: no cover
+    torch = None  # type: ignore
 
 
 # -----------------------------------------------------------------------------
@@ -156,6 +163,46 @@ def _get_sam_model(
         # Device is controlled at inference time, e.g. model(img, device="cuda").
         _SAM_MODELS[key] = UltralyticsSAM(checkpoint)
     return _SAM_MODELS[key]
+
+
+def free_sam_model(checkpoint: str = "sam_b.pt") -> None:
+    """
+    显式释放指定 checkpoint 对应的 SAM 模型，并尽量清理 CUDA 显存。
+
+    典型用法：
+        from dataflow_agent.toolkits.imtool.sam_tool import free_sam_model
+
+        # 在 workflow 正常结束或发生 OOM 后调用
+        free_sam_model("/abs/path/to/sam_b.pt")
+
+    注意：
+    - 仅影响当前 Python 进程持有的 SAM 模型，不会影响其他 GPU 进程。
+    - 若当前环境中没有安装 torch，则只能删除 Python 层的引用，
+      无法调用 torch.cuda.empty_cache()。
+    """
+    global _SAM_MODELS
+    m = _SAM_MODELS.pop(checkpoint, None)
+    if m is not None:
+        # 尝试清理 ultralytics 内部引用
+        try:
+            # 一些 ultralytics 模型提供 model.to("cpu") 等接口，此处最好切到 CPU 再删除
+            if hasattr(m, "model"):
+                try:
+                    m.model.to("cpu")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        del m
+
+    # 若 torch 可用，则尝试清空 CUDA 缓存，减轻显存压力
+    if torch is not None and torch.cuda.is_available():
+        try:
+            torch.cuda.empty_cache()
+        except Exception:
+            # 防御式处理，确保不会因为清理失败影响主流程
+            pass
 
 
 def run_sam_auto(
