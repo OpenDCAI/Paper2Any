@@ -27,7 +27,7 @@
 
 - `2025-12-12`: Paper2Figure网页端正式上线([http://dcai-paper2figure.cpolar.top/](http://dcai-paper2figure.cpolar.top/))，支持一键生成多种**可编辑**科研绘图，可凭邀请码试用。
 
- <img width="2230" height="1215" alt="image" src="static/dfa_fronted.png" />
+ <img width="2230" height="1215" alt="image" src="static/p2f_frontend.png" />
 
 - `2024-09-01`：发布 `0.1.0` 首个版本 🎉（详见 `docs/changelog.md`）
 
@@ -124,8 +124,8 @@ DataFlow-Agent 聚焦三大能力板块：
 
 <img src="static/icon_refine.png" width="100%"/>
 <div style="display: flex; align-items: flex-start; justify-content: center;">
-  <img width="480" height="auto" alt="image" src="static/p2f_example_1.png" style="margin-right: 10px;"/>
-  <img width="480" height="auto" alt="1765547715586" src="static/p2f_example_2.png"/>
+  <img width="450" height="auto" alt="image" src="static/p2f_example_1.png" style="margin-right: 10px;"/>
+  <img width="450" height="auto" alt="1765547715586" src="static/p2f_example_2.png"/>
 </div>
 
 ---
