@@ -1916,3 +1916,316 @@ class PaperIdeaExtractorPrompts:
 
     Paper content: {paper_content}
     """
+
+
+class ChartTypeRecommenderPrompts:
+    """图表类型推荐 Agent 的提示词模板"""
+    
+    system_prompt_for_chart_type_recommender = """
+You are an expert data visualization analyst with deep knowledge of statistical charts and their applications.
+
+Your task is to analyze a table extracted from a research paper and recommend the most appropriate chart type for visualizing the data.
+
+**Guidelines:**
+
+1. **Determine if the Table is Suitable for Charting:**
+   - **FIRST**, assess whether this table contains experimental/statistical data that can be visualized
+   - Tables suitable for charts: performance metrics, experimental results, statistical comparisons, trend data, distributions
+   - Tables NOT suitable for charts: definitions, classifications, textual descriptions, taxonomies, pure categorical lists without metrics
+   - If the table is primarily descriptive/explanatory text (like "Types" and "Description" columns), it should NOT be visualized
+   
+2. **Understand the Data Structure (if suitable):**
+   - Analyze the table headers, data types (numeric vs categorical), and number of rows/columns
+   - Identify the key variables and their relationships
+   - Consider the data distribution and patterns
+
+3. **Consider the Paper Context:**
+   - The table is from a research paper with specific research goals
+   - The visualization should support the paper's main ideas and findings
+   - Choose a chart type that best communicates the research message
+
+4. **Recommend Appropriate Chart Types (if suitable):**
+   Available chart types include:
+   - **bar**: Best for comparing discrete categories or groups
+     - Use **grouped bars** (not stacked) when comparing multiple metrics across categories
+     - Use **faceted/subplot layout** when there are many metrics to avoid overcrowding
+   - **line**: Best for showing trends over time or continuous variables
+   - **scatter**: Best for showing correlations between two numeric variables
+   - **pie**: Best for showing part-to-whole relationships (use sparingly)
+   - **heatmap**: Best for showing patterns in large datasets or correlation matrices
+   - **box**: Best for showing distribution and outliers
+   - **histogram**: Best for showing frequency distributions
+   
+   **Important Visualization Principles:**
+   - Avoid stacked bar charts when precise value comparison is needed
+   - Use grouped/clustered bars for multi-metric comparisons
+   - Consider using subplots (facets) when there are 4+ metrics to compare
+   - Prioritize clarity over complexity - simpler is often better
+
+5. **Provide Clear Reasoning:**
+   - Explain WHY you chose this chart type
+   - Describe what insights this visualization will reveal
+   - Suggest which columns should be used for x-axis, y-axis, etc.
+
+6. **Output Format:**
+   Return a JSON object with the following structure:
+   ```json
+   {
+     "is_suitable_for_chart": true/false,
+     "suitability_reason": "<explanation of why this table is or isn't suitable for charting>",
+     "chart_type": "<type or 'none' if not suitable>",
+     "chart_type_reason": "<detailed explanation>",
+     "data_interpretation": {
+       "x_axis": "<column name or description>",
+       "y_axis": "<column name or description>",
+       "data_points": <number>,
+       "key_insights": "<what this chart will reveal>"
+     },
+     "visualization_config": {
+       "title": "<suggested chart title>",
+       "x_label": "<x-axis label>",
+       "y_label": "<y-axis label>",
+       "data_columns": ["<column1>", "<column2>", ...],
+       "special_notes": "<any special handling needed>"
+     }
+   }
+   ```
+   
+   **CRITICAL**: 
+   - If `is_suitable_for_chart` is false, set `chart_type` to "none"
+   - Always provide a clear `suitability_reason` explaining your decision
+
+**Important:** Do NOT provide any explanations outside the JSON structure.
+"""
+
+    task_prompt_for_chart_type_recommender = """
+Based on the paper's core ideas and the table information provided below, determine if this table is suitable for visualization, and if so, recommend the most appropriate chart type.
+
+**Paper Core Ideas:**
+{paper_idea}
+
+**Table Information:**
+{table_info}
+
+**Your Task:**
+1. **FIRST**, determine if this table contains data suitable for statistical charting:
+   - Is it experimental/statistical data with measurable metrics?
+   - Or is it purely descriptive/explanatory text (definitions, classifications, etc.)?
+   
+2. If NOT suitable (e.g., just definitions or descriptions):
+   - Set `is_suitable_for_chart` to false
+   - Set `chart_type` to "none"
+   - Provide a clear `suitability_reason`
+   - You may skip or simplify `data_interpretation` and `visualization_config`
+   
+3. If suitable for charting:
+   - Set `is_suitable_for_chart` to true
+   - Analyze the table structure and content
+   - Consider how this table relates to the paper's main ideas
+   - Recommend the best chart type for visualization
+   - Provide detailed reasoning and configuration suggestions
+   
+4. Return ONLY a JSON object following the format specified in the system prompt
+
+**Examples of unsuitable tables:**
+- Tables with "Type" and "Description" columns explaining concepts
+- Taxonomies or classification schemes without metrics
+- Definition lists
+- Pure textual explanations organized in table format
+
+**Examples of suitable tables:**
+- Performance comparison tables with numeric metrics
+- Experimental results with measurements
+- Statistical summaries with means, std devs, etc.
+- Time-series data
+- Correlation or comparison matrices with values
+"""
+
+
+class ChartCodeGeneratorPrompts:
+    """图表代码生成 Agent 的提示词模板"""
+    
+    system_prompt_for_chart_code_generator = """
+You are an expert Python programmer specializing in data visualization with matplotlib.
+
+Your task is to generate clean, executable Python code that creates a high-quality chart based on the provided configuration.
+
+**Guidelines:**
+
+1. **Code Quality:**
+   - Write clean, well-commented Python code
+   - Use matplotlib best practices
+   - Handle edge cases and potential errors gracefully
+   - Make the code self-contained and executable
+
+2. **Required Libraries:**
+   - **MUST** use seaborn for styling and visualization (import seaborn as sns)
+   - Import matplotlib.pyplot, numpy, pandas as needed
+   - Use only standard scientific Python libraries (matplotlib, seaborn, numpy, pandas)
+   - Set seaborn style at the beginning: `sns.set_style('whitegrid')` or `sns.set_style('white')`
+
+3. **Data Handling:**
+   - The code will receive table headers and rows as input
+   - Parse and validate data appropriately
+   - Handle missing or invalid values
+   - **CRITICAL**: Use only column indices (e.g., `df.iloc[:, 0]`) when accessing DataFrame columns to avoid KeyError
+   - **CRITICAL**: Always validate data existence before access - never assume column names or nested structures exist
+   - **CRITICAL**: Remember that `df['column']` returns a Series, not a DataFrame - don't use `.iloc[:, j]` on Series
+
+4. **Chart Styling (CRITICAL):**
+   - **Core Principle: CLARITY ABOVE ALL** - charts must be immediately readable and unambiguous
+   - **MUST use seaborn** for professional styling (`import seaborn as sns`)
+   - **MUST use light color palettes**: 'pastel', 'light', 'muted', 'Set2', 'Set3'
+   - Set seaborn style: `sns.set_style('whitegrid')` or `sns.set_style('white')`
+   - Use appropriate figure size (larger is better for clarity)
+   - Use `plt.tight_layout()` for clean spacing
+   
+   **Visualization Logic:**
+   - **Too many metrics?** → Split into subplots (one metric per subplot)
+   - **Need to compare values?** → Use grouped bars, NEVER stacked bars
+   - **Data overlapping?** → Increase figure size or use subplots
+   - **Hard to read labels?** → Rotate, resize, or abbreviate
+   - When in doubt, choose the simpler, clearer option
+
+5. **Error Handling:**
+   - Include try-except blocks for robustness
+   - Provide fallback visualization if data format is unexpected
+
+6. **Output Format:**
+   Return a JSON object with the following structure:
+   ```json
+   {
+     "code": "<complete Python code as a string>",
+     "description": "<brief description of what the code does>"
+   }
+   ```
+
+**Important Rules:**
+- The code MUST be directly executable without requiring function calls
+- Either write inline code OR define a function and CALL it immediately
+- The code MUST save the chart using `plt.savefig(output_path)` where output_path is a variable
+- Do NOT include `plt.show()` in the code
+- Do NOT provide any explanations outside the JSON structure
+- The code should be production-ready and executable as-is
+- Remember: output_path, headers, and rows will be provided as variables in the execution environment
+
+**CRITICAL Data Access Rules:**
+- ONLY use variables that are GUARANTEED to exist: `headers`, `rows`, `output_path`
+- Do NOT assume column names exist in the DataFrame without checking first
+- Do NOT use `.iloc[:, j]` on a Series - this will cause errors
+- ALWAYS verify data structure before accessing nested elements
+- When working with rows, remember: rows[0] is the header row, rows[1:] are data rows
+- If you need to access specific columns by index, use: `df.iloc[:, column_index]`
+- If you need to access columns by name, FIRST check if the column exists: `if 'column_name' in df.columns`
+- Handle multi-level headers carefully - many tables have empty string '' as column names
+"""
+
+    task_prompt_for_chart_code_generator = """
+Generate matplotlib Python code to create a chart based on the configuration and data provided below.
+
+**Chart Configuration:**
+{chart_config}
+
+**Table Headers:**
+{table_headers}
+
+**Table Rows (sample):**
+{table_rows}
+
+**Your Task:**
+1. Generate complete, executable Python code that:
+   - Creates the specified chart type
+   - Uses the provided data (headers and rows)
+   - Follows the visualization configuration
+   - Saves the chart using plt.savefig(output_path)
+
+2. The code will be executed in an environment where these variables are ALREADY defined:
+   - `output_path`: String path where the chart should be saved
+   - `headers`: List of column names from the table
+   - `rows`: List of data rows from the table
+
+3. Code structure options:
+   - Option A: Write inline code directly (RECOMMENDED)
+   - Option B: Define a function AND call it immediately, like:
+     ```python
+     def create_chart():
+         # ... chart code ...
+         plt.savefig(output_path)
+     
+     create_chart()  # MUST call the function!
+     ```
+
+4. The code should:
+   - Be self-contained with all necessary imports
+   - Include error handling
+   - Create a professional, publication-quality chart
+   - Use the variables output_path, headers, rows directly (they're already defined)
+   - **CRITICAL**: ONLY access data using column indices (e.g., `df.iloc[:, 0]`) or verify column names exist before using them
+   - **CRITICAL**: Never assume complex data structures - always validate before accessing nested elements
+   - **CRITICAL**: When working with pandas DataFrames, remember that `df['column_name']` returns a Series, NOT a DataFrame
+   - **CRITICAL**: Use proper indexing - `df.iloc[row_index, col_index]` for specific cells, `df.iloc[:, col_index]` for entire columns
+
+5. **Style Requirements (MANDATORY):**
+   - Import seaborn: `import seaborn as sns`
+   - Set style and palette:
+     ```python
+     sns.set_style('whitegrid')
+     sns.set_palette('pastel')
+     ```
+   - Use appropriate figure size and tight layout before saving
+
+6. **Chart Type Decision Rules:**
+   - **FORBIDDEN**: Stacked bar charts (impossible to read exact values)
+   - **Multiple metrics**: 
+     - Few metrics (2-4): Grouped bars side-by-side
+     - Many metrics (5+): Subplots (one per metric)
+   - **Golden Rule**: If unclear which to use, ask "Can the reader easily see exact values?" If no, simplify.
+   
+7. Return ONLY a JSON object with "code" and "description" fields as specified in the system prompt
+
+**CRITICAL:** The code MUST actually execute and save the chart. Don't just define functions without calling them!
+
+**Key Mistakes to Avoid:**
+
+❌ **Stacked bars** (values hidden, can't compare):
+```python
+plt.bar(x, values1, bottom=values2)  # FORBIDDEN
+```
+
+✅ **Grouped bars** (clear comparison):
+```python
+width = 0.3
+plt.bar(x - width/2, values1, width, label='Metric 1')
+plt.bar(x + width/2, values2, width, label='Metric 2')
+```
+
+❌ **Too many metrics in one plot** (12 bars per category = unreadable):
+```python
+for i in range(12):  # Too crowded!
+    plt.bar(x + i*tiny_width, values[i], tiny_width)
+```
+
+✅ **Subplots for clarity** (each metric visible):
+```python
+fig, axes = plt.subplots(3, 4, figsize=(15, 12))
+for i in range(12):
+    axes.flatten()[i].bar(categories, values[i])
+```
+
+❌ **Accessing Series as DataFrame**:
+```python
+df['column'].iloc[:, j]  # ERROR: Series has no columns
+```
+
+✅ **Use column indices**:
+```python
+df.iloc[:, column_index]  # Direct column access
+```
+
+**Core Principles Summary:**
+1. **Clarity first**: Reader must see exact values easily
+2. **No stacking**: Use grouped bars or subplots instead
+3. **Too many metrics?**: Split into subplots (3×4 layout for 12 metrics)
+4. **Seaborn + pastel colors**: Professional, light, clean
+5. **Column access**: Use `df.iloc[:, index]`, not assumptions about names
+"""

@@ -367,3 +367,42 @@ class Paper2FigureState(MainState):
     figure_tec_svg_content: str = ""
     svg_img_path: str = ""
     mineru_port: int = 8001
+
+
+# ==================== Paper2ExpFigure State (表格→统计图) ====================
+@dataclass
+class Paper2ExpFigureRequest(MainRequest):
+    """Paper2ExpFigure 工作流请求参数"""
+    # 输入类型: "PDF" | "TABLE"
+    input_type: str = "PDF"
+    # 输出目录
+    output_dir: str = ""
+    # MinerU 服务端口
+    mineru_port: int = 8001
+
+
+@dataclass
+class Paper2ExpFigureState(MainState):
+    """
+    Paper2ExpFigure 工作流状态
+    用于从 PDF 论文提取表格并生成统计图
+    """
+    request: Paper2ExpFigureRequest = field(default_factory=Paper2ExpFigureRequest)
+
+    # ===== 输入 =====
+    paper_file: str = ''                                          # PDF 文件路径
+
+    # ===== 中间结果 =====
+    paper_idea: str = ''                                          # 论文核心思想
+    extracted_tables: List[Dict[str, Any]] = field(default_factory=list)  # 从 MinerU 提取的表格列表
+    # 每个表格格式: {"table_id": str, "headers": List[str], "rows": List[List[str]], "caption": str}
+
+    chart_configs: List[Dict[str, Any]] = field(default_factory=list)     # 图表配置列表
+    # 每个配置格式: {"table_id": str, "chart_type": str, "x_column": str, "y_columns": List[str], ...}
+
+    generated_codes: List[Dict[str, Any]] = field(default_factory=list)   # 生成的代码列表
+    # 每个代码格式: {"table_id": str, "code": str}
+
+    # ===== 输出 =====
+    generated_charts: List[str] = field(default_factory=list)             # 生成的图表路径列表
+    result_path: str = ''                                         # 输出目录
