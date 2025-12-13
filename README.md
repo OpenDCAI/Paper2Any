@@ -124,8 +124,8 @@ DataFlow-Agent 聚焦三大能力板块：
 
 <img src="static/icon_refine.png" width="100%"/>
 <div style="display: flex; align-items: flex-start; justify-content: center;">
-  <img width="450" height="auto" alt="image" src="static/p2f_example_1.png" style="margin-right: 10px;"/>
-  <img width="450" height="auto" alt="1765547715586" src="static/p2f_example_2.png"/>
+  <img width="400" height="auto" alt="image" src="static/p2f_example_1.png" style="margin-right: 10px;"/>
+  <img width="400" height="auto" alt="1765547715586" src="static/p2f_example_2.png"/>
 </div>
 
 ---
