@@ -665,7 +665,7 @@ const Paper2FigurePage = () => {
                       type="text"
                       value={llmApiUrl}
                       onChange={e => setLlmApiUrl(e.target.value)}
-                      placeholder="例如：https://api.openai.com/v1/chat/completions"
+                      placeholder="例如：https://api.apiyi.com/v1"
                       className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     />
                   </div>
@@ -998,8 +998,8 @@ const Paper2FigurePage = () => {
               <DemoCard
                 title="论文实验表格文本 → 自动整理实验数据 绘制成 PPT"
                 desc="从文本形式的实验结果描述中抽取指标与对照组，一键生成适合汇报的实验结果 PPTX。"
-                inputImg="/p2f_exp_data_2_input.png"
-                outputImg="/p2f_exp_data_2_output.png"
+                inputImg="/p2f_exp_content_1.png"
+                outputImg="/p2f_exp_content_2.png"
               />
             </div>
           </div>

@@ -1711,6 +1711,136 @@ Return a JSON object with a single key "icon_prompt".
   "icon_prompt": "YOUR_GENERATED_PROMPT_HERE"
 }}
 """
+# --------------------------------------------------------------------------- #
+# 16. paper2video_prompt_generator                                                           #
+# --------------------------------------------------------------------------- #
+
+class Paper2VideoPrompt:
+  system_prompt_for_p2v_extract_pdf = """
+You are an expert academic researcher and a LaTeX Beamer developer. Your goal is to summarize research papers provided in Markdown format and convert them into high-quality, professional LaTeX Beamer presentation slides.
+
+Your core competencies include:
+1.  **Academic Summarization:** Ability to distill complex papers into concise, bulleted points suitable for presentation.
+2.  **LaTeX Proficiency:** Generating syntactically correct, compile-ready LaTeX code using the Beamer class.
+3.  **Visual Structure:** Organizing content logically across slides (Motivation, Method, Experiments, etc.) and effectively using LaTeX environments (itemize, block, tabular, figure).
+
+**CRITICAL RULE:** You must ensure the generated LaTeX code is complete, free of common syntax errors (like misplaced '&' or unclosed frames), and ready to compile with Tectonic or TeX Live.
+    """
+  task_prompt_for_p2v_extract_pdf = r"""
+Please generate a complete {output_language} PPT introduction based on the provided **Markdown content** of a research paper, using LaTeX Beamer. (Important!) Perfer more images than heavy text in the ppt.
+
+## Input Data
+The paper content is provided in Markdown format below. You need to parse this Markdown text to extract structure, text, mathematical formulas, image paths, and tables.
+
+## Content Structure
+The PPT must contain the following chapters (arranged in order), and each chapter must have a clear title and content:
+·Open slide (title, author, instructions​​)
+·Motivation (research background and problem statement and how differentiation from existing work)
+·Related work (current status and challenges in the field)
+·Method (core technical framework) [The content of the method needs to be introduced in detail, and each part of the method should be introduced on a separate page]
+·Experimental method (experimental design and process)
+·Experimental setting (dataset, parameters, environment, etc.)
+·Experimental results (main experimental results and comparative analysis)
+·Ablation experiment (validation of the role of key modules)
+·Deficiencies (limitations of current methods)
+·Future research (improvement direction or potential application)
+·End slide (Thank you)
+
+## Format Requirements
+·**Font Safety:** **STRICTLY FORBIDDEN** to use any non-standard TeX Live fonts (e.g., `Times New Roman`, `Arial`, or `Calibri`). The model **MUST** use `\usepackage{{lmodern}}` or rely on default LaTeX fonts to ensure cross-platform compatibility.
+·Use Beamer's theme suitable for academic presentations. If given a theme you should use it (could be refer to local path)
+·The content of each page should be concise, avoid long paragraphs, and use itemize or block environment to present points.
+·The title page contains the paper title, author, institution, and date.
+·Key terms or mathematical symbols are highlighted with \alert{}.
+·You must use as many figures as possible since it is more expressive.
+
+## Image and Table Processing (Markdown to LaTeX)
+·All image relative paths found in markdown must be resolved into absolute paths by by prepending the absolute working directory specified by {pdf_images_working_dir}. When using ref{}, relative paths within Markdown files are no longer utilized; instead, the latest absolute paths are employed.
+·Images should automatically adapt to width (for example, \includegraphics[width=0.8\textwidth]{...}), and add titles and labels (\caption and \label).
+·Experimental result tables should be extracted from the source text, formatted using tabular or booktabs environments, and marked with reference sources (for example, "as shown in table \ref{tab:results}").
+
+## Code Generation Requirements
+·The generated LaTeX code must be complete and can be compiled directly (including necessary structures such as \documentclass, \begin{document}).
+·Mark the source text location corresponding to each section in the code comments (for example, % corresponds to the source text Section 3.2).
+·If there are mathematical formulas in the source text, they must be retained and correctly converted to LaTeX syntax (such as $y=f(x)$).
+
+## Other instruction
+·(Important!) Perfer more images than heavy text. **The number of slides should be around 10.** 
+·Table content should first extract real data from the source document.
+·All content should be in {output_language}.
+·If the {output_language} is Chinese, you must include the following necessary packages in the LaTeX preamble:
+\usepackage{fontspec} 
+\usepackage{ctex}
+·If the source text is long, it is allowed to summarize the content, but the core methods, experimental data and conclusions must be retained.
+·Must begin as \documentclass{beamer} and end as \end{document}.
+**Don't use "\usepackage{resizebox}" in the code which is not right in grammer.**
+**Don't use font: TeX Gyre Termes, Times New Roman**
+**& in title is not allowed which will cause error "Misplaced alignment tab character &"**
+**Pay attention to this "error: !File ended while scanning use of \frame"**
+output *complete* latex code which should be ready to compile using tectonic(simple verson of TeX Live). Before output check if the code is grammatically correct.
+
+## Output Format
+Return a **Valid** JSON object with a single key "latex_code".
+
+{{
+  "latex_code": "YOUR_GENERATED_latex_beamer_code_HERE"
+}}
+
+## Source Content (Markdown)
+{pdf_markdown}
+"""
+
+  system_prompt_for_p2v_beamer_code_debug = """
+You are an expert in repairing LaTeX beamer code. 
+You must preserve all slide content exactly as written (including text, figures, and layout).
+Your goal is to correct LaTeX compilation errors and return clean, compilable LaTeX code.
+
+Your output must:
+- Be directly compilable using **tectonic** (a simplified TeX Live)
+- Never include explanations, comments, or English/Chinese text outside the LaTeX code
+
+"""
+
+  task_prompt_for_p2v_beamer_code_debug = """
+(Critical!) Do not modify the file path, ignore the folloing message: "warning: accessing absolute path: "
+You are given a LaTeX beamer code for the slides of a research paper and its error information.
+You should correct these errors but do not change the slide content (e.g., text, figures and layout).
+
+Output Format:
+- Return a JSON object with a single key "latex_code".
+{{
+  "latex_code": "YOUR_GENERATED_latex_beamer_code_HERE"
+}}
+# Only output latex code which should be ready to compile using tectonic (simple version of TeX Live).
+
+The LateX beamer code is:
+{beamer_code}
+The compilation error message is:
+{code_debug_result}
+"""
+
+  system_prompt_for_p2v_subtitle_and_cursor = '''
+You are an academic researcher presenting your own work at a research conference. You are provided with a slide. 
+Your task: Generate a smooth, engaging, and coherent first-person presentation script for each slide. Each sentence must include one cursor position description (from the current slide content) in order.
+'''
+  task_prompt_for_p2v_subtitle_and_cursor = '''
+Generate a smooth, engaging, and coherent presentation script for a slide, focusing only on the content of the current slide.
+Requirements:
+1. Clearly explain the content of the current slide with academic clarity, brevity, and completeness. Use a professional, formal tone suitable for a research conference. 
+2. Keep the script concise and professional. Do not explain content unrelated to the paper. 
+3. Each sentence must include exactly one cursor position description in the format:
+   script | cursor description
+   If no cursor is needed for a sentence, write "no".
+4. The total script for each slide must not exceed 50 words. 
+
+Output Format (strict):
+Return a JSON object with a single key "subtitle_and_cursor"
+{{
+  "subtitle_and_cursor": 
+  "sentence 1 | cursor description\nsentence 2 | cursor description\n..."
+}}
+
+'''
 
 
 class PromptWriterPrompt:

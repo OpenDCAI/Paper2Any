@@ -19,6 +19,8 @@
 
 from pathlib import Path
 from typing import Any, Dict, List, Sequence, Union, Optional
+import os
+import shutil
 import subprocess
 
 from PIL import Image
@@ -150,6 +152,66 @@ def crop_mineru_blocks_by_type(
         saved_paths.append(str(out_path.resolve()))
 
     return saved_paths
+
+def run_mineru_pdf_extract(
+    pdf_path: str,
+    output_dir: str = "",
+    source: str = "modelscope",
+    mineru_executable: Optional[str] = None,
+):
+    """
+    使用 MinerU 命令行方式提取 PDF 中的结构化内容，
+
+    参数:
+        pdf_path: PDF 文件路径
+        output_dir: 输出目录路径，不存在会自动创建
+        source: 下载模型的源，可选 modelscope、huggingface
+        mineru_executable: mineru 可执行文件路径，
+            - 不传时：优先从环境变量 MINERU_CMD 中读取，
+              若没有则从 PATH 中查找 'mineru'
+            - 传入绝对路径时：直接使用该路径
+
+    返回:
+        解析的所有图片、markdown格式的内容
+    """
+    # 1. 解析 mineru 可执行路径
+    if mineru_executable is None:
+        mineru_executable = (
+            os.environ.get("MINERU_CMD")  # 环境变量优先
+            or shutil.which("mineru")     # 当前 env 的命令
+        )
+        if mineru_executable is None:
+            raise RuntimeError(
+                "未找到 `mineru` 可执行文件，请确保：\n"
+                "1) 已在当前环境安装 MinerU，并且 `mineru` 在 PATH 中；或\n"
+                "2) 设置环境变量 MINERU_CMD 指向 mineru 可执行文件；或\n"
+                "3) 调用 run_mineru_pdf_extract 时显式传入 mineru_executable 参数。"
+            )
+
+    mineru_cmd = [
+        str(mineru_executable),
+        "-p",
+        str(pdf_path),
+        "-o",
+        str(output_dir),
+        "--source",
+        source,
+    ]
+
+    # 2. 可选：自动创建 output_dir
+    if output_dir:
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    # 3. 执行命令
+    subprocess.run(
+        mineru_cmd,
+        shell=False,
+        check=True,
+        text=True,
+        stderr=None,
+        stdout=None,
+    )
+
 
 
 def crop_mineru_blocks_with_meta(

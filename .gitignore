@@ -252,6 +252,8 @@ outputs/*
 tmps/*
 data/*
 sam_b.pt
+# fastapi
+fastapi_app/outputs/
 nohup.out
 
 invite_codes.txt
