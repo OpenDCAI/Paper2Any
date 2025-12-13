@@ -73,6 +73,10 @@ class P2vBeamerCodeDebug(BaseAgent):
 
             tex_path = Path(beamer_code_path)
             tex_path.write_text(beamer_code, encoding='utf-8')
+            # 编译最新的tex代码
+            from dataflow_agent.toolkits.p2vtool.p2v_tool import compile_tex
+            is_beamer_wrong, is_beamer_warning, code_debug_result = compile_tex(beamer_code_path)
+            assert(is_beamer_wrong, False)
             state.ppt_path = beamer_code_path.replace(".tex", ".pdf")
             log.info(f"将更新好的beamer code写回 {beamer_code_path}")
         else:
