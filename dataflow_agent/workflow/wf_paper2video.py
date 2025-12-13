@@ -177,7 +177,7 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         log.info(f"开始执行compile_beamer_node")
         beamer_code_path = state.beamer_code_path
         state.is_beamer_wrong, state.is_beamer_warning, state.code_debug_result = compile_tex(beamer_code_path)
-        if not state.is_beamer_wrong:
+        if not state.is_beamer_warning:
             log.info(f"Beamer 代码编译成功，无需调试")
             state.ppt_path = state.beamer_code_path.replace(".tex", ".pdf")
         return state
