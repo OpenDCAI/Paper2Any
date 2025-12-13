@@ -21,7 +21,7 @@ from dataflow_agent.toolkits.tool_manager import get_tool_manager
 from langchain.tools import tool
 from langgraph.graph import StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
-from dataflow_agent.toolkits.p2vtool.p2v_tool import compile_tex, beamer_code_validator, get_image_paths
+from dataflow_agent.toolkits.p2vtool.p2v_tool import compile_tex, beamer_code_validator, get_image_paths, parse_script, transcribe_with_whisperx, inference_f5
 
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
@@ -114,7 +114,7 @@ def create_paper2video_graph() -> GenericGraphBuilder:
     @builder.pre_tool("set_subtitle_and_cursor_path", "p2v_subtitle_and_cursor")
     def set_subtitle_and_cursor_path(state: Paper2VideoState):
         # 因为是循环调用VLM，所以这里就只调用一次
-        if state.subtitle_and_cursor_path is not "" and state.slide_img_dir is not "":
+        if state.subtitle_and_cursor_path != "" and state.slide_img_dir != "":
             return None
         '''处理好slide_img，并且处理好路径，同时将最后输出文档的地址写好'''
         paper_pdf_path = Path(state.request.get("paper_pdf_path", ""))
@@ -200,7 +200,7 @@ def create_paper2video_graph() -> GenericGraphBuilder:
 
         slide_img_dir = state.slide_img_dir
         slide_image_path_list = get_image_paths(slide_img_dir)
-        log.info(f"获得了slide_image from {slide_img_dir}, the total images are {len(slide_image_path_list)}")
+        log.info(f"获得了slide_image from {slide_img_dir}, the total images are {len(slide_image_path_list)}, the images path are {"\n".join(slide_image_path_list)}")
         for img_path in slide_image_path_list:
             agent = create_vlm_agent(
                 name="p2v_subtitle_and_cursor",
@@ -222,6 +222,33 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         Path(subtitle_and_cursor_path).write_text(subtitle_and_cursor_info, encoding='utf-8')
         return state
     
+    def generate_speech(state: Paper2VideoState):
+        # 先完成pre-tool的工作
+        import os
+        log.info(f"开始执行 p2v_generate_speech node节点")
+        subtitle_and_cursor_path = state.subtitle_and_cursor_path
+        speech_save_dir = state.speech_save_dir
+        os.makedirs(speech_save_dir, exist_ok=True)
+        ref_audio_path = state.request.ref_audio_path
+
+        # 1、拿到subtitle的文件，并且读出其中的内容，并解析        
+        raw_subtitle_and_cursor_content = Path(subtitle_and_cursor_path).read_text(encoding='utf-8')
+        log.info(f"获取到字幕内容：\n{raw_subtitle_and_cursor_content}")
+        parsed_subtitle_w_cursor = parse_script(raw_subtitle_and_cursor_content)
+        
+        # 2、不同的slide分别进行处理
+        for slide_idx in range(len(parsed_subtitle_w_cursor)):
+            speech_with_cursor = parsed_subtitle_w_cursor[slide_idx]
+            subtitle = ""
+            for _, (prompt, cursor_prompt) in enumerate(speech_with_cursor):
+                if len(subtitle) == 0: subtitle = prompt
+                else: subtitle = subtitle + "\n\n\n" + prompt
+            speech_result_path = os.path.join(speech_save_dir, "{}.wav".format(str(slide_idx)))
+            
+            # 3、将每个slide的字幕内容转换为音频，并保存到指定的目录
+            if ref_text is None: ref_text = transcribe_with_whisperx(ref_audio_path)
+            inference_f5(subtitle, speech_result_path, ref_audio_path, ref_text)
+
     async def compile_beamer_condition(state: Paper2VideoState):
         # todo: 暂时先这样判断
         if state.is_beamer_warning:
@@ -249,6 +276,7 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         "compile_beamer": compile_beamer_node,
         "p2v_beamer_code_debug": beamer_code_debug_node,
         "p2v_subtitle_and_cursor": subtitle_and_cursor,
+        "p2v_generate_speech": generate_speech,
         "pdf2ppt": pdf2ppt_node,
         '_end_': lambda state: state,  # 终止节点
     }
