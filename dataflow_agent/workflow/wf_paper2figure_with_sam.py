@@ -59,6 +59,16 @@ from pptx.util import Inches
 
 log = get_logger(__name__)
 
+TEMPLATE_EDIT_PROMPT = (
+"Transform the original image into a pure layout made ONLY of solid colored blocks:\n"
+"1. Keep only the outermost rectangles and arrows (if they exist).\n"
+"2. Delete everything inside them: all titles, subtitles, texts, icons, illustrations, and any inner shapes.\n"
+"3. Turn each remaining outer shape into a solid color block; remove borders if possible.\n"
+"4. Keep the layout exactly the same: same positions, sizes, alignment, and spacing.\n"
+"5. Do NOT add any text, labels, or symbols anywhere.\n"
+"Finally, output a description of this empty color-block template (no text content at all)."
+)
+
 def _ensure_result_path(state: Paper2FigureState) -> str:
     """
     统一本次 paper2figure_with_sam workflow 的根输出目录：
@@ -197,15 +207,6 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         #     "Keep the layout exactly the same.\n"
         #     "Output a description of an empty template composed of these boxes."
         # )
-        TEMPLATE_EDIT_PROMPT = (
-        "Transform the original image into a pure layout made ONLY of solid colored blocks:\n"
-        "1. Keep only the outermost rectangles and arrows (if they exist).\n"
-        "2. Delete everything inside them: all titles, subtitles, texts, icons, illustrations, and any inner shapes.\n"
-        "3. Turn each remaining outer shape into a solid color block; remove borders if possible.\n"
-        "4. Keep the layout exactly the same: same positions, sizes, alignment, and spacing.\n"
-        "5. Do NOT add any text, labels, or symbols anywhere.\n"
-        "Finally, output a description of this empty color-block template (no text content at all)."
-        )
 
         layout_name = f"layout_{int(time.time())}.png"
         layout_save_path = str(result_root / layout_name)
@@ -235,6 +236,27 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         - 这里显式转换一份像素坐标 bbox_px，后面插入 PPT 时统一按像素 → 英寸 → Emu 的规则处理，
           和 add_image_element / add_text_element 的坐标系保持一致，避免 EMF 位置/尺寸错乱导致“看不到”的问题。
         """
+        if not state.fig_layout_path and state.request.input_type == "FIGURE":
+            result_root = Path(_ensure_result_path(state))
+            result_root.mkdir(parents=True, exist_ok=True)
+            log.critical(f"[figure_layout_sam] fig_layout_path 为空， 需要更新Layout图")
+            layout_name = f"layout_{int(time.time())}.png"
+            layout_save_path = str(result_root / layout_name)
+            await generate_or_edit_and_save_image_async(
+                prompt="1.Remove all text content; keep only the outermost rectangular frames and arrows (if any).\n"
+                       "2.Keep the layout unchanged.\n"
+                       "3.Change the background color to white.",
+                save_path=layout_save_path,
+                aspect_ratio=state.aspect_ratio,
+                api_url=state.request.chat_api_url,
+                api_key=os.getenv("DF_API_KEY") or state.request.chat_api_key,
+                model=state.request.gen_fig_model,
+                image_path=f"{get_project_root()}/{state.fig_draft_path}",
+                use_edit=True,
+            )
+            state.fig_layout_path = layout_save_path
+            state.agent_results["gen_img_template"] = {"path": layout_save_path}
+
         img_path = Path(state.fig_layout_path)
         if not img_path.exists():
             log.error(f"[figure_layout_sam] fig_layout_path 不存在: {img_path}")
@@ -247,15 +269,15 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         sam_ckpt = f'{get_project_root()}/sam_b.pt'
         # 1. SAM 分割 + 过滤 + 裁剪子图
         layout_items = segment_layout_boxes(
-            image_path=str(img_path),
-            output_dir=str(out_dir),
-            checkpoint= sam_ckpt,
+            image_path      = str(img_path),
+            output_dir      = str(out_dir),
+            checkpoint      = sam_ckpt,
             # 这里的参数可以根据 mask_detail_level 调整
-            min_area=200,
-            min_score=0.0,
-            iou_threshold=0.2,
-            top_k=10,
-            nms_by="mask",
+            min_area        = 200,
+            min_score       = 0.0,
+            iou_threshold   = 0.2,
+            top_k           = 15,
+            nms_by          = "mask",
         )
         log.info(f"[figure_layout_sam] SAM 分割结果: {len(layout_items)} 个布局元素")
         # 3. 释放 SAM 模型占用的显存
@@ -362,13 +384,21 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         icon_count = 0
         text_count = 0
 
-        # 如果 MinerU 只返回了 1 个整体元素：按 SAM 布局切子图，再对每个子图单独跑 MinerU，
+        details = 1
+        if state.request.figure_complex == "easy":
+            details = 1
+        elif state.request.figure_complex == "hard":
+            details = 10
+        else:
+            details = 5
+
+        # 如果 MinerU 只返回了 小于等于 6 个整体元素：按 SAM 布局切子图，再对每个子图单独跑 MinerU，
         # 以便获取该布局块内部的文字和更细粒度元素。底图始终使用 fig_draft_path。
-        if len(mineru_items) == 1:
+        if len(mineru_items) <= details:
             from dataflow_agent.toolkits.imtool.mineru_tool import run_aio_two_step_extract
 
             layout_items = getattr(state, "layout_items", None) or []
-            log.info(f"[figure_mask] mineru_items size=1, 使用 SAM 布局({len(layout_items)} 个)进行二次 MinerU 拆分")
+            log.info(f"[figure_mask] mineru_items size = {len(mineru_items)}, 使用 SAM 布局({len(layout_items)} 个)进行二次 MinerU 拆分")
 
             # 子图保存目录
             sub_root_dir = base_dir / "mineru_sub_images"
@@ -793,7 +823,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             return "figure_desc_generator"
         elif(state.request.input_type == "FIGURE"):
             log.critical(f'进入FIGURE node ......')
-            return "figure_mask_generator"
+            return "figure_layout_sam"
         else:
             log.error(f"Invalid input type: {state.request.input_type}")
             return "_end_"

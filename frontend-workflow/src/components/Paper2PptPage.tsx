@@ -582,8 +582,16 @@ const Paper2PptPage = () => {
                 <div className="flex flex-col md:flex-row gap-6 items-center">
                   {/* 左侧：输入示例 */}
                   <div className="flex-1 w-full">
-                    <div className="rounded-lg bg-white/5 border-2 border-dashed border-white/20 flex items-center justify-center text-sm text-gray-400 aspect-[4/3] mb-3">
-                      输入：论文 PDF
+                    <div className="rounded-lg bg-white/5 border-2 border-dashed border-white/20 flex items-center justify-center overflow-hidden aspect-[4/3] mb-3">
+                      <img
+                        src="/paper2ppt_1.png"
+                        alt="输入：论文 PDF"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.parentElement!.innerHTML = '<span class="text-sm text-gray-400">输入：论文 PDF</span>';
+                        }}
+                      />
                     </div>
                     <p className="text-sm text-gray-300 text-center">上传学术论文、研究报告 PDF</p>
                   </div>
@@ -595,8 +603,16 @@ const Paper2PptPage = () => {
 
                   {/* 右侧：输出示例 */}
                   <div className="flex-1 w-full">
-                    <div className="rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 border-2 border-dashed border-purple-400/40 flex items-center justify-center text-sm text-purple-200 aspect-[4/3] mb-3">
-                      输出：结构化 PPTX
+                    <div className="rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 border-2 border-dashed border-purple-400/40 flex items-center justify-center overflow-hidden aspect-[4/3] mb-3">
+                      <img
+                        src="/paper2ppt_2.png"
+                        alt="输出：结构化 PPTX"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.parentElement!.innerHTML = '<span class="text-sm text-purple-200">输出：结构化 PPTX</span>';
+                        }}
+                      />
                     </div>
                     <p className="text-sm text-gray-300 text-center">自动提取关键内容生成演示文稿</p>
                   </div>
@@ -640,6 +656,12 @@ const Paper2PptPage = () => {
         }
         .glow {
           box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
+        }
+        .demo-input-placeholder {
+          min-height: 80px;
+        }
+        .demo-output-placeholder {
+          min-height: 80px;
         }
       `}</style>
     </div>
