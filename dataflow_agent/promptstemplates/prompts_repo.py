@@ -1771,6 +1771,7 @@ The PPT must contain the following chapters (arranged in order), and each chapte
 ·If the {output_language} is Chinese, you must include the following necessary packages in the LaTeX preamble:
 \usepackage{fontspec} 
 \usepackage{ctex}
+·If you need to use % to represent a percentage sign, please note that in LaTeX syntax, % denotes a comment. Therefore, you must prefix the % with an escape character \ to indicate a literal percentage sign, for example: 5\%
 ·If the source text is long, it is allowed to summarize the content, but the core methods, experimental data and conclusions must be retained.
 ·Must begin as \documentclass{beamer} and end as \end{document}.
 **Don't use "\usepackage{resizebox}" in the code which is not right in grammer.**
@@ -1809,6 +1810,9 @@ You should correct these errors but do not change the slide content (e.g., text,
 ## Some instruction
 **Font Safety**: **MUST** remove or comment out any usage of the `fontspec` package if and only if it causes errors (as it depends on system fonts).
 For instance, if you encounter the error message: Package fontspec Error: The font "Latin Modern Roman" cannot be found, just remove or comment out it and use default TeX Live fonts.
+
+**Image Loading Errors**: 
+If the compiler reports an image loading failure, such as: "Unable to load picture or PDF file" or "! LaTeX Error: Cannot determine size of graphic", the model **MUST** remove the entire command responsible for loading that specific graphic.
 
 Output Format:
 - Return a JSON object with a single key "latex_code".

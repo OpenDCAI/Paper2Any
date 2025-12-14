@@ -72,7 +72,6 @@ def create_paper2video_graph() -> GenericGraphBuilder:
     @builder.pre_tool("pdf_images_working_dir", "p2v_extract_pdf")
     def get_images_relative_path(state: Paper2VideoState):
         paper_pdf_path = Path(state.request.get("paper_pdf_path", ""))
-        # paper_pdf_path = Path("/mnt/DataFlow/lz/proj/agentgroup/ligang/DataFlow-Agent/data/2510.05096v2.pdf")
         if not paper_pdf_path.exists():
             log.error(f"PDF 文件不存在: {paper_pdf_path}")
             return ""
@@ -200,7 +199,8 @@ def create_paper2video_graph() -> GenericGraphBuilder:
 
         slide_img_dir = state.slide_img_dir
         slide_image_path_list = get_image_paths(slide_img_dir)
-        log.info(f"获得了slide_image from {slide_img_dir}, the total images are {len(slide_image_path_list)}, the images path are {"\n".join(slide_image_path_list)}")
+        image_paths = '\n'.join(slide_image_path_list)
+        log.info(f"获得了slide_image from {slide_img_dir}, the total images are {len(slide_image_path_list)}, the images path are {image_paths}")
         for img_path in slide_image_path_list:
             agent = create_vlm_agent(
                 name="p2v_subtitle_and_cursor",
