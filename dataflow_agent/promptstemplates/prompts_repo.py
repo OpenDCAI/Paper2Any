@@ -1806,6 +1806,10 @@ Your output must:
 You are given a LaTeX beamer code for the slides of a research paper and its error information.
 You should correct these errors but do not change the slide content (e.g., text, figures and layout).
 
+## Some instruction
+**Font Safety**: **MUST** remove or comment out any usage of the `fontspec` package if and only if it causes errors (as it depends on system fonts).
+For instance, if you encounter the error message: Package fontspec Error: The font "Latin Modern Roman" cannot be found, just remove or comment out it and use default TeX Live fonts.
+
 Output Format:
 - Return a JSON object with a single key "latex_code".
 {{
