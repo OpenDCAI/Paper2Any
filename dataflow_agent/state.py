@@ -235,6 +235,8 @@ class PromptWritingState(MainState):
 class Paper2VideoRequest(MainRequest):
     paper_pdf_path: str = ""
     user_imgs_path: str = ""
+    
+    ref_audio_path: str = ""
 
 # ==================== Paper2Video 生成 State ======================
 @dataclass
@@ -248,10 +250,14 @@ class Paper2VideoState(MainState):
     is_beamer_warning: bool = False
     code_debug_result: str = ""
     ppt_path: str = ""
+    
+    # 生成字幕 + cursor的位置信息
     slide_img_dir: str = ""
     subtitle_and_cursor: List[str] = field(default_factory=list)
     subtitle_and_cursor_path: str = ""
     
+    # 生成的音频路径
+    speech_save_dir: str = ""
 
 
 
