@@ -49,7 +49,7 @@ const Paper2FigurePage = () => {
   const [figureComplex, setFigureComplex] = useState<FigureComplex>('easy');
   const [inviteCode, setInviteCode] = useState('');
 
-  const [llmApiUrl, setLlmApiUrl] = useState('http://123.129.219.111:3000/v1');
+  const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gemini-2.5-flash-image-preview');
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -992,8 +992,8 @@ const Paper2FigurePage = () => {
               <DemoCard
                 title="论文 PDF → 自动提取实验数据 绘制成 PPT"
                 desc="从论文实验部分 PDF 中提取表格与结果描述，自动生成对比柱状图 / 折线图 PPTX，便于直观展示结果。"
-                inputImg="/p2f_exp_data_1_input.png"
-                outputImg="/p2f_exp_data_1_output.png"
+                inputImg="/p2e_paper_1.png"
+                outputImg="/p2e_paper_2.png"
               />
               <DemoCard
                 title="论文实验表格文本 → 自动整理实验数据 绘制成 PPT"

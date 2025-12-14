@@ -6,14 +6,26 @@
 
 **AI-Powered Data & Paper Workflow Orchestration Platform**
 
-[![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=for-the-badge&logo=apache&logoColor=white)](LICENSE)
-[![GitHub](https://img.shields.io/badge/GitHub-OpenDCAI%2FDataFlow-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/OpenDCAI/DataFlow)
-[![Stars](https://img.shields.io/github/stars/OpenDCAI/DataFlow-Agent?style=for-the-badge&logo=github&color=yellow)](https://github.com/OpenDCAI/DataFlow-Agent/stargazers)
+[![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-Apache_2.0-2F80ED?style=flat-square&logo=apache&logoColor=white)](LICENSE)
+[![GitHub Repo](https://img.shields.io/badge/GitHub-OpenDCAI%2FDataFlow--Agent-24292F?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/DataFlow-Agent)
+[![Stars](https://img.shields.io/github/stars/OpenDCAI/DataFlow-Agent?style=flat-square&logo=github&label=Stars&color=F2C94C)](https://github.com/OpenDCAI/DataFlow-Agent/stargazers)
 
-*从数据与论文到 AI 工作流，一站式编排平台*
+<a href="http://dcai-paper2figure.cpolar.top/" target="_blank">
+  <img alt="Try Online" src="https://img.shields.io/badge/Try%20Online-Paper2Figure-56CCF2?style=flat-square&logo=googlechrome&logoColor=white" />
+</a>
+<a href="docs/" target="_blank">
+  <img alt="Docs" src="https://img.shields.io/badge/Docs-Read%20the%20Docs-2D9CDB?style=flat-square&logo=readthedocs&logoColor=white" />
+</a>
+<a href="docs/contributing.md" target="_blank">
+  <img alt="Contributing" src="https://img.shields.io/badge/Contributing-Guide-27AE60?style=flat-square&logo=github&logoColor=white" />
+</a>
 
-[快速开始](#-快速开始) • [在线体验](http://dcai-paper2figure.cpolar.top/) • [文档](docs/) • [贡献指南](docs/contributing.md)
+*基于DFA的AI Agent多功能平台*
+
+中文 | [English](README_EN.md)
+
+[快速开始](#-快速开始) • <a href="http://dcai-paper2figure.cpolar.top/" target="_blank">在线体验</a> • <a href="docs/" target="_blank">文档</a> • <a href="docs/contributing.md" target="_blank">贡献指南</a>
 
 </div>
 
@@ -54,7 +66,8 @@
 </table>
 
 <div align="center">
-<img src="static/p2f_frontend.png" alt="Paper2Figure Web UI" width="100%"/>
+  <img src="static/p2f_frontend_1.png" alt="Paper2Figure Web UI" width="49%"/>
+  <img src="static/p2f_frontend_2.png" alt="Paper2Figure Web UI (2)" width="49%"/>
 </div>
 
 ---
@@ -74,9 +87,11 @@
 
 ### 1️⃣ Paper2Any - 论文多模态工作流
 
-> 从论文 PDF/图片/文本，一键生成可编辑的科研绘图、视频脚本、海报等多模态内容
+> 从论文 PDF / 图片 / 文本出发，一键生成**可编辑**的科研绘图、演示文稿、视频脚本、学术海报等多模态内容。
 
 #### 🎯 核心功能
+
+Paper2Any 当前包含以下几个子能力：
 
 <table>
 <tr>
@@ -85,7 +100,7 @@
 **📊 Paper2Figure - 可编辑科研绘图**
 - ✅ 模型架构图生成
 - ✅ 技术路线图生成（PPT + SVG）
-- ✅ 实验数据图生成
+- 🚧 实验数据图生成 (优化中)
 - ✅ 支持 PDF / 图片 / 文本输入
 - ✅ 输出可编辑 PPTX 格式
 
@@ -258,20 +273,29 @@
 
 <table>
 <tr>
-<td width="50%" align="center">
-<img src="https://via.placeholder.com/400x300/f0f0f0/666666?text=Input%3A+Experiment+Image" alt="输入：实验结果截图" width="100%"/>
-<br><sub>📸 输入：实验结果截图</sub>
+<th width="33%">输入</th>
+<th width="33%">常规实验图</th>
+<th width="33%">精美实验图</th>
+</tr>
+<tr>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_1.png" alt="输入：实验结果截图" width="100%"/>
+  <br><sub>📄 输入：论文 PDF / 实验结果截图</sub>
 </td>
-<td width="50%" align="center">
-<img src="https://via.placeholder.com/400x300/e8f5e9/4caf50?text=Output%3A+Experiment+Chart+PPTX" alt="输出：实验数据图 PPTX" width="100%"/>
-<br><sub>📈 输出：结构化实验数据图 PPTX</sub>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_1_2.png" alt="输出：实验数据图（基础样式）" width="100%"/>
+  <br><sub>📈 输出：常规 Python 风格实验数据图</sub>
+</td>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_1_3.png" alt="输出：实验数据图（精美样式）" width="100%"/>
+  <br><sub>🎨 输出：精美排版的实验数据图</sub>
 </td>
 </tr>
 </table>
 
 <div align="center">
 
-上传实验结果截图，自动提取数据并生成**结构化的实验数据图 PPTX**，便于直观展示研究成果。
+上传实验结果截图或表格，自动抽取关键数据并生成**可编辑的实验数据图 PPTX**，同时提供常规和精美两种风格，便于论文和汇报复用。
 
 </div>
 
@@ -400,33 +424,59 @@ DataFlow-Table 正在积极开发中，敬请期待！
 
 ### 安装步骤
 
+> 建议使用 Conda 创建隔离环境（推荐 Python 3.12）。
+
 ```bash
+# 0. 创建并激活 conda 环境
+conda create -n dataflow-agent python=3.12 -y
+conda activate dataflow-agent
+
 # 1. 克隆仓库
 git clone https://github.com/OpenDCAI/DataFlow-Agent.git
 cd DataFlow-Agent
 
-# 2. 安装依赖
+# 2. 安装依赖（基础）
 pip install -r requirements.txt
 
 # 3. 安装包（开发模式）
 pip install -e .
 ```
 
+#### Paper2Any 额外依赖（可选，但推荐）
+
+Paper2Any 需要额外依赖（见 `requirements-paper.txt`），以及一些系统/conda 工具用于渲染与矢量图处理：
+
+```bash
+# 安装 Paper2Any 依赖
+pip install -r requirements-paper.txt
+
+# tectonic：建议用 conda 单独安装（LaTeX 引擎）
+conda install -c conda-forge tectonic -y
+
+# inkscape：用于 SVG/矢量图相关处理（Linux）
+sudo apt-get update
+sudo apt-get install -y inkscape
+```
+
 ### 配置环境
 
 ```bash
-# 复制配置模板
-cp .env.example .env
-
-# 编辑配置文件，添加 API Key 等参数
-vim .env
+export DF_API_KEY=your_api_key_here
+export DF_API_URL=xxx 
+# 如果需要使用第三方API中转站
 ```
+第三方API中转站：
 
-详细配置参考：[docs/installation.md](docs/installation.md)
+[https://api.apiyi.com/](https://api.apiyi.com/)
+
+[http://123.129.219.111:3000/](http://123.129.219.111:3000/)
 
 ---
 
 ### 启动应用
+
+> [!NOTE]
+> **Paper2Any**：从论文 PDF / 图片 / 文本一键生成可编辑的科研绘图、技术路线图、实验数据图和演示文稿。
 
 #### 🎨 Paper2Any - 论文工作流
 
@@ -441,9 +491,26 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 cd frontend-workflow
 npm install
 npm run dev
+
+# 配置dev/DataFlow-Agent/frontend-workflow/vite.config.ts
+# 修改 server.proxy 为：
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 3000,
+    open: true,
+    allowedHosts: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',  // FastAPI 后端地址
+        changeOrigin: true,
+      },
+    },
+  },
+})
 ```
 
-访问 `http://localhost:5173`
+访问 `http://localhost:3000`
 
 **特点**：
 - ✨ 现代化 UI 设计
@@ -452,6 +519,9 @@ npm run dev
 - 📥 一键下载结果
 
 ---
+
+> [!NOTE]
+> **Easy-DataFlow**：从自然语言任务描述出发，自动推荐算子与管线结构，生成可执行的数据处理管线。
 
 #### 📊 Easy-DataFlow - 数据治理
 
@@ -467,22 +537,10 @@ python gradio_app/app.py
 - 🚀 快速部署
 - 🔧 灵活配置
 - 📝 支持批量处理
-
-**CLI 命令行**
-
-```bash
-# 数据管线推荐
-dataflow-agent run pipeline_recommend \
-  --input data.csv \
-  --task "为用户行为数据生成画像"
-
-# Prompt 优化
-dataflow-agent run pipeline_prompt_refine \
-  --op my_operator \
-  --goal "提升召回率"
-```
-
 ---
+
+> [!NOTE]
+> **DataFlow-Table**：面向多源数据接入与探索式分析，目前仍在开发中。
 
 #### 🔍 DataFlow-Table - 数据分析
 
@@ -520,48 +578,137 @@ DataFlow-Agent/
 
 ## 🗺️ Roadmap
 
-### 🎓 Paper 系列（进行中）
+### 🎓 Paper 系列
 
-- [x] **Paper2Figure** - 可编辑科研绘图
-  - [x] 模型架构图
-  - [x] 技术路线图
-  - [x] 实验数据图
-  - [x] Web 前端界面
-- [x] **Paper2Video** - 论文讲解视频脚本
-- [ ] **Paper2Web** - 交互式网页
-- [ ] **Paper2Poster** - 学术海报
-- [ ] **Paper2Code** - 论文转代码
-- [ ] **PaperCiter** - 智能文献引用
+<table>
+<tr>
+<th width="35%">功能</th>
+<th width="15%">状态</th>
+<th width="50%">子功能</th>
+</tr>
+<tr>
+<td><strong>📊 Paper2Figure</strong><br><sub>可编辑科研绘图</sub></td>
+<td><img src="https://img.shields.io/badge/进度-75%25-blue?style=flat-square&logo=progress" alt="75%"/></td>
+<td>
+<img src="https://img.shields.io/badge/✓-模型架构图-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-技术路线图-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/⚠-实验数据图-yellow?style=flat-square" alt="进行中"/><br>
+<img src="https://img.shields.io/badge/✓-Web_前端-success?style=flat-square" alt="完成"/>
+</td>
+</tr>
+<tr>
+<td><strong>🎬 Paper2Video</strong><br><sub>论文讲解视频</sub></td>
+<td><img src="https://img.shields.io/badge/进度-25%25-orange?style=flat-square&logo=progress" alt="25%"/></td>
+<td>
+<img src="https://img.shields.io/badge/✓-视频脚本生成-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/○-分镜描述-lightgrey?style=flat-square" alt="开发中"/><br>
+<img src="https://img.shields.io/badge/○-配图素材-lightgrey?style=flat-square" alt="开发中"/><br>
+<img src="https://img.shields.io/badge/○-视频合成-lightgrey?style=flat-square" alt="开发中"/>
+</td>
+</tr>
+<tr>
+<td><strong>🎬 Paper2PPT</strong><br><sub>可编辑演示文稿</sub></td>
+<td><img src="https://img.shields.io/badge/进度-50%25-yellow?style=flat-square&logo=progress" alt="50%"/></td>
+<td>
+<img src="https://img.shields.io/badge/✓-Beamer_样式-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/⚠-可编辑_PPTX-yellow?style=flat-square" alt="进行中"/>
+</td>
+</tr>
+<tr>
+<td><strong>📌 Paper2Poster</strong><br><sub>可编辑学术海报</sub></td>
+<td><img src="https://img.shields.io/badge/状态-开发中-lightgrey?style=flat-square" alt="开发中"/></td>
+<td>
+<img src="https://img.shields.io/badge/○-版式设计-lightgrey?style=flat-square" alt="开发中"/><br>
+<img src="https://img.shields.io/badge/○-要点提炼-lightgrey?style=flat-square" alt="开发中"/><br>
+<img src="https://img.shields.io/badge/○-视觉优化-lightgrey?style=flat-square" alt="开发中"/>
+</td>
+</tr>
+<tr>
+<td><strong>🧪 Paper2Exp</strong><br><sub>自动实验运行器</sub></td>
+<td><img src="https://img.shields.io/badge/状态-开发中-lightgrey?style=flat-square" alt="开发中"/></td>
+<td>
+<img src="https://img.shields.io/badge/○-代码生成-lightgrey?style=flat-square" alt="开发中"/><br>
+<img src="https://img.shields.io/badge/○-环境部署-lightgrey?style=flat-square" alt="开发中"/><br>
+<img src="https://img.shields.io/badge/○-自动执行-lightgrey?style=flat-square" alt="开发中"/>
+</td>
+</tr>
+<tr>
+<td><strong>📚 PaperCiter</strong><br><sub>智能文献引用</sub></td>
+<td><img src="https://img.shields.io/badge/状态-开发中-lightgrey?style=flat-square" alt="开发中"/></td>
+<td>
+<img src="https://img.shields.io/badge/○-文献检索-lightgrey?style=flat-square" alt="开发中"/><br>
+<img src="https://img.shields.io/badge/○-自动格式化-lightgrey?style=flat-square" alt="开发中"/>
+</td>
+</tr>
+</table>
 
-### 📊 Data 系列（进行中）
+---
 
-- [x] **Easy-DataFlow** - 数据治理管线
-  - [x] 管线推荐
-  - [x] 算子编写
-  - [x] 可视化编排
-  - [x] Prompt 优化
-  - [x] Web 采集
-- [ ] **DataFlow-Table** - 多源数据分析
-  - [ ] 多数据源深度分析
-  - [ ] 智能取数与血缘追踪
-  - [ ] 高级可视化报表
+### 📊 Data 系列
+
+<table>
+<tr>
+<th width="35%">功能</th>
+<th width="15%">状态</th>
+<th width="50%">子功能</th>
+</tr>
+<tr>
+<td><strong>🔄 Easy-DataFlow</strong><br><sub>数据治理管线</sub></td>
+<td><img src="https://img.shields.io/badge/进度-100%25-success?style=flat-square&logo=progress" alt="100%"/></td>
+<td>
+<img src="https://img.shields.io/badge/✓-管线推荐-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-算子编写-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-可视化编排-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-Prompt_优化-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-Web_采集-success?style=flat-square" alt="完成"/>
+</td>
+</tr>
+<tr>
+<td><strong>📊 DataFlow-Table</strong><br><sub>多源数据分析</sub></td>
+<td><img src="https://img.shields.io/badge/状态-开发中-lightgrey?style=flat-square" alt="开发中"/></td>
+<td>
+<img src="https://img.shields.io/badge/○-多源接入-lightgrey?style=flat-square" alt="开发中"/><br>
+<img src="https://img.shields.io/badge/○-智能取数-lightgrey?style=flat-square" alt="开发中"/><br>
+<img src="https://img.shields.io/badge/○-血缘追踪-lightgrey?style=flat-square" alt="开发中"/><br>
+<img src="https://img.shields.io/badge/○-高级可视化-lightgrey?style=flat-square" alt="开发中"/>
+</td>
+</tr>
+</table>
+
+---
 
 ### 🛠️ 工具增强
 
-- [ ] **Workflow 可视化编辑器**
-  - 拖拽式创建专属工作流
-  - 支持 5 种 Agent 模式
-  - 20+ 预设 Agent 节点
+<table>
+<tr>
+<th width="35%">功能</th>
+<th width="15%">状态</th>
+<th width="50%">子功能</th>
+</tr>
+<tr>
+<td><strong>🎨 Workflow 可视化编辑器</strong><br><sub>拖拽式工作流构建器</sub></td>
+<td><img src="https://img.shields.io/badge/状态-开发中-lightgrey?style=flat-square" alt="开发中"/></td>
+<td>
+<img src="https://img.shields.io/badge/○-拖拽界面-lightgrey?style=flat-square" alt="开发中"/><br>
+<img src="https://img.shields.io/badge/○-5_种_Agent_模式-lightgrey?style=flat-square" alt="开发中"/><br>
+<img src="https://img.shields.io/badge/○-20+_预设节点-lightgrey?style=flat-square" alt="开发中"/>
+</td>
+</tr>
+<tr>
+<td><strong>💾 轨迹数据导出</strong><br><sub>训练数据导出</sub></td>
+<td><img src="https://img.shields.io/badge/状态-开发中-lightgrey?style=flat-square" alt="开发中"/></td>
+<td>
+<img src="https://img.shields.io/badge/○-JSON/JSONL_格式-lightgrey?style=flat-square" alt="开发中"/><br>
+<img src="https://img.shields.io/badge/○-SFT_格式-lightgrey?style=flat-square" alt="开发中"/><br>
+<img src="https://img.shields.io/badge/○-DPO_格式-lightgrey?style=flat-square" alt="开发中"/>
+</td>
+</tr>
+</table>
 
 <div align="center">
 <img src="static/dfa_fronted.png" width="800" alt="Workflow Editor"/>
 <br><sub>🎨 Workflow 可视化编辑器预览</sub>
 </div>
-
-- [ ] **轨迹数据导出**
-  - JSON/JSONL 格式
-  - SFT 训练数据格式
-  - DPO 成对数据格式
 
 ---
 
