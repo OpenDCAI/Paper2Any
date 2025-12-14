@@ -11,7 +11,7 @@
 [![GitHub Repo](https://img.shields.io/badge/GitHub-OpenDCAI%2FDataFlow--Agent-24292F?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/DataFlow-Agent)
 [![Stars](https://img.shields.io/github/stars/OpenDCAI/DataFlow-Agent?style=flat-square&logo=github&label=Stars&color=F2C94C)](https://github.com/OpenDCAI/DataFlow-Agent/stargazers)
 
-<a href="http://dcai-paper2figure.cpolar.top/" target="_blank">
+<a href="https://dcai-paper2any.cpolar.top/" target="_blank">
   <img alt="Try Online" src="https://img.shields.io/badge/Try%20Online-Paper2Figure-56CCF2?style=flat-square&logo=googlechrome&logoColor=white" />
 </a>
 <a href="docs/" target="_blank">
@@ -25,7 +25,7 @@
 
 中文 | [English](README_EN.md)
 
-[快速开始](#-快速开始) • <a href="http://dcai-paper2figure.cpolar.top/" target="_blank">在线体验</a> • <a href="docs/" target="_blank">文档</a> • <a href="docs/contributing.md" target="_blank">贡献指南</a>
+[快速开始](#-快速开始) • <a href="https://dcai-paper2any.cpolar.top/" target="_blank">在线体验</a> • <a href="docs/" target="_blank">文档</a> • <a href="docs/contributing.md" target="_blank">贡献指南</a>
 
 </div>
 
@@ -55,7 +55,7 @@
 🎉 <strong>Paper2Figure 网页端内测上线</strong>（需邀请码）<br>
 支持一键生成多种<strong>可编辑</strong>科研绘图，包括模型架构图、技术路线图、实验数据图<br>
 📧 <strong>邮箱联系获取体验邀请码</strong>（仅限前50名）：<a href="mailto:liuzhou225919@163.com">liuzhou225919@163.com</a><br>
-👉 访问地址：<a href="http://dcai-paper2figure.cpolar.top/">http://dcai-paper2figure.cpolar.top/</a>
+👉 访问地址：<a href="https://dcai-paper2any.cpolar.top/">https://dcai-paper2any.cpolar.top/</a>
 </td>
 </tr>
 <tr>
@@ -304,7 +304,7 @@ Paper2Any 当前包含以下几个子能力：
 
 **方式一：Web 前端（推荐）**
 
-(目前在线版只支持邀请用户体验)访问在线体验地址：[http://dcai-paper2figure.cpolar.top/](http://dcai-paper2figure.cpolar.top/)
+(目前在线版只支持邀请用户体验)访问在线体验地址：[https://dcai-paper2any.cpolar.top/](https://dcai-paper2any.cpolar.top/)
 
 <div align="center">
 <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend.png" alt="前端界面" width="100%"/>
