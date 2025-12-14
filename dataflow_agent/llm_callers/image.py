@@ -137,6 +137,7 @@ class VisionLLMCaller(BaseLLMCaller):
         # 调用图像生成函数
         save_path = self.vlm_config.get("output_image", "./generated_image.png")
         image_path = self.vlm_config.get("input_image") if self.mode == "edit" else None
+        aspect_ratio = self.vlm_config.get("aspect_ratio", "16:9")  # <-- 新增：默认 16:9
         
         b64 = await generate_or_edit_and_save_image_async(
             prompt=prompt,
@@ -147,6 +148,7 @@ class VisionLLMCaller(BaseLLMCaller):
             image_path=image_path,
             use_edit=(self.mode == "edit"),
             timeout=self.vlm_config.get("timeout", 120),
+            aspect_ratio = aspect_ratio 
         )
         
         # 返回图像路径作为内容

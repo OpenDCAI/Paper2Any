@@ -29,6 +29,9 @@ from pptx.util import Inches, Pt
 
 from PIL import Image
 import pdfplumber
+import uuid
+
+from dataflow_agent.toolkits.imtool.mineru_tool import run_aio_batch_two_step_extract, run_aio_two_step_extract
 
 def get_project_root() -> Path:
     return Path(__file__).resolve().parent.parent
@@ -67,6 +70,11 @@ def robust_parse_json(
 
     # ---------- 清理注释 & 尾逗号 ----------
     s = _strip_json_comments(s)
+
+    # ---------- 新增：清理非法控制字符 ----------
+    # 移除所有 JSON 规范不允许的 ASCII 控制字符。
+    # 合法的 \n, \r, \t, 和 \f, \b, \" 都不会被移除，但这里只针对不可打印的控制码。
+    s = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', s)
 
     log.debug(f'清洗完之后内容是： {s}')
 
@@ -453,6 +461,208 @@ def build_output_directory(image_path: Path) -> Path:
     out_dir = Path(f"{base}_mineru")
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir
+
+
+# -------------------- NEW UTILS FUNCTIONS ---------------------------------
+
+import asyncio
+from pathlib import Path
+from PIL import Image
+from mineru_vl_utils import MinerUClient
+
+
+# -----------------------------
+# 工具：相对 bbox → 像素 bbox
+# -----------------------------
+def rel_bbox_to_pixel(bbox, width, height):
+    x1, y1, x2, y2 = bbox
+    return [
+        int(x1 * width),
+        int(y1 * height),
+        int(x2 * width),
+        int(y2 * height),
+    ]
+
+
+# -----------------------------
+# 工具：截图保存图片
+# -----------------------------
+def crop_and_save(img: Image.Image, bbox_pixel, save_path: Path, margin=3):
+    W, H = img.size
+    x1, y1, x2, y2 = bbox_pixel
+
+    log.info(f"[crop_and_save] Image size={img.size}, bbox={bbox_pixel}")
+
+    # --- 1. 越界判断 ---
+    if x1 < 0 or y1 < 0 or x2 > W or y2 > H or x2 <= x1 or y2 <= y1:
+        log.info("[crop_and_save] BBOX out of range → return original path")
+        return None  # 或 return str(original_image_path)
+
+    # --- 2. 判断四条边是否都“紧贴边缘” ---
+    touch_left   = x1 <= margin
+    touch_top    = y1 <= margin
+    touch_right  = x2 >= W - margin
+    touch_bottom = y2 >= H - margin
+
+    if touch_left and touch_top and touch_right and touch_bottom:
+        log.info("[crop_and_save] BBOX covers almost entire image → skip crop, return original")
+        return None  # 或 return str(original_image_path)
+
+    # --- 3. 正常裁剪 ---
+    try:
+        crop_img = img.crop(bbox_pixel)
+        crop_img.save(save_path)
+        log.info(f"[crop_and_save] Cropped size={crop_img.size}, saved={save_path}")
+        return str(save_path)
+
+    except Exception as e:
+        log.info(f"[crop_and_save] ERROR during crop: {e}")
+        return None
+
+def transform_sub_bbox(sub_bbox, parent_bbox):
+    """把子图内 bbox 映射回原图坐标系"""
+    px1, py1, px2, py2 = parent_bbox
+    sx1, sy1, sx2, sy2 = sub_bbox
+
+    return [
+        px1 + sx1,
+        py1 + sy1,
+        px1 + sx2,
+        py1 + sy2
+    ]
+
+# -----------------------------
+# 主函数：HTTP异步递归 MinerU
+# -----------------------------
+async def recursive_run_mineru_http(
+    image_path: Path,
+    out_dir: Path,
+    port:int = 8001,
+    max_depth: int = 2,
+    current_depth: int = 0,
+):
+    """
+    使用 aio_two_step_extract 执行异步 mineru 提取。
+    不依赖中间 JSON 文件。
+    自动截图 image/table/list 等元素作为下一轮输入。
+    """
+
+    # ---- 深度控制 ----
+    if current_depth > max_depth:
+        return []
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    log.info(f"[recursive_http] ─ Depth={current_depth}, Image={image_path}")
+
+    # ---- 加载图片 ----
+    img = Image.open(image_path)
+    W, H = img.size
+    log.info(f"[recursive_http] Image size: W={W}, H={H}")
+
+    # ---- 调用 MinerU 异步接口 ----
+    try:
+        blocks = await run_aio_two_step_extract(image_path, port)
+        log.info(f"[recursive_http] MinerU returned {len(blocks)} blocks")
+    except Exception as e:
+        log.info(f"[recursive_http] MinerU error: {e}")
+        return []
+
+    results = []
+    sub_images_paths = []  # 下一层递归的图片路径
+
+    # -----------------------------
+    # 解析 block 并处理不同类型
+    # -----------------------------
+    for idx, blk in enumerate(blocks):
+
+        btype = blk.get("type")
+        bbox_rel = blk.get("bbox", [0, 0, 1, 1])
+        content = blk.get("content")
+
+        log.info(f"  Block[{idx}] type={btype}, bbox_rel={bbox_rel}, "
+                 f"content={str(content)[:30] if content else None}")
+
+        bbox_pixel = rel_bbox_to_pixel(bbox_rel, W, H)
+        log.info(f"  → bbox_pixel={bbox_pixel}")
+
+        # ---- 文本类 block：直接保存 ----
+        if btype in ["title", "text", "paragraph", "caption", "image_caption", "table_caption"]:
+            results.append({
+                "type": "text",
+                "text": content or "",
+                "bbox": bbox_pixel,
+            })
+            log.info(f"    Added TEXT block, content preview: {str(content)[:30]}")
+
+        # ---- 图片类 block：截图作为下一轮输入 ----
+        elif btype in ["image", "table", "list"]:
+
+            sub_img_name = f"sub_{current_depth}_{uuid.uuid4()}.png"
+            sub_img_path = out_dir / sub_img_name
+            
+            log.info(f"Try to crop img: {image_path}")
+            cropped_path = crop_and_save(img, bbox_pixel, sub_img_path) 
+            sub_img_path = cropped_path if cropped_path else image_path
+            log.info(f"    Cropped IMAGE block → {sub_img_path}")
+
+            results.append({
+                "type": "image",
+                "img_path": str(sub_img_path),
+                "bbox": bbox_pixel,
+            })
+
+            sub_images_paths.append(sub_img_path)
+
+    log.info(f"[recursive_http] Depth={current_depth} → Parsed {len(results)} items, {len(sub_images_paths)} sub-images")
+
+    # ----------------------------------------------
+    # 递归处理子图，并将对应的 image 元素替换为子结果
+    # ----------------------------------------------
+    if current_depth < max_depth and len(sub_images_paths) > 0:
+
+        tasks = [
+            recursive_run_mineru_http(
+                sub_img_path,
+                out_dir,
+                port=port,
+                max_depth=max_depth,
+                current_depth=current_depth + 1
+            )
+            for sub_img_path in sub_images_paths
+        ]
+
+        sub_results_list = await asyncio.gather(*tasks)
+
+        new_results = []
+
+        sub_map = {
+            str(path): sub_results_list[i]
+            for i, path in enumerate(sub_images_paths)
+        }
+
+        for item in results:
+            img_path = item.get("img_path")
+
+            # 只对当前层生成的子图做展开替换
+            if item["type"] in ["image", 'table', 'list'] and img_path in sub_map:
+                parent_bbox = item["bbox"]
+                sub_items = sub_map[img_path]
+
+                log.info(f"    Replacing sub-image {img_path} with {len(sub_items)} items")
+
+                for si in sub_items:
+                    new_item = si.copy()
+                    new_item["bbox"] = transform_sub_bbox(si["bbox"], parent_bbox)
+                    new_results.append(new_item)
+            else:
+                new_results.append(item)
+
+        results = new_results
+
+    return results
+
+# -------------------------------------------------------------------------------------
 
 def get_font_size_for_text(bbox, text, max_font_size=48, min_font_size=10):
     """

@@ -9,6 +9,6 @@ Router package for FastAPI backend.
 """
 
 # 让 `from fastapi_app.routers import operator_write, pipeline_rec, workflows` 可用
-from . import operator_write, pipeline_rec, workflows
+from . import operator_write, pipeline_rec, workflows, paper2video
 
-__all__ = ["operator_write", "pipeline_rec", "workflows"]
+__all__ = ["operator_write", "pipeline_rec", "workflows", "paper2video"]

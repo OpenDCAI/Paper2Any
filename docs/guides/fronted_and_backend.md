@@ -148,7 +148,7 @@ const [sourceUrl, setSourceUrl] = useState('');
 const [textContent, setTextContent] = useState('');
 
 // LLM 调用配置
-const [llmApiUrl, setLlmApiUrl] = useState('https://api.openai.com/v1/chat/completions');
+const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
 const [apiKey, setApiKey] = useState('');
 const [model, setModel] = useState('NanoBanana');
 
@@ -225,7 +225,7 @@ const handleSubmit = async () => {
   - 例：`"NanoBanana"`（Graph 页默认值）
   - 后端可根据这个模型名称决定调用哪个模型。
 - `chat_api_url`：字符串
-  - 例：`"https://api.openai.com/v1/chat/completions"`
+  - 例：`"https://api.apiyi.com/v1"`
   - 用于自定义 OpenAI / 兼容 API 地址。
 - `api_key`：字符串
   - 用于后端调用 LLM。
@@ -321,7 +321,7 @@ const [sourceUrl, setSourceUrl] = useState('');
 const [textContent, setTextContent] = useState('');
 
 // LLM 调用配置
-const [llmApiUrl, setLlmApiUrl] = useState('https://api.openai.com/v1/chat/completions');
+const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
 const [apiKey, setApiKey] = useState('');
 // 默认模型为 gpt-4o，允许自由输入
 const [model, setModel] = useState('gpt-4o');
@@ -567,7 +567,7 @@ npm run dev
 
 填写：
 
-- 模型 API URL（如 `https://api.openai.com/v1/chat/completions`）
+- 模型 API URL（如 `https://api.apiyi.com/v1`）
 - API Key
 - 模型名称（Graph 页：NanoBanana；PPT 页默认 gpt-4o，也可自定义）
 - 上传文件 / URL / 文本

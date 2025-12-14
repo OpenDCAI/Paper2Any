@@ -16,9 +16,10 @@ from typing import Any, Dict, List
 import json
 import time
 
-from dataflow_agent.state import Paper2FigureState, DFRequest, DFState
+from dataflow_agent.state import Paper2FigureState, DFRequest, DFState, Paper2FigureRequest as DF_Paper2FigureRequest
 from dataflow_agent.workflow import run_workflow
 from dataflow_agent.logger import get_logger
+from dataflow_agent.state import Paper2VideoRequest, Paper2VideoState
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.workflow.wf_pipeline_recommend_extract_json import (
     create_pipeline_graph,
@@ -32,6 +33,8 @@ from .schemas import (
     PipelineRecommendResponse,
     Paper2FigureRequest,
     Paper2FigureResponse,
+    FeaturePaper2VideoRequest,
+    FeaturePaper2VideoResponse,
 )
 
 log = get_logger(__name__)
@@ -301,6 +304,61 @@ async def run_pipeline_recommend_api(
         agent_results=agent_results,
     )
 
+# ------------------- paper2video工作流封装 -------------------
+async def run_paper_to_video_api(
+    req: FeaturePaper2VideoRequest,
+) -> FeaturePaper2VideoResponse:
+    """
+    基于 wf_paper2video.create_paper2video_graph 的封装。
+
+    对标 gradio_app.pages.paper2video.run_paper2video_workflow。
+    """
+    # 设置环境变量
+    if req.api_key:
+        os.environ["DF_API_KEY"] = req.api_key
+    else:
+        req.api_key = os.getenv("DF_API_KEY", "sk-dummy")
+
+    # 构造 DFRequest / DFState
+    req = Paper2VideoRequest(
+        chat_api_url=req.chat_api_url,
+        api_key=req.api_key,
+        model=req.model,
+        paper_pdf_path=req.pdf_path,
+        user_imgs_path=req.img_path,
+        language=req.language,
+    )
+    state = Paper2VideoState(request=req, messages=[])
+
+    from dataflow_agent.workflow.wf_paper2video import create_paper2video_graph
+    
+    graph = create_paper2video_graph().build()
+    final_state: Paper2VideoState = await graph.ainvoke(state)
+
+    # 提取结果
+    result = {
+        "success": True,
+        "final_state": final_state,
+    }
+    
+    # 提取输出的pdf文件
+    try:
+        if isinstance(final_state, dict):
+            ppt_path = final_state.get("ppt_path", [])
+        else:
+            ppt_path = getattr(final_state, "ppt_path", [])
+            
+        result["ppt_path"] = ppt_path or []
+    except Exception as e:
+        if 'log' in locals():
+            log.warning(f"提取pdf的ppt失败: {e}")
+        result["ppt_path"] = []
+    
+    return FeaturePaper2VideoResponse(
+        success=result.get("success", False),
+        ppt_path=result.get("ppt_path", ""),
+    )
+
 # --------------------------Paper2Figure----------------------------
 
 # ====================== 通用工具函数 ====================== #
@@ -330,20 +388,35 @@ def save_final_state_json(final_state: dict, out_dir: Path, filename: str = "fin
 # ====================== 主函数 ====================== #
 async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureResponse:
     """
-    真正调用 dataflow_agent.workflow.wf_paper2figure 的封装。
+    根据 graph_type 选择不同 workflow，并拆分输出目录。
 
     入参 req 通常由 FastAPI 路由层（如 paper2any.generate_paper2figure）
     根据前端 FormData 映射而来：
       - input_type: "PDF" / "TEXT" / "FIGURE"
       - input_content: 文件路径或纯文本
+      - graph_type: "model_arch" | "tech_route" | "exp_data"
     """
     # -------- 基础路径与输出目录 -------- #
     project_root: Path = get_project_root()
     tmps_dir: Path = project_root / "dataflow_agent" / "tmps"
     tmps_dir.mkdir(parents=True, exist_ok=True)
 
-    # -------- 初始化 Paper2FigureState -------- #
-    # 这里直接把 FastAPI 请求模型作为 state.request，以保持配置一致
+    # -------- 映射到 dataflow_agent.state.Paper2FigureRequest -------- #
+    # df_req = DF_Paper2FigureRequest(
+    #     language=req.language,
+    #     chat_api_url=req.chat_api_url,
+    #     api_key=req.api_key or req.chat_api_key,
+    #     model=req.model,
+    # )
+    # 透传额外字段
+    # df_req.input_type = req.input_type
+    # df_req.chat_api_key = req.chat_api_key
+    # df_req.input_content = req.input_content
+    # df_req.gen_fig_model = req.gen_fig_model
+    # df_req.bg_rm_model = req.bg_rm_model
+    # df_req["graph_type"] = req.graph_type
+    # df_req["style"] = req.style
+
     state = Paper2FigureState(request=req, messages=[])
     state.temp_data["round"] = 0
 
@@ -359,28 +432,79 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
 
     # 其它控制参数
     state.aspect_ratio = req.aspect_ratio
-    state.result_path = str(
-        Path("./outputs/paper2figure") / time.strftime("%Y%m%d_%H%M%S")
-    )
-    os.makedirs(state.result_path, exist_ok=True)
+
+    # -------- 按 graph_type 决定 workflow + 输出根目录 -------- #
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    graph_type = req.graph_type
+
+    if graph_type == "model_arch":
+        wf_name = "paper2fig_with_sam"
+        result_root =  project_root / "outputs" / req.invite_code / "paper2fig" / ts
+    elif graph_type == "tech_route":
+        wf_name = "paper2technical"
+        result_root = project_root / "outputs" / req.invite_code / "paper2tec" / ts
+    elif graph_type == "exp_data":
+        # TODO: 后续接入 paper2exp workflow
+        wf_name = "paper2fig_with_sam"
+        result_root = project_root / "outputs" / req.invite_code / "paper2exp" / ts
+    else:
+        wf_name = "paper2fig_with_sam"
+        result_root = project_root / "outputs" / req.invite_code / "paper2fig" / ts
+
+    result_root.mkdir(parents=True, exist_ok=True)
+    state.result_path = str(result_root)
+    log.critical(f"[paper2figure] result_path: {state.result_path} !!!!!!!!\n")
     state.mask_detail_level = 2
 
     # -------- 异步执行 -------- #
-    log.critical(f'req: {req} !!!!!!!!\n')
-    final_state: Paper2FigureState = await run_workflow("paper2fig", state)
+    log.critical(f"[paper2figure] req: {req} !!!!!!!!\n")
+    final_state: Paper2FigureState = await run_workflow(wf_name, state)
 
     # -------- 保存最终 State -------- #
-    # 这里把 final_state 转成可序列化结构后落盘，便于调试
     serializable_state = to_serializable(final_state)
     save_final_state_json(
         final_state=serializable_state,
-        out_dir=tmps_dir / time.strftime("%Y%m%d_%H%M%S"),
+        out_dir=tmps_dir / ts,
     )
 
     log.info(f"[paper2figure] Results saved in directory: {state.result_path}")
     log.info(f"[paper2figure]: {final_state['ppt_path']}")
 
+    # -------- 构造响应：根据 graph_type 返回不同字段 -------- #
+    ppt_filename = str(final_state["ppt_path"])
+
+    # 默认空字符串，避免 None 影响前端
+    svg_filename = ""
+    svg_image_filename = ""
+
+    try:
+        # final_state 可能是 State 或 dict，两种方式都考虑
+        if isinstance(final_state, dict):
+            svg_filename = str(final_state.get("svg_file_path", "") or "")
+            svg_image_filename = str(final_state.get("svg_img_path", "") or "")
+        else:
+            svg_filename = str(getattr(final_state, "svg_file_path", "") or "")
+            svg_image_filename = str(getattr(final_state, "svg_img_path", "") or "")
+    except Exception as e:  # pragma: no cover - 仅日志兜底
+        log.warning(f"[paper2figure] 提取 SVG 路径失败: {e}")
+        svg_filename = ""
+        svg_image_filename = ""
+
+    # 收集本次任务输出目录下的所有 PPTX / PNG / SVG 文件绝对路径
+    all_output_files: list[str] = []
+    try:
+        result_root_path = Path(state.result_path)
+        if result_root_path.exists():
+            for p in result_root_path.rglob("*"):
+                if p.is_file() and p.suffix.lower() in {".pptx", ".png", ".svg"}:
+                    all_output_files.append(str(p))
+    except Exception as e:  # pragma: no cover
+        log.warning(f"[paper2figure] 收集输出文件列表失败: {e}")
+
     return Paper2FigureResponse(
         success=True,
-        ppt_filename=str(final_state["ppt_path"]),
+        ppt_filename=ppt_filename,
+        svg_filename=svg_filename,
+        svg_image_filename=svg_image_filename,
+        all_output_files=all_output_files,
     )
