@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="static/new_logo_bgrm.png" alt="DataFlow-Agent Logo" width="200"/><br>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/new_logo_bgrm.png" alt="DataFlow-Agent Logo" width="200"/><br>
 
 # DataFlow-Agent
 
@@ -54,6 +54,7 @@ English | [中文](README.md)
 <td>
 🎉 <strong>Paper2Figure Web beta is live</strong> (invitation code required)<br>
 One-click generation of multiple <strong>editable</strong> scientific figures, including model architecture diagrams, technical roadmap diagrams, and experimental plots.<br>
+📧 <strong>Contact via email for invitation code</strong> (limited to first 50 users): <a href="mailto:liuzhou225919@163.com">liuzhou225919@163.com</a><br>
 👉 URL: <a href="http://dcai-paper2figure.cpolar.top/">http://dcai-paper2figure.cpolar.top/</a>
 </td>
 </tr>
@@ -66,8 +67,8 @@ One-click generation of multiple <strong>editable</strong> scientific figures, i
 </table>
 
 <div align="center">
-  <img src="static/p2f_frontend_1.png" alt="Paper2Figure Web UI" width="49%"/>
-  <img src="static/p2f_frontend_2.png" alt="Paper2Figure Web UI (2)" width="49%"/>
+  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend_1.png" alt="Paper2Figure Web UI" width="49%"/>
+  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend_2.png" alt="Paper2Figure Web UI (2)" width="49%"/>
 </div>
 
 ---
@@ -75,7 +76,8 @@ One-click generation of multiple <strong>editable</strong> scientific figures, i
 ## 📐 Architecture
 
 <div align="center">
-<img src="static/projs_dist.png" alt="Project Architecture" width="800"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/projs_dist.png" alt="Project Architecture" width="800"/>
+<br><sub>Three core applications extended from DataFlow-Agent: Paper2Any (Paper Multimodal Workflow), Easy-DataFlow (Data Governance Pipeline), DataFlow-Table (Multi-source Data Analysis)</sub>
 </div>
 
 ---
@@ -145,15 +147,15 @@ Paper2Any currently includes the following sub-modules:
 </tr>
 <tr>
 <td align="center">
-<img src="static/paper2any_imgs/p2f/p2f_paper_pdf_img.png" alt="Input: paper PDF" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img.png" alt="Input: paper PDF" width="100%"/>
 <br><sub>📄 Paper PDF</sub>
 </td>
 <td align="center">
-<img src="static/paper2any_imgs/p2f/p2f_paper_pdf_img_2.png" alt="Generated model diagram" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img_2.png" alt="Generated model diagram" width="100%"/>
 <br><sub>🎨 Generated model architecture</sub>
 </td>
 <td align="center">
-<img src="static/paper2any_imgs/p2f/p2f_paper_pdf_img_3.png" alt="PPTX screenshot" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img_3.png" alt="PPTX screenshot" width="100%"/>
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
@@ -164,15 +166,15 @@ Paper2Any currently includes the following sub-modules:
 </tr>
 <tr>
 <td align="center">
-<img src="static/paper2any_imgs/p2f/p2f_paper_mid_img_1.png" alt="Input: paper PDF" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_1.png" alt="Input: paper PDF" width="100%"/>
 <br><sub>📄 Paper PDF</sub>
 </td>
 <td align="center">
-<img src="static/paper2any_imgs/p2f/p2f_paper_mid_img_2.png" alt="Generated model diagram" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_2.png" alt="Generated model diagram" width="100%"/>
 <br><sub>🎨 Generated model architecture</sub>
 </td>
 <td align="center">
-<img src="static/paper2any_imgs/p2f/p2f_paper_mid_img_3.png" alt="PPTX screenshot" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_3.png" alt="PPTX screenshot" width="100%"/>
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
@@ -183,15 +185,15 @@ Paper2Any currently includes the following sub-modules:
 </tr>
 <tr>
 <td align="center">
-<img src="static/paper2any_imgs/p2f/p2f_paper_hard_img_1.png" alt="Input: key paragraphs" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_1.png" alt="Input: key paragraphs" width="100%"/>
 <br><sub>📄 Input key paragraphs</sub>
 </td>
 <td align="center">
-<img src="static/paper2any_imgs/p2f/p2f_paper_hard_img_2.png" alt="Generated model diagram" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_2.png" alt="Generated model diagram" width="100%"/>
 <br><sub>🎨 Generated model architecture</sub>
 </td>
 <td align="center">
-<img src="static/paper2any_imgs/p2f/p2f_paper_hard_img_3.png" alt="PPTX screenshot" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_3.png" alt="PPTX screenshot" width="100%"/>
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
@@ -220,15 +222,15 @@ Upload a paper PDF and choose the diagram difficulty (Easy/Medium/Hard). The sys
 </tr>
 <tr>
 <td align="center">
-<img src="static/paper2any_imgs/p2t/paper1.png" alt="Input: paper text (Chinese)" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/paper1.png" alt="Input: paper text (Chinese)" width="100%"/>
 <br><sub>📝 Method section (Chinese)</sub>
 </td>
 <td align="center">
-<img src="static/paper2any_imgs/p2t/cn_img_1.png" alt="Roadmap diagram SVG" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/cn_img_1.png" alt="Roadmap diagram SVG" width="100%"/>
 <br><sub>🗺️ Roadmap diagram SVG</sub>
 </td>
 <td align="center">
-<img src="static/paper2any_imgs/p2t/cn_img_2.png" alt="PPTX screenshot" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/cn_img_2.png" alt="PPTX screenshot" width="100%"/>
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
@@ -239,15 +241,15 @@ Upload a paper PDF and choose the diagram difficulty (Easy/Medium/Hard). The sys
 </tr>
 <tr>
 <td align="center">
-<img src="static/paper2any_imgs/p2t/paper2.png" alt="Input: paper text (English)" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/paper2.png" alt="Input: paper text (English)" width="100%"/>
 <br><sub>📝 Method section (English)</sub>
 </td>
 <td align="center">
-<img src="static/paper2any_imgs/p2t/en_img_1.png" alt="Roadmap diagram SVG" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/en_img_1.png" alt="Roadmap diagram SVG" width="100%"/>
 <br><sub>🗺️ Roadmap diagram SVG</sub>
 </td>
 <td align="center">
-<img src="static/paper2any_imgs/p2t/en_img_2.png" alt="PPTX screenshot" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/en_img_2.png" alt="PPTX screenshot" width="100%"/>
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
@@ -276,15 +278,15 @@ Paste the method section and select the language (Chinese/English). The system o
 </tr>
 <tr>
 <td align="center">
-  <img src="static/paper2any_imgs/p2e/paper_1.png" alt="Input: experimental results screenshot" width="100%"/>
+  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2e/paper_1.png" alt="Input: experimental results screenshot" width="100%"/>
   <br><sub>📄 Input: paper PDF / results screenshot</sub>
 </td>
 <td align="center">
-  <img src="static/paper2any_imgs/p2e/paper_1_2.png" alt="Output: standard plot" width="100%"/>
+  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2e/paper_1_2.png" alt="Output: standard plot" width="100%"/>
   <br><sub>📈 Output: standard Python-style plot</sub>
 </td>
 <td align="center">
-  <img src="static/paper2any_imgs/p2e/paper_1_3.png" alt="Output: polished plot" width="100%"/>
+  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2e/paper_1_3.png" alt="Output: polished plot" width="100%"/>
   <br><sub>🎨 Output: publication-ready styled plot</sub>
 </td>
 </tr>
@@ -306,7 +308,7 @@ The online version is currently available for invited users only:
 [http://dcai-paper2figure.cpolar.top/](http://dcai-paper2figure.cpolar.top/)
 
 <div align="center">
-<img src="static/p2f_frontend.png" alt="Web UI" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend.png" alt="Web UI" width="100%"/>
 </div>
 
 **Highlights**:
@@ -354,7 +356,7 @@ Open `http://127.0.0.1:7860`
 **Pipeline Recommendation: From task to code**
 
 <div align="center">
-<img src="static/imag_piperec.png" alt="Pipeline recommendation" width="50%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/imag_piperec.png" alt="Pipeline recommendation" width="50%"/>
 <br><sub>💻 Analyze requirements and generate an optimal operator chain with runnable Python pipeline code</sub>
 </div>
 
@@ -363,7 +365,7 @@ Open `http://127.0.0.1:7860`
 **Operator Authoring: AI-assisted development**
 
 <div align="center">
-<img src="static/image_opwrite.png" alt="Operator authoring" width="50%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/image_opwrite.png" alt="Operator authoring" width="50%"/>
 <br><sub>⚙️ Generate operator code from functional descriptions and test/debug in the same UI</sub>
 </div>
 
@@ -372,7 +374,7 @@ Open `http://127.0.0.1:7860`
 **Visual Orchestration: Drag-and-drop**
 
 <div align="center">
-<img src="static/image.png" alt="Visual orchestration" width="50%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/image.png" alt="Visual orchestration" width="50%"/>
 <br><sub>🎨 Build pipelines visually by composing operators with a WYSIWYG interface</sub>
 </div>
 
@@ -381,7 +383,7 @@ Open `http://127.0.0.1:7860`
 **Prompt Optimization: Automatic tuning**
 
 <div align="center">
-<img src="static/promptagent.png" alt="Prompt optimization" width="50%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/promptagent.png" alt="Prompt optimization" width="50%"/>
 <br><sub>✨ Reuse existing operators to auto-generate DataFlow prompt templates and optimize prompts</sub>
 </div>
 
@@ -390,7 +392,7 @@ Open `http://127.0.0.1:7860`
 **Web Collection: Web to data**
 
 <div align="center">
-<img src="static/web_collection.png" alt="Web collection" width="50%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/web_collection.png" alt="Web collection" width="50%"/>
 <br><sub>📊 Automate web collection & structuring into DataFlow-ready datasets</sub>
 </div>
 
@@ -706,7 +708,7 @@ DataFlow-Agent/
 </table>
 
 <div align="center">
-<img src="static/dfa_fronted.png" width="800" alt="Workflow Editor"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/dfa_fronted.png" width="800" alt="Workflow Editor"/>
 <br><sub>🎨 Workflow Visual Editor Preview</sub>
 </div>
 
