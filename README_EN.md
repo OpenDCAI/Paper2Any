@@ -513,6 +513,15 @@ export default defineConfig({
 
 Visit `http://localhost:3000`
 
+> [!TIP]
+> **Paper2Figure Web Beta Access**
+> - After you have deployed the frontend, you also need to **manually create** an `invite_codes.txt` file at the project root and write your invitation code inside (e.g. `ABCDEFG123456`).
+> - Then start the backend.
+> - If you don’t want to deploy the frontend/backend for now, you can still try the core Paper2Any features locally via:
+>   - `python tests/test_paper2figure_with_sam.py`: model architecture diagram generation
+>   - `python tests/test_paper2technical.py`: technical roadmap generation
+>   - `python tests/test_paper2video.py`: Beamer PPT slide generation
+
 **Features**:
 - ✨ Modern UI design
 - 🎯 Visual parameter configuration
