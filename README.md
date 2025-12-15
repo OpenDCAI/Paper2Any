@@ -189,7 +189,7 @@ Paper2Any 当前包含以下几个子能力：
 <br><sub>📄 输入核心段落</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_2.png" alt="生成的模型图" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_hard_img_2.png" alt="生成的模型图" width="100%"/>
 <br><sub>🎨 生成的模型架构图</sub>
 </td>
 <td align="center">

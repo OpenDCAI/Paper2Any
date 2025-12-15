@@ -189,7 +189,7 @@ Paper2Any currently includes the following sub-modules:
 <br><sub>📄 Input key paragraphs</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_2.png" alt="Generated model diagram" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_hard_img_2.png" alt="Generated model diagram" width="100%"/>
 <br><sub>🎨 Generated model architecture</sub>
 </td>
 <td align="center">
