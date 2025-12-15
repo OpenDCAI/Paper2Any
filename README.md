@@ -511,6 +511,15 @@ export default defineConfig({
 
 访问 `http://localhost:3000`
 
+> [!TIP]
+> **Paper2Figure 网页端内测说明**
+> - 当你部署了前端，还需要**手动新建**一个 `invite_codes.txt` 文件，并写入你的邀请码（例如：`ABCDEFG123456`）。
+> - 然后再启动后端；
+> - 如果暂时不想部署前后端，可以先通过本地脚本体验 Paper2Any 的核心能力：
+>   - `python tests/test_paper2figure_with_sam.py`：模型架构图生成
+>   - `python tests/test_paper2technical.py`：技术路线图生成
+>   - `python tests/test_paper2video.py`：Beamer PPT 生成
+
 **特点**：
 - ✨ 现代化 UI 设计
 - 🎯 可视化参数配置
