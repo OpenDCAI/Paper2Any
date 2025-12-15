@@ -752,3 +752,21 @@ Thanks to all contributors! Special thanks to the upstream project [OpenDCAI/Dat
 Made with ❤️ by OpenDCAI Team
 
 </div>
+
+---
+
+## 🌐 Join the Community
+
+Join the DataFlow open-source community to ask questions, share ideas, and collaborate with other developers!
+
+- 📮 **GitHub Issues**: Report bugs or suggest new features  
+  👉 https://github.com/OpenDCAI/DataFlow-Agent/issues
+- 🔧 **GitHub Pull Requests**: Contribute code improvements and documentation updates  
+  👉 https://github.com/OpenDCAI/DataFlow-Agent/pulls
+- 💬 **Community Group**: Connect with maintainers and other contributors
+
+<div align="center">
+  <img src="static/team_wechat.png" alt="DataFlow-Agent WeChat Community" width="560"/>
+  <br>
+  <sub>Scan to join the DataFlow-Agent WeChat community group</sub>
+</div>

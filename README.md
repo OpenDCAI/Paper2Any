@@ -749,3 +749,21 @@ DataFlow-Agent/
 Made with ❤️ by OpenDCAI Team
 
 </div>
+
+---
+
+## 🌐 加入社区
+
+加入 DataFlow 开源社区，一起交流想法、反馈问题、共建生态！
+
+- 📮 **GitHub Issues**：用于反馈 Bug 或提交功能建议  
+  👉 https://github.com/OpenDCAI/DataFlow-Agent/issues
+- 🔧 **GitHub Pull Requests**：提交代码改进与文档优化  
+  👉 https://github.com/OpenDCAI/DataFlow-Agent/pulls
+- 💬 **社区交流群**：与开发者和贡献者实时交流
+
+<div align="center">
+  <img src="static/team_wechat.png" alt="DataFlow-Agent 社区微信群" width="560"/>
+  <br>
+  <sub>扫码加入 DataFlow-Agent 社区微信群</sub>
+</div>
