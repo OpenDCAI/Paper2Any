@@ -11,7 +11,7 @@
 [![GitHub Repo](https://img.shields.io/badge/GitHub-OpenDCAI%2FDataFlow--Agent-24292F?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/DataFlow-Agent)
 [![Stars](https://img.shields.io/github/stars/OpenDCAI/DataFlow-Agent?style=flat-square&logo=github&label=Stars&color=F2C94C)](https://github.com/OpenDCAI/DataFlow-Agent/stargazers)
 
-<a href="http://dcai-paper2figure.cpolar.top/" target="_blank">
+<a href="https://dcai-paper2any.cpolar.top/" target="_blank">
   <img alt="Try Online" src="https://img.shields.io/badge/Try%20Online-Paper2Figure-56CCF2?style=flat-square&logo=googlechrome&logoColor=white" />
 </a>
 <a href="docs/" target="_blank">
@@ -25,7 +25,7 @@
 
 English | [中文](README.md)
 
-[Quick Start](#-quick-start) • <a href="http://dcai-paper2figure.cpolar.top/" target="_blank">Try Online</a> • <a href="docs/" target="_blank">Docs</a> • <a href="docs/contributing.md" target="_blank">Contributing</a>
+[Quick Start](#-quick-start) • <a href="https://dcai-paper2any.cpolar.top/" target="_blank">Try Online</a> • <a href="docs/" target="_blank">Docs</a> • <a href="docs/contributing.md" target="_blank">Contributing</a>
 
 </div>
 
@@ -55,7 +55,7 @@ English | [中文](README.md)
 🎉 <strong>Paper2Figure Web beta is live</strong> (invitation code required)<br>
 One-click generation of multiple <strong>editable</strong> scientific figures, including model architecture diagrams, technical roadmap diagrams, and experimental plots.<br>
 📧 <strong>Contact via email for invitation code</strong> (limited to first 50 users): <a href="mailto:liuzhou225919@163.com">liuzhou225919@163.com</a><br>
-👉 URL: <a href="http://dcai-paper2figure.cpolar.top/">http://dcai-paper2figure.cpolar.top/</a>
+👉 URL: <a href="https://dcai-paper2any.cpolar.top/">https://dcai-paper2any.cpolar.top/</a>
 </td>
 </tr>
 <tr>
@@ -305,7 +305,7 @@ Upload an experimental results screenshot/table. The system extracts key numbers
 **Option 1: Web Frontend (Recommended)**
 
 The online version is currently available for invited users only:  
-[http://dcai-paper2figure.cpolar.top/](http://dcai-paper2figure.cpolar.top/)
+[https://dcai-paper2any.cpolar.top/](https://dcai-paper2any.cpolar.top/)
 
 <div align="center">
 <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend.png" alt="Web UI" width="100%"/>
@@ -751,4 +751,22 @@ Thanks to all contributors! Special thanks to the upstream project [OpenDCAI/Dat
 
 Made with ❤️ by OpenDCAI Team
 
+</div>
+
+---
+
+## 🌐 Join the Community
+
+Join the DataFlow open-source community to ask questions, share ideas, and collaborate with other developers!
+
+- 📮 **GitHub Issues**: Report bugs or suggest new features  
+  👉 https://github.com/OpenDCAI/DataFlow-Agent/issues
+- 🔧 **GitHub Pull Requests**: Contribute code improvements and documentation updates  
+  👉 https://github.com/OpenDCAI/DataFlow-Agent/pulls
+- 💬 **Community Group**: Connect with maintainers and other contributors
+
+<div align="center">
+  <img src="static/team_wechat.png" alt="DataFlow-Agent WeChat Community" width="560"/>
+  <br>
+  <sub>Scan to join the DataFlow-Agent WeChat community group</sub>
 </div>
