@@ -12,7 +12,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 from dataflow_agent.agentroles.cores.strategies import VLMStrategy
-from dataflow_agent.state import Paper2ExpFigureState
+from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.toolkits.tool_manager import ToolManager
 from dataflow_agent.logger import get_logger
 from dataflow_agent.agentroles.cores.registry import register
@@ -64,7 +64,7 @@ class ChartTypeRecommender(BaseAgent):
 
     def update_state_result(
         self,
-        state: Paper2ExpFigureState,
+        state: Paper2FigureState,
         result: Dict[str, Any],
         pre_tool_results: Dict[str, Any],
     ):
@@ -135,7 +135,7 @@ class ChartTypeRecommender(BaseAgent):
 # Helper APIs
 # ----------------------------------------------------------------------
 async def chart_type_recommender(
-    state: Paper2ExpFigureState,
+    state: Paper2FigureState,
     model_name: Optional[str] = None,
     tool_manager: Optional[ToolManager] = None,
     temperature: float = 0.0,
@@ -143,7 +143,7 @@ async def chart_type_recommender(
     vlm_config: Optional[Dict[str, Any]] = None,
     use_agent: bool = False,
     **kwargs,
-) -> Paper2ExpFigureState:
+) -> Paper2FigureState:
     """ChartTypeRecommender 的异步入口"""
     inst = create_chart_type_recommender(
         tool_manager=tool_manager,

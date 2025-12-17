@@ -418,32 +418,8 @@ class Paper2FigureState(MainState):
     # 背景svg code：
     svg_bg_code : str = ""
     
-
-
-# ==================== Paper2ExpFigure State (表格→统计图) ====================
-@dataclass
-class Paper2ExpFigureRequest(MainRequest):
-    """Paper2ExpFigure 工作流请求参数"""
-    # 输入类型: "PDF" | "TABLE"
-    input_type: str = "PDF"
-    # 输出目录
-    output_dir: str = ""
-    # MinerU 服务端口
-    mineru_port: int = 8001
-
-
-import operator
-@dataclass
-class Paper2ExpFigureState(MainState):
-    """
-    Paper2ExpFigure 工作流状态
-    用于从 PDF 论文提取表格并生成统计图
-    """
-    request: Paper2ExpFigureRequest = field(default_factory=Paper2ExpFigureRequest)
-
+    # 实验统计图使用属性 ==============================
     # ===== 输入 =====
-    paper_file: str = ''                                          # PDF 文件路径
-
     pre_tool_results: Dict[str, Any] = field(default_factory=dict)  # 前置工具结果注入
 
     # ===== 中间结果 =====
@@ -459,6 +435,5 @@ class Paper2ExpFigureState(MainState):
 
     # ===== 输出 =====
     generated_charts: Dict[str, str] = field(default_factory=dict)             # 生成的图表路径字典
-    
-    result_path: str = ''                                         # 输出目录
+    stylize_results: Dict[str, list] = field(default_factory=dict)             # 风格化后的图表路径字典
 

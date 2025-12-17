@@ -23,8 +23,11 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from functools import reduce
+from pptx import Presentation
+from pptx.util import Inches
+from PIL import Image
 
-from dataflow_agent.state import Paper2ExpFigureState
+from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register
 from dataflow_agent.agentroles import create_simple_agent
@@ -41,97 +44,9 @@ from dataflow_agent.utils import (
 from dataflow_agent.toolkits.imtool.mineru_tool import run_aio_two_step_extract
 from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
 
+
 log = get_logger(__name__)
 
-# ==============================================================
-# 辅助方法
-# ==============================================================
-
-def _generate_table_understanding(
-    table_id: str,
-    caption: str,
-    headers: List[str],
-    rows: List[List[str]]
-) -> Dict[str, Any]:
-    """
-    生成对表格内容的理解和描述。
-    
-    这是一个简单的启发式分析，用于在没有 LLM 的情况下提供基本的表格理解。
-    在实际应用中，可以调用 LLM 来生成更智能的理解。
-    """
-    # 分析表格结构
-    num_rows = len(rows)
-    num_cols = len(headers)
-    
-    # 分析数据类型
-    data_types = []
-    for col_idx, header in enumerate(headers):
-        if col_idx >= num_cols:
-            break
-        
-        # 尝试判断该列的数据类型
-        sample_values = [row[col_idx] for row in rows[:min(5, num_rows)] if col_idx < len(row)]
-        
-        is_numeric = all(
-            isinstance(v, (int, float)) or 
-            (isinstance(v, str) and v.replace('.', '', 1).replace('-', '', 1).replace('+', '', 1).isdigit())
-            for v in sample_values if v
-        )
-        
-        data_types.append({
-            "column": header,
-            "type": "numeric" if is_numeric else "categorical",
-            "sample_values": sample_values[:3]  # 保存前3个示例值
-        })
-    
-    # 生成描述性统计
-    summary = f"这是一个 {num_rows} 行 x {num_cols} 列的表格。"
-    
-    if caption:
-        summary += f" 表格标题：{caption}。"
-    
-    # 分析列类型
-    numeric_cols = [dt['column'] for dt in data_types if dt['type'] == 'numeric']
-    categorical_cols = [dt['column'] for dt in data_types if dt['type'] == 'categorical']
-    
-    if numeric_cols:
-        summary += f" 包含 {len(numeric_cols)} 个数值列：{', '.join(numeric_cols[:3])}等。"
-    if categorical_cols:
-        summary += f" 包含 {len(categorical_cols)} 个分类列：{', '.join(categorical_cols[:3])}等。"
-    
-    # 生成内容描述
-    content_description = ""
-    if headers:
-        if num_rows > 0:
-            first_col_values = [row[0] for row in rows[:5] if len(row) > 0]
-            if first_col_values:
-                content_description = f"第一列 '{headers[0]}' 包含值：{', '.join(map(str, first_col_values[:3]))}等。"
-    
-    # 生成可视化建议
-    visualization_suggestions = []
-    if len(numeric_cols) >= 2:
-        visualization_suggestions.append("可以使用散点图展示数值列之间的关系")
-    if categorical_cols and numeric_cols:
-        visualization_suggestions.append("可以使用条形图或柱状图比较不同分类的数值")
-    if num_rows > 10:
-        visualization_suggestions.append("数据量较大，建议选择代表性样本或聚合显示")
-    
-    return {
-        "summary": summary,
-        "content_description": content_description,
-        "data_structure": {
-            "total_rows": num_rows,
-            "total_cols": num_cols,
-            "numeric_columns": numeric_cols,
-            "categorical_columns": categorical_cols,
-        },
-        "data_types": data_types,
-        "visualization_suggestions": visualization_suggestions,
-        "key_insights": [
-            f"表格共有 {num_rows} 个数据项",
-            f"包含 {len(numeric_cols)} 个数值指标和 {len(categorical_cols)} 个分类维度",
-        ]
-    }
 
 @register("paper2expfigure")
 def create_paper2expfigure_graph() -> GenericGraphBuilder:
@@ -141,7 +56,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
     命令: dfa run --wf paper2expfigure
     """
     builder = GenericGraphBuilder(
-        state_model=Paper2ExpFigureState,
+        state_model=Paper2FigureState,
         entry_point="pdf_to_images_node"
     )
 
@@ -149,12 +64,13 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
     # PRE-TOOLS: 为 Agent 提供输入数据
     # ======================================================================
     
-    @builder.pre_tool("paper_content", "paper_idea_extractor_node")
-    def _get_paper_content(state: Paper2ExpFigureState) -> str:
+    @builder.pre_tool("paper_content", "paper_idea_extractor")
+    def _get_paper_content(state: Paper2FigureState) -> str:
         """
         从 MinerU 结果或 PDF 中提取文本内容，供 paper_idea_extractor 使用
         """
         # 优先从 MinerU 结果中提取
+        log.critical("正在从 MinerU 结果中提取文本内容")
         if hasattr(state, 'temp_data') and 'mineru_items' in state.temp_data:
             mineru_items = state.temp_data.get('mineru_items', [])
             if mineru_items:
@@ -184,17 +100,12 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         except Exception as e:
             log.error(f"读取 PDF 失败: {e}")
             return ""
-
-    @builder.pre_tool("paper_idea", "code_executor_node")
-    def get_paper_idea(state: Paper2ExpFigureState) -> str:
-        paper_idea = state.paper_idea if state.paper_idea else "No paper idea extracted"
-        return paper_idea
     
     # ==============================================================
     # NODES: 工作流节点
     # ==============================================================
     
-    async def pdf_to_images_node(state: Paper2ExpFigureState) -> Paper2ExpFigureState:
+    async def pdf_to_images_node(state: Paper2FigureState) -> Paper2FigureState:
         """
         节点 1: PDF → 图片
         将 PDF 的每一页转换为 PIL Image 对象，保存到临时目录
@@ -210,7 +121,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         images = pdf_to_pil_images(pdf_path, dpi=150)
         
         # 创建临时目录保存图片
-        output_dir = state.request.output_dir or f"./outputs/paper2expfigure_{uuid.uuid4().hex[:8]}"
+        output_dir = state.result_path or f"./outputs/paper2expfigure_{uuid.uuid4().hex[:8]}"
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
         
@@ -232,7 +143,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         log.info(f"[pdf_to_images] 完成，共转换 {len(images)} 页")
         return state
     
-    async def mineru_extract_node(state: Paper2ExpFigureState) -> Paper2ExpFigureState:
+    async def mineru_extract_node(state: Paper2FigureState) -> Paper2FigureState:
         """
         节点 2: MinerU 识别
         使用 MinerU HTTP API 识别图片中的文本和表格
@@ -246,7 +157,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         mineru_dir = output_path / "mineru_results"
         mineru_dir.mkdir(exist_ok=True)
         
-        port = state.request.mineru_port
+        port = state.mineru_port
         all_items = []
         
         # 对每一页图片执行 MinerU 识别
@@ -295,7 +206,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         log.info(f"[mineru_extract] 完成，共提取 {len(all_items)} 个元素")
         return state
     
-    async def table_extractor_node(state: Paper2ExpFigureState) -> Paper2ExpFigureState:
+    async def table_extractor_node(state: Paper2FigureState) -> Paper2FigureState:
         """
         节点 3: 提取表格
         从 MinerU 识别结果中提取表格数据，并保存表格区域图片
@@ -388,7 +299,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         
         return state
     
-    async def paper_idea_extractor_node(state: Paper2ExpFigureState) -> Paper2ExpFigureState:
+    async def paper_idea_extractor(state: Paper2FigureState) -> Paper2FigureState:
         """
         节点 4: 提取论文核心思想
         调用 paper_idea_extractor Agent 从论文中提取核心思想
@@ -411,7 +322,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         
         return state
     
-    async def chart_type_recommender_node(state) -> Paper2ExpFigureState:
+    async def chart_type_recommender_node(state: Paper2FigureState) -> Paper2FigureState:
         """
         节点 5: 智能推荐图表类型
         调用 chart_type_recommender Agent 智能推荐图表类型
@@ -493,7 +404,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         return state
     
     
-    async def code_executor_node(state: Paper2ExpFigureState) -> Paper2ExpFigureState:
+    async def code_executor_node(state: Paper2FigureState) -> Paper2FigureState:
         """
         节点 6: 执行代码生成图表
         调用 chart_code_generator Agent 智能生成图表
@@ -699,7 +610,7 @@ output_path = {repr(str(chart_path))}
         
         return state
 
-    async def post_stylize_node(state: Paper2ExpFigureState) -> Paper2ExpFigureState:
+    async def post_stylize_node(state: Paper2FigureState) -> Paper2FigureState:
         """调用Nano Banana模型对生成的图表进行风格化，更美观"""
         log.info(f"[post_stylize] 开始")
         # 获取生成的图表路径列表，用于分发任务
@@ -708,7 +619,7 @@ output_path = {repr(str(chart_path))}
         save_dir = Path(state.result_path) / Path("stylized_charts")
         save_dir.mkdir(parents=True, exist_ok=True)
         
-        stylize_prompt = "把这张统计图放大字体，改成复古印刷风，模仿 80 年代的老教科书或植物图鉴。带有噪点（Noise），色彩偏黄旧（Sepia），像印刷出来的质感，可能带有半调网点（Halftone）。，让它更加美观专业"
+        stylize_prompt = f"把这张统计图放大字体，改成{state.request.style}风格，让它更加美观专业"
         
         async def stylize_task(table_id: str, save_dir: str, chart_path: str):
             save_dir = Path(save_dir)
@@ -717,19 +628,21 @@ output_path = {repr(str(chart_path))}
             
             log.info(f"[post_stylize] 正在风格化图表: {table_id}")
             
+            log.critical(f"image_path: {chart_path}")
+            
             try:
                 b64_result = await generate_or_edit_and_save_image_async(
                     prompt=stylize_prompt,
                     save_path=str(save_path),
                     api_url=state.request.chat_api_url,
                     api_key=state.request.api_key, 
-                    model="gemini-3-pro-image-preview",
+                    model=state.request.gen_fig_model,
                     image_path=str(chart_path),
                     use_edit=True
                 )
                 
                 log.info(f"[post_stylize] 图表风格化完成: {table_id}")
-                return {table_id: b64_result}
+                return {table_id: [b64_result, save_path]}
             
             except Exception as e:
                 log.error(f"[post_stylize] {table_id} 图表风格化出错: {e}")
@@ -741,12 +654,170 @@ output_path = {repr(str(chart_path))}
         results = [
             result 
             for result in results if result is not None 
-            for table_id, b64_result in result.items() if b64_result is not None
+            for table_id, stylize_result in result.items() if stylize_result is not None
         ]
         
-        state.temp_data["stylized_charts_b64"] = reduce(lambda x, y: {**x, **y}, results, {})
+        state.stylize_results = reduce(lambda x, y: {**x, **y}, results, {})
         
         log.info(f"[post_stylize] 完成")
+        return state
+
+    async def assemble_to_ppt(state: Paper2FigureState) -> Paper2FigureState:
+        log.info(f"[assemble_to_ppt] 开始")
+        
+        try:
+            from pptx.util import Pt
+            from pptx.enum.text import PP_ALIGN
+            from pptx.dml.color import RGBColor
+            
+            # 获取生成的图表路径
+            chart_paths = state.generated_charts
+            if not chart_paths:
+                log.warning("[assemble_to_ppt] 没有生成的图表，跳过")
+                return state
+            
+            # 获取风格化图片路径
+            stylized_charts = state.stylize_results
+            
+            # 创建 PPT
+            prs = Presentation()
+            prs.slide_width = Inches(10)
+            prs.slide_height = Inches(7.5)
+            
+            def add_title_slide(title_text, subtitle_text=""):
+                """添加标题页"""
+                title_slide_layout = prs.slide_layouts[0]  # 标题布局
+                slide = prs.slides.add_slide(title_slide_layout)
+                
+                # 设置标题
+                title = slide.shapes.title
+                title.text = title_text
+                title.text_frame.paragraphs[0].font.size = Pt(44)
+                title.text_frame.paragraphs[0].font.bold = True
+                title.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+                
+                # 设置副标题
+                if subtitle_text and len(slide.placeholders) > 1:
+                    subtitle = slide.placeholders[1]
+                    subtitle.text = subtitle_text
+                    subtitle.text_frame.paragraphs[0].font.size = Pt(24)
+                    subtitle.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+                
+                return slide
+            
+            def add_image_slide(image_path, title_text=""):
+                """添加图片页"""
+                blank_slide_layout = prs.slide_layouts[6]  # 空白布局
+                slide = prs.slides.add_slide(blank_slide_layout)
+                
+                # 添加标题（如果有）
+                if title_text:
+                    title_box = slide.shapes.add_textbox(
+                        Inches(0.5), Inches(0.2), Inches(9), Inches(0.8)
+                    )
+                    title_frame = title_box.text_frame
+                    title_frame.text = title_text
+                    title_frame.paragraphs[0].font.size = Pt(24)
+                    title_frame.paragraphs[0].font.bold = True
+                    title_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+                
+                # 获取图片尺寸
+                img = Image.open(image_path)
+                img_width, img_height = img.size
+                
+                # 计算适合幻灯片的尺寸（保持宽高比）
+                slide_width = prs.slide_width
+                slide_height = prs.slide_height
+                
+                # 为标题留出空间
+                available_height = slide_height - Inches(1.2) if title_text else slide_height - Inches(0.5)
+                max_width = slide_width - Inches(1)
+                max_height = available_height
+                
+                # 计算缩放比例
+                width_ratio = max_width / img_width
+                height_ratio = max_height / img_height
+                scale = min(width_ratio, height_ratio)
+                
+                # 计算最终尺寸
+                final_width = int(img_width * scale)
+                final_height = int(img_height * scale)
+                
+                # 居中放置
+                left = (slide_width - final_width) / 2
+                top_offset = Inches(1.2) if title_text else Inches(0.5)
+                top = top_offset + (available_height - final_height) / 2
+                
+                # 添加图片
+                slide.shapes.add_picture(
+                    str(image_path),
+                    left,
+                    top,
+                    width=final_width,
+                    height=final_height
+                )
+                
+                return slide
+            
+            # 1. 添加总标题页
+            add_title_slide(
+                "论文图表生成结果",
+                "Paper2ExpFigure Workflow Results"
+            )
+            
+            # 2. 添加原始图表部分标题页
+            add_title_slide(
+                "原始实验图表",
+                "Original Experimental Charts"
+            )
+            
+            # 3. 添加原始图表
+            for table_id, chart_path in chart_paths.items():
+                if not os.path.exists(chart_path):
+                    log.warning(f"[assemble_to_ppt] 图表文件不存在: {chart_path}")
+                    continue
+                
+                add_image_slide(chart_path, f"图表 {table_id}")
+                log.info(f"[assemble_to_ppt] 添加原始图表到 PPT: {table_id}")
+            
+            # 4. 如果有风格化图片，添加风格化部分
+            if stylized_charts:
+                # 添加风格化图表部分标题页
+                add_title_slide(
+                    "风格化图表",
+                    "Stylized Charts (Vintage Print Style)"
+                )
+                
+                # 添加风格化图表
+                for table_id, stylized_path in stylized_charts.items():
+                    stylized_path = stylized_path[1]
+                    if not os.path.exists(stylized_path):
+                        log.warning(f"[assemble_to_ppt] 风格化图表文件不存在: {stylized_path}")
+                        continue
+                    
+                    add_image_slide(stylized_path, f"风格化图表 {table_id}")
+                    log.info(f"[assemble_to_ppt] 添加风格化图表到 PPT: {table_id}")
+            
+            # 保存 PPT
+            output_path = Path(state.result_path)
+            ppt_path = output_path / "generated_charts.pptx"
+            prs.save(str(ppt_path))
+            
+            total_slides = len(prs.slides)
+            log.info(f"[assemble_to_ppt] PPT 已保存: {ppt_path}")
+            log.info(f"[assemble_to_ppt] 共创建 {total_slides} 张幻灯片")
+            log.info(f"[assemble_to_ppt] 包含 {len(chart_paths)} 个原始图表和 {len(stylized_charts)} 个风格化图表")
+            
+            state.ppt_path = str(ppt_path)
+            
+        except ImportError:
+            log.error("[assemble_to_ppt] 缺少 python-pptx 库，请安装: pip install python-pptx")
+        except Exception as e:
+            log.error(f"[assemble_to_ppt] 生成 PPT 失败: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        log.info(f"[assemble_to_ppt] 完成")
         return state
 
     # ==============================================================
@@ -760,10 +831,11 @@ output_path = {repr(str(chart_path))}
         "pdf_to_images_node": pdf_to_images_node,
         "mineru_extract_node": mineru_extract_node,
         "table_extractor_node": table_extractor_node,
-        "paper_idea_extractor_node": paper_idea_extractor_node,
+        "paper_idea_extractor": paper_idea_extractor,
         "chart_type_recommender_node": chart_type_recommender_node,
         "code_executor_node": code_executor_node,
         "post_stylize_node": post_stylize_node,
+        "assemble_to_ppt": assemble_to_ppt,
         "_end_": lambda state: state,  # 终止节点
     }
     
@@ -772,13 +844,14 @@ output_path = {repr(str(chart_path))}
         # PDF 流程s
         ("pdf_to_images_node", "mineru_extract_node"),
         ("mineru_extract_node", "table_extractor_node"),
-        ("table_extractor_node", "paper_idea_extractor_node"),
-        ("paper_idea_extractor_node", "chart_type_recommender_node"),
+        ("table_extractor_node", "paper_idea_extractor"),
+        ("paper_idea_extractor", "chart_type_recommender_node"),
         ("chart_type_recommender_node", "code_executor_node"),
         ("code_executor_node", "post_stylize_node"),
+        ("post_stylize_node", "assemble_to_ppt"),
         
         # 最终节点
-        ("post_stylize_node", "_end_"),
+        ("assemble_to_ppt", "_end_"),
     ]
     
     builder.add_nodes(nodes).add_edges(edges)

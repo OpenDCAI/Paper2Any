@@ -78,6 +78,31 @@ def robust_parse_json(
     # 合法的 \n, \r, \t, 和 \f, \b, \" 都不会被移除，但这里只针对不可打印的控制码。
     s = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', s)
 
+    # ---------- 新增：转义未转义的反斜杠（修复 LaTeX 公式等问题）----------
+    # 这会将所有单个反斜杠转换为双反斜杠，但保留已经正确转义的序列
+    # 先保护已经转义的序列（如 \\n, \\t, \\", \\\\）
+    s = s.replace('\\\\', '\x00DOUBLE_BACKSLASH\x00')  # 临时标记
+    s = s.replace('\\n', '\x00NEWLINE\x00')
+    s = s.replace('\\r', '\x00RETURN\x00')
+    s = s.replace('\\t', '\x00TAB\x00')
+    s = s.replace('\\"', '\x00QUOTE\x00')
+    s = s.replace('\\/', '\x00SLASH\x00')
+    s = s.replace('\\b', '\x00BACKSPACE\x00')
+    s = s.replace('\\f', '\x00FORMFEED\x00')
+    
+    # 现在转义所有剩余的单个反斜杠
+    s = s.replace('\\', '\\\\')
+    
+    # 恢复之前保护的序列
+    s = s.replace('\x00DOUBLE_BACKSLASH\x00', '\\\\')
+    s = s.replace('\x00NEWLINE\x00', '\\n')
+    s = s.replace('\x00RETURN\x00', '\\r')
+    s = s.replace('\x00TAB\x00', '\\t')
+    s = s.replace('\x00QUOTE\x00', '\\"')
+    s = s.replace('\x00SLASH\x00', '\\/')
+    s = s.replace('\x00BACKSPACE\x00', '\\b')
+    s = s.replace('\x00FORMFEED\x00', '\\f')
+
     log.debug(f'清洗完之后内容是： {s}')
 
     # ---------- Step-1：整体解析 ----------
@@ -1297,7 +1322,8 @@ def execute_matplotlib_code(
         except Exception:
             pass
 
-        if result.returncode == 0 and "SUCCESS" in result.stdout:
+        # 判断执行是否成功：返回码为 0 且图片文件存在
+        if result.returncode == 0:
             if output_path.exists():
                 log.info(f"[execute_matplotlib] 图表生成成功: {output_path}")
                 return {
@@ -1306,6 +1332,7 @@ def execute_matplotlib_code(
                     "error": "",
                 }
             else:
+                log.warning(f"[execute_matplotlib] 代码执行成功但图片未生成")
                 return {
                     "success": False,
                     "output_path": "",
@@ -1313,7 +1340,7 @@ def execute_matplotlib_code(
                 }
         else:
             error_msg = result.stderr or result.stdout or "未知错误"
-            log.warning(f"[execute_matplotlib] 执行失败: {error_msg}")
+            log.warning(f"[execute_matplotlib] 执行失败 (返回码={result.returncode}): {error_msg}")
             return {
                 "success": False,
                 "output_path": "",

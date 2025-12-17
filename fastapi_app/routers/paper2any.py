@@ -531,15 +531,18 @@ async def generate_paper2ppt(
         # )
         # create_dummy_pptx(output_pptx, demo_title, demo_content)
         # create_pdf(output_pptx, demo_title, content)
-        req = FeaturePaper2VideoRequest(
-            model=model_name,
+        req = Paper2FigureRequest(
+            language="en",
             chat_api_url=chat_api_url,
             api_key=api_key,
-            pdf_path=str(abs_input_path),
-            img_path="",
-            language=language,
+            model="gpt-4o",
+            target="Extract tables from PDF and generate charts",
+            
+            # Paper2ExpFigure 特有参数
+            input_type="PDF",  # "PDF" 或 "TABLE"
         )
-        resp: FeaturePaper2VideoResponse = await paper2video_endpoint(req)
+        
+        resp: Paper2PPTResponse = await run_paper2figure_wf_api(req)
         if not resp.success:
             raise HTTPException(status_code=500, detail="Paper to PPT generation failed.")
         output_path = resp.ppt_path

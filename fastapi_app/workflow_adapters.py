@@ -16,7 +16,7 @@ from typing import Any, Dict, List
 import json
 import time
 
-from dataflow_agent.state import Paper2FigureState, DFRequest, DFState, Paper2FigureRequest as DF_Paper2FigureRequest
+from dataflow_agent.state import Paper2FigureState, DFRequest, DFState, Paper2FigureRequest as DF_Paper2FigureReques
 from dataflow_agent.workflow import run_workflow
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2VideoRequest, Paper2VideoState
@@ -445,7 +445,7 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
         result_root = project_root / "outputs" / req.invite_code / "paper2tec" / ts
     elif graph_type == "exp_data":
         # TODO: 后续接入 paper2exp workflow
-        wf_name = "paper2fig_with_sam"
+        wf_name = "paper2expfigure"
         result_root = project_root / "outputs" / req.invite_code / "paper2exp" / ts
     else:
         wf_name = "paper2fig_with_sam"

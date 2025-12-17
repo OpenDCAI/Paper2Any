@@ -20,7 +20,7 @@ import os
 import time
 from pathlib import Path
 
-from dataflow_agent.state import Paper2ExpFigureRequest, Paper2ExpFigureState
+from dataflow_agent.state import Paper2FigureRequest, Paper2FigureState
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.workflow import run_workflow
 from dataflow_agent.logger import get_logger
@@ -71,8 +71,8 @@ def parse_args():
     parser.add_argument(
         "--api_url",
         type=str,
-        default="http://123.129.219.111:3000/v1",
-        help="LLM API URL（默认：http://123.129.219.111:3000/v1）"
+        default="https://api.apiyi.com/v1",
+        help="LLM API URL（默认：https://api.apiyi.com/v1）"
     )
     
     return parser.parse_args()
@@ -98,7 +98,7 @@ async def main() -> None:
         output_dir = f"./outputs/paper2expfigure_{time.strftime('%Y%m%d_%H%M%S')}"
     
     # -------- 构造请求参数 -------- #
-    req = Paper2ExpFigureRequest(
+    req = Paper2FigureRequest(
         language="en",
         chat_api_url=args.api_url,
         api_key=os.getenv("DF_API_KEY", "sk-dummy"),
@@ -107,12 +107,14 @@ async def main() -> None:
         
         # Paper2ExpFigure 特有参数
         input_type="PDF",  # "PDF" 或 "TABLE"
-        output_dir=output_dir,
-        mineru_port=args.mineru_port,
     )
     
     # -------- 初始化 State -------- #
-    state = Paper2ExpFigureState(request=req, messages=[])
+    state = Paper2FigureState(
+        request=req, 
+        messages=[],
+        mineru_port=args.mineru_port,
+    )
     
     # 设置输入 PDF 文件
     state.paper_file = str(pdf_path.absolute())
@@ -123,8 +125,8 @@ async def main() -> None:
     log.info("=" * 80)
     log.info("Paper2ExpFigure Workflow 开始执行")
     log.info(f"输入文件: {state.paper_file}")
-    log.info(f"输出目录: {req.output_dir}")
-    log.info(f"MinerU 端口: {req.mineru_port}")
+    log.info(f"输出目录: {state.result_path}")
+    log.info(f"MinerU 端口: {state.mineru_port}")
     log.info(f"LLM 模型: {req.model}")
     log.info("=" * 80)
     
