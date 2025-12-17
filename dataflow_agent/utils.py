@@ -927,46 +927,52 @@ def add_image_placeholder(slide, bbox: List[int], message: str):
 
 def pdf_to_pil_images(
     pdf_path: Union[str, Path],
-    dpi: int = 150
+    dpi: int = 300
 ) -> List[Image.Image]:
     """
     将 PDF 文件的每一页转换为 PIL Image 对象。
-
-    参数
-    ----
-    pdf_path : str | Path
-        PDF 文件路径
-    dpi : int, default 150
-        渲染分辨率
-
-    返回
-    ----
-    List[Image.Image]
-        PIL Image 对象列表，按页码顺序排列
+    修复了 CMYK/灰度/透明背景导致的白图或花屏问题。
     """
     pdf_path = Path(pdf_path)
-
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF 文件不存在: {pdf_path}")
 
-    # 计算缩放比例 (fitz 默认 72 dpi)
+    # 计算缩放比例
     zoom = dpi / 72.0
     matrix = fitz.Matrix(zoom, zoom)
 
     images: List[Image.Image] = []
-
+    
+    # 这里的 flags 用于处理一些复杂的渲染情况（可选，但在某些图表 PDF 中很有用）
+    # fitz.pdf.Page.get_pixmap 默认会自动处理大多情况
+    
     doc = fitz.open(pdf_path)
     try:
         for page_num in range(len(doc)):
             page = doc[page_num]
-            pix = page.get_pixmap(matrix=matrix)
+            
+            # 1. 获取初始 Pixmap
+            # alpha=False: 强制背景不透明（默认白色），解决透明底变黑或变白的问题
+            pix = page.get_pixmap(matrix=matrix, alpha=False)
 
-            # 将 pixmap 转换为 PIL Image
+            # 2. 关键修复：检查色彩空间并转换
+            # pix.n 是通道数。如果不是 3 (RGB)，则强制转换为 RGB
+            if pix.n != 3:
+                # fitz.csRGB 是 PyMuPDF 内置的 RGB 色彩空间定义
+                temp_pix = fitz.Pixmap(fitz.csRGB, pix)
+                pix = temp_pix  # 替换为转换后的 RGB pixmap
+                # 注意：temp_pix 只是引用，赋值给 pix 后后续逻辑一致，且会自动管理内存
+
+            # 3. 安全转换为 PIL
+            # 现在我们可以 100% 确定数据是 RGB 格式的
             img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
             images.append(img)
 
-            log.info(f"[pdf_to_pil_images] 已转换第 {page_num + 1} 页，尺寸: {pix.width}x{pix.height}")
+            log.info(f"[pdf_to_pil_images] 已转换第 {page_num + 1} 页 (模式:{pix.n}通道)，尺寸: {pix.width}x{pix.height}")
 
+    except Exception as e:
+        log.error(f"[pdf_to_pil_images] 转换过程出错: {e}")
+        raise e
     finally:
         doc.close()
 
@@ -1247,24 +1253,23 @@ def execute_matplotlib_code(
             }
 
     # 构建完整的执行代码
+#     full_code = f'''
+# import matplotlib
+# matplotlib.use('Agg')  # 非交互式后端
+# import matplotlib.pyplot as plt
+# import numpy as np
+
+# # 用户代码
+# {code}
+
+# # 保存图表
+# plt.tight_layout()
+# plt.savefig(r"{str(output_path)}", dpi=150, bbox_inches='tight')
+# plt.close('all')
+# print("SUCCESS")
+# '''
     full_code = f'''
-import matplotlib
-matplotlib.use('Agg')  # 非交互式后端
-import matplotlib.pyplot as plt
-import numpy as np
-try:
-    import pandas as pd
-except ImportError:
-    pd = None
-
-# 用户代码
 {code}
-
-# 保存图表
-plt.tight_layout()
-plt.savefig(r"{str(output_path)}", dpi=150, bbox_inches='tight')
-plt.close('all')
-print("SUCCESS")
 '''
 
     # 写入临时文件并执行
@@ -1322,5 +1327,6 @@ print("SUCCESS")
         return {
             "success": False,
             "output_path": "",
+            "final_code": full_code,
             "error": str(e),
         }

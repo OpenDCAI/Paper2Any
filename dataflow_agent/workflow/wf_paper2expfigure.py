@@ -19,6 +19,10 @@ import os
 import uuid
 from pathlib import Path
 from typing import Dict, Any, List
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
+from functools import reduce
 
 from dataflow_agent.state import Paper2ExpFigureState
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
@@ -35,6 +39,7 @@ from dataflow_agent.utils import (
     execute_matplotlib_code,
 )
 from dataflow_agent.toolkits.imtool.mineru_tool import run_aio_two_step_extract
+from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
 
 log = get_logger(__name__)
 
@@ -137,14 +142,14 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
     """
     builder = GenericGraphBuilder(
         state_model=Paper2ExpFigureState,
-        entry_point="_start_"
+        entry_point="pdf_to_images_node"
     )
 
     # ======================================================================
     # PRE-TOOLS: 为 Agent 提供输入数据
     # ======================================================================
     
-    @builder.pre_tool("paper_content", "paper_idea_extractor")
+    @builder.pre_tool("paper_content", "paper_idea_extractor_node")
     def _get_paper_content(state: Paper2ExpFigureState) -> str:
         """
         从 MinerU 结果或 PDF 中提取文本内容，供 paper_idea_extractor 使用
@@ -180,6 +185,11 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
             log.error(f"读取 PDF 失败: {e}")
             return ""
 
+    @builder.pre_tool("paper_idea", "code_executor_node")
+    def get_paper_idea(state: Paper2ExpFigureState) -> str:
+        paper_idea = state.paper_idea if state.paper_idea else "No paper idea extracted"
+        return paper_idea
+    
     # ==============================================================
     # NODES: 工作流节点
     # ==============================================================
@@ -298,16 +308,13 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         log.info("[table_extractor] 开始提取表格...")
         tables = extract_tables_from_mineru_results(mineru_items, min_rows=2, min_cols=2)
         
-        state.extracted_tables = tables
         log.info(f"[table_extractor] 提取了 {len(tables)} 个表格")
         
         # 打印表格摘要
         for table in tables:
             log.info(f"  - {table['table_id']}: {len(table['headers'])} 列 x {len(table['rows'])} 行")
         
-        # ====================================================================
-        # 新增功能：保存表格区域图片
-        # ====================================================================
+        # 保存表格区域图片
         if tables:
             output_path = Path(state.result_path)
             table_images_dir = output_path / "table_images"
@@ -377,6 +384,8 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
             
             log.info(f"[table_extractor] 共保存了 {saved_count} 个表格图片到: {table_images_dir}")
         
+        state.extracted_tables = tables
+        
         return state
     
     async def paper_idea_extractor_node(state: Paper2ExpFigureState) -> Paper2ExpFigureState:
@@ -402,15 +411,99 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         
         return state
     
+    async def chart_type_recommender_node(state) -> Paper2ExpFigureState:
+        """
+        节点 5: 智能推荐图表类型
+        调用 chart_type_recommender Agent 智能推荐图表类型
+        """
+        log.info("[chart_type_recommender] 开始智能推荐图表类型...")
+        
+        tables = state.extracted_tables
+        image_paths = [t["image_path"] for t in tables if "image_path" in t]
+        
+        # 这里直接用asyncio原生实现了并行，后面可以考虑改成更加符合langgraph的实现，使用Send API
+        
+        @dataclass
+        class ChartTypeRecommenderState:
+            request: Paper2ExpFigureRequest
+            pre_tool_results: Dict[str, Any]
+            table: Dict
+            chart_type_recommender: Any = None
+            agent_results: Dict = field(default_factory=dict)
+            chart_configs: Dict = field(default_factory=dict) # 这里存储最终结果：{table_id: chart_config}
+        
+        async def task(state: ChartTypeRecommenderState):
+            table = state.table
+            try:
+                if "image_path" not in table:
+                    log.error(f"[chart_type_recommender] 表格缺少图片路径: {table}")
+                    return {table["table_id"]: None}
+                input_image = table["image_path"]
+            
+                vlm_config = {
+                    "mode": "understanding",
+                    "input_image": input_image
+                }
+
+                agent = create_chart_type_recommender(
+                    tool_manager=get_tool_manager(),
+                    model_name="gpt-4o",
+                    temperature=0.1,
+                    max_tokens=2048,
+                    vlm_config=vlm_config
+                )
+            
+                state = await agent.execute(state=state)
+                
+                result = state.chart_configs
+                
+                return result
+            except Exception as e:
+                log.error(f"[chart_type_recommender] 处理表格出错: {e}")
+                return {table["table_id"]: None}
+        
+        
+        # 手动为每个并行节点注入 pre_tool_results
+        
+        states = [
+            ChartTypeRecommenderState(
+                request=state.request,
+                table=table,
+                pre_tool_results={
+                    "table_info": {"table_id": table["table_id"]},
+                    "paper_idea": state.paper_idea
+                },
+            )
+            for table in tables
+        ]
+        
+        print(f"states: {states}")
+        
+        tasks = [task(state) for state in states]
+        results = await asyncio.gather(*tasks)
+        # 过滤掉失败的节点的返回值
+        results = [
+            result
+            for result in results if result is not None
+            for key, value in result.items() if value is not None
+        ]
+        results = reduce(lambda x, y: {**x, **y}, results, {})  # 合并结果为一个大字典
+        state.chart_configs = results
+        
+        return state
+    
+    
     async def code_executor_node(state: Paper2ExpFigureState) -> Paper2ExpFigureState:
         """
-        节点 5: 执行代码生成图表
-        调用 chart_type_recommender 和 chart_code_generator Agent 智能生成图表
+        节点 6: 执行代码生成图表
+        调用 chart_code_generator Agent 智能生成图表
         """
         tables = state.extracted_tables
         if not tables:
             log.warning("[code_executor] 没有表格数据，跳过")
             return state
+        
+        image_paths = [t["image_path"] for t in tables if "image_path" in t]
         
         output_path = Path(state.result_path)
         charts_dir = output_path / "charts"
@@ -425,155 +518,53 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         # 获取论文核心思想
         paper_idea = state.paper_idea or "No paper idea extracted"
         
-        for table in tables:
+        @dataclass
+        class ChartCodeGeneratorState:
+            request: Paper2ExpFigureRequest
+            table: Dict
+            result_path: str
+            pre_tool_results: Dict[str, Any] = field(default_factory=dict)
+            chart_code_generator: Any = None
+            agent_results: Dict = field(default_factory=dict)
+            generated_codes: Dict[str, Dict[str, Any]] = field(default_factory=dict)   # 生成的代码列表
+        
+        async def task(state: ChartCodeGeneratorState):
+            table = state.table
             table_id = table['table_id']
-            headers = table.get('headers', [])
-            rows = table.get('rows', [])
             caption = table.get('caption', '')
-            
-            if not headers or not rows:
-                log.warning(f"[code_executor] 表格 {table_id} 没有数据，跳过")
-                continue
+            chart_config = state.pre_tool_results.get("chart_config", {})
             
             log.info(f"[code_executor] 处理表格: {table_id}")
             
-            # ============================================
-            # 使用 Agent 进行智能判断和代码生成
-            # ============================================
-            
             try:
-                # 1. 准备表格信息（用于理解和分析）
-                table_understanding = _generate_table_understanding(
-                    table_id=table_id,
-                    caption=caption,
-                    headers=headers,
-                    rows=rows
-                )
-                
-                # 构建完整的表格信息
-                table_info = {
-                    "table_id": table_id,
-                    "caption": caption,
-                    "headers": headers,
-                    "rows": rows[:10],  # 只传前10行用于分析
-                    "total_rows": len(rows),
-                    "total_cols": len(headers),
-                    "understanding": table_understanding,
+                input_image = table["image_path"]
+        
+                vlm_config = {
+                    "mode": "understanding",
+                    "input_image": input_image
                 }
-                
-                # 2. 调用 chart_type_recommender Agent 推荐图表类型
-                log.info(f"[code_executor] 调用 chart_type_recommender Agent...")
-                
-                # 创建 ToolManager 并注册 pre_tool
-                tm = get_tool_manager()
-                tm.register_pre_tool(
-                    name="paper_idea",
-                    role="chart_type_recommender",
-                    func=lambda: paper_idea,
-                )
-                tm.register_pre_tool(
-                    name="table_info",
-                    role="chart_type_recommender",
-                    func=lambda: table_info,
-                )
-                
-                # 调用 Agent
-                chart_type_agent = create_chart_type_recommender(
-                    tool_manager=tm,
-                    model_name="gpt-4o",
-                    temperature=0.1,
-                    max_tokens=2048,
-                )
-                state = await chart_type_agent.execute(state=state)
-                
-                # 获取推荐结果
-                if state.chart_configs:
-                    chart_config = state.chart_configs[-1]  # 获取刚添加的配置
-                    chart_type = chart_config.get('chart_type', 'bar')
-                    chart_type_reason = chart_config.get('chart_type_reason', '')
-                    is_suitable = chart_config.get('is_suitable_for_chart', True)
-                    suitability_reason = chart_config.get('suitability_reason', '')
-                    
-                    log.info(f"[code_executor] 推荐图表类型: {chart_type}")
-                    log.info(f"[code_executor] 推荐理由: {chart_type_reason}")
-                    
-                    # 检查表格是否适合绘图
-                    if not is_suitable or chart_type == "none":
-                        log.info(
-                            f"[code_executor] 表格 {table_id} 不适合绘图，跳过代码生成。"
-                            f"原因: {suitability_reason}"
-                        )
-                        # 保存中间结果（不含代码）
-                        import json
-                        intermediate_file = intermediate_dir / f"{table_id}_intermediate.json"
-                        intermediate_data = {
-                            "table_id": table_id,
-                            "timestamp": str(Path(state.result_path).name),
-                            "table_data": {
-                                "caption": caption,
-                                "headers": headers,
-                                "rows": rows[:5],
-                                "total_rows": len(rows),
-                                "total_cols": len(headers),
-                            },
-                            "table_understanding": table_understanding,
-                            "chart_config": chart_config,
-                            "skipped": True,
-                            "skip_reason": suitability_reason,
-                        }
-                        with open(intermediate_file, 'w', encoding='utf-8') as f:
-                            json.dump(intermediate_data, f, ensure_ascii=False, indent=2)
-                        continue  # 跳过此表格
-                else:
-                    log.warning(f"[code_executor] chart_type_recommender 未返回配置，使用默认")
-                    chart_config = {
-                        "table_id": table_id,
-                        "chart_type": "bar",
-                        "chart_type_reason": "默认配置",
-                        "data_interpretation": {},
-                        "visualization_config": {},
-                    }
-                    state.chart_configs.append(chart_config)
-                
-                # 3. 调用 chart_code_generator Agent 生成代码
-                log.info(f"[code_executor] 调用 chart_code_generator Agent...")
-                
-                # 注册新的 pre_tool
-                tm.register_pre_tool(
-                    name="chart_config",
-                    role="chart_code_generator",
-                    func=lambda: chart_config,
-                )
-                tm.register_pre_tool(
-                    name="table_headers",
-                    role="chart_code_generator",
-                    func=lambda: headers,
-                )
-                tm.register_pre_tool(
-                    name="table_rows",
-                    role="chart_code_generator",
-                    func=lambda: rows[:20],  # 传前20行给代码生成器参考
-                )
                 
                 # 调用 Agent
                 chart_code_agent = create_chart_code_generator(
-                    tool_manager=tm,
+                    tool_manager=get_tool_manager(),
                     model_name="gpt-4o",
                     temperature=0.0,
                     max_tokens=4096,
+                    vlm_config=vlm_config,
                 )
+                
                 state = await chart_code_agent.execute(state=state)
                 
                 # 获取生成的代码
                 if state.generated_codes:
-                    code_entry = state.generated_codes[-1]  # 获取刚生成的代码
+                    code_entry = state.generated_codes[table_id]  # 获取刚生成的代码
                     code = code_entry.get('code', '')
                     description = code_entry.get('description', '')
                     log.info(f"[code_executor] 生成代码长度: {len(code)} 字符")
                     log.info(f"[code_executor] 代码描述: {description}")
                 else:
                     log.error(f"[code_executor] chart_code_generator 未返回代码")
-                    continue
+                    raise Exception(f"chart_code_generator 未返回代码")
                 
                 # 4. 保存中间结果
                 import json
@@ -585,14 +576,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
                     # 表格数据
                     "table_data": {
                         "caption": caption,
-                        "headers": headers,
-                        "rows": rows[:5],  # 只保存前5行作为示例
-                        "total_rows": len(rows),
-                        "total_cols": len(headers),
                     },
-                    
-                    # 表格理解
-                    "table_understanding": table_understanding,
                     
                     # Agent 推荐结果
                     "chart_config": chart_config,
@@ -616,27 +600,10 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
                 # 需要将 output_path, headers, rows 注入到代码中
                 chart_path = charts_dir / f"{table_id}.png"
                 
-                # 检查代码是否定义了函数但没有调用
-                # 这是一个临时解决方案，用于处理旧的生成代码
-                import re
-                
-                # 查找函数定义（如 def create_bar_chart(...):）
-                func_match = re.search(r'def\s+(\w+)\s*\(', code)
-                if func_match:
-                    func_name = func_match.group(1)
-                    # 检查是否已经调用了该函数
-                    if f"{func_name}(" not in code.split(func_match.group(0))[-1]:
-                        # 函数定义了但没有被调用，添加函数调用
-                        log.warning(f"[code_executor] 检测到函数 {func_name} 未被调用，自动添加调用")
-                        # 添加函数调用（传入 headers, rows, output_path）
-                        code += f"\n\n# Auto-added function call\n{func_name}(headers, rows, output_path)\n"
-                
                 # 构建完整的可执行代码
                 exec_code = f"""
 # Auto-generated code execution wrapper
 output_path = {repr(str(chart_path))}
-headers = {repr(headers)}
-rows = {repr(rows)}
 
 # Generated chart code
 {code}
@@ -671,17 +638,115 @@ rows = {repr(rows)}
                 # 重新保存中间结果（包含执行结果）
                 with open(intermediate_file, 'w', encoding='utf-8') as f:
                     json.dump(intermediate_data, f, ensure_ascii=False, indent=2)
-                    
+                
+                code = state.generated_codes if state.generated_codes else {}
+                chart_path = {table_id: chart_path}
+                return (code, chart_path)
+            
             except Exception as e:
                 log.error(f"[code_executor] 处理表格 {table_id} 时出错: {e}")
                 import traceback
                 traceback.print_exc()
-                continue
+                return [{table_id: None}, {table_id: None}]
+                # raise Exception(f"处理表格 {table_id} 时出错: {e}")
         
-        state.generated_charts = generated_charts
+        # 过滤掉不适合生成图表的表格，定义匿名函数封装复杂提取逻辑，提高代码可读性
+        get_chart_config = lambda x: state.chart_configs.get(x.get("table_id"), {})
+        is_suitable = lambda x: get_chart_config(x).get("is_suitable_for_chart", True)
+        
+        print("==" * 20)
+        print(f"state.paper_idea: {state.paper_idea}")
+        print("==" * 20)
+        
+        states = [
+            ChartCodeGeneratorState(
+                request=state.request,
+                table=table,
+                result_path=state.result_path,
+                pre_tool_results={
+                    "paper_idea": state.paper_idea,
+                    "chart_config": get_chart_config(table),
+                    "table_caption": table.get("caption", ""),
+                }
+            )
+            for table in tables if is_suitable(table)
+        ]
+        
+        tasks = [task(state) for state in states]
+        generated_results = await asyncio.gather(*tasks)
+        generated_code = [result[0] for result in generated_results]
+        generated_charts = [result[1] for result in generated_results]
+        # 过滤掉失败节点的值
+        generated_code = [
+            result
+            for result in generated_code if result is not None
+            for key, value in result.items() if value is not None
+        ]
+        generated_charts = [
+            result
+            for result in generated_charts if result is not None
+            for key, value in result.items() if value is not None
+        ]
+        
+        code_results = reduce(lambda x, y: {**x, **y}, generated_code, {})
+        chart_results = reduce(lambda x, y: {**x, **y}, generated_charts, {})
+        
+        state.generated_code = code_results
+        state.generated_charts = chart_results
+        
         log.info(f"[code_executor] 完成，共生成 {len(generated_charts)} 个图表")
         log.info(f"[code_executor] 中间结果保存在: {intermediate_dir}")
         
+        return state
+
+    async def post_stylize_node(state: Paper2ExpFigureState) -> Paper2ExpFigureState:
+        """调用Nano Banana模型对生成的图表进行风格化，更美观"""
+        log.info(f"[post_stylize] 开始")
+        # 获取生成的图表路径列表，用于分发任务
+        chart_paths = state.generated_charts
+        
+        save_dir = Path(state.result_path) / Path("stylized_charts")
+        save_dir.mkdir(parents=True, exist_ok=True)
+        
+        stylize_prompt = "把这张统计图放大字体，改成复古印刷风，模仿 80 年代的老教科书或植物图鉴。带有噪点（Noise），色彩偏黄旧（Sepia），像印刷出来的质感，可能带有半调网点（Halftone）。，让它更加美观专业"
+        
+        async def stylize_task(table_id: str, save_dir: str, chart_path: str):
+            save_dir = Path(save_dir)
+            chart_path = Path(chart_path)
+            save_path = save_dir / chart_path.name.replace(".png", "_stylized.png")
+            
+            log.info(f"[post_stylize] 正在风格化图表: {table_id}")
+            
+            try:
+                b64_result = await generate_or_edit_and_save_image_async(
+                    prompt=stylize_prompt,
+                    save_path=str(save_path),
+                    api_url=state.request.chat_api_url,
+                    api_key=state.request.api_key, 
+                    model="gemini-3-pro-image-preview",
+                    image_path=str(chart_path),
+                    use_edit=True
+                )
+                
+                log.info(f"[post_stylize] 图表风格化完成: {table_id}")
+                return {table_id: b64_result}
+            
+            except Exception as e:
+                log.error(f"[post_stylize] {table_id} 图表风格化出错: {e}")
+                return {table_id: None}
+        
+        tasks = [stylize_task(table_id, save_dir, chart_path) for table_id, chart_path in chart_paths.items()]
+        results = await asyncio.gather(*tasks)
+        # 过滤掉失败的图表
+        results = [
+            result 
+            for result in results if result is not None 
+            for table_id, b64_result in result.items() if b64_result is not None
+        ]
+        
+        state.temp_data["stylized_charts_b64"] = reduce(lambda x, y: {**x, **y}, results, {})
+        
+        log.info(f"[post_stylize] 完成")
         return state
 
     # ==============================================================
@@ -689,41 +754,32 @@ rows = {repr(rows)}
     # ==============================================================
     
     # 条件路由函数：根据输入类型决定起点
-    def route_from_start(state: Paper2ExpFigureState) -> str:
-        """
-        路由函数：根据输入类型选择工作流的入口节点
-        - input_type == "PDF": 从 pdf_to_images 开始
-        - input_type == "TABLE": 直接从 code_executor 开始（使用已有表格数据）
-        """
-        input_type = state.request.input_type or "PDF"
-        if input_type.upper() == "PDF":
-            log.info("[route] 输入类型为 PDF，从 pdf_to_images 开始")
-            return "pdf_to_images"
-        else:
-            log.info("[route] 输入类型为 TABLE，直接进入 code_executor")
-            return "code_executor"
     
     nodes = {
         "_start_": lambda state: state,  # 起始节点
-        "pdf_to_images": pdf_to_images_node,
-        "mineru_extract": mineru_extract_node,
-        "table_extractor": table_extractor_node,
-        "paper_idea_extractor": paper_idea_extractor_node,
-        "code_executor": code_executor_node,
+        "pdf_to_images_node": pdf_to_images_node,
+        "mineru_extract_node": mineru_extract_node,
+        "table_extractor_node": table_extractor_node,
+        "paper_idea_extractor_node": paper_idea_extractor_node,
+        "chart_type_recommender_node": chart_type_recommender_node,
+        "code_executor_node": code_executor_node,
+        "post_stylize_node": post_stylize_node,
         "_end_": lambda state: state,  # 终止节点
     }
     
     # 边定义：PDF 模式的完整流程
     edges = [
-        # PDF 流程
-        ("pdf_to_images", "mineru_extract"),
-        ("mineru_extract", "table_extractor"),
-        ("table_extractor", "paper_idea_extractor"),
-        ("paper_idea_extractor", "code_executor"),
+        # PDF 流程s
+        ("pdf_to_images_node", "mineru_extract_node"),
+        ("mineru_extract_node", "table_extractor_node"),
+        ("table_extractor_node", "paper_idea_extractor_node"),
+        ("paper_idea_extractor_node", "chart_type_recommender_node"),
+        ("chart_type_recommender_node", "code_executor_node"),
+        ("code_executor_node", "post_stylize_node"),
         
         # 最终节点
-        ("code_executor", "_end_"),
+        ("post_stylize_node", "_end_"),
     ]
     
-    builder.add_nodes(nodes).add_edges(edges).add_conditional_edge("_start_", route_from_start)
+    builder.add_nodes(nodes).add_edges(edges)
     return builder

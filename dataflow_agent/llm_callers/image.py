@@ -227,7 +227,7 @@ class VisionLLMCaller(BaseLLMCaller):
             # 创建客户端时显式配置，避免环境变量干扰
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(timeout),
-                proxies=None,        # 禁用代理
+                proxy=None,        # 禁用代理
                 trust_env=False,     # 不读取环境变量
                 follow_redirects=True
             ) as client:

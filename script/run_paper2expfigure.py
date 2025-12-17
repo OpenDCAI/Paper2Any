@@ -135,16 +135,16 @@ async def main() -> None:
         # -------- 输出结果摘要 -------- #
         log.info("=" * 80)
         log.info("Workflow 执行完成!")
-        log.info(f"提取的表格数量: {len(final_state.extracted_tables)}")
-        log.info(f"生成的图表数量: {len(final_state.generated_charts)}")
-        log.info(f"输出目录: {final_state.result_path}")
+        log.info(f"提取的表格数量: {len(final_state.get('extracted_tables', []))}")
+        log.info(f"生成的图表数量: {len(final_state.get('generated_charts', []))}")
+        log.info(f"输出目录: {final_state.get('result_path', '')}")
         
-        if final_state.paper_idea:
-            log.info(f"论文核心思想长度: {len(final_state.paper_idea)} 字符")
+        if final_state.get('paper_idea', ''):
+            log.info(f"论文核心思想长度: {len(final_state.get('paper_idea', ''))} 字符")
         
-        if final_state.generated_charts:
+        if final_state.get('generated_charts', []):
             log.info("\n生成的图表:")
-            for chart_path in final_state.generated_charts:
+            for chart_path in final_state.get('generated_charts', []):
                 log.info(f"  - {chart_path}")
         
         log.info("=" * 80)
