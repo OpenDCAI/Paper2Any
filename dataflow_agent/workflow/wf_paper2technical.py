@@ -13,16 +13,41 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+import re
 
 from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register
 from dataflow_agent.agentroles import create_graph_agent, create_react_agent, create_simple_agent
 from dataflow_agent.toolkits.tool_manager import get_tool_manager
-from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_svg_render
+from dataflow_agent.toolkits.imtool.bg_tool import (
+    local_tool_for_svg_render,
+    local_tool_for_raster_to_svg,
+)
+from dataflow_agent.toolkits.imtool.mineru_tool import svg_to_emf
+from dataflow_agent.utils import get_project_root
 from dataflow_agent.logger import get_logger
-
 log = get_logger(__name__)
+
+
+def _ensure_result_path(state: Paper2FigureState) -> str:
+    """
+    统一本次 workflow 的根输出目录：
+    - 如果 state.result_path 已存在（通常由调用方传入，形如 时间戳+编码），直接使用；
+    - 否则：使用 get_project_root() / "outputs" / "paper2tec" / <timestamp>，
+      并回写到 state.result_path，确保后续节点共享同一目录，避免数据串台。
+    """
+    raw = getattr(state, "result_path", None)
+    if raw:
+        return raw
+
+    root = get_project_root()
+    ts = int(time.time())
+    base_dir = (root / "outputs" / "paper2tec" / str(ts)).resolve()
+    base_dir.mkdir(parents=True, exist_ok=True)
+    state.result_path = str(base_dir)
+    return state.result_path
+
 
 @register("paper2technical")
 def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
@@ -83,7 +108,6 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         log.info("paper_content 提取完成")
         return final_text
 
-    # 2) 提供给技术路线图描述生成器的“论文核心想法/摘要”
     @builder.pre_tool("paper_idea", "technical_route_desc_generator")
     def _get_paper_idea(state: Paper2FigureState):
         """
@@ -93,6 +117,11 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         - 在 TEXT 模式下，可以直接由调用方事先把概要写入 state.paper_idea。
         """
         return state.paper_idea or ""
+
+    @builder.pre_tool("style", "technical_route_desc_generator")
+    def _get_paper_idea(state: Paper2FigureState):
+
+        return state.request.style or ""
 
     # ----------------------------------------------------------------------
 
@@ -114,9 +143,38 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
             state.paper_idea : 论文核心思想 / 技术路线要点摘要
             state.agent_results["paper_idea_extractor"] : agent 原始输出
         """
-        agent = create_simple_agent("paper_idea_extractor", tool_manager=get_tool_manager())
+        agent = create_simple_agent("paper_idea_extractor")
         state = await agent.execute(state=state)
         return state
+
+    def _svg_has_cjk(text: str) -> bool:
+        """简单判断 SVG 中是否包含中文字符，用于日志和调试。"""
+        return bool(re.search(r"[\u4e00-\u9fff]", text))
+
+
+    def _inject_chinese_font(svg_code: str) -> str:
+        """
+        如果 SVG 中没有设定中文友好的 font-family，则注入一段全局样式，
+        指定一组 CJK 字体作为优先字体。
+
+        注意：字体名请根据实际安装的字体调整。
+        """
+        if "font-family" in svg_code:
+            return svg_code
+
+        idx = svg_code.find(">")
+        if idx == -1:
+            return svg_code
+
+        style_block = """
+  <style type="text/css">
+    text, tspan {
+      font-family: "Noto Sans CJK SC", "Microsoft YaHei", "SimHei", "SimSun", "WenQuanYi Zen Hei", sans-serif;
+    }
+  </style>
+"""
+        return svg_code[: idx + 1] + style_block + svg_code[idx + 1 :]
+
 
     async def technical_route_desc_generator_node(state: Paper2FigureState) -> Paper2FigureState:
         """
@@ -132,116 +190,203 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         输出:
             - 建议: 在 agent 内把结果存到 state.fig_desc 或 state.agent_results["technical_route_desc_generator"]
         """
-        agent = create_react_agent(name = "technical_route_desc_generator", max_retries=4)
+        agent = create_react_agent(
+            name="technical_route_desc_generator",
+            max_retries=4,
+            model_name="claude-haiku-4-5-20251001",
+        )
         state = await agent.execute(state=state)
 
         # --------------------------------------------------------------
-        # 将 LLM 生成的 SVG 源码渲染为实际图像文件，并写入 state.result_path
+        # 将 LLM 生成的 SVG 源码渲染为实际图像文件，并写入统一的 result_path 目录
         # --------------------------------------------------------------
         svg_code = getattr(state, "figure_tec_svg_content", None)
         if svg_code:
-            # 默认落盘目录（当 state.result_path 无效或不存在时回退）
-            default_base_dir = Path("dataflow_agent/tmps/paper2technical").resolve()
+            # 日志：是否包含中文
+            if _svg_has_cjk(svg_code):
+                log.info("technical_route_desc_generator_node: 检测到 SVG 中包含中文字符")
 
-            raw_result_path = getattr(state, "result_path", None)
-            if raw_result_path:
-                p = Path(raw_result_path)
-                # 如果原路径存在且是目录，则直接使用该目录
-                if p.exists() and p.is_dir():
-                    base_dir = p
-                else:
-                    # 否则尝试将其视为文件路径或目录路径，取父目录/本身
-                    base_dir = p.parent if p.suffix else p
-                    # 若该目录不存在，则回退到默认目录
-                    if not base_dir.exists():
-                        base_dir = default_base_dir
-            else:
-                base_dir = default_base_dir
+            # 如果 SVG 未显式指定 font-family，则注入一组中文友好的字体
+            svg_code = _inject_chinese_font(svg_code)
 
+            # 确保本次 workflow 的根输出目录已确定
+            base_dir = Path(_ensure_result_path(state))
             base_dir.mkdir(parents=True, exist_ok=True)
 
             timestamp = int(time.time())
-            output_path = str((base_dir / f"technical_route_{timestamp}.png").resolve())
+            # 同时输出 SVG 源码文件和 PNG 位图
+            svg_output_path = str((base_dir / f"technical_route_{timestamp}.svg").resolve())
+            png_output_path = str((base_dir / f"technical_route_{timestamp}.png").resolve())
 
             try:
-                png_path = local_tool_for_svg_render({
-                    "svg_code": svg_code,
-                    "output_path": output_path,
-                })
+                # 1) 保存 SVG 源码到 .svg 文件
+                Path(svg_output_path).write_text(svg_code, encoding="utf-8")
+                state.svg_file_path = svg_output_path
+
+                # 2) 渲染 PNG 供 MinerU 使用
+                png_path = local_tool_for_svg_render(
+                    {
+                        "svg_code": svg_code,
+                        "output_path": png_output_path,
+                    }
+                )
                 # 将最终图像路径写回 state.svg_img_path
-                log.critical(f'[state.svg_img_path]: {state.svg_img_path}')
                 state.svg_img_path = png_path
+                log.critical(f"[state.svg_img_path]: {state.svg_img_path}")
+                log.critical(f"[state.svg_file_path]: {state.svg_file_path}")
             except Exception as e:
-                # 渲染失败时仅记录日志，避免打断整体 workflow
-                log.error(f"technical_route_desc_generator_node: SVG 渲染失败: {e}")
-
-        return state
-
-    # async def svg_code_generator_node(state: Paper2FigureState) -> Paper2FigureState:
-    #     """
-    #     节点 3: SVG 技术路线图代码生成器
-
-    #     - 基于上一节点生成的技术路线描述（自然语言/结构化 JSON），
-    #       生成一份完整的 SVG 源代码，用于表示技术路线图。
-    #     - 该节点只负责“代码层面”的生成，不涉及 PNG/JPG 等位图。
-
-    #     输入:
-    #         - state.fig_desc 或 state.agent_results["technical_route_desc_generator"] 中的内容
-    #     输出:
-    #         - 建议: 在 agent 内把 SVG 字符串写入 state.agent_results["technical_svg"]["svg_code"]
-    #         - 此节点本身不强制写文件，文件写入可以在后续节点统一处理。
-    #     """
-    #     agent = create_graph_agent("technical_svg_generator", tool_manager=get_tool_manager())
-    #     state = await agent.execute(state=state, use_agent=True)
-    #     return state
-
-    async def svg_fragment_miner_node(state: Paper2FigureState) -> Paper2FigureState:
-        """
-        节点 4: SVG 结构切分 / 小图块生成 (占位)
-
-        目标:
-        - 将整张技术路线 SVG 图，切分成若干“小 SVG”或逻辑块（例如每个阶段一个块），
-          以便后续在 PPT 中灵活排版。
-        - 实际实现可以对接 MinerU 或自研的 SVG 解析逻辑。
-
-        当前实现(占位):
-        - 仅从 agent_results 中读取 svg_code，简单记录到 state.temp_data 中，
-          不做真正的图像/结构切分，留作 TODO。
-        """
+                # 渲染或写文件失败时仅记录日志，避免打断整体 workflow
+                log.error(f"technical_route_desc_generator_node: SVG 落盘/渲染失败: {e}")
 
         return state
 
     async def technical_ppt_generator_node(state: Paper2FigureState) -> Paper2FigureState:
         """
-        节点 5: 基于技术路线 SVG / 片段生成 PPT
+        节点 4: 基于技术路线图 PNG 生成 PPT
 
-        - 根据前面步骤生成的 SVG 代码或 svg_fragments，
-          生成一份或多份 PPT 幻灯片，用于展示技术路线图。
-        - 与 paper2figure 的 PPT 生成不同:
-          - 这里不依赖位图图片和抠图，不需要图像背景去除模型；
-          - 完全围绕“技术路线图”的结构信息进行排版。
-
-        当前实现(占位):
-        - 仅在 state.result_path 下生成一个空的 pptx 文件，记录路径到 state.ppt_path。
-        - 具体的 SVG 渲染 & 排版逻辑留作后续补充。
+        - 根据前面步骤生成的 PNG 整图（state.svg_img_path），
+          生成用于展示技术路线图的 PPT。
+        - 优先进行 SVG -> EMF 转换插入矢量图，失败时回退 PNG。
         """
         from pptx import Presentation
+        from PIL import Image
 
-        # 输出目录
-        output_dir = Path(state.result_path or "./outputs/paper2technical")
-        output_dir.mkdir(parents=True, exist_ok=True)
+        # ✅ 临时提高 PIL 图像大小限制，防止 decompression bomb 错误
+        original_max_pixels = Image.MAX_IMAGE_PIXELS
+        Image.MAX_IMAGE_PIXELS = None  # 或设置为更大的值，如 500_000_000
 
-        timestamp = int(time.time())
-        ppt_path = output_dir / f"technical_route_{timestamp}.pptx"
+        try:
+            # 输出目录：统一使用本次 workflow 的根输出目录
+            run_root = Path(_ensure_result_path(state))
+            output_dir = run_root
+            output_dir.mkdir(parents=True, exist_ok=True)
 
-        prs = Presentation()
-        # 占位: 新建一个空白幻灯片，后续可在此基础上根据 SVG 结构添加 shapes/textbox 等
-        blank_slide_layout = prs.slide_layouts[6]
-        prs.slides.add_slide(blank_slide_layout)
+            timestamp = int(time.time())
+            ppt_path = output_dir / f"technical_route_{timestamp}.pptx"
 
-        prs.save(str(ppt_path))
-        state.ppt_path = str(ppt_path)
-        log.info(f"technical_ppt_generator_node: 占位 PPT 已生成: {ppt_path}")
+            prs = Presentation()
+            blank_slide_layout = prs.slide_layouts[6]
+
+            slide_width = prs.slide_width
+            slide_height = prs.slide_height
+
+            # ------------------------------------------------------------------
+            # 第 1 页：技术路线图（优先 SVG-cmf，失败则回退 PNG）
+            # ------------------------------------------------------------------
+            slide = prs.slides.add_slide(blank_slide_layout)
+
+            svg_path = getattr(state, "svg_file_path", None)
+            png_path = getattr(state, "svg_img_path", None)
+
+            def _insert_picture(pic_path: str) -> bool:
+                """通用插图函数：按 80% 宽度缩放并居中。"""
+                try:
+                    pic = slide.shapes.add_picture(pic_path, 0, 0)
+                except Exception as e:
+                    log.error(f"technical_ppt_generator_node: 插入图片失败: {e}")
+                    return False
+
+                if pic.width and pic.width > 0:
+                    scale = (slide_width * 0.8) / pic.width
+                else:
+                    scale = 1.0
+
+                pic.width = int(pic.width * scale)
+                pic.height = int(pic.height * scale)
+
+                pic.left = int((slide_width - pic.width) / 2)
+                pic.top = int((slide_height - pic.height) / 2)
+                return True
+
+            def _insert_emf(emf_path: str) -> bool:
+                """EMF 插图函数：按 80% 宽度缩放并居中。"""
+                try:
+                    pic = slide.shapes.add_picture(emf_path, 0, 0)
+                except Exception as e:
+                    log.error(f"technical_ppt_generator_node: 插入 EMF 失败: {e}")
+                    return False
+
+                if pic.width and pic.width > 0:
+                    scale = (slide_width * 0.8) / pic.width
+                else:
+                    scale = 1.0
+
+                pic.width = int(pic.width * scale)
+                pic.height = int(pic.height * scale)
+
+                pic.left = int((slide_width - pic.width) / 2)
+                pic.top = int((slide_height - pic.height) / 2)
+                return True
+
+            inserted = False
+            emf_path = output_dir / f"technical_route_{timestamp}.emf"
+
+            # 优先 SVG -> EMF -> PPT（矢量）
+            if svg_path:
+                try:
+                    emf_abs = svg_to_emf(svg_path, str(emf_path))
+                    log.info(
+                        "technical_ppt_generator_node: SVG 转 EMF 成功: %s -> %s",
+                        svg_path,
+                        emf_abs,
+                    )
+                    inserted = _insert_emf(svg_path)
+                    if inserted:
+                        log.info(
+                            "technical_ppt_generator_node: 使用 EMF 插入技术路线图成功: %s",
+                            emf_abs,
+                        )
+                except Exception as e:
+                    log.error(
+                        "technical_ppt_generator_node: SVG->EMF 失败，准备回退到 PNG: %s",
+                        e,
+                    )
+                    inserted = False
+
+            # 如果 EMF 失败或不可用，则回退到 PNG（位图）
+            if (not inserted) and png_path:
+                try:
+                    ok = _insert_picture(png_path)
+                    if ok:
+                        log.info(
+                            "technical_ppt_generator_node: 使用 PNG 插入技术路线图成功: %s",
+                            png_path,
+                        )
+                    else:
+                        log.error(
+                            "technical_ppt_generator_node: PNG 插入失败，第一页可能为空白"
+                        )
+                except Exception as e:
+                    log.error(
+                        "technical_ppt_generator_node: PNG 插入失败，第一页将为空白: %s",
+                        e,
+                    )
+
+            if (not inserted) and (not png_path):
+                log.warning(
+                    "technical_ppt_generator_node: svg_file_path / svg_img_path 均为空，"
+                    "第一页将为空白"
+                )
+
+            # ------------------------------------------------------------------
+            # 第 2 页：操作提示页（写上“右键转换成形状”）
+            # ------------------------------------------------------------------
+            slide2 = prs.slides.add_slide(blank_slide_layout)
+            left = int(slide_width * 0.1)
+            top = int(slide_height * 0.3)
+            width = int(slide_width * 0.8)
+            height = int(slide_height * 0.4)
+
+            textbox = slide2.shapes.add_textbox(left, top, width, height)
+            text_frame = textbox.text_frame
+            text_frame.text = "右键转换成形状"
+
+            prs.save(str(ppt_path))
+            state.ppt_path = str(ppt_path)
+            log.info(f"technical_ppt_generator_node: PPT 已生成: {ppt_path}")
+        finally:
+            # ✅ 恢复原始限制
+            Image.MAX_IMAGE_PIXELS = original_max_pixels
 
         return state
 
@@ -270,12 +415,19 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
             log.error(f"paper2technical: Invalid input type: {input_type}")
             return "_end_"
 
+    def _init_result_path(state: Paper2FigureState) -> Paper2FigureState:
+        """
+        _start_ 节点：确保本次 workflow 有一个统一的 result_path 根目录。
+        - 若用户已在 state.result_path 传入自定义目录，则直接使用该目录；
+        - 若未传入，则初始化为 get_project_root()/outputs/paper2tec/<timestamp>。
+        """
+        _ensure_result_path(state)
+        return state
+
     nodes = {
-        "_start_": lambda state: state,
+        "_start_": _init_result_path,
         "paper_idea_extractor": paper_idea_extractor_node,
         "technical_route_desc_generator": technical_route_desc_generator_node,
-        # "svg_code_generator": svg_code_generator_node,  # 预留节点，当前未实现
-        "svg_fragment_miner": svg_fragment_miner_node,
         "technical_ppt_generator": technical_ppt_generator_node,
         "_end_": lambda state: state,  # 终止节点
     }
@@ -286,9 +438,8 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
     edges = [
         # PDF 流程: 先抽想法，再生成技术路线描述
         ("paper_idea_extractor", "technical_route_desc_generator"),
-        # PDF/TEXT 后续流程共用: 描述 -> 结构切分 -> PPT
-        ("technical_route_desc_generator", "svg_fragment_miner"),
-        ("svg_fragment_miner", "technical_ppt_generator"),
+        # PDF/TEXT 后续流程共用: 描述 -> PPT
+        ("technical_route_desc_generator", "technical_ppt_generator"),
         ("technical_ppt_generator", "_end_"),
     ]
 

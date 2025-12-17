@@ -84,7 +84,6 @@ async def main() -> None:
     state.temp_data["round"] = 0
     state.paper_file = 'data/GovBench_ACL_Template.pdf'
     # state.input_type = 'FIGURE'
-    # state.fig_draft_path = '/home/ubuntu/liuzhou/hzy/DataFlow-Agent/tmps/1765180984.jpg'
     state.result_path = f'./outputs/{time.strftime("%Y%m%d_%H%M%S")}'
     os.makedirs(state.result_path, exist_ok=True)
 

@@ -34,13 +34,9 @@ class PaperIdeaExtractor(BaseAgent):
         }
 
     def update_state_result(self, state: Paper2FigureState, result: Dict[str, Any], pre_tool_results: Dict[str, Any]):
-        try:
-            paper_idea = result.get("paper_idea", "") if isinstance(result, dict) else ""
-            # print(result)
-            if paper_idea:
-                state.paper_idea = paper_idea
-        except Exception:
-            pass
+
+        state.paper_idea = result.get("paper_idea", "") if result.get("paper_idea", "") != "" else result
+        
         return super().update_state_result(state, result, pre_tool_results)
 
 

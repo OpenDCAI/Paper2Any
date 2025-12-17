@@ -1711,6 +1711,144 @@ Return a JSON object with a single key "icon_prompt".
   "icon_prompt": "YOUR_GENERATED_PROMPT_HERE"
 }}
 """
+# --------------------------------------------------------------------------- #
+# 16. paper2video_prompt_generator                                                           #
+# --------------------------------------------------------------------------- #
+
+class Paper2VideoPrompt:
+  system_prompt_for_p2v_extract_pdf = """
+You are an expert academic researcher and a LaTeX Beamer developer. Your goal is to summarize research papers provided in Markdown format and convert them into high-quality, professional LaTeX Beamer presentation slides.
+
+Your core competencies include:
+1.  **Academic Summarization:** Ability to distill complex papers into concise, bulleted points suitable for presentation.
+2.  **LaTeX Proficiency:** Generating syntactically correct, compile-ready LaTeX code using the Beamer class.
+3.  **Visual Structure:** Organizing content logically across slides (Motivation, Method, Experiments, etc.) and effectively using LaTeX environments (itemize, block, tabular, figure).
+
+**CRITICAL RULE:** You must ensure the generated LaTeX code is complete, free of common syntax errors (like misplaced '&' or unclosed frames), and ready to compile with Tectonic or TeX Live.
+    """
+  task_prompt_for_p2v_extract_pdf = r"""
+Please generate a complete {output_language} PPT introduction based on the provided **Markdown content** of a research paper, using LaTeX Beamer. (Important!) Perfer more images than heavy text in the ppt.
+
+## Input Data
+The paper content is provided in Markdown format below. You need to parse this Markdown text to extract structure, text, mathematical formulas, image paths, and tables.
+
+## Content Structure
+The PPT must contain the following chapters (arranged in order), and each chapter must have a clear title and content:
+·Open slide (title, author, instructions​​)
+·Motivation (research background and problem statement and how differentiation from existing work)
+·Related work (current status and challenges in the field)
+·Method (core technical framework) [The content of the method needs to be introduced in detail, and each part of the method should be introduced on a separate page]
+·Experimental method (experimental design and process)
+·Experimental setting (dataset, parameters, environment, etc.)
+·Experimental results (main experimental results and comparative analysis)
+·Ablation experiment (validation of the role of key modules)
+·Deficiencies (limitations of current methods)
+·Future research (improvement direction or potential application)
+·End slide (Thank you)
+
+## Format Requirements
+·**Font Safety:** **STRICTLY FORBIDDEN** to use any non-standard TeX Live fonts (e.g., `Times New Roman`, `Arial`, or `Calibri`). The model **MUST** use `\usepackage{{lmodern}}` or rely on default LaTeX fonts to ensure cross-platform compatibility.
+·Use Beamer's theme suitable for academic presentations. If given a theme you should use it (could be refer to local path)
+·The content of each page should be concise, avoid long paragraphs, and use itemize or block environment to present points.
+·The title page contains the paper title, author, institution, and date.
+·Key terms or mathematical symbols are highlighted with \alert{}.
+·You must use as many figures as possible since it is more expressive.
+
+## Image and Table Processing (Markdown to LaTeX)
+·All image relative paths found in markdown must be resolved into absolute paths by by prepending the absolute working directory specified by {pdf_images_working_dir}. When using ref{}, relative paths within Markdown files are no longer utilized; instead, the latest absolute paths are employed.
+·Images should automatically adapt to width (for example, \includegraphics[width=0.8\textwidth]{...}), and add titles and labels (\caption and \label).
+·Experimental result tables should be extracted from the source text, formatted using tabular or booktabs environments, and marked with reference sources (for example, "as shown in table \ref{tab:results}").
+
+## Code Generation Requirements
+·The generated LaTeX code must be complete and can be compiled directly (including necessary structures such as \documentclass, \begin{document}).
+·Mark the source text location corresponding to each section in the code comments (for example, % corresponds to the source text Section 3.2).
+·If there are mathematical formulas in the source text, they must be retained and correctly converted to LaTeX syntax (such as $y=f(x)$).
+
+## Other instruction
+·(Important!) Perfer more images than heavy text. **The number of slides should be around 10.** 
+·Table content should first extract real data from the source document.
+·All content should be in {output_language}.
+·If the {output_language} is Chinese, you must include the following necessary packages in the LaTeX preamble:
+\usepackage{fontspec} 
+\usepackage{ctex}
+·If you need to use % to represent a percentage sign, please note that in LaTeX syntax, % denotes a comment. Therefore, you must prefix the % with an escape character \ to indicate a literal percentage sign, for example: 5\%
+·If the source text is long, it is allowed to summarize the content, but the core methods, experimental data and conclusions must be retained.
+·Must begin as \documentclass{beamer} and end as \end{document}.
+**Don't use "\usepackage{resizebox}" in the code which is not right in grammer.**
+**Don't use font: TeX Gyre Termes, Times New Roman**
+**& in title is not allowed which will cause error "Misplaced alignment tab character &"**
+**Pay attention to this "error: !File ended while scanning use of \frame"**
+output *complete* latex code which should be ready to compile using tectonic(simple verson of TeX Live). Before output check if the code is grammatically correct.
+
+## Output Format
+Return a **Valid** JSON object with a single key "latex_code".
+
+{{
+  "latex_code": "YOUR_GENERATED_latex_beamer_code_HERE"
+}}
+
+## Source Content (Markdown)
+{pdf_markdown}
+"""
+
+  system_prompt_for_p2v_beamer_code_debug = """
+You are an expert in repairing LaTeX beamer code. 
+You must preserve all slide content exactly as written (including text, figures, and layout).
+Your goal is to correct LaTeX compilation errors and return clean, compilable LaTeX code.
+
+Your output must:
+- Be directly compilable using **tectonic** (a simplified TeX Live)
+- Never include explanations, comments, or English/Chinese text outside the LaTeX code
+
+"""
+
+  task_prompt_for_p2v_beamer_code_debug = """
+(Critical!) Do not modify the file path, ignore the folloing message: "warning: accessing absolute path: "
+You are given a LaTeX beamer code for the slides of a research paper and its error information.
+You should correct these errors but do not change the slide content (e.g., text, figures and layout).
+
+## Some instruction
+**Font Safety**: **MUST** remove or comment out any usage of the `fontspec` package if and only if it causes errors (as it depends on system fonts).
+For instance, if you encounter the error message: Package fontspec Error: The font "Latin Modern Roman" cannot be found, just remove or comment out it and use default TeX Live fonts.
+
+**Image Loading Errors**: 
+If the compiler reports an image loading failure, such as: "Unable to load picture or PDF file" or "! LaTeX Error: Cannot determine size of graphic", the model **MUST** remove the entire command responsible for loading that specific graphic.
+
+Output Format:
+- Return a JSON object with a single key "latex_code".
+{{
+  "latex_code": "YOUR_GENERATED_latex_beamer_code_HERE"
+}}
+# Only output latex code which should be ready to compile using tectonic (simple version of TeX Live).
+
+The LateX beamer code is:
+{beamer_code}
+The compilation error message is:
+{code_debug_result}
+"""
+
+  system_prompt_for_p2v_subtitle_and_cursor = '''
+You are an academic researcher presenting your own work at a research conference. You are provided with a slide. 
+Your task: Generate a smooth, engaging, and coherent first-person presentation script for each slide. Each sentence must include one cursor position description (from the current slide content) in order.
+'''
+  task_prompt_for_p2v_subtitle_and_cursor = '''
+Generate a smooth, engaging, and coherent presentation script for a slide, focusing only on the content of the current slide.
+Requirements:
+1. Clearly explain the content of the current slide with academic clarity, brevity, and completeness. Use a professional, formal tone suitable for a research conference. 
+2. Keep the script concise and professional. Do not explain content unrelated to the paper. 
+3. Each sentence must include exactly one cursor position description in the format:
+   script | cursor description
+   If no cursor is needed for a sentence, write "no".
+4. The total script for each slide must not exceed 50 words. 
+
+Output Format (strict):
+Return a JSON object with a single key "subtitle_and_cursor"
+{{
+  "subtitle_and_cursor": 
+  "sentence 1 | cursor description\nsentence 2 | cursor description\n..."
+}}
+
+'''
 
 
 class PromptWriterPrompt:
@@ -1873,8 +2011,14 @@ Do not include any explanations outside the JSON.
 
 --------------------
 USER CONTENT START
+
 {paper_idea}
+
 USER CONTENT END
+--------------------
+
+--------------------
+提示词风格： {style}
 --------------------
 """
 
@@ -1884,26 +2028,38 @@ USER CONTENT END
 class PaperIdeaExtractorPrompts:
     # System prompt template for paper content extraction (focused on the methods section)
     system_prompt_for_paper_idea_extractor = """
-    You will extract the entire content of the "Methods" section from the provided paper. Please return the section exactly as it appears in the paper, keeping the formatting and structure intact.
+    你现在的任务是：从提供的论文内容中，**精确抽取整篇论文的 “Methods”（方法）部分原文**。
 
-    **Important:**
-    
-    1. Do **not** provide any extra explanations or summaries. Only extract the full content of the "Methods" section.
-    
-    2. The extracted content should preserve the exact structure and formatting of the original paper.
-    
-    3. Ensure the "Methods" section is extracted without any modifications.
-    
-    4. If the "Methods" section is not clearly defined, extract all relevant sections that describe methodologies, algorithms, models, or techniques.
+    请严格遵守以下要求：
 
-    **Output Format**: Please return the extracted methods section in a **JSON format** with the following structure:
+    1. **只做抽取，不做加工**  
+      - 不要进行任何形式的解释、总结、改写或补充。  
+      - 不要添加任何你自己的文字、标点或说明。  
+      - 只返回从论文中截取出来的原始内容。
+
+    2. **必须完整抽取 “Methods” 部分**  
+      - 如果论文中有明确的章节标题，如 “Methods”, “Materials and Methods”, “Methodology” 等，请从该章节标题开始，到该章节正式结束为止，**原样抽取全部内容**。  
+      - 如果论文中没有明确命名为 “Methods” 的章节，请抽取所有清晰描述研究方法、实验流程、算法、模型、技术方案等的内容。
+
+    3. **保留原有结构与排版格式**  
+      - 保留原来的段落分行、标题层级、列表、公式标记等文本结构。  
+      - 不要擅自合并或拆分段落，不要改变任何文字顺序。
+
+    4. **字符与内容要求**  
+      - 不要引入新的控制字符或特殊符号。  
+      - 尽量去除或避免返回 ASCII 控制字符（例如不可见的换页符、奇怪的转义符等），只保留正常可见文本。  
+      - 不要在内容前后额外添加注释、标签或说明文字。
+
+    5. **输出格式（必须是合法 JSON）**  
+      - 最终回答必须是一个合法 JSON 对象，键为 `"paper_idea"`。  
+      - JSON 字符串中不要出现未转义的换行控制字符或非法字符，避免 JSON 解析错误。  
+      - 内容格式如下（注意是 JSON 而不是自然语言说明）：
+      
     ```json
-{
-  "paper_idea": "Paper title: xxx. Paper sections: original text of specific sections of paper...."
-}
-    ```
-    Remember to put the paper title in the begining like 'Paper Title: xxx. Other contents...'
-    """
+    {
+      "paper_idea": "Paper title: xxx. Paper sections: original text of specific sections of paper...."
+    }
+"""
 
     # Task prompt template for paper content extraction (focused on the methods section)
     task_prompt_for_paper_idea_extractor = """
@@ -1913,6 +2069,7 @@ class PaperIdeaExtractorPrompts:
     1. Focus on extracting the **entire Methods section**: This includes all descriptions of methods, algorithms, models, or techniques used in the paper.
     2. Preserve the **exact structure** and **formatting** of the original content.
     3. If the "Methods" section is not clearly defined, include all content related to methods and techniques used in the paper.
+    4. 去掉多余移除 ASCII 控制字符，尽量以纯文本，形式返回，不要有多余符号，以免json解析错误！！！
 
     Paper content: {paper_content}
     """

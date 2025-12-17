@@ -7,6 +7,14 @@
 # evaluate==0.4.3
 # vendi-score==0.0.3
 
+
+# system dependency:
+# tectonic (TeX engine) must be installed via conda-forge/apt/cargo
+
+#sudo apt-get update
+# sudo apt-get install -y inkscape
+# sudo apt-get install -y tectonic
+
 # Paper2Figure
 pdfplumber
 transformers==4.57.3
@@ -18,5 +26,9 @@ kornia
 timm
 
 
-vtracer
 cairosvg
+vtracer
+ultralytics
+transformers
+scikit-image
+pdf2image

@@ -31,6 +31,9 @@ CURRENT_DIR = Path(__file__).resolve().parent
 MODEL_PATH = CURRENT_DIR / "onnx" / "model.onnx"
 OUTPUT_DIR = CURRENT_DIR
 
+# 进程级抠图模型缓存：按 model_path 复用 BriaRMBG2Remover 实例
+_BG_RMBG_MODEL_CACHE: dict[str, "BriaRMBG2Remover"] = {}
+
 
 def ensure_model(model_path: Path) -> None:
     """
@@ -244,6 +247,70 @@ class BriaRMBG2Remover:
 #         return str(out_path)
 
 
+def get_bg_rm_remover(
+    model_path: str | None = None,
+    output_dir: str | None = None,
+) -> BriaRMBG2Remover:
+    """
+    获取/创建进程级抠图模型单例，避免重复加载占用显存。
+
+    - 按 model_path 作为 key 进行缓存；
+    - output_dir 可在已有实例上动态更新。
+    """
+    global _BG_RMBG_MODEL_CACHE
+
+    key = str(model_path) if model_path else str(MODEL_PATH)
+    if key in _BG_RMBG_MODEL_CACHE:
+        remover = _BG_RMBG_MODEL_CACHE[key]
+        # 允许调用方调整输出目录
+        if output_dir is not None:
+            remover.output_dir = Path(output_dir)
+            remover.output_dir.mkdir(parents=True, exist_ok=True)
+        return remover
+
+    remover = BriaRMBG2Remover(model_path=model_path, output_dir=output_dir)
+    _BG_RMBG_MODEL_CACHE[key] = remover
+    return remover
+
+
+def free_bg_rm_model(model_path: str | None = None) -> None:
+    """
+    显式释放 RMBG-2.0 模型占用的显存。
+
+    - model_path 为 None 时：释放所有已缓存的抠图模型；
+    - 否则：仅释放对应 model_path 的实例。
+    """
+    import gc
+
+    global _BG_RMBG_MODEL_CACHE
+
+    def _del_model(m: BriaRMBG2Remover) -> None:
+        try:
+            if hasattr(m, "model"):
+                try:
+                    # 先把模型迁移到 CPU，再删除引用
+                    m.model.to("cpu")
+                except Exception:
+                    pass
+            del m
+        except Exception:
+            pass
+
+    if model_path is None:
+        for _, m in list(_BG_RMBG_MODEL_CACHE.items()):
+            _del_model(m)
+        _BG_RMBG_MODEL_CACHE.clear()
+    else:
+        key = str(model_path)
+        m = _BG_RMBG_MODEL_CACHE.pop(key, None)
+        if m is not None:
+            _del_model(m)
+
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
 def local_tool_for_bg_remove(req: dict) -> str:
     """
     使用 BRIA-RMBG 2.0 模型进行背景抠图的统一接口。
@@ -261,15 +328,16 @@ def local_tool_for_bg_remove(req: dict) -> str:
     str
         抠图结果图片的绝对路径。
     """
-    remover = BriaRMBG2Remover(
+    remover = get_bg_rm_remover(
         model_path=req.get("model_path"),
         output_dir=req.get("output_dir"),
     )
     return remover.remove_background(req["image_path"])
 
-def local_tool_for_bg_remove_batch(req: dict) -> str:
-    """暴露统一接口"""
-    remover = BriaRMBG2Remover(
+
+def local_tool_for_bg_remove_batch(req: dict) -> list[str]:
+    """使用进程级单例模型进行批量抠图"""
+    remover = get_bg_rm_remover(
         model_path=req.get("model_path"), output_dir=req.get("output_dir")
     )
     return remover.remove_background_batch(req["image_path_list"])
@@ -303,7 +371,7 @@ def get_bg_remove_desc(lang: str = "zh") -> str:
 def convert_image_to_svg(
     input_path: str,
     output_path: str,
-    colormode: str = "binary",
+    colormode: str = "color",
     hierarchical: str = "stacked",
     mode: str = "spline",
     filter_speckle: int = 4,
@@ -499,6 +567,7 @@ def render_svg_to_image(
     *,
     from_string: bool = False,
     fmt: str | None = None,
+    scale: float = 1.0,
 ) -> str:
     """
     使用 CairoSVG 将 SVG 渲染为图片或文档文件。
@@ -562,7 +631,7 @@ def render_svg_to_image(
             # svg_source 是 SVG 字符串
             data = svg_source.encode("utf-8")
             if fmt == "png":
-                cairosvg.svg2png(bytestring=data, write_to=str(out_p))
+                cairosvg.svg2png(bytestring=data, write_to=str(out_p), scale=scale)
             elif fmt == "pdf":
                 cairosvg.svg2pdf(bytestring=data, write_to=str(out_p))
             elif fmt == "ps":
@@ -579,7 +648,7 @@ def render_svg_to_image(
                 raise FileNotFoundError(f"输入 SVG 文件不存在: {in_p}")
 
             if fmt == "png":
-                cairosvg.svg2png(url=str(in_p), write_to=str(out_p))
+                cairosvg.svg2png(url=str(in_p), write_to=str(out_p), scale=scale)
             elif fmt == "pdf":
                 cairosvg.svg2pdf(url=str(in_p), write_to=str(out_p))
             elif fmt == "ps":
@@ -644,6 +713,7 @@ def local_tool_for_svg_render(req: dict) -> str:
     """
     svg_path = req.get("svg_path")
     svg_code = req.get("svg_code")
+    scale = req.get("scale", 1.0)
 
     if not svg_path and not svg_code:
         raise ValueError("必须提供 svg_path 或 svg_code 其中之一。")
@@ -660,6 +730,7 @@ def local_tool_for_svg_render(req: dict) -> str:
             output_path=req["output_path"],
             from_string=True,
             fmt=req.get("fmt"),
+            scale=scale,
         )
 
     return render_svg_to_image(
@@ -667,6 +738,7 @@ def local_tool_for_svg_render(req: dict) -> str:
         output_path=req["output_path"],
         from_string=False,
         fmt=req.get("fmt"),
+        scale=scale,
     )
 
 
