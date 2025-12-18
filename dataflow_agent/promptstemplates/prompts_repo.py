@@ -1727,7 +1727,8 @@ Your core competencies include:
 **CRITICAL RULE:** You must ensure the generated LaTeX code is complete, free of common syntax errors (like misplaced '&' or unclosed frames), and ready to compile with Tectonic or TeX Live.
     """
   task_prompt_for_p2v_extract_pdf = r"""
-Please generate a complete {output_language} PPT introduction based on the provided **Markdown content** of a research paper, using LaTeX Beamer. (Important!) Perfer more images than heavy text in the ppt.
+Please generate a complete {output_language} PPT introduction based on the provided **Markdown content** of a research paper, using LaTeX Beamer. 
+(Priority-first!) Perfer more images than heavy text in the ppt. Use as many figures as possible since it is more expressive.
 
 ## Input Data
 The paper content is provided in Markdown format below. You need to parse this Markdown text to extract structure, text, mathematical formulas, image paths, and tables.
@@ -1749,7 +1750,10 @@ The PPT must contain the following chapters (arranged in order), and each chapte
 ## Format Requirements
 ·**Font Safety:** **STRICTLY FORBIDDEN** to use any non-standard TeX Live fonts (e.g., `Times New Roman`, `Arial`, or `Calibri`). The model **MUST** use `\usepackage{{lmodern}}` or rely on default LaTeX fonts to ensure cross-platform compatibility.
 ·Use Beamer's theme suitable for academic presentations. If given a theme you should use it (could be refer to local path)
-·The content of each page should be concise, avoid long paragraphs, and use itemize or block environment to present points.
+·The content of each page should be suitable for oral academic presentation:
+  provide enough detail to support spoken explanation, but not so much that the slide becomes text-heavy.
+  Typically include 6-7 informative bullet points or 3-4 compact blocks per slide, and use itemize or block environment to present points.
+  Avoid long paragraphs; prefer clear, complete sentences that can be naturally spoken, 
 ·The title page contains the paper title, author, institution, and date.
 ·Key terms or mathematical symbols are highlighted with \alert{}.
 ·You must use as many figures as possible since it is more expressive.
@@ -1771,6 +1775,7 @@ The PPT must contain the following chapters (arranged in order), and each chapte
 ·If the output_language:{output_language} is Chinese, you must include the following necessary packages in the LaTeX preamble:
 \usepackage{fontspec} 
 \usepackage{ctex}
+·If you need to use % to represent a percentage sign, please note that in LaTeX syntax, % denotes a comment. Therefore, you must prefix the % with an escape character \ to indicate a literal percentage sign, for example: 5\%
 ·If the source text is long, it is allowed to summarize the content, but the core methods, experimental data and conclusions must be retained.
 ·Must begin as \documentclass{beamer} and end as \end{document}.
 **Don't use "\usepackage{resizebox}" in the code which is not right in grammer.**
@@ -1806,9 +1811,19 @@ Your output must:
 You are given a LaTeX beamer code for the slides of a research paper and its error information.
 You should correct these errors but do not change the slide content (e.g., text, figures and layout).
 
+## Content Preservation Rules (Strict)
+- You MUST NOT delete, replace, or reduce the number of figures/images.
+  If a slide originally contains an image, it MUST still contain that image after modification.
+- You MAY adjust figure-related parameters (e.g., scale, width, height, aspect ratio, placement options)
+  ONLY if necessary to fix compilation or layout issues.
+- Keep the slide text content unchanged as much as possible.
+
 ## Some instruction
 **Font Safety**: **MUST** remove or comment out any usage of the `fontspec` package if and only if it causes errors (as it depends on system fonts).
 For instance, if you encounter the error message: Package fontspec Error: The font "Latin Modern Roman" cannot be found, just remove or comment out it and use default TeX Live fonts.
+
+**Image Loading Errors**: 
+If the compiler reports an image loading **error**, such as: "Unable to load picture or PDF file" or "! LaTeX Error: Cannot determine size of graphic", the model **MUST** remove the entire command responsible for loading that specific graphic.
 
 Output Format:
 - Return a JSON object with a single key "latex_code".
