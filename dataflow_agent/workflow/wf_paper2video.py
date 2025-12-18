@@ -21,7 +21,13 @@ from dataflow_agent.toolkits.tool_manager import get_tool_manager
 from langchain.tools import tool
 from langgraph.graph import StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
-from dataflow_agent.toolkits.p2vtool.p2v_tool import compile_tex, beamer_code_validator, get_image_paths, parse_script, transcribe_with_whisperx, inference_f5
+from dataflow_agent.toolkits.p2vtool.p2v_tool import (
+    compile_tex, beamer_code_validator, get_image_paths, parse_script, 
+    transcribe_with_whisperx, inference_f5, cursor_infer, get_audio_paths, 
+    get_whisperx_model, load_align_whisperx_model, clean_text, timesteps, 
+    talking_gen_per_slide, render_video_with_cursor_from_json, add_subtitles,
+    parser_beamer_latex, resize_latex_image
+)
 
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
@@ -193,6 +199,84 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         )
         state = await agent.execute(state)
         return state
+
+    async def beamer_code_upgrade_node(state: Paper2VideoState) -> Paper2VideoState:
+        log.info(f"开始执行 p2v_beamer_code_debug node节点")
+        from dataflow_agent.agentroles import create_vlm_agent
+        from tempfile import TemporaryDirectory
+        import subprocess
+        from pdf2image import convert_from_path
+
+        beamer_code_path = state.beamer_code_path
+        old_beamer_code = Path(beamer_code_path).read_text(encoding='utf-8')
+
+        head, frames_code = parser_beamer_latex(old_beamer_code)
+        final_frames = []
+        doc_header = ["\\documentclass{beamer}", head, "\\begin{document}"]
+        doc_footer = ["\\end{document}"]
+        
+        for frame_code in frames_code:
+            current_frame_content = ["\\begin{frame}", frame_code, "\\end{frame}"]
+            
+            if "includegraphics" not in frame_code:
+                final_frames.extend(current_frame_content)
+                continue
+            
+            attempt_code = current_frame_content
+            img_size_debug = True
+
+            while img_size_debug:
+                with TemporaryDirectory() as temp_dir_name:
+                    temp_dir = Path(temp_dir_name)
+                    # 在临时目录中创建 .tex 文件
+                    tex_path = temp_dir / "input.tex"
+                    
+                    full_temp_tex = doc_header + attempt_code + doc_footer
+                    tex_path.write_text("\n".join(full_temp_tex), encoding='utf-8')
+                    try:
+                        subprocess.run(
+                            ["tectonic", str(tex_path)],
+                            check=True, capture_output=True, text=True, cwd=temp_dir
+                        )
+                        
+                        frame_pdf_path = tex_path.with_suffix('.pdf')
+                        img_path = tex_path.with_suffix('.png')
+
+                        if frame_pdf_path.exists():
+                            images = convert_from_path(str(frame_pdf_path))
+                            images[0].save(str(img_path))
+                            
+                            agent = create_vlm_agent(
+                                name="p2v_beamer_code_upgrade",
+                                vlm_mode="understanding",
+                                model_name="gpt-4o-2024-11-20",
+                                additional_params={"input_image": str(img_path)},
+                            )
+                            
+                            state = await agent.execute(state=state)
+                            img_size_debug = getattr(state, 'img_size_debug', False)
+                            
+                            if img_size_debug:
+                                log.info(f"当前图片尺寸超出了ppt一页，需要修改：{attempt_code}")
+                                attempt_code = resize_latex_image(attempt_code) 
+                            else:
+                                final_frames.extend(attempt_code)
+                        else:
+                            log.error("PDF 未生成，跳过调试")
+                            final_frames.extend(attempt_code)
+                            break
+                    except Exception as e:
+                        log.error(f"解析单张ppt发生了错误: {e}")
+                        final_frames.extend(attempt_code)
+                        break
+        full_new_code = doc_header + final_frames + doc_footer
+        Path(beamer_code_path).write_text("\n".join(full_new_code), encoding='utf-8')
+        compile_tex(beamer_code_path)
+        state.ppt_path = str(Path(beamer_code_path).with_suffix(".pdf"))
+        log.info(f"将更新好的beamer code写回 {beamer_code_path}")
+
+        return state
+
     
     async def subtitle_and_cursor(state: Paper2VideoState) -> Paper2VideoState:
         log.info(f"开始执行 p2v_subtitle_and_cursor node节点")
@@ -224,11 +308,18 @@ def create_paper2video_graph() -> GenericGraphBuilder:
     
     def generate_speech(state: Paper2VideoState):
         # 先完成pre-tool的工作
-        import os
         log.info(f"开始执行 p2v_generate_speech node节点")
         subtitle_and_cursor_path = state.subtitle_and_cursor_path
-        speech_save_dir = state.speech_save_dir
-        os.makedirs(speech_save_dir, exist_ok=True)
+        paper_pdf_path = Path(state.request.get("paper_pdf_path", ""))
+        if not paper_pdf_path.exists():
+            log.error(f"PDF 文件不存在: {paper_pdf_path}")
+            return ""
+        paper_base_path = paper_pdf_path.with_suffix('').expanduser().resolve()
+        paper_output_dir = paper_base_path
+        speech_save_dir = paper_output_dir/"audio"
+        state.speech_save_dir = str(speech_save_dir)
+
+        speech_save_dir.mkdir(parents=True, exist_ok=True)
         ref_audio_path = state.request.ref_audio_path
 
         # 1、拿到subtitle的文件，并且读出其中的内容，并解析        
@@ -241,13 +332,175 @@ def create_paper2video_graph() -> GenericGraphBuilder:
             speech_with_cursor = parsed_subtitle_w_cursor[slide_idx]
             subtitle = ""
             for _, (prompt, cursor_prompt) in enumerate(speech_with_cursor):
-                if len(subtitle) == 0: subtitle = prompt
-                else: subtitle = subtitle + "\n\n\n" + prompt
-            speech_result_path = os.path.join(speech_save_dir, "{}.wav".format(str(slide_idx)))
+                if len(subtitle) == 0: 
+                    subtitle = prompt
+                else: 
+                    subtitle = subtitle + "\n\n\n" + prompt
+            speech_result_path = speech_save_dir / f"{slide_idx}.wav"
             
             # 3、将每个slide的字幕内容转换为音频，并保存到指定的目录
-            if ref_text is None: ref_text = transcribe_with_whisperx(ref_audio_path)
-            inference_f5(subtitle, speech_result_path, ref_audio_path, ref_text)
+            ref_text = transcribe_with_whisperx(ref_audio_path)
+            inference_f5(subtitle, str(speech_result_path), ref_audio_path, ref_text)
+            log.info(f"生成 slide {slide_idx} 的语音，保存到 {speech_result_path}")
+        return state
+    
+    def generate_cursor(state: Paper2VideoState):
+        import multiprocessing as mp
+        import cv2
+        from whisperx import load_audio
+        from whisperx.alignment import align
+        log.info(f"开始执行 p2v_generate_cursor node节点")
+        # 先完成pre-tool的工作
+        subtitle_and_cursor_path = state.subtitle_and_cursor_path
+        slide_img_dir = state.slide_img_dir
+        speech_save_dir = state.speech_save_dir
+        
+        paper_pdf_path = Path(state.request.get("paper_pdf_path", ""))
+        paper_base_path = paper_pdf_path.with_suffix('').expanduser().resolve()
+        paper_output_dir = paper_base_path
+        cursor_save_path = paper_output_dir/"cursor.json"
+        state.cursor_save_path = str(cursor_save_path)
+
+        # 1、获取字幕内容
+        raw_subtitle_and_cursor_content = Path(subtitle_and_cursor_path).read_text(encoding='utf-8')
+        parsed_subtitle_w_cursor = parse_script(raw_subtitle_and_cursor_content)
+
+        # 2、并行的生成cursor的坐标等信息
+        slide_image_path_list = get_image_paths(slide_img_dir)
+
+        task_list = []
+        for slide_idx in range(len(parsed_subtitle_w_cursor)):
+            slide_image_path = slide_image_path_list[slide_idx]
+            speech_with_cursor = parsed_subtitle_w_cursor[slide_idx]
+            for sentence_idx, (prompt, cursor_prompt) in enumerate(speech_with_cursor):
+                task_list.append((slide_idx, sentence_idx, prompt, cursor_prompt, slide_image_path))
+
+        cursor_result = []
+        for task_args in task_list:
+            result = cursor_infer(task_args)
+            cursor_result.append(result)
+
+        slide_w, slide_h = cv2.imread(slide_image_path_list[0]).shape[:2]
+        for index in range(len(cursor_result)):
+            if cursor_result[index]["cursor_prompt"] == "no":
+                cursor_result[index]["cursor"] == (slide_w//2, slide_h//2)
+        
+        slide_sentence_timesteps = []
+        slide_audio_path_list = get_audio_paths(speech_save_dir)
+
+        model = get_whisperx_model("large-v3", device="cuda")
+        align_model, metadata = load_align_whisperx_model(language_code="en", device="cuda")
+        for idx, slide_audio_path in enumerate(slide_audio_path_list):
+            subtitle = []
+            cursor = []
+            for info in cursor_result: 
+                if info["slide"] == idx: 
+                    subtitle.append(clean_text(info["speech_text"]))
+                    cursor.append(info["cursor"])
+            # 转换为模型可处理的语音数据
+            audio = load_audio(slide_audio_path)
+            # 语音转文字，并生成初步的时间戳
+            result = model.transcribe(slide_audio_path, language="en")
+            # 语音和文字同步 对齐
+            aligned = align(transcript=result["segments"], align_model_metadata=metadata, model=align_model, audio=audio, device="cuda")
+            sentence_timesteps = timesteps(subtitle, aligned, slide_audio_path)
+            for idx in range(len(sentence_timesteps)): 
+                sentence_timesteps[idx]["cursor"] = cursor[idx]
+            slide_sentence_timesteps.append(sentence_timesteps)
+
+        # 将相对的、片段的时间 转换成 绝对的、完整的时间
+        start_time_now = 0
+        new_slide_sentence_timesteps = []
+        for sentence_timesteps in slide_sentence_timesteps:
+            duration = 0
+            for idx in range(len(sentence_timesteps)):
+                if sentence_timesteps[idx]["start"] is None: 
+                    sentence_timesteps[idx]["start"] = sentence_timesteps[idx-1]["end"]
+                if sentence_timesteps[idx]["end"] is None: 
+                    sentence_timesteps[idx]["end"] = sentence_timesteps[idx+1]["start"]
+
+            for idx in range(len(sentence_timesteps)):
+                sentence_timesteps[idx]["start"] += start_time_now
+                sentence_timesteps[idx]["end"] += start_time_now
+                duration += sentence_timesteps[idx]["end"] - sentence_timesteps[idx]["start"]
+            start_time_now += duration
+            new_slide_sentence_timesteps.extend(sentence_timesteps)
+
+        file_name = cursor_save_path.name.replace(".json", "_mid.json")
+        cursor_mid_save_path = cursor_save_path.with_name(file_name)
+        cursor_mid_save_path.write_text(
+            json.dump(cursor_result, indent=2), 
+            encoding='utf-8'
+        )
+        cursor_save_path.write_text(
+            json.dump(new_slide_sentence_timesteps, indent=2), 
+            encoding='utf-8'
+        )
+        
+        return state
+
+    def generate_talking_video(state: Paper2VideoState):
+        log.info(f"开始执行 p2v_generate_taking_video node节点")
+        
+        # 先完成pre-tool的工作
+        paper_pdf_path = Path(state.request.get("paper_pdf_path", ""))
+        paper_base_path = paper_pdf_path.with_suffix('').expanduser().resolve()
+        paper_output_dir = paper_base_path
+        talking_video_save_dir = paper_output_dir/"talking_video"
+
+        state.talking_video_save_dir = str(talking_video_save_dir)
+        talking_video_save_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 1、
+        talking_inference_input = []
+        audio_path_list = get_audio_paths(state.speech_save_dir)
+        for audio_path in audio_path_list:
+            talking_inference_input.append([state.request.ref_img_path, audio_path])
+        talking_gen_per_slide("hallo2", talking_inference_input, paper_output_dir, talking_video_save_dir, "")
+        log.info(f"talking-video 的信息已经写入了{talking_video_save_dir}目录中")
+        
+        return state
+    
+    def merge_all(state: Paper2VideoState):
+        import cv2
+        import subprocess
+        
+        log.info(f"开始执行 p2v_merge_all node节点")
+        
+        paper_pdf_path = Path(state.request.get("paper_pdf_path", ""))
+        paper_base_path = paper_pdf_path.with_suffix('').expanduser().resolve()
+        paper_output_dir = paper_base_path
+        slide_img_dir = state.slide_img_dir
+        talking_save_dir = state.talking_video_save_dir
+        ref_img = state.request.ref_img_path
+        cursor_save_path = state.cursor_save_path
+        # fixme: 这个需要将cursor文件放到对应的地址
+        cursor_img_path = paper_base_path / "cursor_image" / "red.png"
+
+        tmp_merage_dir = paper_output_dir / "merage"
+        tmp_merage_1 = paper_output_dir / "1_merage.mp4"
+        image_size = cv2.imread(Path(slide_img_dir) / '1.png').shape
+
+        size = max(image_size[0]//6, image_size[1]//6)
+        width, height = size, size
+        num_slide = len(get_image_paths(slide_img_dir))
+
+        # fixme: 这个./1_merge.bash需要处理一下啊
+        merage_cmd =  ["./1_merage.bash", slide_img_dir, talking_save_dir, tmp_merage_dir,
+                    str(width), str(height), str(num_slide), tmp_merage_1, ref_img.split("/")[-1].replace(".png", "")]
+        out = subprocess.run(merage_cmd, text=True)
+        # render cursor
+        cursor_size = size//6
+        tmp_merage_2 = paper_output_dir /  "2_merage.mp4"
+        render_video_with_cursor_from_json(video_path=tmp_merage_1, out_video_path=tmp_merage_2, 
+                                        json_path=cursor_save_path, cursor_img_path=cursor_img_path, 
+                                        transition_duration=0.1, cursor_size=cursor_size)
+        # render subtitle
+        front_size = size//10
+        tmp_merage_3 = paper_output_dir / "3_merage.mp4"
+        add_subtitles(tmp_merage_2, tmp_merage_3, size//10)
+
+        return state
 
     async def compile_beamer_condition(state: Paper2VideoState):
         # todo: 暂时先这样判断
@@ -275,9 +528,14 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         "p2v_extract_pdf": extract_pdf_node,
         "compile_beamer": compile_beamer_node,
         "p2v_beamer_code_debug": beamer_code_debug_node,
+        "p2v_beamer_code_upgrade": beamer_code_upgrade_node,
         "p2v_subtitle_and_cursor": subtitle_and_cursor,
         "p2v_generate_speech": generate_speech,
+        "p2v_generate_cursor": generate_cursor,
+        "p2v_generate_taking_video": generate_talking_video,
+        "p2v_merge": merge_all,  
         "pdf2ppt": pdf2ppt_node,
+        
         '_end_': lambda state: state,  # 终止节点
     }
 
@@ -286,7 +544,8 @@ def create_paper2video_graph() -> GenericGraphBuilder:
     # ------------------------------------------------------------------
     edges = [
         ("p2v_extract_pdf", "compile_beamer"),
-        ("p2v_beamer_code_debug", "__end__")
+        ("p2v_beamer_code_debug", "p2v_beamer_code_upgrade"),
+        ("p2v_beamer_code_upgrade", "__end__")
     ]
 
     builder.add_nodes(nodes).add_edges(edges).add_conditional_edge("compile_beamer", compile_beamer_condition)

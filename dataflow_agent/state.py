@@ -237,6 +237,7 @@ class Paper2VideoRequest(MainRequest):
     user_imgs_path: str = ""
     
     ref_audio_path: str = ""
+    ref_img_path: str = ""
 
 # ==================== Paper2Video 生成 State ======================
 @dataclass
@@ -250,6 +251,7 @@ class Paper2VideoState(MainState):
     is_beamer_warning: bool = False
     code_debug_result: str = ""
     ppt_path: str = ""
+    img_size_debug: bool = True
     
     # 生成字幕 + cursor的位置信息
     slide_img_dir: str = ""
@@ -258,6 +260,10 @@ class Paper2VideoState(MainState):
     
     # 生成的音频路径
     speech_save_dir: str = ""
+    # 生成的cursor路径
+    cursor_save_path: str = ""
+    # 生成的talking video路径
+    talking_video_save_dir: str = ""
 
 
 

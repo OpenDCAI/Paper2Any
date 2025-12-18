@@ -1768,7 +1768,7 @@ The PPT must contain the following chapters (arranged in order), and each chapte
 ·(Important!) Perfer more images than heavy text. **The number of slides should be around 10.** 
 ·Table content should first extract real data from the source document.
 ·All content should be in {output_language}.
-·If the {output_language} is Chinese, you must include the following necessary packages in the LaTeX preamble:
+·If the output_language:{output_language} is Chinese, you must include the following necessary packages in the LaTeX preamble:
 \usepackage{fontspec} 
 \usepackage{ctex}
 ·If the source text is long, it is allowed to summarize the content, but the core methods, experimental data and conclusions must be retained.
@@ -1806,6 +1806,10 @@ Your output must:
 You are given a LaTeX beamer code for the slides of a research paper and its error information.
 You should correct these errors but do not change the slide content (e.g., text, figures and layout).
 
+## Some instruction
+**Font Safety**: **MUST** remove or comment out any usage of the `fontspec` package if and only if it causes errors (as it depends on system fonts).
+For instance, if you encounter the error message: Package fontspec Error: The font "Latin Modern Roman" cannot be found, just remove or comment out it and use default TeX Live fonts.
+
 Output Format:
 - Return a JSON object with a single key "latex_code".
 {{
@@ -1841,6 +1845,39 @@ Return a JSON object with a single key "subtitle_and_cursor"
 }}
 
 '''
+  system_prompt_for_p2v_beamer_code_upgrade = '''
+# Role
+You are an expert in LaTeX Beamer typesetting and visual quality assurance. Your task is to analyze screenshots of presentation slides to determine if images are properly scaled or if they are overflowing the slide boundaries.
+
+# Task Logic
+1. **Locate the Image**: Identify the main graphic or figure on the slide.
+2. **Identify the Caption**: Standard Beamer templates place a caption (starting with "Figure:" or "图：") directly below the image.
+3. **Assess Visibility**:
+   - **Pass**: If the image is fully visible AND the caption text below it is clearly legible and not cut off by the bottom edge of the slide.
+   - **Fail (Overfull)**: If the image takes up too much vertical space, causing the caption to be pushed off-screen (invisible) or partially cut off.
+
+# Output Format
+Return your analysis strictly in JSON format with a single key and the answer should be only "True" or "False":
+{{
+"img_size_debug": "True" / "False"
+}}
+'''
+
+  task_prompt_for_p2v_beamer_code_upgrade = '''
+# Instructions
+Please examine the provided slide screenshot carefully. 
+
+Focus on the area immediately below the main graphic:
+- Check if there is a text label such as "图: WebMainBench 数据示例" or "Figure: Experimental Results" visible.
+- If the image occupies the entire bottom portion of the slide and no caption text is visible, it indicates that the `\includegraphics` width/height is too large, causing the caption to overflow the page.
+
+# Expected Action
+- If the caption is missing or truncated, set `img_size_debug` to `True`.
+- If the caption is fully and clearly displayed below the image, set `img_size_debug` to `False`.
+
+Please output the JSON result now:
+'''
+
 
 
 class PromptWriterPrompt:
