@@ -193,7 +193,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
 
         page_items: List[Dict[str, Any]] = []
         for i, img in enumerate(slide_imgs):
-            img_path = output_dir / f"slide_{i+1:03d}.png"
+            img_path = output_dir / f"slide_{i:03d}.png"
             try:
                 img.save(img_path, "PNG")
             except Exception as e:
@@ -225,10 +225,13 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         t = getattr(state.request, "input_type", None) or getattr(state, "input_type", None) or ""
         t = str(t).upper().strip()
         if t == "PDF":
+            log.critical("走 PDF 路径")
             return "parse_pdf_pages"
         if t == "TEXT":
+            log.critical("走 TEXT 路径")
             return "prepare_text_input"
         if t in ["PPT", "PPTX"]:
+            log.critical("走 PPT 路径")
             return "ppt_to_images"
         log.error(f"[paper2page_content] Invalid input_type: {t}")
         return "_end_"
@@ -245,7 +248,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
     edges = [
         ("parse_pdf_pages", "outline_agent"),
         ("prepare_text_input", "outline_agent"),
-        ("ppt_to_images", "outline_agent"),
+        ("ppt_to_images", "_end_"),
         ("outline_agent", "_end_"),
     ]
 

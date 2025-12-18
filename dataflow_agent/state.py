@@ -387,6 +387,8 @@ class Paper2FigureRequest(MainRequest):
 
     # PPT的页面数量 
     page_count: int = 10
+    # 是否编辑完毕，也就是是否需要重新生成完整的 PPT
+    all_edited_down: bool = False
 
 @dataclass
 class Paper2FigureState(MainState):

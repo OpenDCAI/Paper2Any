@@ -297,7 +297,7 @@ SVG 内容设计规范（在不影响 JSON 解析的前提下，兼顾复杂度�
 - `title`: 该页PPT的标题。
 - `layout_description`: 详细的版面布局描述（例如："左侧列出三个关键挑战点，右侧放置流程图"）。
 - `key_points`: 一个包含多个关键要点的字符串列表（List<String>），用于PPT正文展示。
-- `asset_ref`: 如果该页需要展示论文中的原图或表格，请提名或路径取其文件（例如 "Table_2", "images/architecture.png"）；如果不需要引用原图，请填 null。
+- `asset_ref`: 如果该页需要展示论文中的原图或表格，请提名或路径取其文件（例如 "Table_2", "images/architecture.png"），并且只能1 个 asset；如果不需要引用原图，请填 null。
 
 
 **示例输出结构，返回论文内容一致的语言：**

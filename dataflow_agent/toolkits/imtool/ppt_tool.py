@@ -2,7 +2,11 @@
 """
 ppt_tool
 
-本模块提供将一组页面图片转换为 PDF 与可编辑 PPTX 的工具函数。
+本模块将一组顺序图片通过 PaddleOCR 识别为可编辑文本，自动分析行高、版式和颜色，生成带“干净底图+覆盖文字框”的 PPTX，并可选同时导出 PDF；
+内部提供多种参数控制背景 inpaint 强度（INPAINT_METHOD/INPAINT_RADIUS、SIMPLE_BG_VAR_THRESH、MASK_DILATE_ITER、USE_ADAPTIVE_MASK）、
+OCR 分辨率与锐化（UPSCALE_LONG_SIDE_TO、UPSCALE_INTERP、ENABLE_SHARPEN、SHARPEN_AMOUNT）、
+文本过滤阈值（DROP_SCORE）以及字号放大与标题/副标题对正文的比例（BASE_BODY_PT、FONT_SCALE_FACTOR、TITLE_RATIO_*/SUBTITLE_RATIO_*/BODY_RATIO_*），
+并通过 ADD_BACKGROUND_IMAGE / CLEAN_BACKGROUND / EXTRACT_TEXT_COLOR 控制是否叠加背景图片、是否抠掉原文字、是否按原图估计文字颜色，从而在“还原视觉效果”与“可编辑性/美观度”和运行性能之间做平衡。
 
 功能概述：
 - 从指定目录按自然顺序读取图片
@@ -29,6 +33,8 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from dataflow_agent.utils import get_project_root
+from dataflow_agent.logger import get_logger
+log = get_logger(__name__)
 
 # ----------------------------
 # Config (默认配置，可通过对外函数参数进行部分覆盖)
@@ -125,22 +131,16 @@ def debug_dump(img: np.ndarray, tag: str = "dbg") -> None:
     """
     os.makedirs(DEBUG_DIR, exist_ok=True)
 
-    print(tag, "type:", type(img))
+    log.info(f"{tag} type: {type(img)}")
     if isinstance(img, np.ndarray):
-        print(
-            tag,
-            "shape:",
-            img.shape,
-            "dtype:",
-            img.dtype,
-            "min/max:",
-            int(img.min()),
-            int(img.max()),
+        log.info(
+            f"{tag} shape: {img.shape}, dtype: {img.dtype}, "
+            f"min/max: {int(img.min())}/{int(img.max())}"
         )
 
     out_path = os.path.join(DEBUG_DIR, f"{tag}.png")
     ok = cv2.imwrite(out_path, img)
-    print(tag, "saved:", out_path, "ok:", ok)
+    log.info(f"{tag} saved: {out_path}, ok: {ok}")
 
 
 # ----------------------------
@@ -710,7 +710,7 @@ def ocr_images_to_ppt(
     slide_h_emu = prs.slide_height
 
     for idx, img_path in enumerate(image_paths, start=1):
-        print(f"Processing slide #{idx}: {os.path.basename(img_path)}")
+        log.info(f"Processing slide #{idx}: {os.path.basename(img_path)}")
 
         bgr = read_bgr(img_path)
 
@@ -720,7 +720,7 @@ def ocr_images_to_ppt(
         if idx <= DEBUG_DUMP_FIRST_N:
             debug_dump(bgr, f"before_ocr_raw_{idx}")
             debug_dump(ocr_img, f"before_ocr_up_{idx}")
-            print(f"slide#{idx} upscale scale={scale:.3f}")
+            log.info(f"slide#{idx} upscale scale={scale:.3f}")
 
         h0, w0 = bgr.shape[:2]  # 原图尺寸
         h1, w1 = ocr_img.shape[:2]  # OCR输入尺寸
@@ -749,22 +749,22 @@ def ocr_images_to_ppt(
         body_h_px = analyze_line_heights(lines)
 
         if not lines:
-            print(f"[WARN] slide#{idx} no text detected")
+            log.warning(f"slide#{idx} no text detected")
         else:
-            print(f"slide#{idx} detected {len(lines)} text boxes")
+            log.info(f"slide#{idx} detected {len(lines)} text boxes")
 
         # 估计背景颜色（用于颜色提取）
         bg_color = None
         if use_text_color and lines:
             bg_color = estimate_background_color(bgr, lines)
             if bg_color:
-                print(f"slide#{idx} estimated background color: RGB{bg_color}")
+                log.info(f"slide#{idx} estimated background color: RGB{bg_color}")
 
         # 底图处理：可选 inpaint 生成"干净底图"
         bg_for_slide = bgr
         if add_background_image:
             if clean_background and lines:
-                print(f"slide#{idx} applying inpainting...")
+                log.info(f"slide#{idx} applying inpainting...")
                 bg_for_slide = make_clean_background(bgr, lines)
                 if idx <= DEBUG_DUMP_FIRST_N:
                     debug_dump(bg_for_slide, f"clean_bg_{idx}")

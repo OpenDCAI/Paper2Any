@@ -27,11 +27,11 @@ async def run_paper2page_content_pipeline_pdf() -> Paper2FigureState:
     执行 paper2page_content 工作流的测试流程（PDF 输入）
     """
     req = Paper2FigureRequest()
-    req.input_type = "PDF"
+    req.input_type = "PPT"
     req.model = "gpt-5.1"
-    req.page_count = 10
+    req.page_count = 3
     req.chat_api_url = "https://api.apiyi.com/v1"
-    req.style = "白色背景,蜡笔小新风格；英文；"
+    req.style = "赛博朋克的风格；中文；"
     
 
     state = Paper2FigureState(
@@ -39,6 +39,7 @@ async def run_paper2page_content_pipeline_pdf() -> Paper2FigureState:
         agent_results={},
         request=req,
         paper_file=f"{get_project_root()}/tests/2506.02454v1.pdf",
+        # paper_file=f"{get_project_root()}/tests/test.pptx",   
         # result_path = "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/outputs"
     )
 
@@ -70,10 +71,6 @@ async def run_paper2page_content_pipeline_pdf() -> Paper2FigureState:
 # In terms of waste-to-energy systems, Khwammana & Chaiyata (2025) reported on a waste-toenergy-to-zero system that uses municipal solid waste (17.85 tonnes/day at $3 1 . 6 3 \%$ combustible) to fuel a combined cooling, heating, and power plant. The system delivers 306.98 kW at $2 2 . 3 8 \%$ efficiency, yielding a levelized energy cost of 0.15 USD/kWh, NPV of 1,634,658 USD, profitability index of 1.72, internal rate of return of $7 . 9 7 \%$ , and payback period of 9.63 years.
 
 # Clement's (2012) Fort Bliss WtE/CSP hybrid cost-benefit study shows that NPV is highly sensitive to the gap between local tariff and WtE rate. Using EPA's WARM model for 1 million tonnes/year feedstock, the Fort Bliss WtE diversion avoids approximately 264,025 MTCO2e annually. At carbon credit prices ranging from 0.10-10 USD/MTCO2e, 20-year environmental benefits range from $\$ 0.4$ million to $\$ 36.2$ million USD.
-    
-    
-    
-    
 #     """
 
     # 对应 wf_paper2page_content.py 中的 @register("paper2page_content")

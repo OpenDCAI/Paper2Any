@@ -66,6 +66,35 @@ def _serialize_prompt_dict(d: Dict[str, Any]) -> str:
         return str(d)
 
 
+def _normalize_single_asset_ref(asset_ref: str) -> str:
+    """
+    规范化 asset_ref，仅保留第一张图的路径/文件名。
+
+    当前版本不支持多图编辑：
+    - 如果 asset_ref 中包含逗号等分隔符，如 "a.jpg,b.jpg"，
+      只取第一段 "a.jpg"。
+    - TODO: 后续可以扩展多图 asset_ref 支持。
+    """
+    if not asset_ref:
+        return ""
+    s = str(asset_ref).strip()
+    if not s:
+        return ""
+
+    # 简单按逗号切分，保留第一个
+    parts = [p.strip() for p in s.split(",") if p.strip()]
+    if not parts:
+        return ""
+
+    if len(parts) > 1:
+        log.warning(
+            "[paper2ppt] asset_ref 包含多张图片，仅使用第一张。"
+            f" raw={asset_ref!r}, first={parts[0]!r}  # TODO: 支持多图 asset_ref"
+        )
+
+    return parts[0]
+
+
 async def _make_prompt_for_structured_page(item: Dict[str, Any], style: str, state: Paper2FigureState) -> Tuple[str, Optional[str], bool]:
     """
     根据结构化 page item 生成:
@@ -80,8 +109,9 @@ async def _make_prompt_for_structured_page(item: Dict[str, Any], style: str, sta
     """
     asset_ref = item.get("asset_ref") or item.get("asset") or item.get("assetRef") or ""
     asset_ref = str(asset_ref).strip() if asset_ref is not None else ""
+    # TODO 当前版本仅支持单图 asset_ref；若包含多图，仅保留第一张。
+    asset_ref = _normalize_single_asset_ref(asset_ref)
 
-    # prompt 基础：去掉 asset 字段，避免模型把路径当文本生成
     prompt_dict = dict(item)
     for k in ["asset_ref", "asset", "assetRef", "asset_type", "type"]:
         if k in prompt_dict:
@@ -150,6 +180,8 @@ def _resolve_asset_path(asset_ref: str, state: Paper2FigureState) -> str:
         return _abs_path(s)
 
     base_dir = getattr(state, "mineru_root", None) or getattr(state, "result_path", None)
+    log.critical(f'[base_dir _resolve_asset_path]:   {base_dir}')
+    
     if base_dir:
         try:
             return str((Path(base_dir) / p).resolve())
@@ -369,6 +401,10 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
         """
         gen_down == True 时的路径：
         通过 edit_page_num(0-based) + edit_page_prompt 对已经生成好的某一页做二次编辑。
+
+        当前策略（B1）：
+        - 不再生成 *_edit_*.png 新文件；
+        - 直接覆盖原来的 page_{idx:03d}.png，保证导出时每页只有一张图。
         """
         idx = int(getattr(state, "edit_page_num", -1))
         prompt = (getattr(state, "edit_page_prompt", "") or "").strip()
@@ -394,8 +430,8 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
         img_dir = result_root / "ppt_pages"
         img_dir.mkdir(parents=True, exist_ok=True)
 
-        ts = int(time.time())
-        save_path = str((img_dir / f"page_{idx:03d}_edit_{ts}.png").resolve())
+        # B1 策略：编辑时直接覆盖原始 page_{idx:03d}.png，避免 *_edit_*.png 累积
+        save_path = str((img_dir / f"page_{idx:03d}.png").resolve())
         aspect_ratio = getattr(state, "aspect_ratio", None) or "16:9"
 
         log.info(f"[paper2ppt] edit_single_page idx={idx} old={old_path} save={save_path}")
@@ -431,7 +467,19 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
         最终导出节点：
         - 使用 ppt_tool.convert_images_dir_to_pdf_and_ppt
           将 result_path/ppt_pages 中的页面图导出为 PDF 和可编辑 PPTX。
+
+        注意：
+        - gen_down == False（首次生成）：始终导出；
+        - gen_down == True（编辑模式）：只有在 request.all_edited_down == True 时才导出，
+          否则直接跳过该节点。
         """
+        # 若处于编辑模式且未标记全部编辑完成，则跳过导出
+        if getattr(state, "gen_down", False):
+            all_done = getattr(getattr(state, "request", None), "all_edited_down", False)
+            if not all_done:
+                log.info("[paper2ppt] export_ppt_assets skipped: gen_down=True & all_edited_down is False")
+                return state
+
         result_root = Path(_ensure_result_path(state))
         img_dir = result_root / "ppt_pages"
 
