@@ -76,7 +76,7 @@ async def _post_raw(
         try:
             resp = await client.post(url, headers=headers, json=payload)
             log.info(f"status={resp.status_code}")
-            log.info(f"resp.text[:500]={resp.text[:500]}")
+            # log.info(f"resp[:500]={resp.text}")
             resp.raise_for_status()
             return resp.json()
         except httpx.HTTPStatusError as e:
@@ -462,6 +462,7 @@ def build_gemini_edit_request(
 
     # 3) 123 + 3 Pro => 保持现有 chat/completions + text + image_url
     if provider is Provider.LOCAL_123 and is_gemini_3_pro(model):
+        log.critical(f'走 Local 3000 + Gemini3 Pro 路径')
         url = f"{base}/chat/completions"
         messages = [
             {
@@ -481,8 +482,8 @@ def build_gemini_edit_request(
             "model": model,
             "messages": messages,
             "response_format": {"type": "image"},
-            "max_tokens": 1024,
-            "temperature": 0.7,
+            # "max_tokens": 1024,
+            # "temperature": 0.7,
         }
         return url, payload
 
@@ -640,7 +641,7 @@ async def generate_or_edit_and_save_image_async(
         timeout_map = {"1K": 180, "2K": 300, "4K": 360}
         timeout = timeout_map.get(resolution, 300)
     
-    log.info(f"aspect_ratio: {aspect_ratio} \n resolution: {resolution} \n use_edit: {use_edit} \n model: {model} \n api_url: {api_url} \n timeout: {timeout}")
+    log.info(f"aspect_ratio: {aspect_ratio} \n resolution: {resolution} \n use_edit: {use_edit} \n model: {model} \n api_url: {api_url} \n timeout: {timeout} \n api_key: {api_key}")
     # 根据模型类型选择不同的API
     if _is_dalle_model(model):
         if use_edit:
@@ -745,14 +746,16 @@ if __name__ == "__main__":
     import asyncio
 
     async def _demo():
-        API_URL = "http://123.129.219.111:3000/v1"
+        # API_URL = "http://123.129.219.111:3000/v1"
+        API_URL = "https://api.apiyi.com/v1"
         API_KEY = os.getenv("DF_API_KEY")
         
         # 测试Gemini模型
         MODEL_GEMINI = "gemini-2.5-flash-image-preview"
+        # gemini-2.5-flash-image-preview gemini-3-pro-image-preview
         
         # 测试DALL-E模型
-        MODEL_DALLE = "dall-e-3"
+        # MODEL_DALLE = "dall-e-3"
 
         # 1) Gemini纯文生图
         # await generate_or_edit_and_save_image_async(
@@ -765,26 +768,26 @@ if __name__ == "__main__":
         # )
 
         # 2) DALL-E纯文生图
-        await generate_or_edit_and_save_image_async(
-            prompt="一只可爱的小海獭",
-            save_path="./gen_otter_dalle.png",
-            api_url=API_URL,
-            api_key=API_KEY,
-            model=MODEL_DALLE,
-            use_edit=False,
-            quality="standard",
-            style="vivid"
-        )
+        # await generate_or_edit_and_save_image_async(
+        #     prompt="一只可爱的小海獭",
+        #     save_path="./gen_otter_dalle.png",
+        #     api_url=API_URL,
+        #     api_key=API_KEY,
+        #     model=MODEL_DALLE,
+        #     use_edit=False,
+        #     quality="standard",
+        #     style="vivid"
+        # )
 
         # 3) Gemini Edit 模式
         await generate_or_edit_and_save_image_async(
             prompt="请把这只猫改成蒸汽朋克风格",
-            image_path="./gen_cat_gemini.png",
+            # image_path="/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/tests/cat_icon.png",
             save_path="./edited_cat_gemini.png",
             api_url=API_URL,
             api_key=API_KEY,
             model=MODEL_GEMINI,
-            use_edit=True, 
+            # use_edit=True, 
         )
 
         # 4) DALL-E Edit 模式（需要mask）
