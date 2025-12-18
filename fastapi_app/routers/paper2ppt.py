@@ -7,7 +7,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi_app.schemas import Paper2PPTRequest, Paper2PPTResponse
 from fastapi_app.utils import _to_outputs_url, validate_invite_code
-from fastapi_app.workflow_adapters.paper2ppt import (
+from fastapi_app.workflow_adapters.wa_paper2ppt import (
     run_paper2page_content_wf_api,
     run_paper2ppt_full_pipeline,
     run_paper2ppt_wf_api,
