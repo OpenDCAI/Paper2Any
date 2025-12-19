@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/new_logo_bgrm.png" alt="DataFlow-Agent Logo" width="200"/><br>
+<img src="static/new_logo_bgrm.png" alt="DataFlow-Agent Logo" width="200"/><br>
 
 # DataFlow-Agent
 
@@ -33,19 +33,35 @@ English | [中文](README.md)
 
 ## 📑 Table of Contents
 
-- [🔥 News](#-news)
-- [📐 Architecture](#-architecture)
-- [✨ Core Applications](#-core-applications)
-  - [Paper2Any - Paper Multimodal Workflow](#1%EF%B8%8F%E2%83%A3-paper2any---paper-multimodal-workflow)
-  - [Easy-DataFlow - Data Governance Pipeline](#2%EF%B8%8F%E2%83%A3-easy-dataflow---data-governance-pipeline)
-  - [DataFlow-Table - Multi-source Data Analysis](#3%EF%B8%8F%E2%83%A3-dataflow-table---multi-source-data-analysis)
-- [🚀 Quick Start](#-quick-start)
-- [📂 Project Structure](#-project-structure)
-- [🗺️ Roadmap](#%EF%B8%8F-roadmap)
-- [🤝 Contributing](#-contributing)
+- [⚡ TL;DR](#tldr)
+- [🔥 News](#news)
+- [📐 Architecture](#architecture)
+- [✨ Core Applications](#core-apps)
+  - [Paper2Any - Paper Multimodal Workflow](#paper2any)
+  - [Easy-DataFlow - Data Governance Pipeline](#easy-dataflow)
+- [🚀 Quick Start](#quick-start)
+- [📂 Project Structure](#project-structure)
+- [🗺️ Roadmap](#roadmap)
+- [🤝 Contributing](#contributing)
 
 ---
 
+<a id="tldr"></a>
+## ⚡ TL;DR
+
+> [!TIP]
+> Fastest way to run Paper2Any Web locally:
+>
+> 1. Install: `pip install -r requirements.txt && pip install -e .`
+> 2. Configure: `export DF_API_KEY=...` and `export DF_API_URL=...`
+> 3. Backend: `uvicorn fastapi_app.main:app --host 0.0.0.0 --port 9999`
+> 4. Frontend (Node.js 18+): `cd frontend-workflow && npm install && npm run dev`
+>
+> See [🚀 Quick Start](#quick-start) for full steps.
+
+---
+
+<a id="news"></a>
 ## 🔥 News
 
 <table>
@@ -67,23 +83,26 @@ One-click generation of multiple <strong>editable</strong> scientific figures, i
 </table>
 
 <div align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend_1.png" alt="Paper2Figure Web UI" width="49%"/>
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend_2.png" alt="Paper2Figure Web UI (2)" width="49%"/>
+  <img src="static/p2f_frontend_1.png" alt="Paper2Figure Web UI" width="49%"/>
+  <img src="static/p2f_frontend_2.png" alt="Paper2Figure Web UI (2)" width="49%"/>
 </div>
 
 ---
 
+<a id="architecture"></a>
 ## 📐 Architecture
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/projs_dist.png" alt="Project Architecture" width="800"/>
-<br><sub>Three core applications extended from DataFlow-Agent: Paper2Any (Paper Multimodal Workflow), Easy-DataFlow (Data Governance Pipeline), DataFlow-Table (Multi-source Data Analysis)</sub>
+<img src="static/projs_dist.png" alt="Project Architecture" width="800"/>
+<br><sub>Core applications: Paper2Any (Paper Multimodal Workflow), Easy-DataFlow (Data Governance Pipeline)</sub>
 </div>
 
 ---
 
+<a id="core-apps"></a>
 ## ✨ Core Applications
 
+<a id="paper2any"></a>
 ### 1️⃣ Paper2Any - Paper Multimodal Workflow
 
 > Starting from a paper PDF / image / text, generate **editable** multimodal outputs such as scientific figures, slide decks, video scripts, academic posters, and more.
@@ -135,6 +154,9 @@ Paper2Any currently includes the following sub-modules:
 
 ---
 
+<details>
+<summary><strong>Show Paper2Figure Showcase (image-heavy)</strong></summary>
+
 #### 📸 Showcase - Paper2Figure
 
 ##### Model Architecture Diagram Generation
@@ -147,15 +169,15 @@ Paper2Any currently includes the following sub-modules:
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img.png" alt="Input: paper PDF" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_pdf_img.png" alt="Input: paper PDF" width="100%"/>
 <br><sub>📄 Paper PDF</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img_2.png" alt="Generated model diagram" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_pdf_img_2.png" alt="Generated model diagram" width="100%"/>
 <br><sub>🎨 Generated model architecture</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img_3.png" alt="PPTX screenshot" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_pdf_img_3.png" alt="PPTX screenshot" width="100%"/>
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
@@ -166,15 +188,15 @@ Paper2Any currently includes the following sub-modules:
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_1.png" alt="Input: paper PDF" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_mid_img_1.png" alt="Input: paper PDF" width="100%"/>
 <br><sub>📄 Paper PDF</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_2.png" alt="Generated model diagram" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_mid_img_2.png" alt="Generated model diagram" width="100%"/>
 <br><sub>🎨 Generated model architecture</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_3.png" alt="PPTX screenshot" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_mid_img_3.png" alt="PPTX screenshot" width="100%"/>
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
@@ -185,7 +207,7 @@ Paper2Any currently includes the following sub-modules:
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_1.png" alt="Input: key paragraphs" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_hard_img_1.png" alt="Input: key paragraphs" width="100%"/>
 <br><sub>📄 Input key paragraphs</sub>
 </td>
 <td align="center">
@@ -193,7 +215,7 @@ Paper2Any currently includes the following sub-modules:
 <br><sub>🎨 Generated model architecture</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_3.png" alt="PPTX screenshot" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_hard_img_3.png" alt="PPTX screenshot" width="100%"/>
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
@@ -222,15 +244,15 @@ Upload a paper PDF and choose the diagram difficulty (Easy/Medium/Hard). The sys
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/paper1.png" alt="Input: paper text (Chinese)" width="100%"/>
+<img src="static/paper2any_imgs/p2t/paper1.png" alt="Input: paper text (Chinese)" width="100%"/>
 <br><sub>📝 Method section (Chinese)</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/cn_img_1.png" alt="Roadmap diagram SVG" width="100%"/>
+<img src="static/paper2any_imgs/p2t/cn_img_1.png" alt="Roadmap diagram SVG" width="100%"/>
 <br><sub>🗺️ Roadmap diagram SVG</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/cn_img_2.png" alt="PPTX screenshot" width="100%"/>
+<img src="static/paper2any_imgs/p2t/cn_img_2.png" alt="PPTX screenshot" width="100%"/>
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
@@ -241,15 +263,15 @@ Upload a paper PDF and choose the diagram difficulty (Easy/Medium/Hard). The sys
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/paper2.png" alt="Input: paper text (English)" width="100%"/>
+<img src="static/paper2any_imgs/p2t/paper2.png" alt="Input: paper text (English)" width="100%"/>
 <br><sub>📝 Method section (English)</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/en_img_1.png" alt="Roadmap diagram SVG" width="100%"/>
+<img src="static/paper2any_imgs/p2t/en_img_1.png" alt="Roadmap diagram SVG" width="100%"/>
 <br><sub>🗺️ Roadmap diagram SVG</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/en_img_2.png" alt="PPTX screenshot" width="100%"/>
+<img src="static/paper2any_imgs/p2t/en_img_2.png" alt="PPTX screenshot" width="100%"/>
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
@@ -278,15 +300,15 @@ Paste the method section and select the language (Chinese/English). The system o
 </tr>
 <tr>
 <td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2e/paper_1.png" alt="Input: experimental results screenshot" width="100%"/>
+  <img src="static/paper2any_imgs/p2e/paper_1.png" alt="Input: experimental results screenshot" width="100%"/>
   <br><sub>📄 Input: paper PDF / results screenshot</sub>
 </td>
 <td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2e/paper_1_2.png" alt="Output: standard plot" width="100%"/>
+  <img src="static/paper2any_imgs/p2e/paper_1_2.png" alt="Output: standard plot" width="100%"/>
   <br><sub>📈 Output: standard Python-style plot</sub>
 </td>
 <td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2e/paper_1_3.png" alt="Output: polished plot" width="100%"/>
+  <img src="static/paper2any_imgs/p2e/paper_1_3.png" alt="Output: polished plot" width="100%"/>
   <br><sub>🎨 Output: publication-ready styled plot</sub>
 </td>
 </tr>
@@ -300,6 +322,8 @@ Upload an experimental results screenshot/table. The system extracts key numbers
 
 ---
 
+</details>
+
 #### 🖥️ How to Use
 
 **Option 1: Web Frontend (Recommended)**
@@ -308,7 +332,7 @@ The online version is currently available for invited users only:
 [https://dcai-paper2any.cpolar.top/](https://dcai-paper2any.cpolar.top/)
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend.png" alt="Web UI" width="100%"/>
+<img src="static/p2f_frontend.png" alt="Web UI" width="100%"/>
 </div>
 
 **Highlights**:
@@ -335,6 +359,7 @@ Open `http://127.0.0.1:7860`
 
 ---
 
+<a id="easy-dataflow"></a>
 ### 2️⃣ Easy-DataFlow - Data Governance Pipeline
 
 > From task description to executable pipelines: an AI-powered end-to-end data governance workflow.
@@ -351,12 +376,15 @@ Open `http://127.0.0.1:7860`
 
 ---
 
+<details>
+<summary><strong>Show Easy-DataFlow screenshots</strong></summary>
+
 #### 📸 Feature Demos
 
 **Pipeline Recommendation: From task to code**
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/imag_piperec.png" alt="Pipeline recommendation" width="50%"/>
+<img src="static/imag_piperec.png" alt="Pipeline recommendation" width="50%"/>
 <br><sub>💻 Analyze requirements and generate an optimal operator chain with runnable Python pipeline code</sub>
 </div>
 
@@ -365,7 +393,7 @@ Open `http://127.0.0.1:7860`
 **Operator Authoring: AI-assisted development**
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/image_opwrite.png" alt="Operator authoring" width="50%"/>
+<img src="static/image_opwrite.png" alt="Operator authoring" width="50%"/>
 <br><sub>⚙️ Generate operator code from functional descriptions and test/debug in the same UI</sub>
 </div>
 
@@ -374,7 +402,7 @@ Open `http://127.0.0.1:7860`
 **Visual Orchestration: Drag-and-drop**
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/image.png" alt="Visual orchestration" width="50%"/>
+<img src="static/image.png" alt="Visual orchestration" width="50%"/>
 <br><sub>🎨 Build pipelines visually by composing operators with a WYSIWYG interface</sub>
 </div>
 
@@ -383,7 +411,7 @@ Open `http://127.0.0.1:7860`
 **Prompt Optimization: Automatic tuning**
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/promptagent.png" alt="Prompt optimization" width="50%"/>
+<img src="static/promptagent.png" alt="Prompt optimization" width="50%"/>
 <br><sub>✨ Reuse existing operators to auto-generate DataFlow prompt templates and optimize prompts</sub>
 </div>
 
@@ -392,29 +420,15 @@ Open `http://127.0.0.1:7860`
 **Web Collection: Web to data**
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/web_collection.png" alt="Web collection" width="50%"/>
+<img src="static/web_collection.png" alt="Web collection" width="50%"/>
 <br><sub>📊 Automate web collection & structuring into DataFlow-ready datasets</sub>
 </div>
 
 ---
 
-### 3️⃣ DataFlow-Table - Multi-source Data Analysis
+</details>
 
-> Connect to multiple data sources and generate automated analysis and insights.
-
-#### 🚧 Work in Progress
-
-DataFlow-Table is under active development. Stay tuned!
-
-**Working features**:
-- 📥 Multi-source ingestion (DB / files / web / API)
-- 🧹 Intelligent cleaning & normalization
-- 📊 AI-driven automated analysis
-- 📝 Natural-language reports
-- 📈 Interactive charts & dashboards
-
----
-
+<a id="quick-start"></a>
 ## 🚀 Quick Start
 
 ### Requirements
@@ -446,6 +460,9 @@ pip install -e .
 
 Paper2Any requires extra Python dependencies (see `requirements-paper.txt`) and a few system/conda tools for rendering and vector graphics processing:
 
+<details>
+<summary><strong>Show: Paper2Any extra dependencies</strong></summary>
+
 ```bash
 # Install Paper2Any dependencies
 pip install -r requirements-paper.txt
@@ -458,6 +475,8 @@ sudo apt-get update
 sudo apt-get install -y inkscape
 ```
 
+</details>
+
 ### Environment Configuration
 
 ```bash
@@ -466,11 +485,13 @@ export DF_API_URL=xxx
 # If using third-party API gateway
 ```
 
-Third-party API gateways:
+<details>
+<summary><strong>Optional: Third-party API gateways</strong></summary>
 
-[https://api.apiyi.com/](https://api.apiyi.com/)
+- https://api.apiyi.com/
+- http://123.129.219.111:3000/
 
-[http://123.129.219.111:3000/](http://123.129.219.111:3000/)
+</details>
 
 ---
 
@@ -483,18 +504,31 @@ Third-party API gateways:
 
 **Web Frontend (Recommended)**
 
-```bash
-# Start backend API
-cd fastapi_app
-uvicorn main:app --host 0.0.0.0 --port 8000
+> The frontend requires Node.js 18+.
 
-# Start frontend (new terminal)
+```bash
+# Start backend API (Terminal 1)
+cd fastapi_app
+uvicorn main:app --host 0.0.0.0 --port 9999
+
+# Start frontend (Terminal 2)
 cd frontend-workflow
 npm install
 npm run dev
+```
 
-# Configure dev/DataFlow-Agent/frontend-workflow/vite.config.ts
-# Modify server.proxy to:
+Visit `http://localhost:3000`
+
+> [!NOTE]
+> `frontend-workflow/vite.config.ts` already proxies `/api` to `http://127.0.0.1:9999` by default.
+
+<details>
+<summary><strong>Change frontend proxy port (vite.config.ts)</strong></summary>
+
+```ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -503,7 +537,7 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',  // FastAPI backend address
+        target: 'http://127.0.0.1:9999', // FastAPI backend address
         changeOrigin: true,
       },
     },
@@ -511,7 +545,7 @@ export default defineConfig({
 })
 ```
 
-Visit `http://localhost:3000`
+</details>
 
 > [!TIP]
 > **Paper2Figure Web Beta Access**
@@ -550,15 +584,7 @@ Visit `http://127.0.0.1:7860`
 
 ---
 
-> [!NOTE]
-> **DataFlow-Table**: For multi-source data ingestion and exploratory analysis, currently under development.
-
-#### 🔍 DataFlow-Table - Data Analysis
-
-🚧 **Under development, stay tuned!**
-
----
-
+<a id="project-structure"></a>
 ## 📂 Project Structure
 
 ```
@@ -587,7 +613,14 @@ DataFlow-Agent/
 
 ---
 
+<a id="roadmap"></a>
 ## 🗺️ Roadmap
+
+> [!NOTE]
+> The roadmap tables are long; they are collapsed by default.
+
+<details>
+<summary><strong>Show full Roadmap (tables)</strong></summary>
 
 ### 🎓 Paper Series
 
@@ -674,16 +707,6 @@ DataFlow-Agent/
 <img src="https://img.shields.io/badge/✓-Web_Collection-success?style=flat-square" alt="Done"/>
 </td>
 </tr>
-<tr>
-<td><strong>📊 DataFlow-Table</strong><br><sub>Multi-source Data Analysis</sub></td>
-<td><img src="https://img.shields.io/badge/Status-Working-lightgrey?style=flat-square" alt="Working"/></td>
-<td>
-<img src="https://img.shields.io/badge/○-Multi--source_Ingestion-lightgrey?style=flat-square" alt="Working"/><br>
-<img src="https://img.shields.io/badge/○-Smart_Retrieval-lightgrey?style=flat-square" alt="Working"/><br>
-<img src="https://img.shields.io/badge/○-Lineage_Tracking-lightgrey?style=flat-square" alt="Working"/><br>
-<img src="https://img.shields.io/badge/○-Advanced_Visualization-lightgrey?style=flat-square" alt="Working"/>
-</td>
-</tr>
 </table>
 
 ---
@@ -717,12 +740,15 @@ DataFlow-Agent/
 </table>
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/dfa_fronted.png" width="800" alt="Workflow Editor"/>
+<img src="static/dfa_fronted.png" width="800" alt="Workflow Editor"/>
 <br><sub>🎨 Workflow Visual Editor Preview</sub>
 </div>
 
 ---
 
+</details>
+
+<a id="contributing"></a>
 ## 🤝 Contributing
 
 We welcome all forms of contributions!

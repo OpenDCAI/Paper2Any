@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/new_logo_bgrm.png" alt="DataFlow-Agent Logo" width="200"/><br>
+<img src="static/new_logo_bgrm.png" alt="DataFlow-Agent Logo" width="200"/><br>
 
 # DataFlow-Agent
 
@@ -33,19 +33,21 @@
 
 ## 📑 目录
 
-- [🔥 News](#-news)
-- [📐 项目架构](#-项目架构)
-- [✨ 核心应用](#-核心应用)
-  - [Paper2Any - 论文多模态工作流](#1️⃣-paper2any---论文多模态工作流)
-  - [Easy-DataFlow - 数据治理管线](#2️⃣-easy-dataflow---数据治理管线)
-  - [DataFlow-Table - 多源数据分析](#3️⃣-dataflow-table---多源数据分析)
-- [🚀 快速开始](#-快速开始)
-- [📂 项目结构](#-项目结构)
-- [🗺️ Roadmap](#️-roadmap)
-- [🤝 贡献](#-贡献)
+
+- [🔥 News](#news)
+- [📐 项目架构](#architecture)
+- [✨ 核心应用](#core-apps)
+  - [Paper2Any - 论文多模态工作流](#paper2any)
+  - [Easy-DataFlow - 数据治理管线](#easy-dataflow)
+- [🚀 快速开始](#quick-start)
+- [📂 项目结构](#project-structure)
+- [🗺️ Roadmap](#roadmap)
+- [🤝 贡献](#contributing)
 
 ---
 
+
+<a id="news"></a>
 ## 🔥 News
 
 <table>
@@ -67,23 +69,26 @@
 </table>
 
 <div align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend_1.png" alt="Paper2Figure Web UI" width="49%"/>
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend_2.png" alt="Paper2Figure Web UI (2)" width="49%"/>
+  <img src="static/p2f_frontend_1.png" alt="Paper2Figure Web UI" width="49%"/>
+  <img src="static/p2f_frontend_2.png" alt="Paper2Figure Web UI (2)" width="49%"/>
 </div>
 
 ---
 
+<a id="architecture"></a>
 ## 📐 项目架构
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/projs_dist.png" alt="项目架构图" width="800"/>
-<br><sub>DataFlow-Agent 延伸的三个核心应用：Paper2Any（论文多模态工作流）、Easy-DataFlow（数据治理管线）、DataFlow-Table（多源数据分析）</sub>
+<img src="static/projs_dist.png" alt="项目架构图" width="800"/>
+<br><sub>DataFlow-Agent 的核心应用：Paper2Any（论文多模态工作流）、Easy-DataFlow（数据治理管线）</sub>
 </div>
 
 ---
 
+<a id="core-apps"></a>
 ## ✨ 核心应用
 
+<a id="paper2any"></a>
 ### 1️⃣ Paper2Any - 论文多模态工作流
 
 > 从论文 PDF / 图片 / 文本出发，一键生成**可编辑**的科研绘图、演示文稿、视频脚本、学术海报等多模态内容。
@@ -135,6 +140,9 @@ Paper2Any 当前包含以下几个子能力：
 
 ---
 
+<details>
+<summary><strong>展开查看 Paper2Figure Showcase</strong></summary>
+
 #### 📸 ShowCase - Paper2Figure
 
 ##### 模型架构图生成
@@ -147,15 +155,15 @@ Paper2Any 当前包含以下几个子能力：
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img.png" alt="输入：论文 PDF" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_pdf_img.png" alt="输入：论文 PDF" width="100%"/>
 <br><sub>📄 论文 PDF</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img_2.png" alt="生成的模型图" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_pdf_img_2.png" alt="生成的模型图" width="100%"/>
 <br><sub>🎨 生成的模型架构图</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img_3.png" alt="PPTX 截图" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_pdf_img_3.png" alt="PPTX 截图" width="100%"/>
 <br><sub>📊 可编辑 PPTX</sub>
 </td>
 </tr>
@@ -166,15 +174,15 @@ Paper2Any 当前包含以下几个子能力：
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_1.png" alt="输入：论文 PDF" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_mid_img_1.png" alt="输入：论文 PDF" width="100%"/>
 <br><sub>📄 论文PDF</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_2.png" alt="生成的模型图" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_mid_img_2.png" alt="生成的模型图" width="100%"/>
 <br><sub>🎨 生成的模型架构图</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_3.png" alt="PPTX 截图" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_mid_img_3.png" alt="PPTX 截图" width="100%"/>
 <br><sub>📊 可编辑 PPTX</sub>
 </td>
 </tr>
@@ -185,7 +193,7 @@ Paper2Any 当前包含以下几个子能力：
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_1.png" alt="输入：论文 PDF" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_hard_img_1.png" alt="输入：论文 PDF" width="100%"/>
 <br><sub>📄 输入核心段落</sub>
 </td>
 <td align="center">
@@ -193,7 +201,7 @@ Paper2Any 当前包含以下几个子能力：
 <br><sub>🎨 生成的模型架构图</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_3.png" alt="PPTX 截图" width="100%"/>
+<img src="static/paper2any_imgs/p2f/p2f_paper_hard_img_3.png" alt="PPTX 截图" width="100%"/>
 <br><sub>📊 可编辑 PPTX</sub>
 </td>
 </tr>
@@ -222,15 +230,15 @@ Paper2Any 当前包含以下几个子能力：
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/paper1.png" alt="输入：论文文本（中文）" width="100%"/>
+<img src="static/paper2any_imgs/p2t/paper1.png" alt="输入：论文文本（中文）" width="100%"/>
 <br><sub>📝 论文方法部分（中文）</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/cn_img_1.png" alt="技术路线图 SVG" width="100%"/>
+<img src="static/paper2any_imgs/p2t/cn_img_1.png" alt="技术路线图 SVG" width="100%"/>
 <br><sub>🗺️ 技术路线图 SVG</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/cn_img_2.png" alt="PPTX 截图" width="100%"/>
+<img src="static/paper2any_imgs/p2t/cn_img_2.png" alt="PPTX 截图" width="100%"/>
 <br><sub>📊 可编辑 PPTX</sub>
 </td>
 </tr>
@@ -241,15 +249,15 @@ Paper2Any 当前包含以下几个子能力：
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/paper2.png" alt="输入：论文文本（英文）" width="100%"/>
+<img src="static/paper2any_imgs/p2t/paper2.png" alt="输入：论文文本（英文）" width="100%"/>
 <br><sub>📝 论文方法部分（英文）</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/en_img_1.png" alt="技术路线图 SVG" width="100%"/>
+<img src="static/paper2any_imgs/p2t/en_img_1.png" alt="技术路线图 SVG" width="100%"/>
 <br><sub>🗺️ 技术路线图 SVG</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/en_img_2.png" alt="PPTX 截图" width="100%"/>
+<img src="static/paper2any_imgs/p2t/en_img_2.png" alt="PPTX 截图" width="100%"/>
 <br><sub>📊 可编辑 PPTX</sub>
 </td>
 </tr>
@@ -278,15 +286,15 @@ Paper2Any 当前包含以下几个子能力：
 </tr>
 <tr>
 <td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2e/paper_1.png" alt="输入：实验结果截图" width="100%"/>
+  <img src="static/paper2any_imgs/p2e/paper_1.png" alt="输入：实验结果截图" width="100%"/>
   <br><sub>📄 输入：论文 PDF / 实验结果截图</sub>
 </td>
 <td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2e/paper_1_2.png" alt="输出：实验数据图（基础样式）" width="100%"/>
+  <img src="static/paper2any_imgs/p2e/paper_1_2.png" alt="输出：实验数据图（基础样式）" width="100%"/>
   <br><sub>📈 输出：常规 Python 风格实验数据图</sub>
 </td>
 <td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2e/paper_1_3.png" alt="输出：实验数据图（精美样式）" width="100%"/>
+  <img src="static/paper2any_imgs/p2e/paper_1_3.png" alt="输出：实验数据图（精美样式）" width="100%"/>
   <br><sub>🎨 输出：精美排版的实验数据图</sub>
 </td>
 </tr>
@@ -300,6 +308,8 @@ Paper2Any 当前包含以下几个子能力：
 
 ---
 
+</details>
+
 #### 🖥️ 使用方式
 
 **方式一：Web 前端（推荐）**
@@ -307,7 +317,7 @@ Paper2Any 当前包含以下几个子能力：
 (目前在线版只支持邀请用户体验)访问在线体验地址：[https://dcai-paper2any.cpolar.top/](https://dcai-paper2any.cpolar.top/)
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend.png" alt="前端界面" width="100%"/>
+<img src="static/p2f_frontend.png" alt="前端界面" width="100%"/>
 </div>
 
 **特点**：
@@ -334,6 +344,7 @@ python gradio_app/app.py
 
 ---
 
+<a id="easy-dataflow"></a>
 ### 2️⃣ Easy-DataFlow - 数据治理管线
 
 > 从任务描述到可执行数据处理管线，AI 驱动的数据治理全流程
@@ -350,12 +361,15 @@ python gradio_app/app.py
 
 ---
 
+<details>
+<summary><strong>展开查看 Easy-DataFlow 功能截图</strong></summary>
+
 #### 📸 功能展示
 
 **管线推荐：从任务到代码**
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/imag_piperec.png" alt="管线推荐" width="50%"/>
+<img src="static/imag_piperec.png" alt="管线推荐" width="50%"/>
 <br><sub>💻 智能分析任务需求，自动推荐最优算子组合，生成可执行的 Python 管线代码</sub>
 </div>
 
@@ -364,7 +378,7 @@ python gradio_app/app.py
 **算子编写：AI 辅助开发**
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/image_opwrite.png" alt="算子编写" width="50%"/>
+<img src="static/image_opwrite.png" alt="算子编写" width="50%"/>
 <br><sub>⚙️ 使用 LLM 辅助从功能描述自动生成算子代码，并在同一界面内完成测试与调试</sub>
 </div>
 
@@ -373,7 +387,7 @@ python gradio_app/app.py
 **可视化编排：拖拽式构建**
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/image.png" alt="可视化编排" width="50%"/>
+<img src="static/image.png" alt="可视化编排" width="50%"/>
 <br><sub>🎨 通过可视化界面拖拽组合算子，自由搭建数据处理流程，所见即所得</sub>
 </div>
 
@@ -382,7 +396,7 @@ python gradio_app/app.py
 **Prompt 优化：自动调优**
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/promptagent.png" alt="Prompt 优化" width="50%"/>
+<img src="static/promptagent.png" alt="Prompt 优化" width="50%"/>
 <br><sub>✨ 复用现有算子，自动书写 DataFlow 的算子 Prompt Template，智能优化提示词</sub>
 </div>
 
@@ -391,29 +405,15 @@ python gradio_app/app.py
 **Web 采集：网页到数据**
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/web_collection.png" alt="Web 采集" width="50%"/>
+<img src="static/web_collection.png" alt="Web 采集" width="50%"/>
 <br><sub>📊 自动化网页数据采集与结构化转换，直接输出 DataFlow-ready 数据</sub>
 </div>
 
 ---
 
-### 3️⃣ DataFlow-Table - 多源数据分析
+</details>
 
-> 一站式接入多源数据，自动化分析与洞察生成
-
-#### 🚧 正在开发中
-
-DataFlow-Table 正在积极开发中，敬请期待！
-
-**计划功能**：
-- 📥 多数据源接入（数据库 / 文件 / Web / API）
-- 🧹 智能清洗与标准化
-- 📊 基于 AI 的自动分析
-- 📝 自然语言分析报告生成
-- 📈 交互式图表与报表
-
----
-
+<a id="quick-start"></a>
 ## 🚀 快速开始
 
 ### 环境要求
@@ -445,6 +445,9 @@ pip install -e .
 
 Paper2Any 需要额外依赖（见 `requirements-paper.txt`），以及一些系统/conda 工具用于渲染与矢量图处理：
 
+<details>
+<summary><strong>展开：Paper2Any 额外依赖安装</strong></summary>
+
 ```bash
 # 安装 Paper2Any 依赖
 pip install -r requirements-paper.txt
@@ -457,6 +460,8 @@ sudo apt-get update
 sudo apt-get install -y inkscape
 ```
 
+</details>
+
 ### 配置环境
 
 ```bash
@@ -464,11 +469,13 @@ export DF_API_KEY=your_api_key_here
 export DF_API_URL=xxx 
 # 如果需要使用第三方API中转站
 ```
-第三方API中转站：
+<details>
+<summary><strong>可选：第三方 API 中转站</strong></summary>
 
-[https://api.apiyi.com/](https://api.apiyi.com/)
+- https://api.apiyi.com/
+- http://123.129.219.111:3000/
 
-[http://123.129.219.111:3000/](http://123.129.219.111:3000/)
+</details>
 
 ---
 
@@ -481,18 +488,31 @@ export DF_API_URL=xxx
 
 **Web 前端（推荐）**
 
-```bash
-# 启动后端 API
-cd fastapi_app
-uvicorn main:app --host 0.0.0.0 --port 8000
+> 前端需要 Node.js 18+。
 
-# 启动前端（新终端）
+```bash
+# 启动后端 API（终端 1）
+cd fastapi_app
+uvicorn main:app --host 0.0.0.0 --port 9999
+
+# 启动前端（终端 2）
 cd frontend-workflow
 npm install
 npm run dev
+```
 
-# 配置dev/DataFlow-Agent/frontend-workflow/vite.config.ts
-# 修改 server.proxy 为：
+访问 `http://localhost:3000`
+
+> [!NOTE]
+> `frontend-workflow/vite.config.ts` 默认已将 `/api` 代理到 `http://127.0.0.1:9999`。
+
+<details>
+<summary><strong>如需修改前端代理端口（vite.config.ts）</strong></summary>
+
+```ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -501,7 +521,7 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',  // FastAPI 后端地址
+        target: 'http://127.0.0.1:9999', // FastAPI 后端地址
         changeOrigin: true,
       },
     },
@@ -509,7 +529,7 @@ export default defineConfig({
 })
 ```
 
-访问 `http://localhost:3000`
+</details>
 
 > [!TIP]
 > **Paper2Figure 网页端内测说明**
@@ -547,15 +567,7 @@ python gradio_app/app.py
 - 📝 支持批量处理
 ---
 
-> [!NOTE]
-> **DataFlow-Table**：面向多源数据接入与探索式分析，目前仍在开发中。
-
-#### 🔍 DataFlow-Table - 数据分析
-
-🚧 **正在开发中，敬请期待！**
-
----
-
+<a id="project-structure"></a>
 ## 📂 项目结构
 
 ```
@@ -584,7 +596,14 @@ DataFlow-Agent/
 
 ---
 
+<a id="roadmap"></a>
 ## 🗺️ Roadmap
+
+> [!NOTE]
+> Roadmap 表格较长，默认折叠；点击展开查看完整内容。
+
+<details>
+<summary><strong>展开查看完整 Roadmap（表格）</strong></summary>
 
 ### 🎓 Paper 系列
 
@@ -671,16 +690,6 @@ DataFlow-Agent/
 <img src="https://img.shields.io/badge/✓-Web_采集-success?style=flat-square" alt="完成"/>
 </td>
 </tr>
-<tr>
-<td><strong>📊 DataFlow-Table</strong><br><sub>多源数据分析</sub></td>
-<td><img src="https://img.shields.io/badge/状态-开发中-lightgrey?style=flat-square" alt="开发中"/></td>
-<td>
-<img src="https://img.shields.io/badge/○-多源接入-lightgrey?style=flat-square" alt="开发中"/><br>
-<img src="https://img.shields.io/badge/○-智能取数-lightgrey?style=flat-square" alt="开发中"/><br>
-<img src="https://img.shields.io/badge/○-血缘追踪-lightgrey?style=flat-square" alt="开发中"/><br>
-<img src="https://img.shields.io/badge/○-高级可视化-lightgrey?style=flat-square" alt="开发中"/>
-</td>
-</tr>
 </table>
 
 ---
@@ -714,12 +723,15 @@ DataFlow-Agent/
 </table>
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/dfa_fronted.png" width="800" alt="Workflow Editor"/>
+<img src="static/dfa_fronted.png" width="800" alt="Workflow Editor"/>
 <br><sub>🎨 Workflow 可视化编辑器预览</sub>
 </div>
 
 ---
 
+</details>
+
+<a id="contributing"></a>
 ## 🤝 贡献
 
 我们欢迎所有形式的贡献！
