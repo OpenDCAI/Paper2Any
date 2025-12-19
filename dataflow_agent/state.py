@@ -440,3 +440,9 @@ class Paper2FigureState(MainState):
     # 生成的 PPT PDF 路径
     ppt_pdf_path: str = ""
     ppt_pptx_path: str = ""
+
+    # pdf2ppt 专用 ==============================
+    pdf_file: str = ""
+    slide_images: List[str] = field(default_factory=list)
+    ocr_pages: List[str] = field(default_factory=list)
+    sam_pages: List[str] = field(default_factory=list)

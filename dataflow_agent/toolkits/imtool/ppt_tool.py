@@ -24,6 +24,9 @@ import os
 import re
 from typing import Sequence, Optional, Dict, Any, List, Tuple
 
+import fitz  # PyMuPDF
+from pathlib import Path
+
 import numpy as np
 from PIL import Image
 import cv2
@@ -34,6 +37,7 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.logger import get_logger
+
 log = get_logger(__name__)
 
 # ----------------------------
@@ -57,13 +61,13 @@ DEBUG_DUMP_FIRST_N = 2
 DEBUG_DIR = f"{get_project_root()}/tests/debug_frames"
 
 # ---------- 核心修复：低分辨率页面的 OCR 前增强 ----------
-UPSCALE_LONG_SIDE_TO = 2200   # 建议 2000~3200，越大越慢
+UPSCALE_LONG_SIDE_TO = 2200  # 建议 2000~3200，越大越慢
 UPSCALE_INTERP = cv2.INTER_CUBIC
-ENABLE_SHARPEN = True         # 轻度锐化，提升边缘对比度
-SHARPEN_AMOUNT = 0.8          # 0.0~1.5 之间
+ENABLE_SHARPEN = True  # 轻度锐化，提升边缘对比度
+SHARPEN_AMOUNT = 0.8  # 0.0~1.5 之间
 
 # 识别过滤阈值
-DROP_SCORE = 30  # Tesseract的confidence是0-100的整数
+DROP_SCORE = 30  # PaddleOCR 的score是 0-1，这里统一乘100后按0-100过滤
 
 # 字号优化配置（放大整体字号，明显拉开标题对正文的差距）
 BASE_BODY_PT = 16.0  # 正文基准字号
@@ -144,7 +148,7 @@ def debug_dump(img: np.ndarray, tag: str = "dbg") -> None:
 
 
 # ----------------------------
-# PDF
+# PDF / Page helpers
 # ----------------------------
 
 
@@ -162,6 +166,44 @@ def images_to_pdf(image_paths: Sequence[str], output_pdf_path: str) -> str:
         raise ValueError("No images for PDF.")
     imgs[0].save(output_pdf_path, save_all=True, append_images=imgs[1:])
     return output_pdf_path
+
+
+def pdf_to_images(pdf_path: str, out_dir: str, dpi: int = 220) -> List[str]:
+    """
+    将 PDF 每一页渲染为 PNG 图片，返回图片路径列表（按页码顺序）。
+
+    参数
+    ----
+    pdf_path:
+        输入 PDF 文件路径。
+    out_dir:
+        输出图片所在目录，不存在会自动创建。
+    dpi:
+        渲染分辨率（每英寸像素数），默认 220。
+
+    返回
+    ----
+    List[str]
+        按页码顺序排列的 PNG 图片绝对路径列表。
+    """
+    doc = fitz.open(pdf_path)
+    out_dir_path = Path(out_dir)
+    out_dir_path.mkdir(parents=True, exist_ok=True)
+
+    image_paths: List[str] = []
+    for page_index in range(len(doc)):
+        page = doc.load_page(page_index)
+        zoom = dpi / 72.0
+        mat = fitz.Matrix(zoom, zoom)
+        pix = page.get_pixmap(matrix=mat, alpha=False)
+
+        img_path = out_dir_path / f"page_{page_index + 1:03d}.png"
+        pix.save(str(img_path))
+        image_paths.append(str(img_path))
+
+    doc.close()
+    log.info(f"[pdf_to_images] rendered {len(image_paths)} pages from {pdf_path}")
+    return image_paths
 
 
 # ----------------------------
@@ -333,6 +375,70 @@ def paddle_ocr(bgr: np.ndarray, drop_score: int = DROP_SCORE):
     return lines
 
 
+def paddle_ocr_page_with_layout(img_path: str) -> Dict[str, Any]:
+    """
+    对单页图片执行：
+    - 读取 + 预处理(放大 + 锐化)
+    - PaddleOCR 识别
+    - 坐标从 OCR 分辨率映射回原图
+    - 行合并
+    - 正文行高估计
+    - 背景颜色估计
+
+    返回:
+    {
+        "image_size": (w, h),
+        "lines": [(bbox, text, conf), ...],  # bbox 为原图像素坐标
+        "body_h_px": float 或 None,
+        "bg_color": (r,g,b) 或 None,
+    }
+    """
+    bgr = read_bgr(img_path)
+    h0, w0 = bgr.shape[:2]
+
+    # 预处理
+    ocr_img, scale = preprocess_for_ocr(bgr)
+    h1, w1 = ocr_img.shape[:2]
+
+    log.info(f"[paddle_ocr_page_with_layout] {os.path.basename(img_path)} up-scale={scale:.3f}")
+
+    # OCR
+    raw_lines = paddle_ocr(ocr_img)
+
+    # 映射回原图像素坐标
+    if raw_lines and (w1 != w0 or h1 != h0):
+        sx = w0 / float(w1)
+        sy = h0 / float(h1)
+        raw_lines = [
+            ([b[0] * sx, b[1] * sy, b[2] * sx, b[3] * sy], t, c)
+            for (b, t, c) in raw_lines
+        ]
+
+    # 合并行
+    y_tol = max(12, int(h0 * 0.008))
+    x_gap = max(18, int(w0 * 0.01))
+    lines = merge_lines(raw_lines, y_tol=y_tol, x_gap=x_gap)
+
+    # 正文行高估计
+    body_h_px = analyze_line_heights(lines)
+
+    if not lines:
+        log.warning(f"[paddle_ocr_page_with_layout] no text detected: {img_path}")
+        bg_color = None
+    else:
+        log.info(
+            f"[paddle_ocr_page_with_layout] detected {len(lines)} text boxes, body_h_px={body_h_px}"
+        )
+        bg_color = estimate_background_color(bgr, lines) if EXTRACT_TEXT_COLOR else None
+
+    return {
+        "image_size": (w0, h0),
+        "lines": lines,
+        "body_h_px": body_h_px,
+        "bg_color": bg_color,
+    }
+
+
 # ----------------------------
 # Color extraction
 # ----------------------------
@@ -487,35 +593,31 @@ def estimate_font_pt(
     bbox, img_h_px: int, body_h_px: Optional[float], slide_h_in: float = SLIDE_H_IN
 ):
     """
-    根据行高和所属角色估计字号（优化版）
+    根据行高按比例估计字号（改进版：移除硬编码倍率限制）
+    
+    核心思路：
+    1. 计算原图中该行的像素高度
+    2. 按比例映射到PPT的点数(pt)
+    3. 不再强制限制标题/副标题的倍率范围
     """
-    role = classify_line_role(bbox, img_h_px, body_h_px)
-
-    # 使用优化后的基准字号
-    base_body_pt = BASE_BODY_PT * FONT_SCALE_FACTOR
-
-    if body_h_px and body_h_px > 0:
-        x1, y1, x2, y2 = bbox
-        h_px = max(1, y2 - y1)
-        ratio = h_px / body_h_px
-    else:
-        ratio = 1.0
-
-    # 使用优化后的倍率范围
-    if role == "title":
-        pt = base_body_pt * max(TITLE_RATIO_MIN, min(TITLE_RATIO_MAX, ratio * 1.5))
-        # 顶部大标题额外放大
-        y_center = (bbox[1] + bbox[3]) / 2.0
-        if y_center < img_h_px * 0.2:
-            pt *= 1.2
-    elif role == "subtitle":
-        pt = base_body_pt * max(
-            SUBTITLE_RATIO_MIN, min(SUBTITLE_RATIO_MAX, ratio * 1.2)
-        )
-    else:
-        pt = base_body_pt * max(BODY_RATIO_MIN, min(BODY_RATIO_MAX, ratio))
-
-    return Pt(max(8, min(72, pt)))
+    x1, y1, x2, y2 = bbox
+    h_px = max(1, y2 - y1)
+    
+    # 方法：将像素高度按图片高度比例转换为PPT点数
+    # PPT高度 = 7.5英寸 = 540pt (1英寸=72pt)
+    slide_h_pt = slide_h_in * 72.0
+    
+    # 行高占图片高度的比例
+    height_ratio = h_px / float(img_h_px)
+    
+    # 映射到PPT点数，乘以0.7是经验系数（因为行高通常大于字号）
+    pt = slide_h_pt * height_ratio * 0.7
+    
+    # 应用全局缩放因子
+    pt *= FONT_SCALE_FACTOR
+    
+    # 只做合理范围限制，不再强制角色倍率
+    return Pt(max(8, min(96, pt)))
 
 
 def add_background(
@@ -779,16 +881,39 @@ def ocr_images_to_ppt(
             if (x2 - x1) < 6 or (y2 - y1) < 6:
                 continue
 
+            # 计算字号
+            font_size = estimate_font_pt(bbox, img_h_px=h0, body_h_px=body_h_px)
+            font_size_pt = font_size.pt  # 获取点数值
+            
+            # 统计字符类型
+            char_count = len(text)
+            cjk_count = sum(1 for ch in text if is_cjk(ch))
+            latin_count = char_count - cjk_count
+            
+            # 估算文字实际宽度（EMU）
+            # 经验公式：中文字符宽度约为字号，英文约为字号*0.6
+            estimated_text_width_emu = int((cjk_count * font_size_pt + latin_count * font_size_pt * 0.6) * 12700)
+            
+            # 文本框宽度：使用原始bbox宽度（不再动态扩大）
+            original_width_emu = px_to_emu((x2 - x1), scale_x)
+            width = original_width_emu
+            
+            # 动态调整文本框高度：根据字号估算行高
+            # 行高通常是字号的1.2-1.5倍
+            estimated_line_height_emu = int(font_size_pt * 1.3 * 12700)
+            original_height_emu = px_to_emu((y2 - y1), scale_y)
+            
+            # 使用较大值，确保文字不被截断
+            height = max(original_height_emu, estimated_line_height_emu)
+
             left = px_to_emu(x1, scale_x)
             top = px_to_emu(y1, scale_y)
-            width = max(1, px_to_emu((x2 - x1), scale_x))
-            height = max(1, px_to_emu((y2 - y1), scale_y))
 
             # 添加透明文本框
-            tb = slide.shapes.add_textbox(left, top, width, height)
+            tb = slide.shapes.add_textbox(left, top, int(width), int(height))
             tf = tb.text_frame
             tf.clear()
-            tf.word_wrap = True
+            tf.word_wrap = False  # 禁用自动换行
 
             # 设置文本框透明
             tb.fill.background()  # 无填充
@@ -796,7 +921,33 @@ def ocr_images_to_ppt(
 
             p = tf.paragraphs[0]
             p.text = text
-            p.font.size = estimate_font_pt(bbox, img_h_px=h0, body_h_px=body_h_px)
+            
+            # 字符间距调整：让文字横向铺满文本框
+            if estimated_text_width_emu < width and char_count > 1:
+                # 文字比文本框窄，增加字符间距填满宽度
+                extra_space_emu = width - estimated_text_width_emu
+                # 字符间距分配到字符间隙（n个字符有n-1个间隙）
+                char_spacing_emu = extra_space_emu / (char_count - 1)
+                char_spacing_pt = char_spacing_emu / 12700.0
+                
+                # 限制最大字符间距，避免过度拉伸影响可读性
+                max_spacing_pt = 8.0  # 最大8pt间距
+                char_spacing_pt = min(char_spacing_pt, max_spacing_pt)
+                
+                p.font.spacing = Pt(char_spacing_pt)
+                log.info(f"slide#{idx} text='{text[:20]}...' spacing={char_spacing_pt:.2f}pt")
+            elif estimated_text_width_emu > width:
+                # 文字比文本框宽，缩小字号以适应宽度
+                scale_factor = width / estimated_text_width_emu
+                adjusted_font_size_pt = font_size_pt * scale_factor * 0.95  # 留5%余量
+                font_size = Pt(max(8, min(96, adjusted_font_size_pt)))
+                p.font.spacing = Pt(0)  # 正常间距
+                log.info(f"slide#{idx} text='{text[:20]}...' font scaled: {font_size_pt:.1f}pt -> {adjusted_font_size_pt:.1f}pt")
+            else:
+                # 宽度刚好，使用正常间距
+                p.font.spacing = Pt(0)
+            
+            p.font.size = font_size
 
             # 提取并设置文字颜色
             if use_text_color:

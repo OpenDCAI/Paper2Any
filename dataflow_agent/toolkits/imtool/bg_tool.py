@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -767,6 +768,142 @@ def get_svg_render_desc(lang: str = "zh") -> str:
     return (
         "Render SVG into raster images or documents (PNG, PDF, PS) using CairoSVG. "
         "Supports both SVG file path and raw SVG string as input."
+    )
+
+
+# ======================================================================
+# Inkscape：SVG → EMF 矢量转换
+# ======================================================================
+
+
+def svg_to_emf(svg_path: str, emf_path: str, dpi: int = 600) -> str:
+    """
+    使用 Inkscape 将 SVG 文件转换为 EMF 矢量图，返回生成的 EMF 路径。
+
+    依赖
+    ----
+    - 系统需安装 Inkscape，并且 `inkscape` 在 PATH 中可直接调用。
+
+    参数
+    ----
+    svg_path:
+        输入 SVG 文件路径。
+    emf_path:
+        输出 EMF 文件路径。
+    dpi:
+        导出 DPI，默认 600。
+
+    返回
+    ----
+    str
+        生成的 EMF 文件的绝对路径。
+
+    异常
+    ----
+    FileNotFoundError
+        当输入 SVG 文件不存在时。
+    RuntimeError
+        当 Inkscape 调用失败或未生成输出文件时。
+    """
+    svg_p = Path(svg_path)
+    if not svg_p.exists():
+        raise FileNotFoundError(f"输入 SVG 不存在: {svg_p}")
+
+    emf_p = Path(emf_path)
+    emf_p.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        # inkscape input.svg --export-filename=output.emf
+        result = subprocess.run(
+            [
+                "inkscape",
+                str(svg_p),
+                "--export-filename",
+                str(emf_p),
+                "--export-text-to-path",
+                f"--export-dpi={dpi}"
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as e:
+        raise RuntimeError(
+            "调用 Inkscape 失败：系统中可能未安装 `inkscape` 可执行文件，"
+            "请先安装 Inkscape 并确保其在 PATH 中。"
+        ) from e
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Inkscape 转换失败，返回码 {result.returncode}：\n"
+            f"STDOUT:\n{result.stdout}\n\nSTDERR:\n{result.stderr}"
+        )
+
+    if not emf_p.exists():
+        raise RuntimeError(f"Inkscape 运行后未发现输出 EMF 文件: {emf_p}")
+
+    return str(emf_p.resolve())
+
+
+def local_tool_for_svg_to_emf(req: dict) -> str:
+    """
+    将 SVG 文件转换为 EMF 矢量图的统一接口。
+
+    必需字段
+    --------
+    - ``svg_path``: str
+        输入 SVG 文件路径。
+    - ``emf_path``: str
+        输出 EMF 文件路径。
+
+    可选字段
+    --------
+    - ``dpi``: int
+        导出 DPI，默认 600。
+
+    返回
+    ----
+    str
+        生成的 EMF 文件的绝对路径。
+    """
+    if "svg_path" not in req:
+        raise ValueError("缺少必需字段: svg_path")
+    if "emf_path" not in req:
+        raise ValueError("缺少必需字段: emf_path")
+
+    return svg_to_emf(
+        svg_path=req["svg_path"],
+        emf_path=req["emf_path"],
+        dpi=req.get("dpi", 600),
+    )
+
+
+def get_svg_to_emf_desc(lang: str = "zh") -> str:
+    """
+    获取 SVG 转 EMF 工具的文本说明。
+
+    参数
+    ----
+    lang:
+        语言代码，目前支持:
+        - "zh": 返回中文描述。
+        - 其它值: 返回英文描述。
+
+    返回
+    ----
+    str
+        工具功能说明字符串。
+    """
+    if lang == "zh":
+        return (
+            "使用 Inkscape 将 SVG 矢量图转换为 EMF 格式。"
+            "EMF 格式在 Windows 和 Office 应用中有更好的兼容性，"
+            "特别适合在 PowerPoint 中使用矢量图形。"
+        )
+    return (
+        "Convert SVG to EMF vector format using Inkscape. "
+        "EMF format has better compatibility in Windows and Office applications, "
+        "especially suitable for use in PowerPoint."
     )
 
 
