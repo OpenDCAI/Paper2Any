@@ -37,8 +37,8 @@ def create_app() -> FastAPI:
     app.include_router(paper2video.router, prefix="/paper2video", tags=["paper2video"])
     # Paper2Graph / Paper2PPT 假接口，对接前端 /api/*
     app.include_router(paper2any.router, prefix="/api", tags=["paper2any"])
-    # Paper2PPT full pipeline JSON 接口
-    app.include_router(paper2ppt.router, prefix="/paper2ppt", tags=["paper2ppt"])
+    # Paper2PPT full pipeline JSON 接口，对接前端 /api/paper2ppt/*
+    app.include_router(paper2ppt.router, prefix="/api/paper2ppt", tags=["paper2ppt"])
 
     # 挂载静态文件目录（用于提供生成的 PPTX/SVG/PNG 文件）
     project_root = get_project_root()

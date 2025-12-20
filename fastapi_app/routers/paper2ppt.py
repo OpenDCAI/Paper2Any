@@ -174,6 +174,10 @@ async def paper2ppt_pagecontent_json(
 
     resp = await run_paper2page_content_wf_api(p2ppt_req)
 
+    # 等待图片保存完成（PPT 转图片可能需要一点时间）
+    import asyncio
+    await asyncio.sleep(10)
+
     # 补齐 all_output_files（便于前端调试/查看 MinerU 输出等）
     resp.all_output_files = _collect_output_files_as_urls(resp.result_path, request)
     return resp
@@ -192,9 +196,9 @@ async def paper2ppt_ppt_json(
     language: str = Form("zh"),
     model: str = Form("gpt-5.1"),
     # 关键：是否进入编辑，是否已经有了nano结果，现在要进入页面逐个页面编辑
-    get_down: bool = Form(False),
+    get_down: str = Form("false"),  # 字符串形式，需要手动转换
     # 关键： 是否编辑完毕，也就是是否需要重新生成完整的 PPT
-    all_edited_down: bool = Form(False),
+    all_edited_down: str = Form("false"),  # 字符串形式，需要手动转换
     # 复用上一次的输出目录（建议必传）
     result_path: str = Form(...),
     # 生成/编辑都需要 pagecontent（生成必传；编辑建议也传，便于回显）
@@ -211,13 +215,24 @@ async def paper2ppt_ppt_json(
     """
     validate_invite_code(invite_code)
 
+    # 转换字符串形式的布尔值
+    get_down_bool = get_down.lower() in ("true", "1", "yes")
+    all_edited_down_bool = all_edited_down.lower() in ("true", "1", "yes")
+    
+    log.info(
+        f"[ppt_json] Request params: get_down='{get_down}' -> {get_down_bool}, "
+        f"all_edited_down='{all_edited_down}' -> {all_edited_down_bool}, "
+        f"result_path={result_path}, page_id={page_id}, "
+        f"pagecontent_length={len(pagecontent) if pagecontent else 0}"
+    )
+
     # 仅在有值时解析 pagecontent；编辑模式下允许不传。
     if pagecontent is not None:
         pc = _parse_pagecontent_json(pagecontent)
     else:
         pc = []
 
-    if get_down:
+    if get_down_bool:
         # 编辑模式：只要求 page_id + edit_prompt，pagecontent 可为空（便于纯根据 result_path + page_id 编辑）
         if page_id is None:
             raise HTTPException(status_code=400, detail="page_id is required when get_down=true")
@@ -241,16 +256,24 @@ async def paper2ppt_ppt_json(
         aspect_ratio=aspect_ratio,
         style=style,
         invite_code=invite_code or "",
-        all_edited_down=all_edited_down,
+        all_edited_down=all_edited_down_bool,
     )
 
+    log.info(f"[ppt_json] Calling run_paper2ppt_wf_api with get_down={get_down_bool}")
+    
     resp = await run_paper2ppt_wf_api(
         p2ppt_req,
         pagecontent=pc,
         result_path=result_path,
-        get_down=get_down,
+        get_down=get_down_bool,
         edit_page_num=page_id,
         edit_page_prompt=edit_prompt,
+    )
+
+    log.info(
+        f"[ppt_json] Workflow completed: success={resp.success}, "
+        f"result_path={resp.result_path}, "
+        f"all_output_files_count={len(resp.all_output_files) if resp.all_output_files else 0}"
     )
 
     # 路由层转 URL

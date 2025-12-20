@@ -1,7 +1,7 @@
 import { useState, useEffect, ChangeEvent } from 'react';
 import { FileText, UploadCloud, Settings2, Download, Loader2, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Github, Star, X } from 'lucide-react';
 
-const BACKEND_API = '/api/paper2ppt/generate';
+const BACKEND_API = '/api/paper2ppt/full_json';
 
 // 生成阶段定义（科幻感假进度条）
 type GenerationStage = {
@@ -23,9 +23,12 @@ const Paper2PptPage = () => {
 
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('gpt-4o');
+  const [model, setModel] = useState('gpt-5.1');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [language, setLanguage] = useState<'zh' | 'en'>('zh');
+  const [genFigModel, setGenFigModel] = useState('gemini-2.5-flash-image-preview');
+  const [style, setStyle] = useState('');
+  const [resultPath, setResultPath] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -177,14 +180,16 @@ const Paper2PptPage = () => {
     }
 
     const formData = new FormData();
-    formData.append('model_name', model);
+    formData.append('img_gen_model_name', genFigModel);
     formData.append('chat_api_url', llmApiUrl.trim());
     formData.append('api_key', apiKey.trim());
-    formData.append('input_type', 'file');
+    formData.append('model', model);
+    formData.append('input_type', 'pdf');
     formData.append('invite_code', inviteCode.trim());
     formData.append('file', selectedFile);
-    formData.append('file_kind', 'pdf');
     formData.append('language', language);
+    formData.append('style', style || '');
+    formData.append('aspect_ratio', '16:9');
 
     try {
       setIsLoading(true);
@@ -199,34 +204,55 @@ const Paper2PptPage = () => {
           msg = '邀请码不正确或已失效';
         } else {
           try {
+            const errorData = await res.json();
+            msg = errorData.detail || errorData.message || msg;
+          } catch {
+          try {
             const text = await res.text();
             if (text) msg = text;
           } catch {
             // ignore
+            }
           }
         }
         throw new Error(msg);
       }
 
-      const disposition = res.headers.get('content-disposition') || '';
-      let filename = 'paper2ppt.pptx';
-      const match = disposition.match(/filename="?([^";]+)"?/i);
-      if (match?.[1]) {
-        filename = decodeURIComponent(match[1]);
+      const data = await res.json();
+      
+      if (!data.success) {
+        throw new Error(data.message || '生成失败');
       }
 
-      const blob = await res.blob();
+      // 保存 result_path 供后续使用
+      if (data.result_path) {
+        setResultPath(data.result_path);
+      }
+
+      // 从 all_output_files 中找到 PPTX 文件
+      const pptxUrl = data.all_output_files?.find((url: string) => url.endsWith('.pptx')) || data.ppt_pptx_path;
+      
+      if (pptxUrl) {
+        // 下载 PPTX 文件
+        const downloadRes = await fetch(pptxUrl);
+        if (!downloadRes.ok) {
+          throw new Error('下载 PPTX 文件失败');
+      }
+        const blob = await downloadRes.blob();
       const url = URL.createObjectURL(blob);
       setDownloadUrl(url);
-      setLastFilename(filename);
+        setLastFilename('paper2ppt_editable.pptx');
       setSuccessMessage('PPTX 已生成，正在下载...');
 
       const a = document.createElement('a');
       a.href = url;
-      a.download = filename;
+        a.download = 'paper2ppt_editable.pptx';
       document.body.appendChild(a);
       a.click();
       a.remove();
+      } else {
+        setSuccessMessage('PPTX 已生成，但未找到下载链接');
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : '生成 PPTX 失败';
       setError(message);
@@ -254,7 +280,7 @@ const Paper2PptPage = () => {
                 <span className="text-xs font-bold text-white">开源项目</span>
               </div>
               
-              <span className="text-sm font-medium text白">
+              <span className="text-sm font-medium text-white">
                 🚀 探索更多 AI 数据处理工具
               </span>
             </div>
@@ -264,7 +290,7 @@ const Paper2PptPage = () => {
                 href="https://github.com/OpenDCAI/DataFlow"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg白 text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
+                className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
               >
                 <Github size={14} />
                 <span>DataFlow</span>
@@ -275,7 +301,7 @@ const Paper2PptPage = () => {
                 href="https://github.com/OpenDCAI/DataFlow-Agent"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg白 text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
+                className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
               >
                 <Github size={14} />
                 <span>DataFlow-Agent</span>
@@ -451,6 +477,28 @@ const Paper2PptPage = () => {
                         <option value="gpt-4o">gpt-4o</option>
                         <option value="gpt-5.1">gpt-5.1</option>
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-2 font-medium">图像生成模型</label>
+                      <input
+                        type="text"
+                        value={genFigModel}
+                        onChange={e => setGenFigModel(e.target.value)}
+                        placeholder="gemini-2.5-flash-image-preview"
+                        className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder:text-gray-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-2 font-medium">风格描述（可选）</label>
+                      <textarea
+                        value={style}
+                        onChange={e => setStyle(e.target.value)}
+                        placeholder="例如：多啦A梦风格；英文；"
+                        rows={2}
+                        className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder:text-gray-500 resize-none"
+                      />
                     </div>
                   </div>
                 )}

@@ -3,11 +3,11 @@ import {
   Presentation, UploadCloud, Settings2, Download, Loader2, CheckCircle2, 
   AlertCircle, ChevronDown, ChevronUp, Github, Star, X, Sparkles,
   ArrowRight, ArrowLeft, GripVertical, Trash2, Edit3, Check, RotateCcw,
-  SkipForward, MessageSquare, Eye, RefreshCw, FileText, Image as ImageIcon
+  MessageSquare, Eye, RefreshCw, FileText, Image as ImageIcon
 } from 'lucide-react';
 
 // ============== 类型定义 ==============
-type Step = 'upload' | 'outline' | 'beautify' | 'complete';
+type Step = 'upload' | 'beautify' | 'complete';
 
 // 后端返回的原始数据结构（TODO: 待真实 API 对接时使用）
 /*
@@ -33,7 +33,7 @@ interface BeautifyResult {
   slideId: string;
   beforeImage: string;
   afterImage: string;
-  status: 'pending' | 'processing' | 'done' | 'skipped';
+  status: 'pending' | 'processing' | 'done';
   userPrompt?: string;
 }
 
@@ -154,6 +154,7 @@ const Ppt2PolishPage = () => {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [beautifyResults, setBeautifyResults] = useState<BeautifyResult[]>([]);
   const [isBeautifying, setIsBeautifying] = useState(false);
+  const [isGeneratingInitial, setIsGeneratingInitial] = useState(false);
   const [slidePrompt, setSlidePrompt] = useState('');
   
   // Step 4: 完成状态
@@ -163,6 +164,15 @@ const Ppt2PolishPage = () => {
   // 通用状态
   const [error, setError] = useState<string | null>(null);
   const [showBanner, setShowBanner] = useState(true);
+
+  // API 配置状态
+  const [inviteCode, setInviteCode] = useState('');
+  const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
+  const [apiKey, setApiKey] = useState('');
+  const [model, setModel] = useState('gpt-5.1');
+  const [genFigModel, setGenFigModel] = useState('gemini-2.5-flash-image-preview');
+  const [language, setLanguage] = useState<'zh' | 'en'>('zh');
+  const [resultPath, setResultPath] = useState<string | null>(null);
 
   // ============== Step 1: 上传处理 ==============
   const validateDocFile = (file: File): boolean => {
@@ -219,8 +229,13 @@ const Ppt2PolishPage = () => {
       return;
     }
     
-    if (styleMode === 'reference' && !referenceImage) {
-      setError('请上传参考风格图片');
+    if (!inviteCode.trim()) {
+      setError('请先输入邀请码');
+      return;
+    }
+    
+    if (!llmApiUrl.trim() || !apiKey.trim()) {
+      setError('请先配置模型 API URL 和 API Key');
       return;
     }
     
@@ -228,19 +243,154 @@ const Ppt2PolishPage = () => {
     setError(null);
     
     try {
-      // 模拟后端解析延迟
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // 调用 /paper2ppt/pagecontent_json 接口
+      const formData = new FormData();
+      formData.append('chat_api_url', llmApiUrl.trim());
+      formData.append('api_key', apiKey.trim());
+      formData.append('model', model);
+      formData.append('language', language);
+      formData.append('style', globalPrompt || stylePreset);
+      formData.append('gen_fig_model', genFigModel);
+      formData.append('page_count', '10'); // 默认值，后端可能会调整
+      formData.append('invite_code', inviteCode.trim());
+      formData.append('input_type', 'pptx');
+      formData.append('file', selectedFile);
       
-      // 使用假数据
-      setOutlineData(MOCK_OUTLINE);
+      if (referenceImage) {
+        formData.append('reference_img', referenceImage);
+      }
+      
+      console.log('Sending request to /api/paper2ppt/pagecontent_json'); // 调试信息
+      
+      const res = await fetch('/api/paper2ppt/pagecontent_json', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      console.log('Response status:', res.status, res.statusText); // 调试信息
+      
+      if (!res.ok) {
+        let msg = '解析 PPT 失败';
+        if (res.status === 403) {
+          msg = '邀请码不正确或已失效';
+        } else {
+          try {
+            const errorData = await res.json();
+            console.error('Error response:', errorData); // 调试信息
+            msg = errorData.detail || errorData.message || msg;
+          } catch {
+            try {
+              const text = await res.text();
+              console.error('Error text:', text); // 调试信息
+              if (text) msg = text;
+            } catch {
+              // ignore
+            }
+          }
+        }
+        throw new Error(msg);
+      }
+      
+      const data = await res.json();
+      
+      console.log('API Response:', JSON.stringify(data, null, 2)); // 调试信息
+      
+      if (!data.success) {
+        throw new Error(data.message || '解析失败');
+      }
+      
+      // 保存 result_path
+      const currentResultPath = data.result_path || '';
+      if (currentResultPath) {
+        setResultPath(currentResultPath);
+      } else {
+        throw new Error('后端未返回 result_path');
+      }
+      
+      // 检查 pagecontent 是否为空
+      if (!data.pagecontent || data.pagecontent.length === 0) {
+        throw new Error('解析结果为空，请检查PPT文件是否正确');
+      }
+      
+      // 转换后端数据为前端格式
+      // 对于 pptx 类型，pagecontent 可能只包含 ppt_img_path
+      // 对于 pdf/text 类型，pagecontent 包含 title, layout_description, key_points
+      const convertedSlides: SlideOutline[] = data.pagecontent.map((item: any, index: number) => {
+        // 如果只有 ppt_img_path（pptx 类型），需要从图片URL中提取或使用默认值
+        if (item.ppt_img_path && !item.title) {
+          // 从 all_output_files 中找到对应的图片URL
+          const imgUrl = data.all_output_files?.find((url: string) => 
+            url.includes(`slide_${String(index).padStart(3, '0')}.png`) ||
+            url.includes(item.ppt_img_path.split('/').pop() || '')
+          );
+          
+          return {
+            id: String(index + 1),
+            pageNum: index + 1,
+            title: `第 ${index + 1} 页`,
+            layout_description: '待编辑：请填写此页的布局描述',
+            key_points: ['待编辑：请添加要点'],
+            asset_ref: imgUrl || item.ppt_img_path || null,
+          };
+        }
+        
+        // 标准格式（pdf/text 类型）
+        return {
+          id: String(index + 1),
+          pageNum: index + 1,
+          title: item.title || `第 ${index + 1} 页`,
+          layout_description: item.layout_description || '',
+          key_points: item.key_points || [],
+          asset_ref: item.asset_ref || item.ppt_img_path || null,
+        };
+      });
+      
+      console.log('Converted Slides:', convertedSlides); // 调试信息
+      
+      if (convertedSlides.length === 0) {
+        throw new Error('转换后的数据为空');
+      }
+      
+      setOutlineData(convertedSlides);
+      
+      // 初始化美化结果 - 使用原始图片作为 beforeImage
+      const results: BeautifyResult[] = convertedSlides.map((slide, index) => ({
+        slideId: slide.id,
+        beforeImage: slide.asset_ref || '',
+        afterImage: '',
+        status: 'pending',
+      }));
+      setBeautifyResults(results);
+      setCurrentSlideIndex(0);
+      
+      // 不再一次性美化所有页面！
+      // 直接进入美化步骤，显示原始图片
+      // 用户点击"开始美化"时才调用 API 美化当前页
+      
+      console.log('解析完成，进入美化步骤, results.length:', results.length, 'currentResultPath:', currentResultPath);
+      
+      // 直接进入美化步骤
+      setCurrentStep('beautify');
+      
+      // 不自动开始美化，让用户先查看原始图片，然后点击按钮开始美化
+      // 或者，如果需要自动开始美化第一页，可以取消下面的注释
+      console.log('等待用户点击开始美化第一页...');
+      
+      // 自动开始美化第一页（使用 get_down=true 只美化单页）
+      if (results.length > 0) {
+        setTimeout(() => {
+          console.log('自动开始美化第一页...');
+          // 传入 convertedSlides，避免依赖异步的 outlineData state
+          startBeautifyCurrentSlide(results, 0, currentResultPath, convertedSlides);
+        }, 500);
+      }
     } catch (err) {
-      setError('解析失败，请重试');
+      const message = err instanceof Error ? err.message : '解析失败，请重试';
+      setError(message);
       console.error(err);
     } finally {
       setIsUploading(false);
     }
-    
-    setCurrentStep('outline');
   };
 
   // ============== Step 2: Outline 编辑处理 ==============
@@ -319,16 +469,237 @@ const Ppt2PolishPage = () => {
     startBeautifyCurrentSlide(results, 0);
   };
 
+  // ============== 生成初始 PPT ==============
+  const generateInitialPPT = async (slides: SlideOutline[], initialResults: BeautifyResult[], resultPathParam?: string) => {
+    // 优先使用传入的参数，其次使用 state
+    const currentPath = resultPathParam || resultPath;
+    console.log('generateInitialPPT - currentPath:', currentPath);
+    
+    if (!currentPath) {
+      setError('缺少 result_path，请重新上传文件');
+      return initialResults; // 返回原始结果，避免 undefined
+    }
+    
+    try {
+      // 根据文档 2.2，对于 pptx 类型，需要先传入图片路径格式的 pagecontent
+      // 从 all_output_files 中找到对应的本地路径，或者使用 result_path 构建路径
+      const pagecontent = slides.map((slide, index) => {
+        // 从 asset_ref (HTTP URL) 转换为本地路径
+        // 例如: http://127.0.0.1:8000/outputs/ABC123/paper2ppt/1766173632/ppt_images/slide_000.png
+        // 转换为: /home/ubuntu/szl/DataFlow-Agent/outputs/ABC123/paper2ppt/1766173632/ppt_images/slide_000.png
+        let localPath = slide.asset_ref || '';
+        if (localPath.startsWith('http://')) {
+          localPath = localPath.replace('http://127.0.0.1:8000/outputs/', '/home/ubuntu/szl/DataFlow-Agent/outputs/');
+        }
+        return { ppt_img_path: localPath };
+      }).filter(item => item.ppt_img_path);
+      
+      const formData = new FormData();
+      formData.append('img_gen_model_name', genFigModel);
+      formData.append('chat_api_url', llmApiUrl.trim());
+      formData.append('api_key', apiKey.trim());
+      formData.append('model', model);
+      formData.append('language', language);
+      formData.append('style', globalPrompt || stylePreset);
+      formData.append('aspect_ratio', '16:9');
+      formData.append('invite_code', inviteCode.trim());
+      formData.append('result_path', currentPath);
+      formData.append('get_down', 'false');
+      formData.append('pagecontent', JSON.stringify(pagecontent));
+      
+      console.log('Generating initial PPT with pagecontent:', pagecontent);
+      console.log('Request URL: /api/paper2ppt/ppt_json');
+      console.log('Request params:', {
+        result_path: resultPath,
+        get_down: 'false',
+        pagecontent_count: pagecontent.length,
+      });
+      
+      const res = await fetch('/api/paper2ppt/ppt_json', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      console.log('Response status:', res.status, res.statusText);
+      
+      if (!res.ok) {
+        let msg = '生成初始 PPT 失败';
+        try {
+          const errorData = await res.json();
+          console.error('Error response:', errorData);
+          msg = errorData.detail || errorData.message || msg;
+        } catch {
+          const text = await res.text();
+          console.error('Error text:', text);
+          if (text) msg = text;
+        }
+        throw new Error(msg);
+      }
+      
+      const data = await res.json();
+      console.log('Initial PPT generation response:', JSON.stringify(data, null, 2));
+      
+      if (!data.success) {
+        throw new Error(data.message || '生成失败');
+      }
+      
+      // 更新美化结果，使用生成的 ppt_pages/page_*.png 作为 beforeImage
+      let updatedResults = initialResults;
+      if (data.all_output_files) {
+        updatedResults = initialResults.map((result, index) => {
+          const pageImageUrl = data.all_output_files.find((url: string) => 
+            url.includes(`page_${String(index).padStart(3, '0')}.png`)
+          );
+          return {
+            ...result,
+            beforeImage: pageImageUrl || result.beforeImage,
+          };
+        });
+        setBeautifyResults(updatedResults);
+      }
+      
+      // 返回更新后的结果，供调用方使用
+      return updatedResults;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '生成初始 PPT 失败';
+      setError(message);
+      console.error(err);
+      throw err; // 重新抛出错误
+    }
+  };
+
   // ============== Step 3: 逐页美化处理 ==============
-  const startBeautifyCurrentSlide = async (results: BeautifyResult[], index: number) => {
+  const startBeautifyCurrentSlide = async (
+    results: BeautifyResult[] | null, 
+    index: number, 
+    resultPathParam?: string,
+    outlineDataParam?: SlideOutline[]
+  ) => {
+    // 优先使用传入的参数，其次使用 state
+    const currentPath = resultPathParam || resultPath;
+    const currentOutlineData = outlineDataParam || outlineData;
+    
+    console.log('startBeautifyCurrentSlide 被调用, index:', index, 'results:', results?.length || 'null');
+    console.log('currentPath:', currentPath);
+    console.log('currentOutlineData.length:', currentOutlineData.length);
+    console.log('slidePrompt:', slidePrompt);
+    
+    if (!currentPath) {
+      setError('缺少 result_path，请重新上传文件');
+      console.error('currentPath 为空');
+      return;
+    }
+    
+    // 如果 results 为 null，从 state 中读取
+    const currentResults = results || beautifyResults;
+    console.log('currentResults.length:', currentResults.length);
+    
+    if (currentResults.length === 0) {
+      setError('没有可美化的页面');
+      console.error('currentResults 为空');
+      return;
+    }
+    
+    if (currentOutlineData.length === 0) {
+      setError('没有 outline 数据');
+      console.error('currentOutlineData 为空');
+      return;
+    }
+    
     setIsBeautifying(true);
-    const updatedResults = [...results];
+    const updatedResults = [...currentResults];
     updatedResults[index] = { ...updatedResults[index], status: 'processing' };
     setBeautifyResults(updatedResults);
-    await new Promise(resolve => setTimeout(resolve, 2500));
-    updatedResults[index] = { ...updatedResults[index], status: 'done' };
+    
+    try {
+      // 调用 /paper2ppt/ppt_json 接口进行编辑
+      const formData = new FormData();
+      formData.append('img_gen_model_name', genFigModel);
+      formData.append('chat_api_url', llmApiUrl.trim());
+      formData.append('api_key', apiKey.trim());
+      formData.append('model', model);
+      formData.append('language', language);
+      formData.append('style', globalPrompt || stylePreset);
+      formData.append('aspect_ratio', '16:9');
+      formData.append('invite_code', inviteCode.trim());
+      formData.append('result_path', currentPath);
+      formData.append('get_down', 'true');
+      formData.append('page_id', String(index));
+      formData.append('edit_prompt', slidePrompt || '请美化这一页的样式');
+      
+      // 编辑模式下，必须传递 pagecontent，包含原图路径
+      console.log('使用的 outlineData:', currentOutlineData);
+      const pagecontent = currentOutlineData.map((slide, i) => {
+        // 转换为本地路径格式
+        let localPath = slide.asset_ref || '';
+        console.log(`slide ${i} asset_ref:`, slide.asset_ref);
+        if (localPath.startsWith('http://')) {
+          localPath = localPath.replace('http://127.0.0.1:8000/outputs/', '/home/ubuntu/szl/DataFlow-Agent/outputs/');
+        }
+        console.log(`slide ${i} localPath:`, localPath);
+        return { ppt_img_path: localPath };
+      });
+      console.log('pagecontent to send:', pagecontent);
+      formData.append('pagecontent', JSON.stringify(pagecontent));
+      
+      const res = await fetch('/api/paper2ppt/ppt_json', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!res.ok) {
+        let msg = '美化失败';
+        try {
+          const errorData = await res.json();
+          msg = errorData.detail || errorData.message || msg;
+        } catch {
+          // ignore
+        }
+        throw new Error(msg);
+      }
+      
+      const data = await res.json();
+      console.log('美化响应:', JSON.stringify(data, null, 2));
+      console.log('all_output_files:', data.all_output_files);
+      
+      if (!data.success) {
+        throw new Error(data.message || '美化失败');
+      }
+      
+      // 从 all_output_files 中找到对应的页面图片
+      // 优先匹配美化后的图 (ppt_pages/page_xxx.png)，其次才是原图 (ppt_images/slide_xxx.png)
+      const pagePattern = `ppt_pages/page_${String(index).padStart(3, '0')}.png`;
+      const slidePattern = `ppt_images/slide_${String(index).padStart(3, '0')}.png`;
+      console.log('查找美化后图片模式:', pagePattern);
+      console.log('查找原图模式:', slidePattern);
+      
+      // 先找美化后的图
+      let pageImageUrl = data.all_output_files?.find((url: string) => url.includes(pagePattern));
+      console.log('美化后图片 URL:', pageImageUrl);
+      
+      // 如果没有美化后的图，再找原图作为 fallback
+      if (!pageImageUrl) {
+        pageImageUrl = data.all_output_files?.find((url: string) => url.includes(slidePattern));
+        console.log('Fallback 到原图 URL:', pageImageUrl);
+      }
+      
+      console.log('最终使用的图片 URL:', pageImageUrl);
+      
+      updatedResults[index] = { 
+        ...updatedResults[index], 
+        status: 'done',
+        afterImage: pageImageUrl || updatedResults[index].afterImage,
+        userPrompt: slidePrompt || undefined,
+      };
+      setBeautifyResults(updatedResults);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '美化失败';
+      setError(message);
+      updatedResults[index] = { ...updatedResults[index], status: 'pending' };
     setBeautifyResults(updatedResults);
+    } finally {
     setIsBeautifying(false);
+    }
   };
 
   const handleConfirmSlide = () => {
@@ -336,25 +707,15 @@ const Ppt2PolishPage = () => {
       const nextIndex = currentSlideIndex + 1;
       setCurrentSlideIndex(nextIndex);
       setSlidePrompt('');
-      startBeautifyCurrentSlide(beautifyResults, nextIndex);
+      // 自动开始美化下一页
+      setTimeout(() => {
+        startBeautifyCurrentSlide(null, nextIndex); // 传入 null，从 state 读取
+      }, 100);
     } else {
       setCurrentStep('complete');
     }
   };
 
-  const handleSkipSlide = () => {
-    const updatedResults = [...beautifyResults];
-    updatedResults[currentSlideIndex] = { ...updatedResults[currentSlideIndex], status: 'skipped' };
-    setBeautifyResults(updatedResults);
-    if (currentSlideIndex < outlineData.length - 1) {
-      const nextIndex = currentSlideIndex + 1;
-      setCurrentSlideIndex(nextIndex);
-      setSlidePrompt('');
-      startBeautifyCurrentSlide(updatedResults, nextIndex);
-    } else {
-      setCurrentStep('complete');
-    }
-  };
 
   const handleRegenerateSlide = async () => {
     const updatedResults = [...beautifyResults];
@@ -369,23 +730,108 @@ const Ppt2PolishPage = () => {
 
   // ============== Step 4: 完成下载处理 ==============
   const handleGenerateFinal = async () => {
+    if (!resultPath) {
+      setError('缺少 result_path，请重新上传文件');
+      return;
+    }
+    
     setIsGeneratingFinal(true);
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    setDownloadUrl('/mock-beautified.pptx');
+    setError(null);
+    
+    try {
+      // 调用 /paper2ppt/ppt_json 接口生成最终 PPT
+      const formData = new FormData();
+      formData.append('img_gen_model_name', genFigModel);
+      formData.append('chat_api_url', llmApiUrl.trim());
+      formData.append('api_key', apiKey.trim());
+      formData.append('model', model);
+      formData.append('language', language);
+      formData.append('style', globalPrompt || stylePreset);
+      formData.append('aspect_ratio', '16:9');
+      formData.append('invite_code', inviteCode.trim());
+      formData.append('result_path', resultPath);
+      formData.append('get_down', 'false');
+      formData.append('all_edited_down', 'true');
+      
+      // 传递最终的 pagecontent
+      const pagecontent = outlineData.map(slide => ({
+        title: slide.title,
+        layout_description: slide.layout_description,
+        key_points: slide.key_points,
+        asset_ref: slide.asset_ref,
+      }));
+      formData.append('pagecontent', JSON.stringify(pagecontent));
+      
+      const res = await fetch('/api/paper2ppt/ppt_json', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!res.ok) {
+        let msg = '生成最终 PPT 失败';
+        try {
+          const errorData = await res.json();
+          msg = errorData.detail || errorData.message || msg;
+        } catch {
+          // ignore
+        }
+        throw new Error(msg);
+      }
+      
+      const data = await res.json();
+      
+      if (!data.success) {
+        throw new Error(data.message || '生成失败');
+      }
+      
+      // 从 all_output_files 中找到 PPTX 文件
+      const pptxUrl = data.all_output_files?.find((url: string) => url.endsWith('.pptx')) || data.ppt_pptx_path;
+      
+      if (pptxUrl) {
+        setDownloadUrl(pptxUrl);
+      } else {
+        throw new Error('未找到生成的 PPTX 文件');
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '生成最终 PPT 失败';
+      setError(message);
+    } finally {
     setIsGeneratingFinal(false);
+    }
   };
 
-  const handleDownload = () => {
-    alert('下载功能将在后端对接后启用');
+  const handleDownload = async () => {
+    if (!downloadUrl) {
+      setError('下载链接不存在');
+      return;
+    }
+    
+    try {
+      const res = await fetch(downloadUrl);
+      if (!res.ok) {
+        throw new Error('下载失败');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'paper2ppt_editable.pptx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '下载失败';
+      setError(message);
+    }
   };
 
   // ============== 渲染步骤指示器 ==============
   const renderStepIndicator = () => {
     const steps = [
       { key: 'upload', label: '上传 PPT', num: 1 },
-      { key: 'outline', label: 'Outline 确认', num: 2 },
-      { key: 'beautify', label: '逐页美化', num: 3 },
-      { key: 'complete', label: '完成下载', num: 4 },
+      { key: 'beautify', label: '逐页美化', num: 2 },
+      { key: 'complete', label: '完成下载', num: 3 },
     ];
     
     const currentIndex = steps.findIndex(s => s.key === currentStep);
@@ -474,8 +920,79 @@ const Ppt2PolishPage = () => {
         <div className="glass rounded-xl border border-white/10 p-6 space-y-5">
           <h3 className="text-white font-semibold flex items-center gap-2">
             <Settings2 size={18} className="text-teal-400" />
-            风格配置
+            配置
           </h3>
+          
+          <div>
+            <label className="block text-sm text-gray-300 mb-2">邀请码</label>
+            <input
+              type="text"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              placeholder="请输入邀请码"
+              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm text-gray-300 mb-2">模型 API URL</label>
+            <input
+              type="text"
+              value={llmApiUrl}
+              onChange={(e) => setLlmApiUrl(e.target.value)}
+              placeholder="https://api.apiyi.com/v1"
+              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm text-gray-300 mb-2">API Key</label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="sk-..."
+              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm text-gray-300 mb-2">模型名称</label>
+            <select
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
+            >
+              <option value="gpt-4o">gpt-4o</option>
+              <option value="gpt-5.1">gpt-5.1</option>
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm text-gray-300 mb-2">图像生成模型</label>
+            <input
+              type="text"
+              value={genFigModel}
+              onChange={(e) => setGenFigModel(e.target.value)}
+              placeholder="gemini-2.5-flash-image-preview"
+              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm text-gray-300 mb-2">生成语言</label>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as 'zh' | 'en')}
+              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
+            >
+              <option value="zh">中文 (zh)</option>
+              <option value="en">英文 (en)</option>
+            </select>
+          </div>
+          
+          <div className="border-t border-white/10 pt-4">
+            <h4 className="text-sm text-gray-300 mb-3 font-medium">风格配置</h4>
           <div className="flex gap-2">
             <button onClick={() => setStyleMode('preset')} className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${styleMode === 'preset' ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white' : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'}`}>
               <Sparkles size={16} /> 预设风格
@@ -519,6 +1036,7 @@ const Ppt2PolishPage = () => {
               )}
             </div>
           )}
+            </div>
           <button onClick={handleUploadAndParse} disabled={!selectedFile || isUploading} className="w-full py-3 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold flex items-center justify-center gap-2 transition-all">
             {isUploading ? <><Loader2 size={18} className="animate-spin" /> 解析中...</> : <><ArrowRight size={18} /> 开始解析</>}
           </button>
@@ -593,6 +1111,24 @@ const Ppt2PolishPage = () => {
   const renderBeautifyStep = () => {
     const currentSlide = outlineData[currentSlideIndex];
     const currentResult = beautifyResults[currentSlideIndex];
+    
+    // 如果正在生成初始 PPT，显示加载状态
+    if (isGeneratingInitial) {
+      return (
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-white mb-2">正在生成初始 PPT</h2>
+            <p className="text-gray-400">请稍候，正在处理您的 PPT 文件...</p>
+          </div>
+          <div className="glass rounded-xl border border-white/10 p-12 flex flex-col items-center justify-center">
+            <Loader2 size={48} className="text-teal-400 animate-spin mb-4" />
+            <p className="text-teal-300 text-lg font-medium mb-2">正在生成初始 PPT 和预览图</p>
+            <p className="text-gray-400 text-sm">这可能需要几分钟时间，请耐心等待...</p>
+          </div>
+        </div>
+      );
+    }
+    
     return (
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-6">
@@ -601,17 +1137,17 @@ const Ppt2PolishPage = () => {
           <p className="text-xs text-gray-500 mt-1">🎨 美化模式 - 优化原有 PPT 样式</p>
         </div>
         <div className="mb-6">
-          <div className="flex gap-1">{beautifyResults.map((result, index) => (<div key={result.slideId} className={`flex-1 h-2 rounded-full transition-all ${result.status === 'done' ? 'bg-teal-400' : result.status === 'skipped' ? 'bg-yellow-400' : result.status === 'processing' ? 'bg-gradient-to-r from-cyan-400 to-teal-400 animate-pulse' : index === currentSlideIndex ? 'bg-teal-400/50' : 'bg-white/10'}`} />))}</div>
+          <div className="flex gap-1">{beautifyResults.map((result, index) => (<div key={result.slideId} className={`flex-1 h-2 rounded-full transition-all ${result.status === 'done' ? 'bg-teal-400' : result.status === 'processing' ? 'bg-gradient-to-r from-cyan-400 to-teal-400 animate-pulse' : index === currentSlideIndex ? 'bg-teal-400/50' : 'bg-white/10'}`} />))}</div>
         </div>
         <div className="glass rounded-xl border border-white/10 p-6 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h4 className="text-sm text-gray-400 mb-3 flex items-center gap-2"><Eye size={14} /> 原始 PPT 渲染</h4>
-              <div className="rounded-lg overflow-hidden border border-white/10 aspect-[4/3] bg-white/5 flex items-center justify-center">{currentResult?.beforeImage ? <img src={currentResult.beforeImage} alt="Before" className="w-full h-full object-cover" /> : <Loader2 size={24} className="text-gray-500 animate-spin" />}</div>
+              <div className="rounded-lg overflow-hidden border border-white/10 aspect-[16/9] bg-white/5 flex items-center justify-center">{currentResult?.beforeImage ? <img src={currentResult.beforeImage} alt="Before" className="max-w-full max-h-full object-contain" /> : <Loader2 size={24} className="text-gray-500 animate-spin" />}</div>
             </div>
             <div>
               <h4 className="text-sm text-gray-400 mb-3 flex items-center gap-2"><Sparkles size={14} className="text-teal-400" /> 美化结果</h4>
-              <div className="rounded-lg overflow-hidden border border-teal-500/30 aspect-[4/3] bg-gradient-to-br from-cyan-500/10 to-teal-500/10 flex items-center justify-center">{isBeautifying ? <div className="text-center"><Loader2 size={32} className="text-teal-400 animate-spin mx-auto mb-2" /><p className="text-sm text-teal-300">正在美化中...</p></div> : currentResult?.afterImage ? <img src={currentResult.afterImage} alt="After" className="w-full h-full object-cover" /> : <span className="text-gray-500">等待生成</span>}</div>
+              <div className="rounded-lg overflow-hidden border border-teal-500/30 aspect-[16/9] bg-gradient-to-br from-cyan-500/10 to-teal-500/10 flex items-center justify-center">{isBeautifying ? <div className="text-center"><Loader2 size={32} className="text-teal-400 animate-spin mx-auto mb-2" /><p className="text-sm text-teal-300">正在美化中...</p></div> : currentResult?.afterImage ? <img src={currentResult.afterImage} alt="After" className="max-w-full max-h-full object-contain" /> : <span className="text-gray-500">等待生成</span>}</div>
             </div>
           </div>
         </div>
@@ -619,8 +1155,8 @@ const Ppt2PolishPage = () => {
           <div className="flex items-center gap-3"><MessageSquare size={18} className="text-teal-400" /><input type="text" value={slidePrompt} onChange={(e) => setSlidePrompt(e.target.value)} placeholder="输入微调 Prompt，然后点击重新生成..." className="flex-1 bg-transparent border-none outline-none text-white text-sm placeholder:text-gray-500" /><button onClick={handleRegenerateSlide} disabled={isBeautifying || !slidePrompt.trim()} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 text-sm flex items-center gap-2 disabled:opacity-50 transition-all"><RefreshCw size={14} /> 重新生成</button></div>
         </div>
         <div className="flex justify-between">
-          <button onClick={() => setCurrentStep('outline')} className="px-6 py-2.5 rounded-lg border border-white/20 text-gray-300 hover:bg-white/10 flex items-center gap-2 transition-all"><ArrowLeft size={18} /> 返回 Outline</button>
-          <div className="flex gap-3"><button onClick={handleSkipSlide} disabled={isBeautifying} className="px-5 py-2.5 rounded-lg bg-yellow-500/20 border border-yellow-500/40 text-yellow-300 hover:bg-yellow-500/30 flex items-center gap-2 transition-all"><SkipForward size={18} /> 跳过此页</button><button onClick={handleConfirmSlide} disabled={isBeautifying} className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white font-semibold flex items-center gap-2 transition-all"><CheckCircle2 size={18} /> 确认并继续</button></div>
+          <button onClick={() => setCurrentStep('upload')} className="px-6 py-2.5 rounded-lg border border-white/20 text-gray-300 hover:bg-white/10 flex items-center gap-2 transition-all"><ArrowLeft size={18} /> 返回上传</button>
+          <div className="flex gap-3"><button onClick={handleConfirmSlide} disabled={isBeautifying || !currentResult?.afterImage} className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white font-semibold flex items-center gap-2 transition-all disabled:opacity-50"><CheckCircle2 size={18} /> 确认并继续</button></div>
         </div>
       </div>
     );
@@ -632,7 +1168,7 @@ const Ppt2PolishPage = () => {
       <div className="mb-8"><div className="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500 to-teal-500 flex items-center justify-center mx-auto mb-4"><CheckCircle2 size={40} className="text-white" /></div><h2 className="text-2xl font-bold text-white mb-2">美化完成！</h2></div>
       <div className="glass rounded-xl border border-white/10 p-6 mb-6">
         <h3 className="text-white font-semibold mb-4">处理结果概览</h3>
-        <div className="grid grid-cols-4 gap-2">{beautifyResults.map((result, index) => (<div key={result.slideId} className={`p-3 rounded-lg border ${result.status === 'done' ? 'bg-teal-500/20 border-teal-500/40' : 'bg-yellow-500/20 border-yellow-500/40'}`}><p className="text-sm text-white">第 {index + 1} 页</p><p className={`text-xs ${result.status === 'done' ? 'text-teal-300' : 'text-yellow-300'}`}>{result.status === 'done' ? '已美化' : '已跳过'}</p></div>))}</div>
+        <div className="grid grid-cols-4 gap-2">{beautifyResults.map((result, index) => (<div key={result.slideId} className="p-3 rounded-lg border bg-teal-500/20 border-teal-500/40"><p className="text-sm text-white">第 {index + 1} 页</p><p className="text-xs text-teal-300">已美化</p></div>))}</div>
       </div>
       {!downloadUrl ? <button onClick={handleGenerateFinal} disabled={isGeneratingFinal} className="px-8 py-3 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white font-semibold flex items-center justify-center gap-2 mx-auto transition-all">{isGeneratingFinal ? <><Loader2 size={18} className="animate-spin" /> 正在生成最终 PPT...</> : <><Sparkles size={18} /> 生成最终 PPT</>}</button> : <div className="space-y-4"><button onClick={handleDownload} className="px-8 py-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold flex items-center justify-center gap-2 mx-auto transition-all"><Download size={18} /> 下载美化后的 PPT</button><button onClick={() => { setCurrentStep('upload'); setSelectedFile(null); setOutlineData([]); setBeautifyResults([]); setDownloadUrl(null); }} className="text-sm text-gray-400 hover:text-white transition-colors"><RotateCcw size={14} className="inline mr-1" /> 处理新的文档</button></div>}
     </div>
@@ -641,7 +1177,7 @@ const Ppt2PolishPage = () => {
   return (
     <div className="w-full h-screen flex flex-col bg-[#050512] overflow-hidden">
       {showBanner && (<div className="w-full bg-gradient-to-r from-cyan-600 via-teal-600 to-emerald-500 relative overflow-hidden flex-shrink-0"><div className="absolute inset-0 bg-black opacity-20"></div><div className="relative max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between"><div className="flex items-center gap-3"><Star size={14} className="text-yellow-300 fill-yellow-300" /><span className="text-sm text-white">✨ Ppt2Polish - 智能 PPT 美化工具</span></div><div className="flex items-center gap-2"><a href="https://github.com/OpenDCAI/DataFlow-Agent" target="_blank" rel="noopener noreferrer" className="px-3 py-1 bg-white/90 text-gray-900 rounded-full text-xs font-medium hover:bg-white transition-all flex items-center gap-1"><Github size={12} /> GitHub</a><button onClick={() => setShowBanner(false)} className="p-1 hover:bg-white/20 rounded-full"><X size={14} className="text-white" /></button></div></div></div>)}
-      <div className="flex-1 w-full overflow-auto"><div className="max-w-7xl mx-auto px-6 py-8 pb-24">{renderStepIndicator()}{currentStep === 'upload' && renderUploadStep()}{currentStep === 'outline' && renderOutlineStep()}{currentStep === 'beautify' && renderBeautifyStep()}{currentStep === 'complete' && renderCompleteStep()}</div></div>
+      <div className="flex-1 w-full overflow-auto"><div className="max-w-7xl mx-auto px-6 py-8 pb-24">{renderStepIndicator()}{currentStep === 'upload' && renderUploadStep()}{currentStep === 'beautify' && renderBeautifyStep()}{currentStep === 'complete' && renderCompleteStep()}</div></div>
       <style>{`.glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); }`}</style>
     </div>
   );
