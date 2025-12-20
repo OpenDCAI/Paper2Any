@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Sequence, Union, Optional
 import os
 import shutil
 import subprocess
-
+import re
 from PIL import Image
 from mineru_vl_utils import MinerUClient
 
@@ -509,3 +509,77 @@ async def recursive_mineru_layout(
             )
 
     return leaf_items
+
+
+def _shrink_markdown(md: str, max_h1: int = 6, max_chars: int = 10_000) -> str:
+    """
+    Shrink a long markdown string before passing to downstream LLM agents.
+
+    Default strategy:
+    - pick content under the first `max_h1` level-1 headings (lines starting with '# ')
+    - if picked content shorter than `max_chars`, append remaining original content
+      (in original order) until reaching `max_chars`
+    - fallback to pure char truncation if no H1 found
+
+    Notes:
+    - This is a best-effort heuristic (no heavy markdown parser required).
+    """
+    if not md:
+        return ""
+
+    if max_chars is not None and max_chars > 0 and len(md) <= max_chars:
+        return md
+
+    # find H1 headings (allow leading spaces; require '# ' style)
+    h1_re = re.compile(r"^\s*#\s+.+$")
+    lines = md.splitlines(keepends=True)
+    h1_indices = [i for i, line in enumerate(lines) if h1_re.match(line)]
+
+    # no H1 -> fallback to char truncation
+    if not h1_indices:
+        if max_chars and max_chars > 0:
+            return md[:max_chars]
+        return md
+
+    # build sections for first max_h1 headings
+    picked_parts: List[str] = []
+    for j, start_i in enumerate(h1_indices[:max_h1]):
+        end_i = h1_indices[j + 1] if (j + 1) < len(h1_indices) else len(lines)
+        picked_parts.append("".join(lines[start_i:end_i]))
+
+    picked = "".join(picked_parts)
+
+    # If picked already too long, truncate
+    if max_chars and max_chars > 0 and len(picked) >= max_chars:
+        return picked[:max_chars]
+
+    # Otherwise, append original content (skipping already picked substrings by simple rule:
+    # we only append from the beginning of the doc, but avoid duplicating the picked segments
+    # by appending only those parts not present in picked when scanning in order).
+    #
+    # Practical approach: take the full md, then append characters from full md that are
+    # not already in picked by position; easiest is to append from original start,
+    # but that may duplicate. Instead, we fill from the original md excluding
+    # the picked H1 blocks.
+    keep = picked
+    if not (max_chars and max_chars > 0):
+        return keep
+
+    # mark picked line ranges to exclude when appending
+    exclude = [False] * len(lines)
+    for j, start_i in enumerate(h1_indices[:max_h1]):
+        end_i = h1_indices[j + 1] if (j + 1) < len(h1_indices) else len(lines)
+        for i in range(start_i, end_i):
+            exclude[i] = True
+
+    # append non-excluded lines in original order until max_chars
+    for i, line in enumerate(lines):
+        if exclude[i]:
+            continue
+        if len(keep) >= max_chars:
+            break
+        remain = max_chars - len(keep)
+        keep += line[:remain]
+
+    return keep
+

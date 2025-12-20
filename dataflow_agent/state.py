@@ -23,7 +23,7 @@ class MainRequest:
     language: str = "en"  # "en" | "zh" | ...
 
     # ② LLM 接口
-    chat_api_url: str = "http://123.129.219.111:3000/v1"
+    chat_api_url: str = os.getenv("DF_API_URL", "test")
     api_key: str = os.getenv("DF_API_KEY", "test")
     chat_api_key: str = os.getenv("DF_API_KEY", "test") #没区别，但是不想改之前代码了；
 
@@ -385,6 +385,11 @@ class Paper2FigureRequest(MainRequest):
     figure_complex: str = "hard"
     style: str = "kartoon"
 
+    # PPT的页面数量 
+    page_count: int = 10
+    # 是否编辑完毕，也就是是否需要重新生成完整的 PPT
+    all_edited_down: bool = False
+
 @dataclass
 class Paper2FigureState(MainState):
     request: Paper2FigureRequest = field(default_factory=Paper2FigureRequest)
@@ -405,16 +410,14 @@ class Paper2FigureState(MainState):
     paper_idea: str = ''
     input_type: str = 'PDF'
 
-
     # 技术路线图使用属性 ==============================
     figure_tec_svg_content: str = ""
     svg_img_path: str = ""
     mineru_port: int = 8001
-    
-    svg_file_path: str = "" # svg 带文字图的 地址
+    svg_file_path: str = ""  # svg 带文字图的 地址
     svg_bg_file_path: str = ""
     # 带文字版本的svg图片
-    svg_full_img_path: str = "" 
+    svg_full_img_path: str = ""
     # 背景svg code：
     svg_bg_code : str = ""
     
@@ -437,3 +440,30 @@ class Paper2FigureState(MainState):
     generated_charts: Dict[str, str] = field(default_factory=dict)             # 生成的图表路径字典
     stylize_results: Dict[str, list] = field(default_factory=dict)             # 风格化后的图表路径字典
 
+    svg_bg_code: str = ""
+
+    # paper2ppt 专用 ==============================
+    # 首次生成整套页面图是否已完成；False 走批量生成，True 走按页二次编辑
+    gen_down: bool = False
+    # 0-based: 要二次编辑的页号
+    edit_page_num: int = -1
+    # 二次编辑提示词（用于 edit_page_num 对应页）
+    edit_page_prompt: str = ""
+    # 批量生成出来的页面图片路径（0-based 对齐 pagecontent）
+    generated_pages: List[str] = field(default_factory=list)
+    table_img_path: str = ""
+
+    # pagecontent: 既可为结构化 slide 描述，也可为 [{"ppt_img_path": "..."}] 的图片列表
+    pagecontent: list[dict] = field(default_factory=list)
+    minueru_output: str = ""
+    mineru_root: str = ""
+    text_content: str = ""
+    # 生成的 PPT PDF 路径
+    ppt_pdf_path: str = ""
+    ppt_pptx_path: str = ""
+
+    # pdf2ppt 专用 ==============================
+    pdf_file: str = ""
+    slide_images: List[str] = field(default_factory=list)
+    ocr_pages: List[str] = field(default_factory=list)
+    sam_pages: List[str] = field(default_factory=list)

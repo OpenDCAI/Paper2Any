@@ -32,3 +32,14 @@ ultralytics
 transformers
 scikit-image
 pdf2image
+
+pillow
+# pytesseract  # 已改用 PaddleOCR
+
+# Paddle OCR (CPU)
+paddlepaddle==3.2.0
+paddleocr==2.9.1
+
+PyMuPDF
+img2pdf
+reportlab

@@ -5,9 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from fastapi_app.routers import operator_write, pipeline_rec, workflows, paper2video
-from fastapi_app.routers import operator_write, pipeline_rec, workflows
-from fastapi_app.routers import paper2any
+from fastapi_app.routers import paper2video
+from fastapi_app.routers import paper2any, paper2ppt
+from fastapi_app.routers import pdf2ppt
 from dataflow_agent.utils import get_project_root
 
 
@@ -35,12 +35,13 @@ def create_app() -> FastAPI:
     )
 
     # 路由挂载
-    app.include_router(workflows.router, prefix="/workflows", tags=["workflows"])
-    app.include_router(operator_write.router, prefix="/operator", tags=["operator_write"])
-    app.include_router(pipeline_rec.router, prefix="/pipeline", tags=["pipeline_recommend"])
     app.include_router(paper2video.router, prefix="/paper2video", tags=["paper2video"])
     # Paper2Graph / Paper2PPT 假接口，对接前端 /api/*
     app.include_router(paper2any.router, prefix="/api", tags=["paper2any"])
+    # Paper2PPT full pipeline JSON 接口
+    app.include_router(paper2ppt.router, prefix="/paper2ppt", tags=["paper2ppt"])
+    # pdf2ppt_with_sam workflow 接口：仅上传 PDF，返回 PPTX 文件
+    app.include_router(pdf2ppt.router, prefix="/api", tags=["pdf2ppt"])
 
     # 挂载静态文件目录（用于提供生成的 PPTX/SVG/PNG 文件）
     project_root = get_project_root()
@@ -64,5 +65,5 @@ def create_app() -> FastAPI:
     return app
 
 
-# 供 uvicorn 使用：uvicorn fastapi_app.main:app --reload
+# 供 uvicorn 使用：uvicorn fastapi_app.main:app --reload --port 9999
 app = create_app()
