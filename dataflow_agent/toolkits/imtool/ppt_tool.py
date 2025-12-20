@@ -35,6 +35,7 @@ from paddleocr import PaddleOCR
 from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
+from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.logger import get_logger
 
@@ -883,28 +884,13 @@ def ocr_images_to_ppt(
 
             # 计算字号
             font_size = estimate_font_pt(bbox, img_h_px=h0, body_h_px=body_h_px)
-            font_size_pt = font_size.pt  # 获取点数值
-            
-            # 统计字符类型
-            char_count = len(text)
-            cjk_count = sum(1 for ch in text if is_cjk(ch))
-            latin_count = char_count - cjk_count
-            
-            # 估算文字实际宽度（EMU）
-            # 经验公式：中文字符宽度约为字号，英文约为字号*0.6
-            estimated_text_width_emu = int((cjk_count * font_size_pt + latin_count * font_size_pt * 0.6) * 12700)
-            
-            # 文本框宽度：使用原始bbox宽度（不再动态扩大）
-            original_width_emu = px_to_emu((x2 - x1), scale_x)
-            width = original_width_emu
-            
-            # 动态调整文本框高度：根据字号估算行高
-            # 行高通常是字号的1.2-1.5倍
-            estimated_line_height_emu = int(font_size_pt * 1.3 * 12700)
-            original_height_emu = px_to_emu((y2 - y1), scale_y)
-            
-            # 使用较大值，确保文字不被截断
-            height = max(original_height_emu, estimated_line_height_emu)
+
+            # 文本框尺寸：直接使用OCR检测到的bbox尺寸
+            bbox_width_emu = px_to_emu((x2 - x1), scale_x)
+            bbox_height_emu = px_to_emu((y2 - y1), scale_y)
+
+            width = bbox_width_emu
+            height = bbox_height_emu
 
             left = px_to_emu(x1, scale_x)
             top = px_to_emu(y1, scale_y)
@@ -915,39 +901,25 @@ def ocr_images_to_ppt(
             tf.clear()
             tf.word_wrap = False  # 禁用自动换行
 
+            # 垂直居中（可选）
+            tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+
             # 设置文本框透明
             tb.fill.background()  # 无填充
             tb.line.fill.background()  # 无边框
 
             p = tf.paragraphs[0]
             p.text = text
-            
-            # 字符间距调整：让文字横向铺满文本框
-            if estimated_text_width_emu < width and char_count > 1:
-                # 文字比文本框窄，增加字符间距填满宽度
-                extra_space_emu = width - estimated_text_width_emu
-                # 字符间距分配到字符间隙（n个字符有n-1个间隙）
-                char_spacing_emu = extra_space_emu / (char_count - 1)
-                char_spacing_pt = char_spacing_emu / 12700.0
-                
-                # 限制最大字符间距，避免过度拉伸影响可读性
-                max_spacing_pt = 8.0  # 最大8pt间距
-                char_spacing_pt = min(char_spacing_pt, max_spacing_pt)
-                
-                p.font.spacing = Pt(char_spacing_pt)
-                log.info(f"slide#{idx} text='{text[:20]}...' spacing={char_spacing_pt:.2f}pt")
-            elif estimated_text_width_emu > width:
-                # 文字比文本框宽，缩小字号以适应宽度
-                scale_factor = width / estimated_text_width_emu
-                adjusted_font_size_pt = font_size_pt * scale_factor * 0.95  # 留5%余量
-                font_size = Pt(max(8, min(96, adjusted_font_size_pt)))
-                p.font.spacing = Pt(0)  # 正常间距
-                log.info(f"slide#{idx} text='{text[:20]}...' font scaled: {font_size_pt:.1f}pt -> {adjusted_font_size_pt:.1f}pt")
+
+            # 使用原生分散对齐：多字符分散，单字符居中
+            if len(text) > 1:
+                p.alignment = PP_ALIGN.DISTRIBUTE
             else:
-                # 宽度刚好，使用正常间距
-                p.font.spacing = Pt(0)
-            
+                p.alignment = PP_ALIGN.CENTER
+
+            # 不再依赖 font.spacing 模拟分散，统一设为 0
             p.font.size = font_size
+            p.font.spacing = Pt(0)
 
             # 提取并设置文字颜色
             if use_text_color:
@@ -1039,3 +1011,213 @@ def convert_images_dir_to_pdf_and_ppt(
         clean_background=clean_background,
         extract_text_color=extract_text_color,
     )
+
+
+async def convert_images_dir_to_pdf_and_ppt_api(
+    input_dir: str,
+    output_pdf_path: Optional[str] = None,
+    output_pptx_path: Optional[str] = None,
+    api_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+    model: Optional[str] = None,
+    use_api_inpaint: bool = True,
+    add_background_image: bool = ADD_BACKGROUND_IMAGE,
+    clean_background: bool = CLEAN_BACKGROUND,
+    use_text_color: bool = EXTRACT_TEXT_COLOR,
+) -> Dict[str, Optional[str]]:
+    """
+    带 API inpainting 支持的图片转 PDF/PPTX 函数（异步版本）
+    
+    与 convert_images_dir_to_pdf_and_ppt 的区别：
+    - 支持使用图像编辑 API 进行 inpainting（优先）
+    - API 失败时自动 fallback 到传统 OpenCV inpaint
+    - 支持重试机制（最多3次）
+    
+    参数:
+        input_dir: 包含图片的目录，内部按文件名自然排序
+        output_pdf_path: 输出 PDF 文件路径，若为 None 则不生成 PDF
+        output_pptx_path: 输出 PPTX 文件路径，若为 None 则不生成 PPT
+        api_url: 图像编辑 API 的 URL
+        api_key: API 密钥
+        model: 使用的模型名称
+        use_api_inpaint: 是否启用 API inpainting（默认 True）
+        add_background_image: 是否在 PPT 中加入整页背景图
+        clean_background: 是否对背景进行 inpaint 处理
+        extract_text_color: 是否根据原图估计文字颜色
+    
+    返回:
+        包含已生成文件路径的字典
+    """
+    import asyncio
+    from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
+    
+    image_paths = list_images_in_dir(input_dir)
+    if not image_paths:
+        raise ValueError(f"No images found in {input_dir!r}")
+    
+    result: Dict[str, Optional[str]] = {"pdf": None, "pptx": None}
+    
+    # 生成 PDF
+    if output_pdf_path is not None:
+        result["pdf"] = images_to_pdf(image_paths, output_pdf_path)
+    
+    # 生成 PPTX（带 API inpainting 支持）
+    if output_pptx_path is not None:
+        prs = Presentation()
+        prs.slide_width = Inches(SLIDE_W_IN)
+        prs.slide_height = Inches(SLIDE_H_IN)
+        
+        slide_w_emu = prs.slide_width
+        slide_h_emu = prs.slide_height
+        
+        for idx, img_path in enumerate(image_paths, start=1):
+            log.info(f"Processing slide #{idx}: {os.path.basename(img_path)}")
+            
+            bgr = read_bgr(img_path)
+            ocr_img, scale = preprocess_for_ocr(bgr)
+            
+            h0, w0 = bgr.shape[:2]
+            h1, w1 = ocr_img.shape[:2]
+            
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            
+            # OCR 识别
+            lines = paddle_ocr(ocr_img)
+            
+            # 坐标映射
+            if lines and (w1 != w0 or h1 != h0):
+                sx = w0 / float(w1)
+                sy = h0 / float(h1)
+                lines = [
+                    ([b[0] * sx, b[1] * sy, b[2] * sx, b[3] * sy], t, c)
+                    for (b, t, c) in lines
+                ]
+            
+            # 合并行
+            y_tol = max(12, int(h0 * 0.008))
+            x_gap = max(18, int(w0 * 0.01))
+            lines = merge_lines(lines, y_tol=y_tol, x_gap=x_gap)
+            
+            body_h_px = analyze_line_heights(lines)
+            bg_color = estimate_background_color(bgr, lines) if use_text_color and lines else None
+            
+            # 底图处理：优先使用 API inpainting
+            bg_for_slide = bgr
+            if add_background_image:
+                if clean_background and lines and use_api_inpaint and api_url and api_key and model:
+                    # 使用 API inpainting（带重试）
+                    async def _call_inpaint_api_with_retry(retries: int = 3, delay: float = 1.0) -> bool:
+                        last_err: Optional[Exception] = None
+                        for attempt in range(1, retries + 1):
+                            try:
+                                await generate_or_edit_and_save_image_async(
+                                    prompt=inpaint_prompt,
+                                    save_path=clean_bg_path,
+                                    aspect_ratio="16:9",
+                                    api_url=api_url,
+                                    api_key=api_key,
+                                    model=model,
+                                    image_path=temp_img_path,
+                                    use_edit=True,
+                                )
+                                return True
+                            except Exception as e:
+                                last_err = e
+                                log.error(f"[convert_images_dir_to_pdf_and_ppt_api] slide#{idx} inpainting attempt {attempt}/{retries} failed: {e}")
+                                if attempt < retries:
+                                    try:
+                                        await asyncio.sleep(delay)
+                                    except Exception:
+                                        pass
+                        log.error(f"[convert_images_dir_to_pdf_and_ppt_api] slide#{idx} inpainting failed after {retries} attempts: {last_err}")
+                        return False
+                    
+                    try:
+                        # 生成文字掩码
+                        text_mask = build_adaptive_mask(bgr, lines)
+                        
+                        # 保存临时文件
+                        import tempfile
+                        with tempfile.TemporaryDirectory() as tmpdir:
+                            temp_img_path = os.path.join(tmpdir, f"temp_{idx}.png")
+                            clean_bg_path = os.path.join(tmpdir, f"clean_{idx}.png")
+                            cv2.imwrite(temp_img_path, bgr)
+                            
+                            # 构造 inpainting 提示词
+                            inpaint_prompt = "请智能修复图像中文字被移除后的区域，保持背景的连续性、一致性和自然过渡，使修复后的图像看起来完整无缺。"
+                            
+                            log.info(f"[convert_images_dir_to_pdf_and_ppt_api] slide#{idx} 开始调用图像编辑API进行inpainting（最多重试3次）...")
+                            
+                            api_success = await _call_inpaint_api_with_retry(retries=3, delay=1.0)
+                            
+                            if api_success and os.path.exists(clean_bg_path):
+                                bg_for_slide = read_bgr(clean_bg_path)
+                                log.info(f"[convert_images_dir_to_pdf_and_ppt_api] slide#{idx} API inpainting成功")
+                            else:
+                                log.warning(f"[convert_images_dir_to_pdf_and_ppt_api] slide#{idx} API inpainting失败，使用本地inpaint")
+                                bg_for_slide = make_clean_background(bgr, lines)
+                    except Exception as e:
+                        log.error(f"[convert_images_dir_to_pdf_and_ppt_api] slide#{idx} inpainting流程失败: {e}，使用本地inpaint")
+                        try:
+                            bg_for_slide = make_clean_background(bgr, lines)
+                        except Exception as e2:
+                            log.error(f"[convert_images_dir_to_pdf_and_ppt_api] slide#{idx} 本地inpaint也失败: {e2}，使用原图")
+                            bg_for_slide = bgr
+                elif clean_background and lines:
+                    # 不使用 API，直接使用本地 inpaint
+                    log.info(f"slide#{idx} applying local inpainting...")
+                    bg_for_slide = make_clean_background(bgr, lines)
+                
+                tmp = f"__ppt_bg_{idx}.png"
+                add_background(slide, bg_for_slide, slide_w_emu, slide_h_emu, tmp)
+            
+            # 添加文本框（与原函数相同的逻辑）
+            scale_x = slide_w_emu / w0
+            scale_y = slide_h_emu / h0
+            
+            for bbox, text, conf in lines:
+                x1, y1, x2, y2 = bbox
+                if (x2 - x1) < 6 or (y2 - y1) < 6:
+                    continue
+
+                font_size = estimate_font_pt(bbox, img_h_px=h0, body_h_px=body_h_px)
+
+                bbox_width_emu = px_to_emu((x2 - x1), scale_x)
+                bbox_height_emu = px_to_emu((y2 - y1), scale_y)
+                width = bbox_width_emu
+                height = bbox_height_emu
+                left = px_to_emu(x1, scale_x)
+                top = px_to_emu(y1, scale_y)
+
+                tb = slide.shapes.add_textbox(left, top, int(width), int(height))
+                tf = tb.text_frame
+                tf.clear()
+                tf.word_wrap = False
+                tb.fill.background()
+                tb.line.fill.background()
+
+                # 垂直居中（可选）
+                tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+
+                p = tf.paragraphs[0]
+                p.text = text
+
+                # 使用原生分散对齐
+                if len(text) > 1:
+                    p.alignment = PP_ALIGN.DISTRIBUTE
+                else:
+                    p.alignment = PP_ALIGN.CENTER
+
+                p.font.size = font_size
+                p.font.spacing = Pt(0)
+
+                if use_text_color:
+                    text_color = extract_text_color(bgr, bbox, bg_color)
+                    p.font.color.rgb = RGBColor(*text_color)
+                else:
+                    p.font.color.rgb = RGBColor(0, 0, 0)
+        
+        prs.save(output_pptx_path)
+        result["pptx"] = output_pptx_path
+    
+    return result

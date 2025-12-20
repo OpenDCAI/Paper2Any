@@ -13,7 +13,7 @@ from dataflow_agent.utils import get_project_root
 from dataflow_agent.workflow.registry import register
 
 from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
-from dataflow_agent.toolkits.imtool.ppt_tool import convert_images_dir_to_pdf_and_ppt
+from dataflow_agent.toolkits.imtool.ppt_tool import convert_images_dir_to_pdf_and_ppt, convert_images_dir_to_pdf_and_ppt_api
 
 log = get_logger(__name__)
 
@@ -465,7 +465,7 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
     async def export_ppt_assets(state: Paper2FigureState) -> Paper2FigureState:
         """
         最终导出节点：
-        - 使用 ppt_tool.convert_images_dir_to_pdf_and_ppt
+        - 使用 ppt_tool.convert_images_dir_to_pdf_and_ppt_api（带 API inpainting 支持）
           将 result_path/ppt_pages 中的页面图导出为 PDF 和可编辑 PPTX。
 
         注意：
@@ -494,10 +494,15 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
             f"pdf={pdf_path}, pptx={pptx_path}"
         )
 
-        out = convert_images_dir_to_pdf_and_ppt(
+        # 使用新的 API 版本函数（带 inpainting 支持）
+        out = await convert_images_dir_to_pdf_and_ppt_api(
             input_dir=str(img_dir),
             output_pdf_path=str(pdf_path),
             output_pptx_path=str(pptx_path),
+            api_url=state.request.chat_api_url,
+            api_key=os.getenv("DF_API_KEY") or state.request.chat_api_key,
+            model=state.request.gen_fig_model,
+            use_api_inpaint=True,  # 启用 API inpainting
         )
 
         # 可选：把导出结果路径挂到 state 上，方便后续使用

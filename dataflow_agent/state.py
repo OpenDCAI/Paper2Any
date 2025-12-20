@@ -23,7 +23,7 @@ class MainRequest:
     language: str = "en"  # "en" | "zh" | ...
 
     # ② LLM 接口
-    chat_api_url: str = "http://123.129.219.111:3000/v1"
+    chat_api_url: str = os.getenv("DF_API_URL", "test")
     api_key: str = os.getenv("DF_API_KEY", "test")
     chat_api_key: str = os.getenv("DF_API_KEY", "test") #没区别，但是不想改之前代码了；
 

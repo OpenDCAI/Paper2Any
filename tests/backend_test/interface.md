@@ -1,19 +1,101 @@
-
 # paper2ppt 接口说明（前端视角）
 
-本页面基于 `tests/backend_test/backend_test.py` 中的调用方式，以及你刚才实际跑出来的结果进行整理。
-
-## 通用说明
+本页面基于 `tests/backend_test/backend_test.py` 中的调用方式，以及你实际跑出来的结果进行整理。
 
 - 所有接口基准路径：FastAPI app 根路径，例如 `http://localhost:8000`
-- 调用方式：HTTP POST，`Content-Type: multipart/form-data` 或 `application/x-www-form-urlencoded`（下面会标明）
-- 所有接口都返回 JSON
+- 调用方式：HTTP POST
+- 有的接口返回 JSON，有的直接返回文件（二进制）
 
-## 一、`/paper2ppt/pagecontent_json`
+---
+
+## 一、`/api/pdf2ppt/generate`
+
+用于将上传的 PDF 直接转换为 PPTX 文件，内部会调用 `pdf2ppt_with_sam` workflow。
+
+### 1.1 请求
+
+- 方法：`POST`
+- 路径：`/api/pdf2ppt/generate`
+- Content-Type：`multipart/form-data`
+
+字段说明：
+
+| 字段名       | 类型   | 是否必填 | 说明                          |
+|-------------|--------|----------|-------------------------------|
+| pdf_file    | file   | 是       | 论文 PDF 文件，字段名固定     |
+| invite_code | string | 建议必填 | 邀请码，例如 `ABC123`        |
+
+请求示例（伪 HTTP）：
+
+```http
+POST /api/pdf2ppt/generate
+Content-Type: multipart/form-data
+
+invite_code=ABC123
+pdf_file=@/path/to/your_paper.pdf;type=application/pdf
+```
+
+### 1.2 响应
+
+- 成功时：HTTP 200，响应体为一个 PPTX 二进制文件
+
+关键响应头：
+
+```http
+Content-Type: application/vnd.openxmlformats-officedocument.presentationml.presentation
+Content-Disposition: attachment; filename="xxx.pptx"
+```
+
+前端可以直接把该接口当做「文件下载接口」来用：
+
+#### 1.2.1 普通表单提交
+
+- 使用 `<form method="POST" enctype="multipart/form-data">` 包含一个 `<input type="file" name="pdf_file">`
+- 浏览器会自动弹出下载保存对话框
+
+#### 1.2.2 使用 fetch/axios 方式
+
+以 fetch 为例：
+
+```ts
+const formData = new FormData();
+formData.append("invite_code", "ABC123");
+formData.append("pdf_file", fileInput.files[0]); // file 来自 <input type="file">
+
+const resp = await fetch("/api/pdf2ppt/generate", {
+  method: "POST",
+  body: formData,
+});
+
+if (!resp.ok) {
+  // 这里可以根据后端返回的错误信息做提示
+  const text = await resp.text();
+  console.error("pdf2ppt error:", resp.status, text);
+  return;
+}
+
+const blob = await resp.blob();
+const url = URL.createObjectURL(blob);
+const a = document.createElement("a");
+a.href = url;
+a.download = "paper2ppt_result.pptx"; // 可以根据业务自定义文件名
+a.click();
+URL.revokeObjectURL(url);
+```
+
+这样前端完全不需要了解内部 `pdf2ppt_with_sam` workflow 的细节，只需要知道：
+
+- 上传 PDF (`pdf_file`)
+- 带上 `invite_code`
+- 收到一个 PPTX 文件（二进制）
+
+---
+
+## 二、`/paper2ppt/pagecontent_json`
 
 用于从「文本 / PDF / PPTX」中抽取/生成 PPT 的结构化 `pagecontent` 信息（标题、布局描述、要点等），供后续生成 PPT 使用。
 
-### 1.1 通用表单字段（3 种 input_type 共用）
+### 2.1 通用表单字段（3 种 input_type 共用）
 
 ```text
 chat_api_url   string  必填  LLM 服务地址，例如 https://api.apiyi.com/v1
@@ -27,7 +109,7 @@ invite_code    string  必填  邀请码，例如 ABC123
 input_type     string  必填  输入类型：text / pdf / pptx
 ```
 
-#### 1.1.1 作为 `form-data` 传递示例
+#### 2.1.1 作为 `form-data` 传递示例
 
 ```http
 POST /paper2ppt/pagecontent_json
@@ -47,16 +129,16 @@ input_type=text|pdf|pptx
 
 ---
 
-### 1.2 `input_type = text`
+### 2.2 `input_type = text`
 
-#### 1.2.1 请求字段（在通用字段基础上增加）
+#### 2.2.1 请求字段（在通用字段基础上增加）
 
 ```text
 input_type  = "text"
 text        string  必填  原始文本内容
 ```
 
-#### 1.2.2 典型响应示例（已缩减非关键字段）
+#### 2.2.2 典型响应示例（已缩减非关键字段）
 
 ```json
 {
@@ -92,7 +174,7 @@ text        string  必填  原始文本内容
 }
 ```
 
-#### 1.2.3 前端关心字段
+#### 2.2.3 前端关心字段
 
 - `pagecontent`: 数组，每一项是一页的说明
   - `title`: 页标题
@@ -103,18 +185,18 @@ text        string  必填  原始文本内容
 
 ---
 
-### 1.3 `input_type = pdf`
+### 2.3 `input_type = pdf`
 
-#### 1.3.1 请求字段（额外）
+#### 2.3.1 请求字段（额外）
 
 ```text
 input_type  = "pdf"
 file        file  必填  PDF 文件（multipart/form-data 里的文件字段名为 "file"）
 ```
 
-- 其他字段同 1.1
+- 其他字段同 2.1
 
-#### 1.3.2 典型响应示例（缩减版）
+#### 2.3.2 典型响应示例（缩减版）
 
 ```json
 {
@@ -153,22 +235,18 @@ file        file  必填  PDF 文件（multipart/form-data 里的文件字段名
 }
 ```
 
-#### 1.3.3 额外说明
-
-- `all_output_files` 会包含一些辅助 PDF（如 `input_span`、`input_origin`、`input_layout`），前端一般只需在调试时查看。
-
 ---
 
-### 1.4 `input_type = pptx`
+### 2.4 `input_type = pptx`
 
-#### 1.4.1 请求字段（额外）
+#### 2.4.1 请求字段（额外）
 
 ```text
 input_type  = "pptx"
 file        file  必填  PPTX 文件（multipart/form-data 字段名 "file"）
 ```
 
-#### 1.4.2 典型响应示例（缩减）
+#### 2.4.2 典型响应示例（缩减）
 
 ```json
 {
@@ -192,14 +270,9 @@ file        file  必填  PPTX 文件（multipart/form-data 字段名 "file"）
 }
 ```
 
-#### 1.4.3 前端关心字段
-
-- `pagecontent[i].ppt_img_path`: 这一页 PPT 转成的 PNG 截图的本地绝对路径（服务内部用）
-- `all_output_files`: 对外访问的 HTTP 地址前缀（`http://testserver/...`），前端可以直接用来展示缩略图
-
 ---
 
-## 二、`/paper2ppt/ppt_json`
+## 三、`/paper2ppt/ppt_json`
 
 `ppt_json` 是更「后期处理/编辑」的接口，分几种典型使用场景：
 
@@ -207,7 +280,7 @@ file        file  必填  PPTX 文件（multipart/form-data 字段名 "file"）
 2. 传结构化 `pagecontent`（title/layout_description/key_points/...），由后端去生成整套 PPT 与图片
 3. 编辑模式：`get_down = true`，指定 `page_id` 和 `edit_prompt` 对某一页做图像编辑/重绘
 
-### 2.1 通用表单字段
+### 3.1 通用表单字段
 
 ```text
 img_gen_model_name  string  必填  图像生成模型，例如 gemini-2.5-flash-image-preview
@@ -224,163 +297,55 @@ pagecontent         string  必填  JSON 字符串（注意：是字符串形式
 get_down            string  必填  "false" 或 "true"（字符串）
 ```
 
-- 当 `get_down = "false"`：表示「首次生成」或「再生成」
-- 当 `get_down = "true"`：表示「编辑模式」，需要额外字段（见 2.4）
+当 `get_down = "false"`：表示「首次生成」或「再生成」  
+当 `get_down = "true"`：表示「编辑模式」，需要额外字段（见 3.4）
 
----
-
-### 2.2 场景一：pagecontent 为「直接图片路径」（首次生成）
+### 3.2 场景一：pagecontent 为「直接图片路径」（首次生成）
 
 对应测试：`test_ppt_json_with_direct_image_pagecontent`
 
-#### 2.2.1 请求示例
-
-```python
-result_path = "/home/.../outputs/ABC123/paper2ppt/1766070298"
-
-pagecontent = [
-    {"ppt_img_path": "/home/.../ppt_images/slide_000.png"},
-    {"ppt_img_path": "/home/.../ppt_images/slide_001.png"},
-]
-
-data = {
-  "img_gen_model_name": "gemini-2.5-flash-image-preview",
-  "chat_api_url": "https://api.apiyi.com/v1",
-  "api_key": "...",
-  "model": "gpt-5.1",
-  "language": "zh",
-  "style": "多啦A梦风格；英文；",
-  "aspect_ratio": "16:9",
-  "invite_code": "ABC123",
-  "result_path": result_path,
-  "pagecontent": json.dumps(pagecontent, ensure_ascii=False),
-  "get_down": "false"
-}
-```
-
-#### 2.2.2 典型响应示例
+- 传入的 `pagecontent` 形如：
 
 ```json
-{
-  "success": true,
-  "ppt_pdf_path": "",
-  "ppt_pptx_path": "",
-  "pagecontent": [],
-  "result_path": "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/outputs/ABC123/paper2ppt/1766070298",
-  "all_output_files": [
-    "http://testserver/outputs/ABC123/paper2ppt/1766070298/paper2ppt_editable.pptx",
-    "http://testserver/outputs/ABC123/paper2ppt/1766070298/paper2ppt.pdf",
-    "http://testserver/outputs/ABC123/paper2ppt/1766070298/ppt_images/slide_000.png",
-    "http://testserver/outputs/ABC123/paper2ppt/1766070298/ppt_images/input.pdf",
-    "http://testserver/outputs/ABC123/paper2ppt/1766070298/ppt_images/slide_001.png",
-    "http://testserver/outputs/ABC123/paper2ppt/1766070298/ppt_pages/page_000.png",
-    "http://testserver/outputs/ABC123/paper2ppt/1766070298/ppt_pages/page_002.png",
-    "http://testserver/outputs/ABC123/paper2ppt/1766070298/ppt_pages/page_001.png"
-  ]
-}
+[
+  {"ppt_img_path": "/.../ppt_images/slide_000.png"},
+  {"ppt_img_path": "/.../ppt_images/slide_001.png"}
+]
 ```
 
-#### 2.2.3 前端用法
+后端会生成：
 
-- 传入已有的 slide PNG 路径（通常是后端内部的）；后端会：
-  - 生成可编辑 PPTX：`paper2ppt_editable.pptx`
-  - 生成 PDF：`paper2ppt.pdf`
-  - 生成每一页的展示 PNG：`ppt_pages/page_*.png`
-- 前端可以直接用 `all_output_files` 里的 HTTP 链接展示：
+- 可编辑 PPTX：`paper2ppt_editable.pptx`
+- PDF：`paper2ppt.pdf`
+- 每一页的展示 PNG：`ppt_pages/page_*.png`
 
-  - PPT 下载地址：`.../paper2ppt_editable.pptx`
-  - PDF 下载地址：`.../paper2ppt.pdf`
-  - 各页预览：`.../ppt_pages/page_*.png`
+所有这些路径都在 `all_output_files` 里通过 `http://testserver/outputs/...` 暴露，可直接在前端展示或下载。
 
----
-
-### 2.3 场景二：pagecontent 为结构化内容（首次生成）
+### 3.3 场景二：pagecontent 为结构化内容（首次生成）
 
 对应测试：`test_ppt_json_with_structured_pagecontent`
 
-#### 2.3.1 请求示例（关键结构）
-
-```python
-result_path = "/home/.../outputs/ABC123/paper2ppt/1766067301"
-
-pagecontent = [
-  {
-    "title": "Multimodal DeepResearcher：从零生成文本-图表交织报告的智能框架",
-    "layout_description": "全版居中排版，上方为大标题...",
-    "key_points": [
-      "论文题目：...",
-      "作者与单位：...",
-      "汇报人：XXX"
-    ],
-    "asset_ref": null
-  },
-  {
-    "title": "方法概览：Formal Description of Visualization 与 Multimodal DeepResearcher",
-    "layout_description": "左侧用要点概述...右侧两幅示意图...",
-    "key_points": [
-      "研究任务：...",
-      "核心挑战：...",
-      "...",
-      "实验与效果：..."
-    ],
-    "asset_ref": "images/xxx.jpg,images/yyy.jpg"
-  },
-  {
-    "title": "致谢",
-    "layout_description": "标题置于顶部居中，主体区域采用居中单栏布局...",
-    "key_points": [
-      "感谢论文作者及其团队...",
-      "感谢所在课题组/实验室...",
-      "感谢各位老师和同学..."
-    ],
-    "asset_ref": null
-  }
-]
-
-data = {
-  ...同 2.2 通用字段...,
-  "result_path": result_path,
-  "pagecontent": json.dumps(pagecontent, ensure_ascii=False),
-  "get_down": "false"
-}
-```
-
-#### 2.3.2 典型响应示例
+- 传入的 `pagecontent` 形如：
 
 ```json
-{
-  "success": true,
-  "ppt_pdf_path": "",
-  "ppt_pptx_path": "",
-  "pagecontent": [],
-  "result_path": "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/outputs/ABC123/paper2ppt/1766067301",
-  "all_output_files": [
-    "http://testserver/outputs/ABC123/paper2ppt/1766067301/paper2ppt_editable.pptx",
-    "http://testserver/outputs/ABC123/paper2ppt/1766067301/paper2ppt.pdf",
-    "http://testserver/outputs/ABC123/paper2ppt/1766067301/ppt_pages/page_000.png",
-    "http://testserver/outputs/ABC123/paper2ppt/1766067301/ppt_pages/page_002.png",
-    "http://testserver/outputs/ABC123/paper2ppt/1766067301/ppt_pages/page_001.png",
-    "http://testserver/outputs/ABC123/paper2ppt/1766067301/input/auto/input_span.pdf",
-    "http://testserver/outputs/ABC123/paper2ppt/1766067301/input/auto/input_origin.pdf",
-    "http://testserver/outputs/ABC123/paper2ppt/1766067301/input/auto/input_layout.pdf"
-  ]
-}
+[
+  {
+    "title": "xxx",
+    "layout_description": "xxx",
+    "key_points": ["...", "..."],
+    "asset_ref": "images/a.jpg,images/b.jpg"
+  },
+  ...
+]
 ```
 
-#### 2.3.3 前端用法
+后端会根据这些结构化描述自动生成整套 PPT（包含图），输出同样的 PPTX / PDF / PNG 集合，并通过 `all_output_files` 返回 HTTP 链接。
 
-- 前端只需要构造 `pagecontent` 的结构化描述，后端会：
-  - 调用 LLM/图像模型，生成整套 PPT（含图）
-  - 输出可编辑 PPTX、PDF、各页 PNG 等
-- 和 2.2 一样，前端主要关注 `all_output_files`。
-
----
-
-### 2.4 场景三：编辑模式（get_down = true）
+### 3.4 场景三：编辑模式（get_down = true）
 
 对应测试：`test_ppt_json_edit_mode`
 
-#### 2.4.1 请求字段（在 2.1 基础上增加）
+- 额外字段：
 
 ```text
 get_down    = "true"
@@ -388,86 +353,31 @@ page_id     int     必填  要编辑的页索引（从 0 开始）
 edit_prompt string  必填  对这一页的编辑指令（自然语言）
 ```
 
-示例：
+后端会：
 
-```python
-result_path = "/home/.../outputs/ABC123/paper2ppt/1766070298"
+- 根据 `result_path` 找到已有的 PPT / PNG
+- 根据 `page_id` 和 `edit_prompt` 重绘/编辑对应页
+- 更新 PPTX / PNG，再通过 `all_output_files` 返回最新资源路径
 
-data = _base_form_ppt_json()
-data.update({
-  "result_path": result_path,
-  "get_down": "true",
-  "page_id": 0,
-  "edit_prompt": "请把这一页的配色改成赛博朋克主题风格"
-})
+前端流程建议：
 
-resp = POST /paper2ppt/ppt_json
-```
-
-#### 2.4.2 典型响应（你刚刚跑出来的实际）
-
-```json
-{
-  "success": true,
-  "ppt_pdf_path": "",
-  "ppt_pptx_path": "",
-  "pagecontent": [],
-  "result_path": "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/outputs/ABC123/paper2ppt/1766070298",
-  "all_output_files": [
-    "http://testserver/outputs/ABC123/paper2ppt/1766070298/paper2ppt_editable.pptx",
-    "http://testserver/outputs/ABC123/paper2ppt/1766070298/paper2ppt.pdf",
-    "http://testserver/outputs/ABC123/paper2ppt/1766070298/ppt_images/slide_000.png",
-    "http://testserver/outputs/ABC123/paper2ppt/1766070298/ppt_images/input.pdf",
-    "http://testserver/outputs/ABC123/paper2ppt/1766070298/ppt_images/slide_001.png",
-    "http://testserver/outputs/ABC123/paper2ppt/1766070298/ppt_pages/page_000.png",
-    "http://testserver/outputs/ABC123/paper2ppt/1766070298/ppt_pages/page_002.png",
-    "http://testserver/outputs/ABC123/paper2ppt/1766070298/ppt_pages/page_001.png"
-  ]
-}
-```
-
-#### 2.4.3 前端交互建议
-
-1. 首次生成完成后，拿到 `result_path` + `all_output_files`（以及各页 PNG）
-2. 用户在前端选中某一页（有页号 `page_id`），输入「编辑指令」
-3. 前端调用：
-
-   ```http
-   POST /paper2ppt/ppt_json
-   Content-Type: application/x-www-form-urlencoded
-
-   img_gen_model_name=...
-   chat_api_url=...
-   api_key=...
-   model=...
-   language=...
-   style=...
-   aspect_ratio=16:9
-   invite_code=ABC123
-   result_path=[同之前的 result_path]
-   pagecontent=[可以不变 / 后端根据 result_path 读取]
-   get_down=true
-   page_id=选中的页索引
-   edit_prompt=用户自然语言编辑描述
-   ```
-
-4. 后端会：
-   - 找到对应页的旧图 / 旧配置
-   - 调用 Gemini 等进行图像编辑或重生成
-   - 更新 PPTX / PNG，并返回最新 `all_output_files`
-
-前端只需要在收到新 `all_output_files` 后，刷新对应页的预览即可。
+1. 首次生成后，拿到 `result_path` + `all_output_files` 展示各页。
+2. 用户选中一页，填写编辑说明。
+3. 前端调用 `/paper2ppt/ppt_json`（`get_down = "true"`），传 `page_id` 和 `edit_prompt`。
+4. 收到新的 `all_output_files` 后刷新对应页的预览和下载链接。
 
 ---
 
-## 三、快速对照表
+## 四、快速对照表
 
-| 接口                     | 用途                         | 关键入参                      | 关键出参                          |
-|--------------------------|------------------------------|-------------------------------|-----------------------------------|
-| `/paper2ppt/pagecontent_json` | 从 Text/PDF/PPTX 抽取/生成页结构 | `input_type` + `text/file`    | `pagecontent[]`, `result_path`   |
-| `/paper2ppt/ppt_json`（首次） | 根据 pagecontent 生成整套 PPT   | `pagecontent`, `get_down=false` | `paper2ppt_editable.pptx`, `paper2ppt.pdf`, `ppt_pages/*.png` |
-| `/paper2ppt/ppt_json`（编辑） | 编辑某一页图像/样式            | `result_path`, `page_id`, `edit_prompt`, `get_down=true` | 更新后的同一批文件（paths 在 `all_output_files`） |
+| 接口                        | 用途                             | 典型返回                     |
+|-----------------------------|----------------------------------|------------------------------|
+| `/api/pdf2ppt/generate`     | 上传 PDF，直接返回 PPTX 文件     | PPTX 二进制（下载接口）      |
+| `/paper2ppt/pagecontent_json` | 从 Text/PDF/PPTX 生成结构化页信息 | JSON：`pagecontent[]` 等    |
+| `/paper2ppt/ppt_json`（首次/再生成） | 根据 pagecontent 生成整套 PPT    | JSON：PPTX/PDF/PNG 链接列表 |
+| `/paper2ppt/ppt_json`（编辑） | 编辑某一页图像/样式              | JSON：更新后的资源链接      |
 
----
+前端根据需要选择：
 
-以上内容可以直接保存为例如 `docs/paper2ppt_api_frontend.md` 提供给前端同学使用，无需了解内部 workflow 细节即可完成集成。
+- 只要一个「从 PDF 到 PPTX」的一步式接口时，用 `/api/pdf2ppt/generate`。
+- 要更细粒度控制 PPT 内容、样式和逐页编辑时，用 `/paper2ppt/pagecontent_json` + `/paper2ppt/ppt_json` 组合。

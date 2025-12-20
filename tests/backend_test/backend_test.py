@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import os
 
 from fastapi.testclient import TestClient
 
@@ -270,6 +271,47 @@ def test_ppt_json_edit_mode():
         print(resp.text)
 
 
+def test_pdf2ppt_generate():
+    """
+    测试 /api/pdf2ppt/generate 接口：
+
+    - 上传一个 PDF（使用项目内置示例）
+    - 期望返回 200 且响应体为 PPTX 二进制内容
+    """
+    pdf_path = Path("/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/outputs/ABC123/paper2ppt/1766067301/paper2ppt.pdf")
+    assert pdf_path.exists(), f"pdf file not found: {pdf_path}"
+
+    data = {
+        "invite_code": "ABC123",
+    }
+
+    with pdf_path.open("rb") as f:
+        files = {
+            "pdf_file": ("test.pdf", f, "application/pdf"),
+        }
+        resp = client.post(
+            "/api/pdf2ppt/generate",
+            data=data,
+            files=files,
+        )
+
+    print("==== /api/pdf2ppt/generate status ====")
+    print(resp.status_code)
+    print("==== /api/pdf2ppt/generate headers ====")
+    print(resp.headers)
+
+    assert resp.status_code == 200
+    assert (
+        resp.headers.get("content-type")
+        == "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    )
+
+    out_path = Path("dev_2/DataFlow-Agent/tests/outputs/pdf2ppt_test_output.pptx")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_bytes(resp.content)
+    print(f"saved pdf2ppt output to: {out_path}")
+
+
 if __name__ == "__main__":
     # test_call_pagecontent_text()
     # test_call_pagecontent_pdf()
@@ -277,5 +319,5 @@ if __name__ == "__main__":
     # 可以按需取消下面几行的注释进行手动调试
     # test_ppt_json_with_direct_image_pagecontent()
     # test_ppt_json_with_structured_pagecontent()
-    test_ppt_json_edit_mode()
-    
+    # test_ppt_json_edit_mode()
+    test_pdf2ppt_generate()

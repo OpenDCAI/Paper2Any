@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 from typing import List, Dict, Any
 
+import cv2
 import fitz  # PyMuPDF
 from PIL import Image
 
@@ -282,10 +283,12 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
     async def slides_ppt_generation_node(state: Paper2FigureState) -> Paper2FigureState:
         """
         结合 OCR + SAM 结果生成可编辑 PPT：
-        - 背景: 使用经 inpaint 后的干净底图 (沿用 ppt_tool.make_clean_background)
+        - 背景: 使用图像编辑API进行inpainting后的干净底图
         - 文本: PaddleOCR 行结果，使用 ppt_tool 的字号/颜色逻辑
-        - 布局形状: 使用 SAM 生成的 EMF（可选）
+        - 布局形状: 使用 SAM 生成的 PNG 图标
         """
+        from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
+        
         ocr_pages: List[Dict[str, Any]] = getattr(state, "ocr_pages", []) or []
         sam_pages: List[Dict[str, Any]] = getattr(state, "sam_pages", []) or []
 
@@ -393,9 +396,90 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
             fill.solid()
             fill.fore_color.rgb = RGBColor(255, 255, 255)
 
-            # 1) 使用原图作为背景（不做 inpainting）
-            if ppt_tool.ADD_BACKGROUND_IMAGE:
-                clean_bg = bgr  # 直接用原始页面图当底图
+            # 1) 使用图像编辑API进行inpainting生成干净底图（带重试机制）
+            clean_bg = bgr  # 默认使用原图
+            if ppt_tool.ADD_BACKGROUND_IMAGE and lines:
+                import asyncio
+                
+                async def _call_inpaint_api_with_retry(retries: int = 3, delay: float = 1.0) -> bool:
+                    """
+                    对 inpainting API 进行最多 retries 次重试
+                    - 成功：返回 True
+                    - 多次失败：返回 False
+                    """
+                    last_err: Optional[Exception] = None
+                    for attempt in range(1, retries + 1):
+                        try:
+                            await generate_or_edit_and_save_image_async(
+                                prompt=inpaint_prompt,
+                                save_path=str(clean_bg_path),
+                                aspect_ratio="16:9",
+                                api_url=state.request.chat_api_url,
+                                api_key=os.getenv("DF_API_KEY") or state.request.chat_api_key,
+                                model=state.request.gen_fig_model,
+                                image_path=str(temp_img_path),
+                                use_edit=True,
+                            )
+                            return True
+                        except Exception as e:
+                            last_err = e
+                            log.error(f"[pdf2ppt_with_sam][page#{page_idx+1}] inpainting attempt {attempt}/{retries} failed: {e}")
+                            if attempt < retries:
+                                try:
+                                    await asyncio.sleep(delay)
+                                except Exception:
+                                    pass
+                    log.error(f"[pdf2ppt_with_sam][page#{page_idx+1}] inpainting failed after {retries} attempts: {last_err}")
+                    return False
+                
+                try:
+                    # 生成文字掩码
+                    text_mask = ppt_tool.build_adaptive_mask(bgr, lines)
+                    
+                    # 保存掩码图（用于调试）
+                    base_dir = Path(_ensure_result_path(state))
+                    mask_dir = base_dir / "text_masks"
+                    mask_dir.mkdir(parents=True, exist_ok=True)
+                    mask_path = mask_dir / f"text_mask_{page_idx+1:03d}.png"
+                    cv2.imwrite(str(mask_path), text_mask)
+                    
+                    # 保存原图临时文件
+                    temp_img_path = mask_dir / f"temp_original_{page_idx+1:03d}.png"
+                    cv2.imwrite(str(temp_img_path), bgr)
+                    
+                    # 构造inpainting提示词
+                    inpaint_prompt = "请智能修复图像中文字被移除后的区域，保持背景的连续性、一致性和自然过渡，使修复后的图像看起来完整无缺。"
+                    
+                    # 调用图像编辑API进行inpainting（带重试）
+                    clean_bg_path = base_dir / "clean_backgrounds" / f"clean_bg_{page_idx+1:03d}.png"
+                    clean_bg_path.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    log.info(f"[pdf2ppt_with_sam][page#{page_idx+1}] 开始调用图像编辑API进行inpainting（最多重试3次）...")
+                    
+                    api_success = await _call_inpaint_api_with_retry(retries=3, delay=1.0)
+                    
+                    # 读取修复后的图像作为底图
+                    if api_success and os.path.exists(str(clean_bg_path)):
+                        clean_bg = ppt_tool.read_bgr(str(clean_bg_path))
+                        log.info(f"[pdf2ppt_with_sam][page#{page_idx+1}] API inpainting成功，使用修复后的底图")
+                    else:
+                        log.warning(f"[pdf2ppt_with_sam][page#{page_idx+1}] API inpainting失败，使用本地inpaint作为fallback")
+                        # Fallback: 使用本地OpenCV inpaint
+                        try:
+                            clean_bg = ppt_tool.make_clean_background(bgr, lines)
+                            log.info(f"[pdf2ppt_with_sam][page#{page_idx+1}] 使用本地inpaint成功")
+                        except Exception as e2:
+                            log.error(f"[pdf2ppt_with_sam][page#{page_idx+1}] 本地inpaint也失败: {e2}，使用原图")
+                            clean_bg = bgr
+                    
+                    # 清理临时文件
+                    if os.path.exists(str(temp_img_path)):
+                        os.remove(str(temp_img_path))
+                        
+                except Exception as e:
+                    log.error(f"[pdf2ppt_with_sam][page#{page_idx+1}] inpainting整体流程失败: {e}，使用原图")
+                    clean_bg = bgr
+                
                 tmp = f"__pdf2ppt_bg_{page_idx+1}.png"
                 ppt_tool.add_background(slide, clean_bg, slide_w_emu, slide_h_emu, tmp)
 
