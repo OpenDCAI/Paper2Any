@@ -456,7 +456,7 @@ async def generate_paper2figure_json(
     safe_svg = _to_outputs_url(p2f_resp.svg_filename, request) if p2f_resp.svg_filename else ""
     safe_png = _to_outputs_url(p2f_resp.svg_image_filename, request) if p2f_resp.svg_image_filename else ""
 
-    # 新增：将本次任务输出目录下所有相关文件路径转换为 URL
+    # 新增：将本次任务输出目录下s所有相关文件路径转换为 URL
     safe_all_files: list[str] = []
     for abs_path in getattr(p2f_resp, "all_output_files", []) or []:
         if abs_path:
@@ -531,18 +531,15 @@ async def generate_paper2ppt(
         # )
         # create_dummy_pptx(output_pptx, demo_title, demo_content)
         # create_pdf(output_pptx, demo_title, content)
-        req = Paper2FigureRequest(
-            language="en",
+        req = FeaturePaper2VideoRequest(
+            model=model_name,
             chat_api_url=chat_api_url,
             api_key=api_key,
-            model="gpt-4o",
-            target="Extract tables from PDF and generate charts",
-            
-            # Paper2ExpFigure 特有参数
-            input_type="PDF",  # "PDF" 或 "TABLE"
+            pdf_path=str(abs_input_path),
+            img_path="",
+            language=language,
         )
-        
-        resp: Paper2PPTResponse = await run_paper2figure_wf_api(req)
+        resp: FeaturePaper2VideoResponse = await paper2video_endpoint(req)
         if not resp.success:
             raise HTTPException(status_code=500, detail="Paper to PPT generation failed.")
         output_path = resp.ppt_path
