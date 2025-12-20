@@ -160,6 +160,7 @@ const Ppt2PolishPage = () => {
   // Step 4: 完成状态
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string | null>(null);
   
   // 通用状态
   const [error, setError] = useState<string | null>(null);
@@ -691,7 +692,7 @@ const Ppt2PolishPage = () => {
         afterImage: pageImageUrl || updatedResults[index].afterImage,
         userPrompt: slidePrompt || undefined,
       };
-      setBeautifyResults(updatedResults);
+    setBeautifyResults(updatedResults);
     } catch (err) {
       const message = err instanceof Error ? err.message : '美化失败';
       setError(message);
@@ -784,13 +785,20 @@ const Ppt2PolishPage = () => {
         throw new Error(data.message || '生成失败');
       }
       
-      // 从 all_output_files 中找到 PPTX 文件
+      // 从 all_output_files 中找到 PPTX 和 PDF 文件
       const pptxUrl = data.all_output_files?.find((url: string) => url.endsWith('.pptx')) || data.ppt_pptx_path;
+      const pdfUrl = data.all_output_files?.find((url: string) => 
+        url.endsWith('.pdf') && !url.includes('input')
+      ) || data.ppt_pdf_path;
       
       if (pptxUrl) {
         setDownloadUrl(pptxUrl);
-      } else {
-        throw new Error('未找到生成的 PPTX 文件');
+      }
+      if (pdfUrl) {
+        setPdfDownloadUrl(pdfUrl);
+      }
+      if (!pptxUrl && !pdfUrl) {
+        throw new Error('未找到生成的文件');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : '生成最终 PPT 失败';
@@ -1170,7 +1178,29 @@ const Ppt2PolishPage = () => {
         <h3 className="text-white font-semibold mb-4">处理结果概览</h3>
         <div className="grid grid-cols-4 gap-2">{beautifyResults.map((result, index) => (<div key={result.slideId} className="p-3 rounded-lg border bg-teal-500/20 border-teal-500/40"><p className="text-sm text-white">第 {index + 1} 页</p><p className="text-xs text-teal-300">已美化</p></div>))}</div>
       </div>
-      {!downloadUrl ? <button onClick={handleGenerateFinal} disabled={isGeneratingFinal} className="px-8 py-3 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white font-semibold flex items-center justify-center gap-2 mx-auto transition-all">{isGeneratingFinal ? <><Loader2 size={18} className="animate-spin" /> 正在生成最终 PPT...</> : <><Sparkles size={18} /> 生成最终 PPT</>}</button> : <div className="space-y-4"><button onClick={handleDownload} className="px-8 py-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold flex items-center justify-center gap-2 mx-auto transition-all"><Download size={18} /> 下载美化后的 PPT</button><button onClick={() => { setCurrentStep('upload'); setSelectedFile(null); setOutlineData([]); setBeautifyResults([]); setDownloadUrl(null); }} className="text-sm text-gray-400 hover:text-white transition-colors"><RotateCcw size={14} className="inline mr-1" /> 处理新的文档</button></div>}
+      {!(downloadUrl || pdfDownloadUrl) ? (
+        <button onClick={handleGenerateFinal} disabled={isGeneratingFinal} className="px-8 py-3 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white font-semibold flex items-center justify-center gap-2 mx-auto transition-all">
+          {isGeneratingFinal ? <><Loader2 size={18} className="animate-spin" /> 正在生成最终文件...</> : <><Sparkles size={18} /> 生成最终文件</>}
+        </button>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex gap-4 justify-center">
+            {downloadUrl && (
+              <button onClick={handleDownload} className="px-6 py-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold flex items-center gap-2 transition-all">
+                <Download size={18} /> 下载 PPT
+              </button>
+            )}
+            {pdfDownloadUrl && (
+              <a href={pdfDownloadUrl} target="_blank" rel="noopener noreferrer" className="px-6 py-3 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold flex items-center gap-2 transition-all">
+                <Download size={18} /> 下载 PDF
+              </a>
+            )}
+          </div>
+          <button onClick={() => { setCurrentStep('upload'); setSelectedFile(null); setOutlineData([]); setBeautifyResults([]); setDownloadUrl(null); setPdfDownloadUrl(null); }} className="text-sm text-gray-400 hover:text-white transition-colors">
+            <RotateCcw size={14} className="inline mr-1" /> 处理新的文档
+          </button>
+        </div>
+      )}
     </div>
   );
 

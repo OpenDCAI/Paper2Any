@@ -260,7 +260,7 @@ async def paper2ppt_ppt_json(
     )
 
     log.info(f"[ppt_json] Calling run_paper2ppt_wf_api with get_down={get_down_bool}")
-    
+
     resp = await run_paper2ppt_wf_api(
         p2ppt_req,
         pagecontent=pc,
