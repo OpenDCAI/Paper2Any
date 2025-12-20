@@ -1,11 +1,11 @@
 """
-测试 paper2ppt workflow
+测试 paper2video workflow
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-生成时间: 2025-12-17 19:06:56
+生成时间: 2025-11-26 11:08:03
 
 运行方式:
-  pytest tests/test_paper2ppt.py -v -s
-  或直接: python tests/test_paper2ppt.py
+  pytest tests/test_paper2video.py -v -s
+  或直接: python tests/test_paper2video.py
 """
 
 from __future__ import annotations
@@ -13,8 +13,7 @@ import asyncio
 import pytest
 
 # ------------ 依赖 -------------
-from dataflow_agent.states.xx_xx_xx import xxState, xxRequest
-# from dataflow_agent.state import xxState, xxRequest
+from dataflow_agent.state import xxState, xxRequest
 from dataflow_agent.workflow import run_workflow
 # 如果使用了自定义 State，请替换上面的 xxState 导入：
 # from dataflow_agent.state import YourCustomState
@@ -22,9 +21,9 @@ from dataflow_agent.workflow import run_workflow
 
 
 # ============ 核心异步流程 ============
-async def run_paper2ppt_pipeline() -> xxState:
+async def run_paper2video_pipeline() -> xxState:
     """
-    执行 paper2ppt 工作流的测试流程
+    执行 paper2video 工作流的测试流程
     """
     # TODO: 根据实际需求构造初始状态
     # 1) 如果使用自定义请求对象，在这里构造
@@ -44,17 +43,17 @@ async def run_paper2ppt_pipeline() -> xxState:
     # state.agent_results = {}
 
     # 3) 通过注册中心执行工作流
-    final_state: xxState = await run_workflow("paper2ppt", state)
+    final_state: xxState = await run_workflow("paper2video", state)
     return final_state
 
 
 # ============ pytest 入口 ============
 @pytest.mark.asyncio
-async def test_paper2ppt_pipeline():
+async def test_paper2video_pipeline():
     """
-    测试 paper2ppt 工作流的完整流程
+    测试 paper2video 工作流的完整流程
     """
-    final_state = await run_paper2ppt_pipeline()
+    final_state = await run_paper2video_pipeline()
 
     # TODO: 根据实际业务逻辑添加断言
     # 示例断言：
@@ -83,4 +82,4 @@ if __name__ == "__main__":
     """
     允许直接运行此文件进行快速测试
     """
-    asyncio.run(run_paper2ppt_pipeline())
+    asyncio.run(run_paper2video_pipeline())

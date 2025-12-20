@@ -27,11 +27,13 @@ async def run_paper2page_content_pipeline_pdf() -> Paper2FigureState:
     执行 paper2page_content 工作流的测试流程（PDF 输入）
     """
     req = Paper2FigureRequest()
-    req.input_type = "PPT"
+    req.input_type = "PDF"
     req.model = "gpt-5.1"
-    req.page_count = 3
+    req.page_count = 4
     req.chat_api_url = "https://api.apiyi.com/v1"
-    req.style = "赛博朋克的风格；中文；"
+    req.style = "赛博朋克的风格；英文；"
+
+    req.all_edited_down = True
     
 
     state = Paper2FigureState(
@@ -75,11 +77,8 @@ async def run_paper2page_content_pipeline_pdf() -> Paper2FigureState:
 
     # 对应 wf_paper2page_content.py 中的 @register("paper2page_content")
     final_state: Paper2FigureState = await run_workflow("paper2page_content", state)
-
     final_state = await run_workflow("paper2ppt", final_state)
-
     return final_state
-
 
 @pytest.mark.asyncio
 async def test_paper2page_content_pipeline_pdf():

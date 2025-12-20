@@ -23,7 +23,7 @@ class MainRequest:
     language: str = "en"  # "en" | "zh" | ...
 
     # ② LLM 接口
-    chat_api_url: str = "http://123.129.219.111:3000/v1"
+    chat_api_url: str = os.getenv("DF_API_URL", "test")
     api_key: str = os.getenv("DF_API_KEY", "test")
     chat_api_key: str = os.getenv("DF_API_KEY", "test") #没区别，但是不想改之前代码了；
 
@@ -440,3 +440,9 @@ class Paper2FigureState(MainState):
     # 生成的 PPT PDF 路径
     ppt_pdf_path: str = ""
     ppt_pptx_path: str = ""
+
+    # pdf2ppt 专用 ==============================
+    pdf_file: str = ""
+    slide_images: List[str] = field(default_factory=list)
+    ocr_pages: List[str] = field(default_factory=list)
+    sam_pages: List[str] = field(default_factory=list)
