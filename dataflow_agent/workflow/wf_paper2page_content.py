@@ -125,7 +125,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
             log.error(f"[paper2page_content] 读取 markdown 失败: {markdown_path}, err={e}")
             md = ""
         # Avoid passing overly long markdown to downstream agents.
-        state.minueru_output = _shrink_markdown(md, max_h1=6, max_chars=20_000)
+        state.minueru_output = _shrink_markdown(md, max_h1=6, max_chars=25_000)
         # 记录 MinerU 输出根目录 = 实际承载 md 与 images 的 auto 目录
         state.mineru_root = str(auto_dir)
         log.info(f"[paper2page_content] minueru_output : {state.minueru_output[:100]} ")

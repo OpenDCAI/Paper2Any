@@ -11,7 +11,7 @@ from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.workflow.registry import register
-
+from dataflow_agent.agentroles import create_react_agent
 from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
 from dataflow_agent.toolkits.imtool.ppt_tool import convert_images_dir_to_pdf_and_ppt, convert_images_dir_to_pdf_and_ppt_api
 
@@ -141,6 +141,7 @@ async def _make_prompt_for_structured_page(item: Dict[str, Any], style: str, sta
             state = await agent.execute(state=state)
 
             table_img_path = str(getattr(state, "table_img_path", "") or "").strip()
+            log.critical(f'[table_img_path 表格图像路径]:   {table_img_path}')
 
         if not table_img_path:
             raise ValueError(f"[paper2ppt] 表格提取失败，未得到 table_img_path。asset_ref={asset_ref}")
@@ -526,7 +527,7 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
             api_url=state.request.chat_api_url,
             api_key=os.getenv("DF_API_KEY") or state.request.chat_api_key,
             model=state.request.gen_fig_model,
-            use_api_inpaint=True,  # 启用 API inpainting
+            use_api_inpaint=False,  # 启用 API inpainting
         )
 
         # 可选：把导出结果路径挂到 state 上，方便后续使用
