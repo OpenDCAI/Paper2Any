@@ -94,8 +94,7 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
         wf_name = "paper2technical"
         result_root = project_root / "outputs" / req.invite_code / "paper2tec" / ts
     elif graph_type == "exp_data":
-        # TODO: 后续接入 paper2exp workflow
-        wf_name = "paper2fig_with_sam"
+        wf_name = "paper2expfigure"
         result_root = project_root / "outputs" / req.invite_code / "paper2exp" / ts
     else:
         wf_name = "paper2fig_with_sam"
