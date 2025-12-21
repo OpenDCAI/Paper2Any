@@ -1254,3 +1254,46 @@ async def convert_images_dir_to_pdf_and_ppt_api(
         result["pptx"] = output_pptx_path
     
     return result
+
+
+if __name__ == "__main__":
+    """
+    简单本地测试入口：
+    - 直接运行本文件即可测试 PaddleOCR 对指定图片的识别效果
+    - 识别结果会打印在终端，并把画好检测框的图片保存到指定路径
+    """
+    # 测试图片路径（也是可视化输出路径）
+    img_path = "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/tests/test_02.png"
+
+    if not os.path.exists(img_path):
+        raise FileNotFoundError(f"测试图片不存在: {img_path}")
+
+    # 调用封装好的单页接口
+    info = paddle_ocr_page_with_layout(img_path)
+
+    print("=== PaddleOCR 测试结果 ===")
+    print(f"image_size: {info['image_size']}")
+    print(f"body_h_px: {info['body_h_px']}")
+    print(f"bg_color: {info['bg_color']}")
+    print(f"检测到文本框数量: {len(info['lines'])}")
+
+    for i, (bbox, text, conf) in enumerate(info["lines"], start=1):
+        print(f"[{i:02d}] conf={conf:.1f} bbox={bbox} text={text}")
+
+    # 把检测框画在图上，并保存到文件，而不是弹出窗口
+    try:
+        bgr = read_bgr(img_path)
+        vis = bgr.copy()
+        for bbox, text, conf in info["lines"]:
+            x1, y1, x2, y2 = map(int, bbox)
+            cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        save_path = "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/tests/test_01_paddle_frame.png"
+        ok = cv2.imwrite(save_path, vis)
+        if ok:
+            log.info(f"PaddleOCR 可视化结果已保存到: {save_path}")
+        else:
+            log.warning(f"PaddleOCR 可视化结果保存失败: {save_path}")
+    except Exception as e:
+        log.warning(f"可视化失败: {e}")
+        # 不影响纯文本打印结果

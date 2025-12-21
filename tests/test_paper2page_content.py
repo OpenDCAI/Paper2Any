@@ -29,11 +29,11 @@ async def run_paper2page_content_pipeline_pdf() -> Paper2FigureState:
     req = Paper2FigureRequest()
     req.input_type = "PDF"
     req.model = "gpt-5.1"
-    req.page_count = 10
+    req.page_count = 3
     req.chat_api_url = "https://api.apiyi.com/v1"
-    req.style = "美少女战士风格；英文；"
-    req.gen_fig_model = "gemini-3-pro-image-preview"
-
+    req.style = "北京大学风格；英文；"
+    # req.gen_fig_model = "gemini-3-pro-image-preview"
+# gemini-3-pro-image-preview 
     req.all_edited_down = True
     
 
