@@ -173,7 +173,7 @@ Paper2Any 当前包含以下几个子能力：
 </tr>
 </table>
 
-##### PPT Polish - PPT 智能美化
+#### 📸 ShowCase PPT Polish - PPT 智能美化
 
 **🎨 PPT 增色美化** - 基于原有 PPT 内容，智能调整风格、配色与视觉层次
 
@@ -225,36 +225,7 @@ Paper2Any 当前包含以下几个子能力：
 </tr>
 </table>
 
-##### PDF2PPT - 论文一键生成 PPT
 
-从论文 PDF / 文本内容出发，一键生成结构清晰、排版精美的可编辑演示文稿
-
-<table>
-<tr>
-<th width="25%">输入</th>
-<th width="25%">输出</th>
-<th width="25%">输入</th>
-<th width="25%">输出</th>
-</tr>
-<tr>
-<td align="center">
-<img src="frontend-workflow/public/paper2ppt/input_1.png" alt="论文PDF输入" width="100%"/>
-<br><sub>📄 论文 PDF</sub>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/paper2ppt/ouput_1.png" alt="生成的PPT" width="100%"/>
-<br><sub>📊 生成的 PPT</sub>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/paper2ppt/input_3.png" alt="论文内容输入" width="100%"/>
-<br><sub>📝 论文内容</sub>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/paper2ppt/ouput_3.png" alt="生成的PPT" width="100%"/>
-<br><sub>📊 生成的 PPT</sub>
-</td>
-</tr>
-</table>
 
 #### 📸 ShowCase - Paper2Figure
 

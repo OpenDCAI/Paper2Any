@@ -333,7 +333,7 @@ From paper PDF / text content, generate well-structured and beautifully formatte
 </tr>
 </table>
 
-##### PPT Polish - Smart PPT Enhancement
+#### 📸 Showcase PPT Polish - Smart PPT Enhancement
 
 **🎨 PPT Color Enhancement** - Intelligently adjust style, color scheme and visual hierarchy based on existing PPT content
 
