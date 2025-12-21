@@ -6,7 +6,7 @@
 
 [![DataFlow](https://img.shields.io/badge/DataFlow-OpenDCAI%2FDataFlow-0F9D58?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/DataFlow)
 
-**从论文与原始数据，到图表、PPT 和数据管线的一站式 AI Orchestrator**
+<!-- **从论文与原始数据，到图表、PPT 和数据管线的一站式 AI Orchestrator** -->
 
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-2F80ED?style=flat-square&logo=apache&logoColor=white)](LICENSE)
