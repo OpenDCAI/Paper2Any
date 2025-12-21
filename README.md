@@ -33,7 +33,9 @@
 </div>
 
 <div align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend.png" alt="DataFlow-Agent Overview" width="90%"/>
+  <img src="static/frontend_pages/paper2figure-1.png" alt="Paper2Figure" width="45%"/>
+  <span>&nbsp;|&nbsp;</span>
+  <img src="static/frontend_pages/paper2ppt-1.png" alt="Paper2PPT" width="45%"/>
 </div>
 
 ---
@@ -108,6 +110,7 @@ Paper2Any 当前包含以下几个子能力：
 **🎬 Paper2PPT - 可编辑演示文稿**
 - ✅ Beamer 版本 PPT 生成
 - ✅ 开放式可编辑 PPT 生成
+- ✅ PDF2PPT 转换，背景保留+可编辑
 
 </td>
 </tr>
@@ -168,10 +171,51 @@ Paper2Any 当前包含以下几个子能力：
 <strong>PPT 生成</strong> - 上传论文 PDF，自动提取关键信息，生成结构化的学术汇报 PPT。
 </td>
 <td colspan="2" align="center">
-<strong>PPT 生成</strong> - 智能分析论文内容，生成排版精美、逻辑清晰的演示文稿。
+<strong>PPT 生成</strong> - 智能分析论文内容，可以自动插入论文内部表格和插图到PPT。
 </td>
 </tr>
 </table>
+
+---
+
+#### 📸 ShowCase - PDF2PPT
+
+<!-- 占位：PDF2PPT 示例，后续可补充具体图片路径与说明 -->
+
+<!-- <table>
+<tr>
+<th width="25%">输入</th>
+<th width="25%">输出</th>
+<th width="25%">输入</th>
+<th width="25%">输出</th>
+</tr>
+<tr>
+<td align="center">
+<img src="" alt="输入：PDF 页面" width="100%"/>
+<br><sub>📄 PDF 页面</sub>
+</td>
+<td align="center">
+<img src="" alt="输出：生成 PPT 页面" width="100%"/>
+<br><sub>📊 生成的 PPT 页面</sub>
+</td>
+<td align="center">
+<img src="" alt="输入：PDF 页面" width="100%"/>
+<br><sub>📄 PDF 页面</sub>
+</td>
+<td align="center">
+<img src="" alt="输出：生成 PPT 页面" width="100%"/>
+<br><sub>📊 生成的 PPT 页面</sub>
+</td>
+</tr>
+<tr>
+<td colspan="2" align="center">
+<strong>PDF2PPT</strong> - 保留原始版式和背景，将 PDF 页面转换为可编辑的 PPT 页面。
+</td>
+<td colspan="2" align="center">
+<strong>PDF2PPT</strong> - 适合会议汇报、课堂讲解等场景，一键从论文 PDF 生成演示文稿。
+</td>
+</tr>
+</table> -->
 
 ---
 
@@ -432,7 +476,9 @@ Paper2Any 当前包含以下几个子能力：
 (目前在线版只支持邀请用户体验)访问在线体验地址：[https://dcai-paper2any.cpolar.top/](https://dcai-paper2any.cpolar.top/)
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend.png" alt="前端界面" width="100%"/>
+  <img src="static/frontend_pages/paper2figure-1.png" alt="Web UI - Paper2Figure" width="48%"/>
+  <span>&nbsp;|&nbsp;</span>
+  <img src="static/frontend_pages/paper2ppt-1.png" alt="Web UI - Paper2PPT" width="48%"/>
 </div>
 
 **特点**：
