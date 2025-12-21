@@ -587,6 +587,27 @@ const Ppt2PolishPage = () => {
           };
         });
         setBeautifyResults(updatedResults);
+        
+        // 同时更新 outlineData 的 asset_ref 为生成后的图片路径
+        // 这样后续"重新生成"时才能正确传递路径给后端
+        setOutlineData(prev => prev.map((slide, index) => {
+          const pageImageUrl = data.all_output_files.find((url: string) => 
+            url.includes(`page_${String(index).padStart(3, '0')}.png`)
+          );
+          return {
+            ...slide,
+            asset_ref: pageImageUrl || slide.asset_ref,
+          };
+        }));
+        
+        // 预加载所有图片到浏览器缓存，避免切换页面时延迟
+        console.log('预加载所有生成的图片...');
+        data.all_output_files.forEach((url: string) => {
+          if (url.endsWith('.png') || url.endsWith('.jpg') || url.endsWith('.jpeg')) {
+            const img = new Image();
+            img.src = url;
+          }
+        });
       }
       
       // 返回更新后的结果，供调用方使用
@@ -1082,57 +1103,110 @@ const Ppt2PolishPage = () => {
       {error && <div className="mt-4 flex items-center gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-4 py-3"><AlertCircle size={16} /> {error}</div>}
 
       {/* 示例区 */}
-      <div className="space-y-4 mt-8">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-gray-200">示例：从 Paper 到 PPTX</h3>
-          <span className="text-[11px] text-gray-500">
-            下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果。
-          </span>
+      {/* 示例区 */}
+      <div className="space-y-8 mt-10">
+        {/* 第一组：PPT 增色美化 */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-1 h-8 bg-gradient-to-b from-cyan-400 to-teal-500 rounded-full"></div>
+            <div>
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Sparkles size={18} className="text-cyan-400" />
+                PPT 增色美化
+              </h3>
+              <p className="text-sm text-gray-400">
+                基于原有 PPT 内容，智能调整风格、配色与视觉层次，让演示更具专业感与吸引力
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Demo 1 */}
+            <div className="glass rounded-xl border border-white/10 p-4 hover:border-cyan-500/30 transition-all">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-gray-500 mb-2 text-center">原始 PPT</p>
+                  <div className="rounded-lg overflow-hidden border border-white/10 aspect-[16/9] bg-white/5">
+                    <img src="/ppt2polish/paper2ppt_orgin_1.png" alt="原始PPT示例1" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-cyan-400 mb-2 text-center">增色后</p>
+                  <div className="rounded-lg overflow-hidden border border-cyan-500/30 aspect-[16/9] bg-gradient-to-br from-cyan-500/5 to-teal-500/5">
+                    <img src="/ppt2polish/paper2ppt_polish_1.png" alt="美化后PPT示例1" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Demo 2 */}
+            <div className="glass rounded-xl border border-white/10 p-4 hover:border-cyan-500/30 transition-all">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-gray-500 mb-2 text-center">原始 PPT</p>
+                  <div className="rounded-lg overflow-hidden border border-white/10 aspect-[16/9] bg-white/5">
+                    <img src="/ppt2polish/paper2ppt_orgin_2.png" alt="原始PPT示例2" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-cyan-400 mb-2 text-center">增色后</p>
+                  <div className="rounded-lg overflow-hidden border border-cyan-500/30 aspect-[16/9] bg-gradient-to-br from-cyan-500/5 to-teal-500/5">
+                    <img src="/ppt2polish/paper2ppt_polish_2.png" alt="美化后PPT示例2" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          <DemoCard
-            title="论文 PDF → 符合论文主题的 科研绘图（PPT）"
-            desc="上传英文论文 PDF，自动提炼研究背景、方法、实验设计和结论，生成结构清晰、符合学术风格的汇报 PPTX。"
-            inputImg="/p2f_paper_pdf_img.png"
-            outputImg="/p2f_paper_pdf_img_2.png"
-          />
-          <DemoCard
-            title="科研配图 / 示意图截图 → 可编辑 PPTX"
-            desc="上传科研配图或示意图截图，自动识别段落层级与要点，自动排版为可编辑的英文 PPTX。"
-            inputImg="/p2f_paper_model_img.png"
-            outputImg="/p2f_paper_modle_img_2.png"
-          />
-          <DemoCard
-            title="论文摘要文本 → 科研绘图 PPTX"
-            desc="粘贴论文摘要或章节内容，一键生成包含标题层级、关键要点与图示占位的 PPTX 大纲，方便后续细化与美化。"
-            inputImg="/p2f_paper_content.png"
-            outputImg="/p2f_paper_content_2.png"
-          />
-          <DemoCard
-            title="论文 PDF → 符合论文主题的 技术路线图 PPT + SVG"
-            desc="根据论文方法部分，自动梳理技术路线与模块依赖关系，生成清晰的技术路线图 PPTX 与 SVG 示意图。"
-            inputImg="/p2t_paper_img.png"
-            outputImg="/p2t_paper_img_2.png"
-          />
-          <DemoCard
-            title="论文摘要文本 → 符合论文主题的 技术路线图 PPT + SVG"
-            desc="从整篇技术方案 PDF 中提取关键步骤与时间轴，自动生成技术路线时间线 PPTX 与 SVG。"
-            inputImg="/p2t_paper_text.png"
-            outputImg="/p2t_paper_text_2.png"
-          />
-          <DemoCard
-            title="论文 PDF → 自动提取实验数据 绘制成 PPT"
-            desc="从论文实验部分 PDF 中提取表格与结果描述，自动生成对比柱状图 / 折线图 PPTX，便于直观展示结果。"
-            inputImg="/p2e_paper_1.png"
-            outputImg="/p2e_paper_2.png"
-          />
-          <DemoCard
-            title="论文实验表格文本 → 自动整理实验数据 绘制成 PPT"
-            desc="从文本形式的实验结果描述中抽取指标与对照组，一键生成适合汇报的实验结果 PPTX。"
-            inputImg="/p2f_exp_content_1.png"
-            outputImg="/p2f_exp_content_2.png"
-          />
+        {/* 第二组：PPT 润色拓展 */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-1 h-8 bg-gradient-to-b from-purple-400 to-pink-500 rounded-full"></div>
+            <div>
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Edit3 size={18} className="text-purple-400" />
+                PPT 润色拓展
+              </h3>
+              <p className="text-sm text-gray-400">
+                将纯文字或简易空白 PPT 智能润色拓展，自动生成精美排版与视觉元素，一键变身专业演示
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Demo 3 */}
+            <div className="glass rounded-xl border border-white/10 p-4 hover:border-purple-500/30 transition-all">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-gray-500 mb-2 text-center">原始 PPT</p>
+                  <div className="rounded-lg overflow-hidden border border-white/10 aspect-[16/9] bg-white/5">
+                    <img src="/ppt2polish/orgin_3.png" alt="原始PPT示例3" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-purple-400 mb-2 text-center">润色后</p>
+                  <div className="rounded-lg overflow-hidden border border-purple-500/30 aspect-[16/9] bg-gradient-to-br from-purple-500/5 to-pink-500/5">
+                    <img src="/ppt2polish/polish_3.png" alt="美化后PPT示例3" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Demo 4 */}
+            <div className="glass rounded-xl border border-white/10 p-4 hover:border-purple-500/30 transition-all">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-gray-500 mb-2 text-center">原始 PPT</p>
+                  <div className="rounded-lg overflow-hidden border border-white/10 aspect-[16/9] bg-white/5">
+                    <img src="/ppt2polish/orgin_4.png" alt="原始PPT示例4" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-purple-400 mb-2 text-center">润色后</p>
+                  <div className="rounded-lg overflow-hidden border border-purple-500/30 aspect-[16/9] bg-gradient-to-br from-purple-500/5 to-pink-500/5">
+                    <img src="/ppt2polish/polish_4.png" alt="美化后PPT示例4" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
