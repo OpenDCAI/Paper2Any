@@ -43,7 +43,7 @@ async def run_paper2page_content_pipeline_pdf() -> Paper2FigureState:
         request=req,
         paper_file=f"{get_project_root()}/tests/2512.16676v1.pdf",
         # paper_file=f"{get_project_root()}/tests/test.pptx",   
-        # result_path = "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/outputs"
+        # result_path = f"{get_project_root()}/outputs"
     )
 
 #     state.text_content = """

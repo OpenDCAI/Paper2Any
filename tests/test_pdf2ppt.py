@@ -28,7 +28,7 @@ async def run_pdf2ppt_with_sam_pipeline() -> xxState:
     - 跑完整 workflow，拿到最终 state
     """
     root = get_project_root()
-    pdf_path = Path("/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/tests/test02.pdf")
+    pdf_path = Path(f"{root}/tests/test_03.pdf")
     assert pdf_path.exists(), f"测试 PDF 不存在: {pdf_path}"
 
     # 构造最简 request / state

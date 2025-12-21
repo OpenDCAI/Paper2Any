@@ -24,6 +24,7 @@ from typing import List, Dict, Any, Optional
 from collections import Counter
 
 import cv2
+import numpy as np
 import fitz  # PyMuPDF
 from PIL import Image
 
@@ -38,6 +39,7 @@ from dataflow_agent.utils import get_project_root
 from dataflow_agent.toolkits.imtool.sam_tool import segment_layout_boxes, free_sam_model
 from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove, free_bg_rm_model
 from dataflow_agent.toolkits.imtool.mineru_tool import recursive_mineru_layout
+from dataflow_agent.toolkits.imtool.req_img import gemini_multi_image_edit_async
 from dataflow_agent.toolkits.imtool import ppt_tool
 
 from pptx import Presentation
@@ -89,8 +91,8 @@ def _run_sam_on_pages(image_paths: List[str], base_dir: str) -> List[Dict[str, A
             checkpoint=sam_ckpt,
             min_area=200,
             min_score=0.0,
-            iou_threshold=0.2,
-            top_k=15,
+            iou_threshold=0.4,
+            top_k=25,
             nms_by="mask",
         )
         log.info(f"[pdf2ppt_with_sam][page#{page_idx+1}] SAM found {len(layout_items)} items")
@@ -211,10 +213,12 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                 out_dir = mineru_dir / f"page_{page_idx+1:03d}"
                 out_dir.mkdir(parents=True, exist_ok=True)
 
+                log.critical(f"【mineru node】:  {out_dir}")
+
                 mineru_items = await recursive_mineru_layout(
                     image_path=str(img_path),
                     port=port,
-                    max_depth=max_depth,
+                    max_depth=3,
                     output_dir=str(out_dir),
                 )
                 
@@ -238,6 +242,9 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                 })
 
         state.mineru_pages = mineru_pages
+
+        log.critical(f"[state.mineru_pages]:  {state.mineru_pages}")
+
         return state
 
     async def slides_sam_node(state: Paper2FigureState) -> Paper2FigureState:
@@ -350,8 +357,14 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
 
         # 建立索引
         sam_dict = {p.get("page_idx", 0): p.get("layout_items", []) for p in sam_pages}
+        
         # mineru_dict 存放 {"blocks": [], "mineru_output_dir": ...}
-        mineru_dict = {p.get("page_idx", 0): p for p in mineru_pages}
+        # 修复：为了防止 page_idx 类型不一致 (int vs str)，构建更鲁棒的索引
+        mineru_dict = {}
+        for p in mineru_pages:
+            pid = p.get("page_idx", 0)
+            mineru_dict[pid] = p        # 原始类型
+            mineru_dict[str(pid)] = p   # 字符串类型兼容
 
         # 以 PPT 工具里的默认比例创建 Presentation
         prs = Presentation()
@@ -413,6 +426,14 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
         # 循环处理每一页
         for pinfo in ocr_pages:
             page_idx = pinfo.get("page_idx", 0)
+            
+            # 兼容性查找
+            mineru_page_data = mineru_dict.get(page_idx)
+            if not mineru_page_data:
+                mineru_page_data = mineru_dict.get(str(page_idx), {})
+                if mineru_page_data:
+                    log.warning(f"[pdf2ppt_with_sam] page_idx mismatch fixed by str conversion: {page_idx}")
+            
             img_path = pinfo.get("path")
             lines = pinfo.get("lines", []) # List of (bbox, text, conf)
             
@@ -431,7 +452,6 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
             # -----------------------------------------------------------
             # Step 1: 分析 MinerU 结果，划定 "Image Zone" 并找回 sub_images
             # -----------------------------------------------------------
-            mineru_page_data = mineru_dict.get(page_idx, {})
             mineru_blocks = mineru_page_data.get("blocks", [])
             mineru_out_dir = mineru_page_data.get("mineru_output_dir")
             
@@ -485,8 +505,12 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                     f"[pdf2ppt_with_sam][page#{page_idx+1}] MinerU sub_images dir: None (mineru_out_dir is empty)"
                 )
 
+            log.critical(f"[mineru_blocks]: {mineru_blocks}")
             for idx, blk in enumerate(mineru_blocks):
                 btype = (blk.get("type") or "").lower()
+
+                log.critical(f"[mineru btype]: {btype}")
+
                 bbox = blk.get("bbox")  # norm
                 if not bbox or len(bbox) != 4:
                     continue
@@ -547,6 +571,7 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                             log.error(f"Failed to crop mineru block {idx}: {e}")
 
                     if img_path_found:
+                        log.critical(f"[image_zones]: {image_zones} \n img_path_found : {img_path_found}")
                         image_zones.append({
                             "bbox": px_bbox,
                             "type": btype,
@@ -647,17 +672,99 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
             clean_bg_path.parent.mkdir(parents=True, exist_ok=True)
             
             use_ai_bg = bool(getattr(state, "use_ai_edit", False))
-            
-            if use_ai_bg:
-                # 这里如果未来需要重新启用 AI 背景，可在此处恢复调用 generate_or_edit_and_save_image_async
-                # 目前根据业务需求，默认不使用 AI 生成背景
-                log.info(f"[pdf2ppt_with_sam][page#{page_idx+1}] use_ai_edit=True 但当前已移除 AI 背景生成逻辑，继续使用纯色背景")
-            
-            # 统一使用纯白背景，防止外部依赖/调用失败
-            bg = slide.background
-            fill = bg.fill
-            fill.solid()
-            fill.fore_color.rgb = RGBColor(255, 255, 255)
+            bg_image_path_for_ppt = None  # 最终用于PPT背景的图片路径
+
+            if use_ai_bg and os.path.exists(img_path):
+                try:
+                    # A. 生成 Mask (黑底白框)
+                    # 读取原图获取尺寸
+                    ori_cv = cv2.imread(img_path)
+                    if ori_cv is not None:
+                        h_cv, w_cv = ori_cv.shape[:2]
+                        mask_cv = np.zeros((h_cv, w_cv), dtype=np.uint8)  # 黑底
+                        
+                        # 绘制 OCR 区域 (白框)
+                        for line in final_ocr_lines:
+                            bbox = line[0] # [x1, y1, x2, y2]
+                            # 稍微膨胀一点
+                            pad = 5
+                            mx1 = int(max(0, bbox[0] - pad))
+                            my1 = int(max(0, bbox[1] - pad))
+                            mx2 = int(min(w_cv, bbox[2] + pad))
+                            my2 = int(min(h_cv, bbox[3] + pad))
+                            cv2.rectangle(mask_cv, (mx1, my1), (mx2, my2), (255), -1)
+                        
+                        # 保存 Mask
+                        mask_path = base_dir / "masks" / f"mask_{page_idx+1:03d}.png"
+                        mask_path.parent.mkdir(parents=True, exist_ok=True)
+                        cv2.imwrite(str(mask_path), mask_cv)
+                        
+                        # B. 调用 Gemini 多图 Inpainting
+                        # 获取配置 (优先从 state.request 获取, 否则环境变量)
+                        req_cfg = getattr(state, "request", None) or {}
+                        # 兼容 object 或 dict
+                        if not isinstance(req_cfg, dict):
+                            req_cfg = req_cfg.__dict__ if hasattr(req_cfg, "__dict__") else {}
+                            
+                        api_key = req_cfg.get("api_key") or os.getenv("DF_API_KEY")
+                        api_url = req_cfg.get("chat_api_url") or "https://api.apiyi.com"
+                        model_name = req_cfg.get("gen_fig_model") or "gemini-3-pro-image-preview"
+                        # model_name = "gemini-3-pro-image-preview"
+
+                        if api_key:
+                            log.info(f"[pdf2ppt_with_sam][page#{page_idx+1}] Calling Gemini Inpainting with Mask...")
+                            
+                            # Prompt: 指示使用第二张图作为Mask
+                            prompt = (
+                                "Use the second image as a mask to remove text from the first image. "
+                                "Fill the removed text areas with background texture to make it clean. "
+                                "Keep non-text areas (figures, tables) unchanged."
+                            )
+                            
+                            # 异步调用 (这里是 sync 函数里调 async, 需要 wrapper? 
+                            # 不, pdf_to_images_node 等都是 async def, 本函数也是 async def)
+                            # slides_ppt_generation_node 是 async def, 可以直接 await
+                            
+                            await gemini_multi_image_edit_async(
+                                prompt=prompt,
+                                image_paths=[img_path, str(mask_path)],
+                                save_path=str(clean_bg_path),
+                                api_url=api_url,
+                                api_key=api_key,
+                                model=model_name,
+                                resolution="1K", 
+                                timeout=300
+                            )
+                            
+                            if clean_bg_path.exists():
+                                bg_image_path_for_ppt = str(clean_bg_path)
+                            else:
+                                log.warning(f"Gemini output not found: {clean_bg_path}")
+                        else:
+                            log.warning("Skipping AI edit: No API Key provided")
+                            
+                except Exception as e:
+                    log.error(f"[pdf2ppt_with_sam][page#{page_idx+1}] AI Inpainting failed: {e}")
+
+            # 设置背景
+            if bg_image_path_for_ppt and os.path.exists(bg_image_path_for_ppt):
+                try:
+                    # 使用图片背景
+                    slide.shapes.add_picture(bg_image_path_for_ppt, 0, 0, prs.slide_width, prs.slide_height)
+                    # 此时不需要再设纯色填充，图片会覆盖
+                except Exception as e:
+                    log.error(f"Failed to set slide background image: {e}")
+                    # 降级到纯白
+                    bg = slide.background
+                    fill = bg.fill
+                    fill.solid()
+                    fill.fore_color.rgb = RGBColor(255, 255, 255)
+            else:
+                # 统一使用纯白背景
+                bg = slide.background
+                fill = bg.fill
+                fill.solid()
+                fill.fore_color.rgb = RGBColor(255, 255, 255)
 
             # 4.2 渲染 MinerU Image Zones
             for zone in image_zones:
