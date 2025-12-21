@@ -300,6 +300,93 @@ Upload an experimental results screenshot/table. The system extracts key numbers
 
 ---
 
+#### 📸 Showcase - Paper2PPT
+
+##### Paper PDF to PPT
+
+From paper PDF / text content, generate well-structured and beautifully formatted editable presentations with one click
+
+<table>
+<tr>
+<th width="25%">Input</th>
+<th width="25%">Output</th>
+<th width="25%">Input</th>
+<th width="25%">Output</th>
+</tr>
+<tr>
+<td align="center">
+<img src="frontend-workflow/public/paper2ppt/input_1.png" alt="Paper PDF Input" width="100%"/>
+<br><sub>📄 Paper PDF</sub>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/paper2ppt/ouput_1.png" alt="Generated PPT" width="100%"/>
+<br><sub>📊 Generated PPT</sub>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/paper2ppt/input_3.png" alt="Paper Content Input" width="100%"/>
+<br><sub>📝 Paper Content</sub>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/paper2ppt/ouput_3.png" alt="Generated PPT" width="100%"/>
+<br><sub>📊 Generated PPT</sub>
+</td>
+</tr>
+</table>
+
+##### PPT Polish - Smart PPT Enhancement
+
+**🎨 PPT Color Enhancement** - Intelligently adjust style, color scheme and visual hierarchy based on existing PPT content
+
+<table>
+<tr>
+<th width="25%">Original PPT</th>
+<th width="25%">Enhanced</th>
+<th width="25%">Original PPT</th>
+<th width="25%">Enhanced</th>
+</tr>
+<tr>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/paper2ppt_orgin_1.png" alt="Original PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/paper2ppt_polish_1.png" alt="Enhanced PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/paper2ppt_orgin_2.png" alt="Original PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/paper2ppt_polish_2.png" alt="Enhanced PPT" width="100%"/>
+</td>
+</tr>
+</table>
+
+**✍️ PPT Polish & Expand** - Transform plain text or simple blank PPT into polished presentations with auto-generated layouts and visual elements
+
+<table>
+<tr>
+<th width="25%">Original PPT</th>
+<th width="25%">Polished</th>
+<th width="25%">Original PPT</th>
+<th width="25%">Polished</th>
+</tr>
+<tr>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/orgin_3.png" alt="Original PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/polish_3.png" alt="Polished PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/orgin_4.png" alt="Original PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/polish_4.png" alt="Polished PPT" width="100%"/>
+</td>
+</tr>
+</table>
+
+---
+
 #### 🖥️ How to Use
 
 **Option 1: Web Frontend (Recommended)**
