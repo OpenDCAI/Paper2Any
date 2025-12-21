@@ -299,7 +299,13 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
             if is_direct_image_list and (not isinstance(item, dict) or ("title" not in item and "layout_description" not in item)):
                 # 规则 2：只做风格化编辑
                 image_path = _abs_path(direct_img_path)
-                prompt = f"修改成{style}风格"
+                # 强化提示词，确保模型进行重绘而不是原图输出
+                prompt = (
+                    f"Please beautify and re-design this PowerPoint slide image. "
+                    f"Keep all the original text and structure, but completely transform it into a professional, "
+                    f"visually stunning presentation slide in {style} style. "
+                    f"Make sure the colors, layout, and background are improved significantly."
+                )
                 log.info(f"[paper2ppt] page={idx} direct image edit: image={image_path}, save={save_path}")
 
                 ok = await _call_image_api_with_retry(
@@ -414,14 +420,24 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
         if not prompt:
             raise ValueError("[paper2ppt] edit_page_prompt 不能为空")
 
-        # 取出原图路径：优先 generated_pages，其次 pagecontent[i].generated_img_path
+        # 取出原图路径：优先 generated_pages，其次 pagecontent[i].ppt_img_path
         old_path: Optional[str] = None
+        
+        # Debug log
+        log.info(f"[paper2ppt] edit_single_page: idx={idx}")
+        log.info(f"[paper2ppt] generated_pages={getattr(state, 'generated_pages', None)}")
+        log.info(f"[paper2ppt] pagecontent length={len(state.pagecontent or [])}")
+        if state.pagecontent and idx < len(state.pagecontent):
+            log.info(f"[paper2ppt] pagecontent[{idx}]={state.pagecontent[idx]}")
+        
         if getattr(state, "generated_pages", None) and idx < len(state.generated_pages):
             old_path = state.generated_pages[idx]
+            log.info(f"[paper2ppt] got old_path from generated_pages: {old_path}")
         if not old_path and idx < len(state.pagecontent or []):
             it = state.pagecontent[idx]
             if isinstance(it, dict):
                 old_path = it.get("generated_img_path") or it.get("ppt_img_path") or it.get("img_path")
+                log.info(f"[paper2ppt] got old_path from pagecontent: {old_path}")
         if not old_path:
             raise ValueError(f"[paper2ppt] 找不到要编辑的页图路径: idx={idx}")
 
@@ -434,11 +450,19 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
         # B1 策略：编辑时直接覆盖原始 page_{idx:03d}.png，避免 *_edit_*.png 累积
         save_path = str((img_dir / f"page_{idx:03d}.png").resolve())
         aspect_ratio = getattr(state, "aspect_ratio", None) or "16:9"
+        style = getattr(state.request, "style", None) or "kartoon"
+
+        # 强化提示词，确保模型进行重绘
+        full_prompt = (
+            f"Beautify this PowerPoint slide: '{prompt}'. "
+            f"Transform the existing design into a high-end, professional {style} style presentation. "
+            f"Enhance the visual aesthetics, layout, and background while preserving the core message."
+        )
 
         log.info(f"[paper2ppt] edit_single_page idx={idx} old={old_path} save={save_path}")
 
         await generate_or_edit_and_save_image_async(
-            prompt=prompt,
+            prompt=full_prompt,
             save_path=save_path,
             aspect_ratio=aspect_ratio,
             api_url=state.request.chat_api_url,
