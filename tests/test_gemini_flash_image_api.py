@@ -8,7 +8,6 @@
   https://api.apiyi.com/v1beta/models/gemini-2.5-flash-image:generateContent
 
 运行方式：
-  cd /home/ubuntu/liuzhou/myproj/dev/DataFlow-Agent
   python tests/test_gemini_flash_image_api.py
 """
 

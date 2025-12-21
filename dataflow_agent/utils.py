@@ -27,6 +27,8 @@ from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.util import Inches, Pt
 
+import fitz  # PyMuPDF
+
 from PIL import Image
 import pdfplumber
 import uuid
@@ -76,6 +78,31 @@ def robust_parse_json(
     # 合法的 \n, \r, \t, 和 \f, \b, \" 都不会被移除，但这里只针对不可打印的控制码。
     s = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', s)
 
+    # ---------- 新增：转义未转义的反斜杠（修复 LaTeX 公式等问题）----------
+    # 这会将所有单个反斜杠转换为双反斜杠，但保留已经正确转义的序列
+    # 先保护已经转义的序列（如 \\n, \\t, \\", \\\\）
+    s = s.replace('\\\\', '\x00DOUBLE_BACKSLASH\x00')  # 临时标记
+    s = s.replace('\\n', '\x00NEWLINE\x00')
+    s = s.replace('\\r', '\x00RETURN\x00')
+    s = s.replace('\\t', '\x00TAB\x00')
+    s = s.replace('\\"', '\x00QUOTE\x00')
+    s = s.replace('\\/', '\x00SLASH\x00')
+    s = s.replace('\\b', '\x00BACKSPACE\x00')
+    s = s.replace('\\f', '\x00FORMFEED\x00')
+    
+    # 现在转义所有剩余的单个反斜杠
+    s = s.replace('\\', '\\\\')
+    
+    # 恢复之前保护的序列
+    s = s.replace('\x00DOUBLE_BACKSLASH\x00', '\\\\')
+    s = s.replace('\x00NEWLINE\x00', '\\n')
+    s = s.replace('\x00RETURN\x00', '\\r')
+    s = s.replace('\x00TAB\x00', '\\t')
+    s = s.replace('\x00QUOTE\x00', '\\"')
+    s = s.replace('\x00SLASH\x00', '\\/')
+    s = s.replace('\x00BACKSPACE\x00', '\\b')
+    s = s.replace('\x00FORMFEED\x00', '\\f')
+
     log.debug(f'清洗完之后内容是： {s}')
 
     # ---------- Step-1：整体解析 ----------
@@ -106,12 +133,17 @@ def robust_parse_json(
 # ======================================================================
 
 _fence_pat = re.compile(r'```[\w-]*\s*([\s\S]*?)```', re.I)
+# 只匹配外层包裹的代码块（整个内容被 ``` 包裹）
+_outer_fence_pat = re.compile(r'^\s*```[\w-]*\s*([\s\S]*?)```\s*$', re.I)
 
 
 def _remove_markdown_fence(src: str) -> str:
-    """提取 ``` … ``` 内文本；若没找到则原样返回"""
-    blocks = _fence_pat.findall(src)
-    return "\n".join(blocks).strip() if blocks else src
+    """只提取外层包裹的 ``` … ``` 内文本；若内容不是被代码块包裹则原样返回"""
+    # 只处理整个内容被代码块包裹的情况，避免提取 JSON 内嵌的代码块
+    match = _outer_fence_pat.match(src)
+    if match:
+        return match.group(1).strip()
+    return src
 
 
 def _remove_outer_triple_quotes(src: str) -> str:
@@ -915,3 +947,418 @@ def add_image_placeholder(slide, bbox: List[int], message: str):
 #         except JSONDecodeError:
 #             idx += 1
 #     return objs
+
+
+# ========================================================================
+
+#                           For Paper2ExpFigure
+
+# ========================================================================
+
+def pdf_to_pil_images(
+    pdf_path: Union[str, Path],
+    dpi: int = 300
+) -> List[Image.Image]:
+    """
+    将 PDF 文件的每一页转换为 PIL Image 对象。
+    修复了 CMYK/灰度/透明背景导致的白图或花屏问题。
+    """
+    pdf_path = Path(pdf_path)
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"PDF 文件不存在: {pdf_path}")
+
+    # 计算缩放比例
+    zoom = dpi / 72.0
+    matrix = fitz.Matrix(zoom, zoom)
+
+    images: List[Image.Image] = []
+    
+    # 这里的 flags 用于处理一些复杂的渲染情况（可选，但在某些图表 PDF 中很有用）
+    # fitz.pdf.Page.get_pixmap 默认会自动处理大多情况
+    
+    doc = fitz.open(pdf_path)
+    try:
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            
+            # 1. 获取初始 Pixmap
+            # alpha=False: 强制背景不透明（默认白色），解决透明底变黑或变白的问题
+            pix = page.get_pixmap(matrix=matrix, alpha=False)
+
+            # 2. 关键修复：检查色彩空间并转换
+            # pix.n 是通道数。如果不是 3 (RGB)，则强制转换为 RGB
+            if pix.n != 3:
+                # fitz.csRGB 是 PyMuPDF 内置的 RGB 色彩空间定义
+                temp_pix = fitz.Pixmap(fitz.csRGB, pix)
+                pix = temp_pix  # 替换为转换后的 RGB pixmap
+                # 注意：temp_pix 只是引用，赋值给 pix 后后续逻辑一致，且会自动管理内存
+
+            # 3. 安全转换为 PIL
+            # 现在我们可以 100% 确定数据是 RGB 格式的
+            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+            images.append(img)
+
+            log.info(f"[pdf_to_pil_images] 已转换第 {page_num + 1} 页 (模式:{pix.n}通道)，尺寸: {pix.width}x{pix.height}")
+
+    except Exception as e:
+        log.error(f"[pdf_to_pil_images] 转换过程出错: {e}")
+        raise e
+    finally:
+        doc.close()
+
+    log.info(f"[pdf_to_pil_images] 完成，共生成 {len(images)} 张图片")
+    return images
+
+
+def _parse_html_table(html_content: str) -> tuple[List[str], List[List[str]]]:
+    """
+    解析 HTML 表格内容，提取表头和数据行。
+    
+    参数
+    ----
+    html_content : str
+        HTML 表格字符串，如 <table>...</table>
+    
+    返回
+    ----
+    tuple[List[str], List[List[str]]]
+        (headers, rows) - 表头列名和数据行
+    """
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        log.warning("[_parse_html_table] BeautifulSoup 未安装，使用简单解析")
+        return _parse_html_table_simple(html_content)
+    
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        table = soup.find('table')
+        
+        if not table:
+            log.warning("[_parse_html_table] 未找到 table 标签")
+            return [], []
+        
+        # 提取所有行
+        rows_data = []
+        for tr in table.find_all('tr'):
+            row = []
+            for cell in tr.find_all(['td', 'th']):
+                # 处理 colspan
+                colspan = int(cell.get('colspan', 1))
+                cell_text = cell.get_text(strip=True)
+                row.append(cell_text)
+                # 如果有 colspan，添加空单元格
+                for _ in range(colspan - 1):
+                    row.append('')
+            if row:  # 只添加非空行
+                rows_data.append(row)
+        
+        if not rows_data:
+            return [], []
+        
+        # 第一行作为表头
+        headers = rows_data[0]
+        data_rows = rows_data[1:] if len(rows_data) > 1 else []
+        
+        return headers, data_rows
+        
+    except Exception as e:
+        log.error(f"[_parse_html_table] 解析失败: {e}")
+        return _parse_html_table_simple(html_content)
+
+
+def _parse_html_table_simple(html_content: str) -> tuple[List[str], List[List[str]]]:
+    """
+    简单的 HTML 表格解析（不依赖 BeautifulSoup）。
+    仅用于备用，可能不够健壮。
+    """
+    try:
+        # 简单正则提取所有 <tr>...</tr> 内容
+        import re
+        tr_pattern = re.compile(r'<tr>(.*?)</tr>', re.DOTALL | re.IGNORECASE)
+        td_pattern = re.compile(r'<t[dh][^>]*>(.*?)</t[dh]>', re.DOTALL | re.IGNORECASE)
+        
+        rows_data = []
+        for tr_match in tr_pattern.finditer(html_content):
+            tr_content = tr_match.group(1)
+            row = []
+            for td_match in td_pattern.finditer(tr_content):
+                cell_text = td_match.group(1).strip()
+                # 移除 HTML 标签
+                cell_text = re.sub(r'<[^>]+>', '', cell_text)
+                row.append(cell_text)
+            if row:
+                rows_data.append(row)
+        
+        if not rows_data:
+            return [], []
+        
+        headers = rows_data[0]
+        data_rows = rows_data[1:] if len(rows_data) > 1 else []
+        
+        return headers, data_rows
+        
+    except Exception as e:
+        log.error(f"[_parse_html_table_simple] 简单解析失败: {e}")
+        return [], []
+
+
+def extract_tables_from_mineru_results(
+    mineru_items: List[Dict[str, Any]],
+    min_rows: int = 2,
+    min_cols: int = 2,
+) -> List[Dict[str, Any]]:
+    """
+    从 MinerU 识别结果中提取表格数据。
+
+    参数
+    ----
+    mineru_items : List[Dict[str, Any]]
+        MinerU 返回的 items 列表，每个 item 包含 type, bbox, content 等字段
+    min_rows : int, default 2
+        最小行数，少于此值的表格会被过滤
+    min_cols : int, default 2
+        最小列数，少于此值的表格会被过滤
+
+    返回
+    ----
+    List[Dict[str, Any]]
+        提取的表格列表，每个表格格式:
+        {
+            "table_id": str,           # 表格唯一标识
+            "headers": List[str],       # 表头列名
+            "rows": List[List[str]],    # 数据行
+            "caption": str,             # 表格标题/说明
+            "bbox": List[int],          # 原始坐标
+            "content": str,             # 原始 HTML 内容（如果是 HTML 表格）
+        }
+    """
+    tables = []
+    table_idx = 0
+
+    # 用于关联 caption 和 table 的临时存储
+    pending_caption = ""
+
+    for item in mineru_items:
+        item_type = item.get("type", "")
+        content = item.get("content", "")
+        bbox = item.get("bbox", [])
+
+        # 处理 table_caption
+        if item_type == "table_caption" and content:
+            pending_caption = content
+            continue
+
+        # 处理表格
+        if item_type == "table" and content:
+            # MinerU 返回的 content 是 HTML 字符串（如 <table>...</table>）
+            headers, rows = _parse_html_table(content)
+            
+            # 过滤小表格
+            if len(headers) < min_cols or len(rows) < min_rows:
+                log.debug(f"[extract_tables] 跳过小表格: {len(headers)} 列, {len(rows)} 行")
+                continue
+
+            table_id = f"table_{table_idx}"
+            table_idx += 1
+
+            tables.append({
+                "table_id": table_id,
+                "headers": headers,
+                "rows": rows,
+                "caption": pending_caption,
+                "bbox": bbox,
+                "content": content,  # 保留原始 HTML
+            })
+
+            pending_caption = ""  # 重置
+            log.info(f"[extract_tables] 提取表格 {table_id}: {len(headers)} 列, {len(rows)} 行, caption: {pending_caption[:50] if pending_caption else 'N/A'}")
+
+    log.info(f"[extract_tables] 共提取 {len(tables)} 个表格")
+    return tables
+
+
+def extract_text_from_mineru_results(
+    mineru_items: List[Dict[str, Any]],
+    max_chars: int = 10000,
+) -> str:
+    """
+    从 MinerU 识别结果中提取纯文本内容（用于 paper_idea_extractor）。
+
+    参数
+    ----
+    mineru_items : List[Dict[str, Any]]
+        MinerU 返回的 items 列表
+    max_chars : int, default 10000
+        最大提取字符数，避免内容过长
+
+    返回
+    ----
+    str
+        提取的文本内容
+    """
+    text_parts = []
+    total_chars = 0
+
+    for item in mineru_items:
+        if total_chars >= max_chars:
+            break
+
+        item_type = item.get("type", "")
+        content = item.get("content", "")
+
+        # 提取文本类型的内容（text, title, table_caption 等）
+        if item_type in ["text", "title", "table_caption"] and content:
+            text_parts.append(content)
+            total_chars += len(content)
+
+    result = "\n\n".join(text_parts)
+    
+    if total_chars > max_chars:
+        result = result[:max_chars] + "..."
+
+    log.info(f"[extract_text] 提取了 {len(text_parts)} 段文本，共 {len(result)} 字符")
+    return result
+
+
+def execute_matplotlib_code(
+    code: str,
+    output_path: Union[str, Path],
+    timeout: int = 30,
+    allowed_modules: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """
+    安全执行 matplotlib 代码并保存图表。
+
+    参数
+    ----
+    code : str
+        要执行的 matplotlib Python 代码
+    output_path : str | Path
+        图表输出路径（包含文件名，如 /tmp/chart.png）
+    timeout : int, default 30
+        执行超时时间（秒）
+    allowed_modules : List[str], optional
+        允许导入的模块列表，默认为 ["matplotlib", "numpy", "pandas"]
+
+    返回
+    ----
+    Dict[str, Any]
+        {
+            "success": bool,
+            "output_path": str,      # 成功时返回图片路径
+            "error": str,            # 失败时返回错误信息
+        }
+    """
+    import subprocess
+    import tempfile
+
+    if allowed_modules is None:
+        allowed_modules = ["matplotlib", "numpy", "pandas", "math"]
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 安全性检查：禁止危险操作
+    dangerous_patterns = [
+        r'\bos\.system\b',
+        r'\bsubprocess\b',
+        r'\beval\b',
+        r'\bexec\b',
+        r'\bopen\s*\(',
+        r'\b__import__\b',
+        r'\bimport\s+os\b',
+        r'\bimport\s+sys\b',
+        r'\bimport\s+subprocess\b',
+        r'\bfrom\s+os\b',
+        r'\bfrom\s+sys\b',
+    ]
+
+    for pattern in dangerous_patterns:
+        if re.search(pattern, code):
+            return {
+                "success": False,
+                "output_path": "",
+                "error": f"检测到危险操作: {pattern}",
+            }
+
+    # 构建完整的执行代码
+#     full_code = f'''
+# import matplotlib
+# matplotlib.use('Agg')  # 非交互式后端
+# import matplotlib.pyplot as plt
+# import numpy as np
+
+# # 用户代码
+# {code}
+
+# # 保存图表
+# plt.tight_layout()
+# plt.savefig(r"{str(output_path)}", dpi=150, bbox_inches='tight')
+# plt.close('all')
+# print("SUCCESS")
+# '''
+    full_code = f'''
+{code}
+'''
+
+    # 写入临时文件并执行
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
+            f.write(full_code)
+            temp_script = f.name
+
+        result = subprocess.run(
+            ['python', temp_script],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=str(output_path.parent),
+        )
+
+        # 清理临时文件
+        try:
+            os.unlink(temp_script)
+        except Exception:
+            pass
+
+        # 判断执行是否成功：返回码为 0 且图片文件存在
+        if result.returncode == 0:
+            if output_path.exists():
+                log.info(f"[execute_matplotlib] 图表生成成功: {output_path}")
+                return {
+                    "success": True,
+                    "output_path": str(output_path),
+                    "error": "",
+                }
+            else:
+                log.warning(f"[execute_matplotlib] 代码执行成功但图片未生成")
+                return {
+                    "success": False,
+                    "output_path": "",
+                    "error": "代码执行成功但图片未生成",
+                }
+        else:
+            error_msg = result.stderr or result.stdout or "未知错误"
+            log.warning(f"[execute_matplotlib] 执行失败 (返回码={result.returncode}): {error_msg}")
+            return {
+                "success": False,
+                "output_path": "",
+                "error": error_msg[:500],  # 截断过长的错误信息
+            }
+
+    except subprocess.TimeoutExpired:
+        log.warning(f"[execute_matplotlib] 执行超时 ({timeout}s)")
+        return {
+            "success": False,
+            "output_path": "",
+            "error": f"代码执行超时 ({timeout} 秒)",
+        }
+    except Exception as e:
+        log.error(f"[execute_matplotlib] 执行异常: {e}")
+        return {
+            "success": False,
+            "output_path": "",
+            "final_code": full_code,
+            "error": str(e),
+        }

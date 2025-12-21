@@ -1,31 +1,34 @@
 <div align="center">
 
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/new_logo_bgrm.png" alt="DataFlow-Agent Logo" width="200"/><br>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/new_logo_bgrm.png" alt="DataFlow-Agent Logo" width="180"/><br>
 
 # DataFlow-Agent
 
-**AI-Powered Data & Paper Workflow Orchestration Platform**
+[![DataFlow](https://img.shields.io/badge/DataFlow-OpenDCAI%2FDataFlow-0F9D58?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/DataFlow)
+
+<!-- **From Papers & Raw Data to Charts, PPTs and Data Pipelines — an All-in-One AI Orchestrator** -->
 
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-2F80ED?style=flat-square&logo=apache&logoColor=white)](LICENSE)
 [![GitHub Repo](https://img.shields.io/badge/GitHub-OpenDCAI%2FDataFlow--Agent-24292F?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/DataFlow-Agent)
 [![Stars](https://img.shields.io/github/stars/OpenDCAI/DataFlow-Agent?style=flat-square&logo=github&label=Stars&color=F2C94C)](https://github.com/OpenDCAI/DataFlow-Agent/stargazers)
 
+<a href="https://github.com/OpenDCAI/DataFlow-Agent#-quick-start" target="_blank">
+  <img alt="Quickstart" src="https://img.shields.io/badge/🚀-Quick_Start-2F80ED?style=for-the-badge" />
+</a>
 <a href="https://dcai-paper2any.cpolar.top/" target="_blank">
-  <img alt="Try Online" src="https://img.shields.io/badge/Try%20Online-Paper2Figure-56CCF2?style=flat-square&logo=googlechrome&logoColor=white" />
+  <img alt="Online Demo" src="https://img.shields.io/badge/🌐-Online_Demo_Paper2Any-56CCF2?style=for-the-badge" />
 </a>
 <a href="docs/" target="_blank">
-  <img alt="Docs" src="https://img.shields.io/badge/Docs-Read%20the%20Docs-2D9CDB?style=flat-square&logo=readthedocs&logoColor=white" />
+  <img alt="Docs" src="https://img.shields.io/badge/📚-Docs-2D9CDB?style=for-the-badge" />
 </a>
 <a href="docs/contributing.md" target="_blank">
-  <img alt="Contributing" src="https://img.shields.io/badge/Contributing-Guide-27AE60?style=flat-square&logo=github&logoColor=white" />
+  <img alt="Contributing" src="https://img.shields.io/badge/🤝-Contributing-27AE60?style=for-the-badge" />
 </a>
 
-*A multi-purpose AI agent platform based on DFA*
+*A multi-agent workflow platform based on LangGraph, focusing on paper-centric multimodal workflows and extensible to data governance scenarios via DataFlow.*
 
 English | [中文](README.md)
-
-[Quick Start](#-quick-start) • <a href="https://dcai-paper2any.cpolar.top/" target="_blank">Try Online</a> • <a href="docs/" target="_blank">Docs</a> • <a href="docs/contributing.md" target="_blank">Contributing</a>
 
 </div>
 
@@ -34,11 +37,8 @@ English | [中文](README.md)
 ## 📑 Table of Contents
 
 - [🔥 News](#-news)
-- [📐 Architecture](#-architecture)
+- [🧠 Platform Overview](#-platform-overview)
 - [✨ Core Applications](#-core-applications)
-  - [Paper2Any - Paper Multimodal Workflow](#1%EF%B8%8F%E2%83%A3-paper2any---paper-multimodal-workflow)
-  - [Easy-DataFlow - Data Governance Pipeline](#2%EF%B8%8F%E2%83%A3-easy-dataflow---data-governance-pipeline)
-  - [DataFlow-Table - Multi-source Data Analysis](#3%EF%B8%8F%E2%83%A3-dataflow-table---multi-source-data-analysis)
 - [🚀 Quick Start](#-quick-start)
 - [📂 Project Structure](#-project-structure)
 - [🗺️ Roadmap](#%EF%B8%8F-roadmap)
@@ -67,18 +67,24 @@ One-click generation of multiple <strong>editable</strong> scientific figures, i
 </table>
 
 <div align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend_1.png" alt="Paper2Figure Web UI" width="49%"/>
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend_2.png" alt="Paper2Figure Web UI (2)" width="49%"/>
+  <img src="static/frontend_pages/paper2figure-1.png" alt="Web UI - Paper2Figure" width="48%"/>
+  <span>&nbsp;|&nbsp;</span>
+  <img src="static/frontend_pages/paper2ppt-1.png" alt="Web UI - Paper2PPT" width="48%"/>
 </div>
 
 ---
 
-## 📐 Architecture
+## 🧠 Platform Overview
 
-<div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/projs_dist.png" alt="Project Architecture" width="800"/>
-<br><sub>Three core applications extended from DataFlow-Agent: Paper2Any (Paper Multimodal Workflow), Easy-DataFlow (Data Governance Pipeline), DataFlow-Table (Multi-source Data Analysis)</sub>
-</div>
+DataFlow-Agent is built on LangGraph and currently focuses on the following typical scenarios:
+
+- 🎓 <strong>Research Workflows (Paper2Any)</strong>: From paper PDFs / screenshots / text to model diagrams, technical roadmaps, experimental plots and slide decks.
+- 📊 <strong>Data Governance (Easy-DataFlow)</strong>: Together with <a href="https://github.com/OpenDCAI/DataFlow">OpenDCAI/DataFlow</a>, go from natural language task descriptions to executable data processing pipelines and visual orchestration.
+
+The platform currently provides two main application lines:
+
+- <strong>Paper2Any</strong>: Paper-centric multimodal workflows (figures / PPT / video scripts / posters)
+- <strong>Easy-DataFlow</strong>: Data governance workflows and visual pipelines
 
 ---
 
@@ -86,11 +92,11 @@ One-click generation of multiple <strong>editable</strong> scientific figures, i
 
 ### 1️⃣ Paper2Any - Paper Multimodal Workflow
 
-> Starting from a paper PDF / image / text, generate **editable** multimodal outputs such as scientific figures, slide decks, video scripts, academic posters, and more.
+> From paper PDFs / images / text to **editable** scientific figures, slide decks, video scripts, posters and more in one click.
 
 #### 🎯 Key Capabilities
 
-Paper2Any currently includes the following sub-modules:
+Paper2Any currently includes the following sub-capabilities:
 
 <table>
 <tr>
@@ -99,7 +105,7 @@ Paper2Any currently includes the following sub-modules:
 **📊 Paper2Figure - Editable Scientific Figures**
 - ✅ Model architecture diagram generation
 - ✅ Technical roadmap diagram generation (PPT + SVG)
-- 🚧 Experimental plot generation (improving)
+- ✅ Experimental plot generation (under optimization)
 - ✅ Supports PDF / image / text inputs
 - ✅ Editable PPTX output
 
@@ -107,8 +113,9 @@ Paper2Any currently includes the following sub-modules:
 <td width="50%" valign="top">
 
 **🎬 Paper2PPT - Editable Slide Decks**
-- ✅ Beamer-based slide deck generation
-- 🚧 Fully editable slide deck generation (in progress)
+- ✅ Beamer slide generation
+- ✅ Open, fully editable PPT generation
+- ✅ PDF2PPT conversion with background preserved & editable content
 
 </td>
 </tr>
@@ -129,6 +136,101 @@ Paper2Any currently includes the following sub-modules:
 - 🚧 Key point summarization
 - 🚧 Visual refinement
 
+</td>
+</tr>
+</table>
+
+---
+
+#### 📸 Showcase - Paper2PPT
+
+##### Paper PDF to PPT
+
+<table>
+<tr>
+<th width="25%">Input</th>
+<th width="25%">Output</th>
+<th width="25%">Input</th>
+<th width="25%">Output</th>
+</tr>
+<tr>
+<td align="center">
+<img src="static/paper2ppt/input_1.png" alt="Input: paper PDF" width="100%"/>
+<br><sub>📄 Paper PDF</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/ouput_1.png" alt="Output: generated PPT" width="100%"/>
+<br><sub>📊 Generated PPT</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_3.png" alt="Input: paper content" width="100%"/>
+<br><sub>📝 Paper content</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/ouput_3.png" alt="Output: generated PPT" width="100%"/>
+<br><sub>📊 Generated PPT</sub>
+</td>
+</tr>
+<tr>
+<td colspan="2" align="center">
+<strong>PPT Generation</strong> - Upload a paper PDF, automatically extract key information and generate a structured academic presentation.
+</td>
+<td colspan="2" align="center">
+<strong>PPT Generation</strong> - Intelligently analyze paper content and automatically insert internal tables and figures into the slides.
+</td>
+</tr>
+</table>
+
+---
+
+#### 📸 Showcase - PPT Polish (Smart PPT Enhancement)
+
+<p><sub>🎨 <b>PPT Color Enhancement</b> — Intelligently adjust style, color schemes and visual hierarchy based on existing PPT content.</sub></p>
+
+<table>
+<tr>
+<th width="25%">Original PPT</th>
+<th width="25%">Enhanced</th>
+<th width="25%">Original PPT</th>
+<th width="25%">Enhanced</th>
+</tr>
+<tr>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/paper2ppt_orgin_1.png" alt="Original PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/paper2ppt_polish_1.png" alt="Enhanced PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/paper2ppt_orgin_2.png" alt="Original PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/paper2ppt_polish_2.png" alt="Enhanced PPT" width="100%"/>
+</td>
+</tr>
+</table>
+
+<p><sub>✍️ <b>PPT Polish & Expansion</b> — Turn plain text or simple blank PPT into polished decks with auto-generated layouts and visual elements.</sub></p>
+
+<table>
+<tr>
+<th width="25%">Original PPT</th>
+<th width="25%">Polished</th>
+<th width="25%">Original PPT</th>
+<th width="25%">Polished</th>
+</tr>
+<tr>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/orgin_3.png" alt="Original PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/polish_3.png" alt="Polished PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/orgin_4.png" alt="Original PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/polish_4.png" alt="Polished PPT" width="100%"/>
 </td>
 </tr>
 </table>
@@ -294,9 +396,59 @@ Paste the method section and select the language (Chinese/English). The system o
 
 <div align="center">
 
-Upload an experimental results screenshot/table. The system extracts key numbers and generates an **editable PPTX plot**, offering both standard and polished styles for papers and presentations.
+Upload experimental result screenshots or tables, automatically extract key data and generate **editable experimental plots in PPTX**, with both standard and stylized options for papers and presentations.
 
 </div>
+
+<p><sub>🎨 <b>PPT Color Enhancement</b> — Intelligently adjust style, color scheme and visual hierarchy based on existing PPT content</sub></p>
+
+<table>
+<tr>
+<th width="25%">Original PPT</th>
+<th width="25%">Enhanced</th>
+<th width="25%">Original PPT</th>
+<th width="25%">Enhanced</th>
+</tr>
+<tr>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/paper2ppt_orgin_1.png" alt="Original PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/paper2ppt_polish_1.png" alt="Enhanced PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/paper2ppt_orgin_2.png" alt="Original PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/paper2ppt_polish_2.png" alt="Enhanced PPT" width="100%"/>
+</td>
+</tr>
+</table>
+
+<p><sub>✍️ <b>PPT Polish & Expand</b> — Transform plain text or simple blank PPT into polished presentations with auto-generated layouts and visual elements</sub></p>
+
+<table>
+<tr>
+<th width="25%">Original PPT</th>
+<th width="25%">Polished</th>
+<th width="25%">Original PPT</th>
+<th width="25%">Polished</th>
+</tr>
+<tr>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/orgin_3.png" alt="Original PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/polish_3.png" alt="Polished PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/orgin_4.png" alt="Original PPT" width="100%"/>
+</td>
+<td align="center">
+<img src="frontend-workflow/public/ppt2polish/polish_4.png" alt="Polished PPT" width="100%"/>
+</td>
+</tr>
+</table>
 
 ---
 
@@ -304,11 +456,10 @@ Upload an experimental results screenshot/table. The system extracts key numbers
 
 **Option 1: Web Frontend (Recommended)**
 
-The online version is currently available for invited users only:  
-[https://dcai-paper2any.cpolar.top/](https://dcai-paper2any.cpolar.top/)
+(Online version currently requires invitation code) Visit: [https://dcai-paper2any.cpolar.top/](https://dcai-paper2any.cpolar.top/)
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend.png" alt="Web UI" width="100%"/>
+<img src="static/frontend_pages/paper2figure-1.png" alt="Web UI" width="80%"/>
 </div>
 
 **Highlights**:

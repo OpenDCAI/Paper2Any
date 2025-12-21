@@ -42,70 +42,9 @@ class APIError(BaseModel):
     message: str
 
 
-# ===================== 算子编写相关 =====================
-
-
-class OperatorWriteRequest(BaseModel):
-    """
-    对标 gradio_app.pages.operator_write 中 generate_operator 的输入参数。
-    """
-    target: str
-    category: str = "Default"
-    json_file: Optional[str] = None
-
-    chat_api_url: str = "http://123.129.219.111:3000/v1/"
-    api_key: str = ""
-    model: str = "gpt-4o"
-    language: str = "en"
-
-    need_debug: bool = False
-    max_debug_rounds: int = 3
-
-    # 若提供，则用于保存生成的算子代码
-    output_path: Optional[str] = None
-
-
-class OperatorWriteResponse(BaseModel):
-    success: bool
-    code: str
-    matched_ops: List[str]
-    execution_result: Dict[str, Any]
-    debug_runtime: Dict[str, Any]
-    agent_results: Dict[str, Any]
-    log: str
-
-
-# ===================== 流水线推荐 / 导出相关 =====================
-
-
-class PipelineRecommendRequest(BaseModel):
-    """
-    对标 gradio_app.utils.wf_pipeine_rec.run_pipeline_workflow 的参数。
-    """
-    target: str
-    json_file: str
-
-    need_debug: bool = False
-    session_id: str = "default"
-
-    chat_api_url: str = "http://123.129.219.111:3000/v1/"
-    api_key: str = ""
-    model_name: str = "gpt-4o"
-    max_debug_rounds: int = 2
-
-    chat_api_url_for_embeddings: str = ""
-    embedding_model_name: str = "text-embedding-3-small"
-    update_rag_content: bool = True
-
-
-class PipelineRecommendResponse(BaseModel):
-    success: bool
-    python_file: str
-    execution_result: Dict[str, Any]
-    agent_results: Dict[str, Any]
-
-
 # ===================== paper2video相关 =====================
+
+
 class FeaturePaper2VideoRequest(BaseModel):
     model: str = "gpt-4o",
     chat_api_url: str = "http://123.129.219.111:3000/v1/",
@@ -114,10 +53,13 @@ class FeaturePaper2VideoRequest(BaseModel):
     img_path: str = "",
     language: str = "",
 
+
 class FeaturePaper2VideoResponse(BaseModel):
     success: bool
     ppt_path: str
 
+
+# ===================== paper2figure 相关 =====================
 
 
 class Paper2FigureRequest(BaseModel):
@@ -196,3 +138,70 @@ class Paper2FigureResponse(BaseModel):
     svg_filename: str = ""  # 技术路线 SVG 源文件路径（graph_type=tech_route 时有效）
     svg_image_filename: str = ""  # 技术路线 PNG 渲染图路径（graph_type=tech_route 时有效）
     all_output_files: List[str] = []  # 本次任务产生的所有输出文件路径（稍后在路由层转换为 URL）
+
+
+# ===================== paper2ppt 相关 =====================
+
+
+class Paper2PPTRequest(BaseModel):
+    """
+    Paper2PPT 的请求参数定义。
+
+    目前直接复用 Paper2FigureRequest 的字段语义，仅名称区分，
+    方便在 FastAPI 层与具体 workflow 解耦。
+    """
+
+    # ---------------------- 基础 LLM 设置 ----------------------
+    language: str = "en"
+    chat_api_url: str = "http://123.129.219.111:3000/v1/"
+
+    # ---------------------- 图类型 & 难度设置 ----------------------
+    chat_api_key: str = "fill the key"
+    api_key: str = ""
+    # 用于对话的模型
+    model: str = "gpt-5.1"
+
+    gen_fig_model: str = "gemini-3-pro-image-preview"
+    # bg_rm_model: str = f"{get_project_root()}/models/RMBG-2.0"
+
+    # ---------------------- 输入类型设置 ----------------------
+    input_type: Literal["PDF", "TEXT", "PPT"] = "PDF"
+    input_content: str = ""
+
+    # ---------------------- 输出图像比例设置 ----------------------
+    aspect_ratio: Literal["1:1", "16:9", "9:16", "4:3", "3:4", "21:9"] = "16:9"
+    style: str = " "
+
+    reference_img: str = ""
+
+    invite_code: str = ""
+    # 生成的ppt页数；
+    page_count: int = 5
+
+    all_edited_down: bool = False
+
+    def get(self, key: str, default=None):
+        """
+        兼容 dataflow_agent 内部对 request 使用 dict.get("key") 的写法。
+        未找到属性时返回 default。
+        """
+        return getattr(self, key, default)
+
+
+class Paper2PPTResponse(BaseModel):
+    """
+    Paper2PPT 的响应模型。
+
+    workflow_adapters.paper2ppt 会返回这些字段（或其中子集）：
+    - pagecontent: paper2page_content 的结构化结果
+    - result_path: 本次任务输出目录（后端内部路径；路由层通常会再转 URL）
+    - ppt_pdf_path / ppt_pptx_path: paper2ppt 导出的最终文件路径
+    - all_output_files: 本次任务输出目录下扫描到的相关文件（路由层转 URL 后返回）
+    """
+    success: bool = True
+
+    ppt_pdf_path: str = ""
+    ppt_pptx_path: str = ""
+    pagecontent: List[Dict[str, Any]] = []
+    result_path: str = ""
+    all_output_files: List[str] = []

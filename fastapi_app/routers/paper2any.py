@@ -13,77 +13,10 @@ from fastapi_app.routers.paper2video import paper2video_endpoint, FeaturePaper2V
 from fastapi_app.schemas import Paper2FigureRequest, Paper2FigureResponse
 from fastapi_app.workflow_adapters import run_paper2figure_wf_api
 from dataflow_agent.utils import get_project_root
-import os
+from fastapi_app.utils import _to_outputs_url, validate_invite_code  # noqa: F401
 from dataflow_agent.logger import get_logger
 
 log = get_logger(__name__)
-
-# 简单的邀请码校验：从本地文本文件加载白名单
-INVITE_CODES_FILE = Path(os.getenv("INVITE_CODES_FILE", f"{get_project_root()}/invite_codes.txt"))
-
-def _to_outputs_url(abs_path: str, request: Request | None = None) -> str:
-    """
-    将绝对路径转换为浏览器可访问的完整 URL。
-    """
-    project_root = get_project_root()
-    outputs_root = project_root / "outputs"
-    
-    log.info(f'[DEBUG] project_root: {project_root}')
-    log.info(f'[DEBUG] outputs_root: {outputs_root}')
-    log.info(f'[DEBUG] abs_path: {abs_path}')
-
-    p = Path(abs_path)
-    try:
-        rel = p.relative_to(outputs_root)
-        
-        # 构造完整 URL（包含协议、域名和端口）
-        if request is not None:
-            base_url = str(request.base_url).rstrip('/')
-            url = f"{base_url}/outputs/{rel.as_posix()}"
-        else:
-            # 降级：使用相对路径
-            url = f"/outputs/{rel.as_posix()}"
-        
-        log.warning(f'[DEBUG] generated URL: {url}')
-        return url
-    except ValueError as e:
-        log.error(f'[ERROR] Path conversion failed: {e}')
-        if '/outputs/' in abs_path:
-            idx = abs_path.index('/outputs/')
-            fallback_url = abs_path[idx:]
-            log.warning(f'[WARN] Using fallback URL: {fallback_url}')
-            return fallback_url
-        log.error(f'[ERROR] Cannot convert path to URL: {abs_path}')
-        return abs_path
-
-def load_invite_codes() -> set[str]:
-    """
-    从 invite_codes.txt 中加载邀请码列表。
-
-    文件格式：每行一个邀请码，忽略空行和以 # 开头的注释行。
-    """
-    codes: set[str] = set()
-    if not INVITE_CODES_FILE.exists():
-        return codes
-    for line in INVITE_CODES_FILE.read_text(encoding="utf-8").splitlines():
-        code = line.strip()
-        if not code or code.startswith("#"):
-            continue
-        codes.add(code)
-    return codes
-
-
-VALID_INVITE_CODES = load_invite_codes()
-
-
-def validate_invite_code(code: str | None) -> None:
-    """
-    校验邀请码是否有效。无效则抛出 403。
-    """
-    if not code:
-        raise HTTPException(status_code=403, detail="invite_code is required")
-    if code not in VALID_INVITE_CODES:
-        raise HTTPException(status_code=403, detail="Invalid invite_code")
 
 
 # 全局信号量：控制重任务并发度（排队机制）
@@ -456,7 +389,7 @@ async def generate_paper2figure_json(
     safe_svg = _to_outputs_url(p2f_resp.svg_filename, request) if p2f_resp.svg_filename else ""
     safe_png = _to_outputs_url(p2f_resp.svg_image_filename, request) if p2f_resp.svg_image_filename else ""
 
-    # 新增：将本次任务输出目录下所有相关文件路径转换为 URL
+    # 新增：将本次任务输出目录下s所有相关文件路径转换为 URL
     safe_all_files: list[str] = []
     for abs_path in getattr(p2f_resp, "all_output_files", []) or []:
         if abs_path:
@@ -471,8 +404,8 @@ async def generate_paper2figure_json(
     )
 
 
-@router.post("/paper2ppt/generate")
-async def generate_paper2ppt(
+@router.post("/paper2beamer/generate")
+async def generate_paper2beamer(
     model_name: str = Form(...),
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
@@ -483,11 +416,11 @@ async def generate_paper2ppt(
     language: str = Form(...),
 ):
     """
-    Paper2PPT 假接口（带邀请码校验）：
+    paper2beamer 假接口（带邀请码校验）：
 
     - 需要前端在 FormData 中传入 invite_code，并在本地白名单文件中验证；
     - 接收前端上传的 PDF；
-    - 为每次请求在 outputs/paper2ppt 下创建独立目录；
+    - 为每次请求在 outputs/paper2beamer 下创建独立目录；
     - 使用全局信号量控制重任务串行执行；
     - 返回一个简单的 PPTX 文件，供前端下载测试。
     """
@@ -495,17 +428,17 @@ async def generate_paper2ppt(
     validate_invite_code(invite_code)
 
     if input_type != "file":
-        raise HTTPException(status_code=400, detail="Paper2PPT currently only supports input_type='file'")
+        raise HTTPException(status_code=400, detail="paper2beamer currently only supports input_type='file'")
 
     if file is None:
-        raise HTTPException(status_code=400, detail="file is required for Paper2PPT")
+        raise HTTPException(status_code=400, detail="file is required for paper2beamer")
 
     if file_kind not in ("pdf", None):
         # 允许 None（前端若未传），否则校验必须为 pdf
-        raise HTTPException(status_code=400, detail="file_kind must be 'pdf' for Paper2PPT")
+        raise HTTPException(status_code=400, detail="file_kind must be 'pdf' for paper2beamer")
 
     # 2. 创建本次请求的独立目录
-    run_dir = create_run_dir("paper2ppt")
+    run_dir = create_run_dir("paper2beamer")
     input_dir = run_dir / "input"
     output_dir = run_dir / "output"
 
@@ -520,8 +453,8 @@ async def generate_paper2ppt(
 
     # 4. 重任务段：受信号量保护，确保排队执行
     async with task_semaphore:
-        # output_pptx = output_dir / "paper2ppt.pdf"
-        # demo_title = "Paper2PPT Demo"
+        # output_pptx = output_dir / "paper2beamer.pdf"
+        # demo_title = "paper2beamer Demo"
         # content = (
         #     f"model_name: {model_name}\n"
         #     f"chat_api_url: {chat_api_url}\n"
@@ -549,10 +482,10 @@ async def generate_paper2ppt(
     # return FileResponse(
     #     path=output_pptx,
     #     media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    #     filename="paper2ppt.pdf",
+    #     filename="paper2beamer.pdf",
     # )
     return FileResponse(
     path=output_path,
     media_type="application/pdf",
-    filename="paper2ppt.pdf",
+    filename="paper2beamer.pdf",
 )

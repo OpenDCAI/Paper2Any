@@ -1,7 +1,7 @@
 import os
 import base64
 import re
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List, Union
 import httpx
 from enum import Enum
 
@@ -76,7 +76,7 @@ async def _post_raw(
         try:
             resp = await client.post(url, headers=headers, json=payload)
             log.info(f"status={resp.status_code}")
-            log.info(f"resp.text[:500]={resp.text[:500]}")
+            # log.info(f"resp[:500]={resp.text}")
             resp.raise_for_status()
             return resp.json()
         except httpx.HTTPStatusError as e:
@@ -416,8 +416,8 @@ def build_gemini_edit_request(
                     "parts": [
                         {"text": prompt},
                         {
-                            "inlineData": {
-                                "mimeType": f"image/{fmt}",
+                            "inline_data": {
+                                "mime_type": f"image/{fmt}",
                                 "data": b64,
                             }
                         },
@@ -462,6 +462,7 @@ def build_gemini_edit_request(
 
     # 3) 123 + 3 Pro => 保持现有 chat/completions + text + image_url
     if provider is Provider.LOCAL_123 and is_gemini_3_pro(model):
+        log.critical(f'走 Local 3000 + Gemini3 Pro 路径')
         url = f"{base}/chat/completions"
         messages = [
             {
@@ -481,8 +482,8 @@ def build_gemini_edit_request(
             "model": model,
             "messages": messages,
             "response_format": {"type": "image"},
-            "max_tokens": 1024,
-            "temperature": 0.7,
+            # "max_tokens": 1024,
+            # "temperature": 0.7,
         }
         return url, payload
 
@@ -537,6 +538,109 @@ def build_gemini_edit_request(
         "temperature": 0.7,
     }
     return url, payload
+
+
+async def gemini_multi_image_edit_async(
+    prompt: str,
+    image_paths: List[str],
+    save_path: str,
+    api_url: str,
+    api_key: str,
+    model: str,
+    aspect_ratio: str = "16:9",
+    resolution: str = "2K",
+    timeout: int = 300,
+) -> str:
+    """
+    专门针对 Gemini (APIYI / Google 原生格式) 的多图编辑
+    
+    参数:
+        image_paths: 本地图片路径列表，支持多张图片合成/编辑
+        resolution: "1K", "2K", "4K" (仅 gemini-3-pro 支持 2K/4K)
+    """
+    # 1. 构造 parts 列表：Text + Images
+    parts = [{"text": prompt}]
+    
+    for img_path in image_paths:
+        if not os.path.exists(img_path):
+            raise FileNotFoundError(f"Image not found: {img_path}")
+        
+        b64, fmt = _encode_image_to_base64(img_path)
+        parts.append({
+            "inline_data": {
+                "mime_type": f"image/{fmt}",
+                "data": b64,
+            }
+        })
+        
+    # 2. 构造 URL (强制使用 Google 原生格式端点)
+    # 假设 api_url 可能是 "https://api.apiyi.com/v1" 或 "https://api.apiyi.com"
+    # 我们需要构造类似 "https://api.apiyi.com/v1beta/models/{model}:generateContent"
+    
+    base_url = api_url.rstrip("/")
+    # 如果用户传的是 v1 结尾，尝试去掉它以回到根域名，或者直接替换
+    # 这里做个简单的处理：如果包含 /v1，则替换为 /v1beta/models/...
+    # 也可以直接假定用户传入的是 host base
+    
+    if "/v1" in base_url:
+        base_url = base_url.split("/v1")[0]
+        
+    url = f"{base_url}/v1beta/models/{model}:generateContent"
+    
+    # 3. 构造 Payload
+    image_config = {"aspectRatio": aspect_ratio}
+    
+    # 只有 gemini-3-pro 支持 imageSize
+    if is_gemini_3_pro(model):
+        image_config["imageSize"] = resolution
+        
+    payload = {
+        "contents": [{"parts": parts}],
+        "generationConfig": {
+            "responseModalities": ["IMAGE"],
+            "imageConfig": image_config
+        }
+    }
+    
+    # 4. 根据分辨率动态调整超时
+    if is_gemini_3_pro(model):
+        timeout_map = {"1K": 180, "2K": 300, "4K": 360}
+        timeout = max(timeout, timeout_map.get(resolution, 300))
+        
+    # 5. 发送请求
+    log.info(f"[Gemini Multi-Image] POST {url} (resolution={resolution}, images={len(image_paths)})")
+    resp_json = await _post_raw(url, api_key, payload, timeout)
+    
+    # 6. 解析结果 (Google 格式)
+    # candidates[0].content.parts[0].inlineData.data
+    try:
+        candidates = resp_json.get("candidates", [])
+        if not candidates:
+            raise RuntimeError(f"No candidates returned. Response: {str(resp_json)[:200]}")
+            
+        content = candidates[0].get("content", {})
+        res_parts = content.get("parts", [])
+        if not res_parts:
+            raise RuntimeError("No parts in response content")
+            
+        inline_data = res_parts[0].get("inlineData", {})
+        b64_res = inline_data.get("data")
+        
+        if not b64_res:
+             raise RuntimeError("No inlineData.data found in response")
+             
+    except Exception as e:
+        log.error(f"Failed to parse Gemini response: {e}")
+        log.error(f"Full response: {resp_json}")
+        raise
+        
+    # 7. 保存
+    os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+    with open(save_path, "wb") as f:
+        f.write(base64.b64decode(b64_res))
+        
+    log.info(f"Multi-image edit saved to {save_path}")
+    return b64_res
 
 
 async def call_gemini_image_edit_async(
@@ -640,7 +744,7 @@ async def generate_or_edit_and_save_image_async(
         timeout_map = {"1K": 180, "2K": 300, "4K": 360}
         timeout = timeout_map.get(resolution, 300)
     
-    log.info(f"aspect_ratio: {aspect_ratio} \n resolution: {resolution} \n use_edit: {use_edit} \n model: {model} \n api_url: {api_url} \n timeout: {timeout}")
+    log.info(f"aspect_ratio: {aspect_ratio} \n resolution: {resolution} \n use_edit: {use_edit} \n model: {model} \n api_url: {api_url} \n timeout: {timeout} \n api_key: {api_key}")
     # 根据模型类型选择不同的API
     if _is_dalle_model(model):
         if use_edit:
@@ -745,14 +849,16 @@ if __name__ == "__main__":
     import asyncio
 
     async def _demo():
-        API_URL = "http://123.129.219.111:3000/v1"
+        # API_URL = "http://123.129.219.111:3000/v1"
+        API_URL = "https://api.apiyi.com/v1"
         API_KEY = os.getenv("DF_API_KEY")
         
         # 测试Gemini模型
         MODEL_GEMINI = "gemini-2.5-flash-image-preview"
+        # gemini-2.5-flash-image-preview gemini-3-pro-image-preview
         
         # 测试DALL-E模型
-        MODEL_DALLE = "dall-e-3"
+        # MODEL_DALLE = "dall-e-3"
 
         # 1) Gemini纯文生图
         # await generate_or_edit_and_save_image_async(
@@ -765,26 +871,37 @@ if __name__ == "__main__":
         # )
 
         # 2) DALL-E纯文生图
-        await generate_or_edit_and_save_image_async(
-            prompt="一只可爱的小海獭",
-            save_path="./gen_otter_dalle.png",
-            api_url=API_URL,
-            api_key=API_KEY,
-            model=MODEL_DALLE,
-            use_edit=False,
-            quality="standard",
-            style="vivid"
-        )
+        # await generate_or_edit_and_save_image_async(
+        #     prompt="一只可爱的小海獭",
+        #     save_path="./gen_otter_dalle.png",
+        #     api_url=API_URL,
+        #     api_key=API_KEY,
+        #     model=MODEL_DALLE,
+        #     use_edit=False,
+        #     quality="standard",
+        #     style="vivid"
+        # )
 
         # 3) Gemini Edit 模式
-        await generate_or_edit_and_save_image_async(
-            prompt="请把这只猫改成蒸汽朋克风格",
-            image_path="./gen_cat_gemini.png",
-            save_path="./edited_cat_gemini.png",
+        # await generate_or_edit_and_save_image_async(
+        #     prompt="请把这只猫改成蒸汽朋克风格",
+        #     # image_path=f"{get_project_root()}/tests/cat_icon.png",
+        #     save_path="./edited_cat_gemini.png",
+        #     api_url=API_URL,
+        #     api_key=API_KEY,
+        #     model=MODEL_GEMINI,
+        #     # use_edit=True, 
+        # )
+        
+        # 3.5) Gemini Multi-Image Edit (Manual Call)
+        await gemini_multi_image_edit_async(
+            prompt="Merge these images into a sci-fi poster",
+            image_paths=["", ""],
+            save_path="./merged_gemini.png",
             api_url=API_URL,
             api_key=API_KEY,
-            model=MODEL_GEMINI,
-            use_edit=True, 
+            model="gemini-2.5-flash-image",
+            resolution="2K"
         )
 
         # 4) DALL-E Edit 模式（需要mask）

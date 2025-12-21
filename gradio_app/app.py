@@ -11,6 +11,7 @@ import gradio as gr
 TAB_NAME_MAP = {
     "operator_write": "Operator Write",
     "PA_frontend": "PromptAgent Frontend",
+    "operator_qa": "Operator QA",
 }
 
 # 页面集合定义：可以按需调整
@@ -19,7 +20,7 @@ TAB_NAME_MAP = {
 #       使用 None 表示“不过滤，加载全部页面”
 PAGE_SETS: dict[str, Optional[Set[str]]] = {
     "all": None,  # 全量加载 pages 目录下的所有页面
-    "data": {"operator_write", "PA_frontend","op_assemble_line","pipeline_rec","web_collection"},
+    "data": {"operator_write", "PA_frontend","op_assemble_line","pipeline_rec","web_collection", "operator_qa"},
     "paper": {"icongen_refine"}
 }
 
