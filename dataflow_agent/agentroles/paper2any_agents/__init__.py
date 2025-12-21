@@ -1,16 +1,16 @@
-# # dataflow_agent/agentroles/paper2any_agents/__init__.py
-# # Import all agent modules to trigger their @register decorators
-# from . import icon_prompt_generator
-# from . import icon_generator
-# from . import icon_editor
+# dataflow_agent/agentroles/paper2any_agents/__init__.py
 
-# # Optionally export the classes for direct access
-# from .icon_prompt_generator import IconPromptGenerator
-# from .icon_generator import IconGenerator
-# from .icon_editor import IconEditor
+from .paper_idea_extractor import PaperIdeaExtractor, create_paper_idea_extractor
+from .chart_type_recommender import ChartTypeRecommender, create_chart_type_recommender
+from .chart_code_generator import ChartCodeGenerator, create_chart_code_generator
+from .fig_desc_generator import FigureDescGenerator
 
-# __all__ = [
-#     "IconPromptGenerator",
-#     "IconGenerator", 
-#     "IconEditor",
-# ]
+__all__ = [
+    "PaperIdeaExtractor",
+    "create_paper_idea_extractor",
+    "ChartTypeRecommender",
+    "create_chart_type_recommender",
+    "ChartCodeGenerator",
+    "create_chart_code_generator",
+    "FigureDescGenerator",
+]

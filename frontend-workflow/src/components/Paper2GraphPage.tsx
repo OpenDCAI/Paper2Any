@@ -728,7 +728,9 @@ const Paper2FigurePage = () => {
                       className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     >
                       <option value="cartoon">卡通</option>
-                      <option value="realistic">写实</option>
+                      {graphType !== 'exp_data' && <option value="realistic">写实</option>}
+                      {graphType === 'exp_data' && <option value="Low Poly 3D">低多边形</option>}
+                      {graphType === 'exp_data' && <option value="blocky LEGO aesthetic">乐高风</option>}
                     </select>
                   </div>
                 </div>

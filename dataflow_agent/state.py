@@ -419,6 +419,27 @@ class Paper2FigureState(MainState):
     # 带文字版本的svg图片
     svg_full_img_path: str = ""
     # 背景svg code：
+    svg_bg_code : str = ""
+    
+    # 实验统计图使用属性 ==============================
+    # ===== 输入 =====
+    pre_tool_results: Dict[str, Any] = field(default_factory=dict)  # 前置工具结果注入
+
+    # ===== 中间结果 =====
+    paper_idea: str = ''                                          # 论文核心思想
+    extracted_tables: List[Dict[str, Any]] = field(default_factory=list)  # 从 MinerU 提取的表格列表
+    # 每个表格格式: {"table_id": str, "headers": List[str], "rows": List[List[str]], "caption": str}
+
+    chart_configs: Dict[str, Dict[str, Any]] = field(default_factory=dict)     # 图表配置字典
+    # 每个配置格式: {table_id: {"table_id": str, "chart_type": str, "x_column": str, "y_columns": List[str], ...}}
+
+    generated_codes: Dict[str, Dict[str, Any]] = field(default_factory=dict)   # 生成的代码字典
+    # 每个代码格式: {table_id: {"table_id": str, "code": str}}
+
+    # ===== 输出 =====
+    generated_charts: Dict[str, str] = field(default_factory=dict)             # 生成的图表路径字典
+    stylize_results: Dict[str, list] = field(default_factory=dict)             # 风格化后的图表路径字典
+
     svg_bg_code: str = ""
 
     # paper2ppt 专用 ==============================

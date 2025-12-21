@@ -389,7 +389,7 @@ async def generate_paper2figure_json(
     safe_svg = _to_outputs_url(p2f_resp.svg_filename, request) if p2f_resp.svg_filename else ""
     safe_png = _to_outputs_url(p2f_resp.svg_image_filename, request) if p2f_resp.svg_image_filename else ""
 
-    # 新增：将本次任务输出目录下所有相关文件路径转换为 URL
+    # 新增：将本次任务输出目录下s所有相关文件路径转换为 URL
     safe_all_files: list[str] = []
     for abs_path in getattr(p2f_resp, "all_output_files", []) or []:
         if abs_path:

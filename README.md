@@ -273,7 +273,7 @@ Paper2Any 当前包含以下几个子能力：
 <tr>
 <th width="33%">输入</th>
 <th width="33%">常规实验图</th>
-<th width="33%">精美实验图</th>
+<th width="33%">精美实验图（可选不同风格）</th>
 </tr>
 <tr>
 <td align="center">
@@ -285,10 +285,41 @@ Paper2Any 当前包含以下几个子能力：
   <br><sub>📈 输出：常规 Python 风格实验数据图</sub>
 </td>
 <td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2e/paper_1_3.png" alt="输出：实验数据图（精美样式）" width="100%"/>
-  <br><sub>🎨 输出：精美排版的实验数据图</sub>
+  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@lz/dev/static/paper2any_imgs/p2e/paper_1_3.png" alt="输出：实验数据图（手绘风格）" width="100%"/>
+  <br><sub>🎨 输出：手绘风格的实验数据图</sub>
 </td>
 </tr>
+
+<tr>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_2.png" alt="输入：实验结果截图" width="100%"/>
+  <br><sub>📄 输入：论文 PDF / 实验结果截图</sub>
+</td>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_2_2.png" alt="输出：实验数据图（基础样式）" width="100%"/>
+  <br><sub>📈 输出：常规 Python 风格实验数据图</sub>
+</td>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_2_3.png" alt="输出：实验数据图（卡通风格）" width="100%"/>
+  <br><sub>🎨 输出：卡通风格的实验数据图</sub>
+</td>
+</tr>
+
+<tr>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_3.png" alt="输入：实验结果截图" width="100%"/>
+  <br><sub>📄 输入：论文 PDF / 实验结果截图</sub>
+</td>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_3_2.png" alt="输出：实验数据图（基础样式）" width="100%"/>
+  <br><sub>📈 输出：常规 Python 风格实验数据图</sub>
+</td>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_3_3.png" alt="输出：实验数据图（多边形风格）" width="100%"/>
+  <br><sub>🎨 输出：多边形风格的实验数据图</sub>
+</td>
+</tr>
+
 </table>
 
 <div align="center">
