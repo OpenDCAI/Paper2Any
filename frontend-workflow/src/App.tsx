@@ -72,7 +72,7 @@ function App() {
                     : 'glass text-gray-300 hover:bg-white/10'
                 }`}
               >
-                Ppt2Polish
+                PptPolish
               </button>
             </div>
 

@@ -908,7 +908,7 @@ const Ppt2PolishPage = () => {
         </p>
         <h1 className="text-4xl md:text-5xl font-bold mb-4">
           <span className="bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400 bg-clip-text text-transparent">
-            Ppt2Polish
+            PptPolish
           </span>
         </h1>
         <p className="text-base text-gray-300 max-w-2xl mx-auto leading-relaxed">
@@ -1086,7 +1086,7 @@ const Ppt2PolishPage = () => {
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-gray-200">示例：从 Paper 到 PPTX</h3>
           <span className="text-[11px] text-gray-500">
-            下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果，你可以替换为自己的示例图片。
+            下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果。
           </span>
         </div>
 

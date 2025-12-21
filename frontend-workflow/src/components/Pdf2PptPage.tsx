@@ -394,7 +394,7 @@ const Pdf2PptPage = () => {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium text-gray-200">示例：从 Paper 到 PPTX</h3>
               <span className="text-[11px] text-gray-500">
-                下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果，你可以替换为自己的示例图片。
+                下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果。
               </span>
             </div>
 
