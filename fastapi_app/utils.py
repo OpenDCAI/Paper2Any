@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Set
+from urllib.parse import urlparse
 
 from fastapi import HTTPException, Request
 
@@ -50,6 +51,53 @@ def _to_outputs_url(abs_path: str, request: Request | None = None) -> str:
             return fallback_url
         log.error(f"[ERROR] Cannot convert path to URL: {abs_path}")
         return abs_path
+
+
+def _from_outputs_url(url_or_path: str) -> str:
+    """
+    尝试将前端传来的 URL (包含 /outputs/) 转换回本地绝对路径。
+    如果不是 URL 或者转换失败，则返回原值。
+    """
+    if not url_or_path or not isinstance(url_or_path, str):
+        return url_or_path
+
+    # 如果已经是绝对路径且存在，直接返回
+    if os.path.isabs(url_or_path) and os.path.exists(url_or_path):
+        return url_or_path
+
+    # 简单判断是否是 http URL
+    if not url_or_path.startswith("http") and not url_or_path.startswith("/outputs/"):
+        return url_or_path
+
+    # 查找 /outputs/ 的位置
+    if "/outputs/" not in url_or_path:
+        return url_or_path
+
+    try:
+        # 获取 /outputs/ 之后的部分
+        path_str = url_or_path
+        if url_or_path.startswith("http"):
+            parsed = urlparse(url_or_path)
+            path_str = parsed.path
+
+        if "/outputs/" in path_str:
+            idx = path_str.index("/outputs/")
+            # outputs/xxx/yyy
+            rel_path = path_str[idx + len("/outputs/") :]
+            # 去除可能的开头的 / (虽然 relative_to 不需要，但拼接待会儿用)
+            rel_path = rel_path.lstrip("/")
+
+            project_root = get_project_root()
+            outputs_root = project_root / "outputs"
+            abs_path = (outputs_root / rel_path).resolve()
+
+            log.info(f"[DEBUG] Converted URL {url_or_path} to path {abs_path}")
+            return str(abs_path)
+
+    except Exception as e:
+        log.warning(f"[WARN] Failed to convert URL to path: {e}")
+
+    return url_or_path
 
 
 def load_invite_codes() -> Set[str]:

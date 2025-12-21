@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi_app.schemas import Paper2PPTRequest, Paper2PPTResponse
-from fastapi_app.utils import _to_outputs_url, validate_invite_code
+from fastapi_app.utils import _from_outputs_url, _to_outputs_url, validate_invite_code
 from fastapi_app.workflow_adapters.wa_paper2ppt import (
     run_paper2page_content_wf_api,
     run_paper2ppt_full_pipeline,
@@ -193,7 +193,7 @@ async def paper2ppt_ppt_json(
     # 控制参数
     style: str = Form(...),
     aspect_ratio: str = Form("16:9"),
-    language: str = Form("zh"),
+    language: str = Form("en"),
     model: str = Form("gpt-5.1"),
     # 关键：是否进入编辑，是否已经有了nano结果，现在要进入页面逐个页面编辑
     get_down: str = Form("false"),  # 字符串形式，需要手动转换
@@ -229,6 +229,15 @@ async def paper2ppt_ppt_json(
     # 仅在有值时解析 pagecontent；编辑模式下允许不传。
     if pagecontent is not None:
         pc = _parse_pagecontent_json(pagecontent)
+        # 尝试将前端传回的 URL 转换回本地绝对路径
+        for item in pc:
+            # 常见包含路径的字段
+            for key in ["ppt_img_path", "asset_ref"]:
+                if key in item and item[key]:
+                    item[key] = _from_outputs_url(item[key])
+            # 如果有 generated_img_path
+            if "generated_img_path" in item and item["generated_img_path"]:
+                item["generated_img_path"] = _from_outputs_url(item["generated_img_path"])
     else:
         pc = []
 

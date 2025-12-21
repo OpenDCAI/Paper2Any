@@ -62,7 +62,8 @@ class OutlineAgent(BaseAgent):
         return {
             "minueru_output": pre_tool_results.get("minueru_output", ""),
             "text_content": pre_tool_results.get("text_content", ""),
-            "page_count" : self.state.request.page_count
+            "page_count" : self.state.request.page_count,
+            "language": self.state.request.language,
         }
 
     def get_default_pre_tool_results(self) -> Dict[str, Any]:

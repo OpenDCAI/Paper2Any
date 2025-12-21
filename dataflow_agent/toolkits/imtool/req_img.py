@@ -66,7 +66,6 @@ async def _post_raw(
     """
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "x-goog-api-key": api_key,  # 同时提供两种常见的 Key 传递方式
         "Content-Type": "application/json",
     }
 
@@ -407,23 +406,18 @@ def build_gemini_edit_request(
     """
     provider = detect_provider(api_url)
     base = api_url.rstrip("/")
-    # 去掉可能存在的 /v1 或 /v1beta 路径，因为我们要拼特定路径
-    clean_base = re.sub(r"/(v1|v1beta)$", "", base)
 
     # 1) apiyi + 2.5 => generateContent + inlineData + aspectRatio
-    # 注意：Google Gemini API 使用驼峰命名！
     if provider is Provider.APIYI and is_gemini_25(model) and aspect_ratio != "1:1":
-        # 如果是 apiyi，且使用了 16:9 等比例，走 generateContent 路径
-        # 注意：使用动态传入的 model 名称
-        url = f"{clean_base}/v1beta/models/{model}:generateContent"
+        url = "https://api.apiyi.com/v1beta/models/gemini-2.5-flash-image:generateContent"
         payload = {
             "contents": [
                 {
                     "parts": [
                         {"text": prompt},
                         {
-                            "inlineData": {
-                                "mimeType": f"image/{fmt}",
+                            "inline_data": {
+                                "mime_type": f"image/{fmt}",
                                 "data": b64,
                             }
                         },
@@ -431,22 +425,25 @@ def build_gemini_edit_request(
                 }
             ],
             "generationConfig": {
-                "responseModalities": ["IMAGE", "TEXT"],
+                "responseModalities": ["IMAGE"],
+                "imageConfig": {
+                    "aspectRatio": aspect_ratio,
+                },
             },
         }
         return url, payload
 
-    # 2) apiyi + 3 Pro => generateContent + inlineData + aspectRatio + imageSize
+    # 2) apiyi + 3 Pro => generateContent + inline_data + aspectRatio + imageSize
     if provider is Provider.APIYI and is_gemini_3_pro(model):
-        url = f"{clean_base}/v1beta/models/{model}:generateContent"
+        url = "https://api.apiyi.com/v1beta/models/gemini-3-pro-image-preview:generateContent"
         payload = {
             "contents": [
                 {
                     "parts": [
                         {"text": prompt},
                         {
-                            "inlineData": {
-                                "mimeType": f"image/{fmt}",
+                            "inline_data": {
+                                "mime_type": f"image/{fmt}",
                                 "data": b64,
                             }
                         },
@@ -454,7 +451,7 @@ def build_gemini_edit_request(
                 }
             ],
             "generationConfig": {
-                "responseModalities": ["IMAGE", "TEXT"],
+                "responseModalities": ["IMAGE"],
                 "imageConfig": {
                     "aspectRatio": aspect_ratio,
                     "imageSize": resolution,
@@ -485,10 +482,12 @@ def build_gemini_edit_request(
             "model": model,
             "messages": messages,
             "response_format": {"type": "image"},
+            # "max_tokens": 1024,
+            # "temperature": 0.7,
         }
         return url, payload
 
-    # 4) 123 + 2.5 => messages.parts + inlineData + width/height/quality
+    # 4) 123 + 2.5 => messages.parts + inline_data + width/height/quality
     if provider is Provider.LOCAL_123 and is_gemini_25(model):
         url = f"{base}/chat/completions"
         payload = {
@@ -499,8 +498,8 @@ def build_gemini_edit_request(
                     "parts": [
                         {"text": prompt},
                         {
-                            "inlineData": {
-                                "mimeType": f"image/{fmt}",
+                            "inline_data": {
+                                "mime_type": f"image/{fmt}",
                                 "data": b64,
                             }
                         },
@@ -642,8 +641,7 @@ async def generate_or_edit_and_save_image_async(
         timeout_map = {"1K": 180, "2K": 300, "4K": 360}
         timeout = timeout_map.get(resolution, 300)
     
-    log.info(f"aspect_ratio: {aspect_ratio} \n resolution: {resolution} \n use_edit: {use_edit} \n model: {model} \n api_url: {api_url} \n timeout: {timeout}")
-    log.info(f"prompt: {prompt}")
+    log.info(f"aspect_ratio: {aspect_ratio} \n resolution: {resolution} \n use_edit: {use_edit} \n model: {model} \n api_url: {api_url} \n timeout: {timeout} \n api_key: {api_key}")
     # 根据模型类型选择不同的API
     if _is_dalle_model(model):
         if use_edit:
@@ -693,39 +691,10 @@ async def generate_or_edit_and_save_image_async(
                 if not candidates:
                     raise RuntimeError("candidates 为空")
 
-                candidate = candidates[0]
-                # 检查 finishReason，如果是 NO_IMAGE 说明图像生成失败
-                finish_reason = candidate.get("finishReason")
-                log.info(f"Gemini finishReason: {finish_reason}")
-                if finish_reason == "NO_IMAGE":
-                    raise RuntimeError(f"Gemini API 返回 NO_IMAGE，图像生成失败。可能原因：提示词不符合要求、内容被安全策略阻止等。")
-
-                content = candidate.get("content", {})
-                parts = content.get("parts")
-                log.info(f"Gemini response parts count: {len(parts) if parts else 0}")
-                
-                if not parts:
-                    raise RuntimeError("candidates[0].content.parts 为空或 None")
-                
-                if len(parts) == 0:
-                    raise RuntimeError("candidates[0].content.parts 是空列表")
-                
-                # 遍历 parts 找到包含 inlineData 的部分
-                inline_data = None
-                for i, part in enumerate(parts):
-                    log.info(f"Part {i} keys: {list(part.keys()) if isinstance(part, dict) else type(part)}")
-                    if isinstance(part, dict) and "inlineData" in part:
-                        inline_data = part["inlineData"]
-                        log.info(f"Found inlineData in part {i}, mimeType: {inline_data.get('mimeType', 'unknown')}")
-                        break
-                    elif isinstance(part, dict) and "text" in part:
-                        log.info(f"Part {i} text: {part['text'][:100] if part['text'] else 'empty'}...")
-                
-                if not inline_data:
-                    raise RuntimeError(f"所有 parts 中都没有找到 inlineData，finishReason={finish_reason}")
-                
+                content = candidates[0]["content"]
+                parts = content["parts"]
+                inline_data = parts[0]["inlineData"]
                 b64 = inline_data["data"]
-                log.info(f"Extracted base64 length: {len(b64)}")
             except Exception as e:
                 log.error(f"解析 Gemini candidates 结构失败: {e}")
                 log.error(f"响应结构可能变化，完整响应如下（截断）: {str(data)[:2000]}")

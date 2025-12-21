@@ -81,10 +81,10 @@ const Pdf2PptPage = () => {
           return 90;
         }
         const messages = [
-          '正在分析论文结构...',
+          '正在分析 PPT 结构...',
           '正在提取关键内容...',
+          '正在提取 Icon ...',
           '正在生成 PPT 页面...',
-          '正在美化样式...',
           '正在导出文件...',
         ];
         const msgIndex = Math.floor(prev / 20);
@@ -165,24 +165,53 @@ const Pdf2PptPage = () => {
   return (
     <div className="w-full h-screen flex flex-col bg-[#050512] overflow-hidden">
       {showBanner && (
-        <div className="w-full bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-500 relative flex-shrink-0">
+        <div className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 relative overflow-hidden flex-shrink-0">
           <div className="absolute inset-0 bg-black opacity-20"></div>
-          <div className="relative max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Star size={14} className="text-yellow-300 fill-yellow-300" />
-              <span className="text-sm text-white">⚡ PDF2PPT - 一键将 PDF 转换为 PPT</span>
+          <div className="absolute inset-0 animate-pulse">
+            <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white to-transparent opacity-10 animate-shimmer"></div>
+          </div>
+          
+          <div className="relative max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-start">
+              <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
+                <Star size={16} className="text-yellow-300 fill-yellow-300 animate-pulse" />
+                <span className="text-xs font-bold text-white">开源项目</span>
+              </div>
+              
+              <span className="text-sm font-medium text-white">
+                🚀 探索更多 AI 数据处理工具
+              </span>
             </div>
-            <div className="flex items-center gap-2">
-              <a 
-                href="https://github.com/OpenDCAI/DataFlow-Agent" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="px-3 py-1 bg-white/90 text-gray-900 rounded-full text-xs font-medium flex items-center gap-1"
+
+            <div className="flex items-center gap-2 flex-wrap justify-center">
+              <a
+                href="https://github.com/OpenDCAI/DataFlow"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
               >
-                <Github size={12} /> GitHub
+                <Github size={14} />
+                <span>DataFlow</span>
+                <span className="bg-purple-600 text-white px-2 py-0.5 rounded-full text-[10px]">HOT</span>
               </a>
-              <button onClick={() => setShowBanner(false)} className="p-1 hover:bg-white/20 rounded-full">
-                <X size={14} className="text-white" />
+
+              <a
+                href="https://github.com/OpenDCAI/DataFlow-Agent"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
+              >
+                <Github size={14} />
+                <span>DataFlow-Agent</span>
+                <span className="bg-pink-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
+              </a>
+
+              <button
+                onClick={() => setShowBanner(false)}
+                className="p-1 hover:bg-white/20 rounded-full transition-colors"
+                aria-label="关闭"
+              >
+                <X size={16} className="text-white" />
               </button>
             </div>
           </div>
@@ -200,7 +229,7 @@ const Pdf2PptPage = () => {
               </span>
             </h1>
             <p className="text-base text-gray-300 max-w-xl mx-auto leading-relaxed">
-              上传 PDF 文件，AI 自动分析内容并生成精美 PPT。<br />
+              上传 PDF 版本 PPT，提取PPT元素以及文字可编辑。<br />
               <span className="text-purple-400">一键转换，快速生成！</span>
             </p>
           </div>
@@ -258,7 +287,7 @@ const Pdf2PptPage = () => {
                         type="text" 
                         value={inviteCode} 
                         onChange={e => setInviteCode(e.target.value)}
-                        placeholder="ABC123"
+                        placeholder="xxx-xxx"
                         className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
                       />
                     </div>
@@ -358,9 +387,125 @@ const Pdf2PptPage = () => {
             支持的文件格式：PDF | 最大文件大小：50MB
           </p>
         </div>
+
+        {/* 示例区 */}
+        <div className="max-w-7xl mx-auto px-6 pb-12 w-full">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-gray-200">示例：从 Paper 到 PPTX</h3>
+              <span className="text-[11px] text-gray-500">
+                下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果，你可以替换为自己的示例图片。
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <DemoCard
+                title="论文 PDF → 符合论文主题的 科研绘图（PPT）"
+                desc="上传英文论文 PDF，自动提炼研究背景、方法、实验设计和结论，生成结构清晰、符合学术风格的汇报 PPTX。"
+                inputImg="/p2f_paper_pdf_img.png"
+                outputImg="/p2f_paper_pdf_img_2.png"
+              />
+              <DemoCard
+                title="科研配图 / 示意图截图 → 可编辑 PPTX"
+                desc="上传科研配图或示意图截图，自动识别段落层级与要点，自动排版为可编辑的英文 PPTX。"
+                inputImg="/p2f_paper_model_img.png"
+                outputImg="/p2f_paper_modle_img_2.png"
+              />
+              <DemoCard
+                title="论文摘要文本 → 科研绘图 PPTX"
+                desc="粘贴论文摘要或章节内容，一键生成包含标题层级、关键要点与图示占位的 PPTX 大纲，方便后续细化与美化。"
+                inputImg="/p2f_paper_content.png"
+                outputImg="/p2f_paper_content_2.png"
+              />
+              <DemoCard
+                title="论文 PDF → 符合论文主题的 技术路线图 PPT + SVG"
+                desc="根据论文方法部分，自动梳理技术路线与模块依赖关系，生成清晰的技术路线图 PPTX 与 SVG 示意图。"
+                inputImg="/p2t_paper_img.png"
+                outputImg="/p2t_paper_img_2.png"
+              />
+              <DemoCard
+                title="论文摘要文本 → 符合论文主题的 技术路线图 PPT + SVG"
+                desc="从整篇技术方案 PDF 中提取关键步骤与时间轴，自动生成技术路线时间线 PPTX 与 SVG。"
+                inputImg="/p2t_paper_text.png"
+                outputImg="/p2t_paper_text_2.png"
+              />
+              <DemoCard
+                title="论文 PDF → 自动提取实验数据 绘制成 PPT"
+                desc="从论文实验部分 PDF 中提取表格与结果描述，自动生成对比柱状图 / 折线图 PPTX，便于直观展示结果。"
+                inputImg="/p2e_paper_1.png"
+                outputImg="/p2e_paper_2.png"
+              />
+              <DemoCard
+                title="论文实验表格文本 → 自动整理实验数据 绘制成 PPT"
+                desc="从文本形式的实验结果描述中抽取指标与对照组，一键生成适合汇报的实验结果 PPTX。"
+                inputImg="/p2f_exp_content_1.png"
+                outputImg="/p2f_exp_content_2.png"
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
-      <style>{`.glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); }`}</style>
+      <style>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        .animate-shimmer {
+          animation: shimmer 3s infinite;
+        }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); }
+        .demo-input-placeholder {
+          min-height: 80px;
+        }
+        .demo-output-placeholder {
+          min-height: 80px;
+        }
+      `}</style>
+    </div>
+  );
+};
+
+interface DemoCardProps {
+  title: string;
+  desc: string;
+  inputImg?: string;
+  outputImg?: string;
+}
+
+const DemoCard = ({ title, desc, inputImg, outputImg }: DemoCardProps) => {
+  return (
+    <div className="glass rounded-lg border border-white/10 p-3 flex flex-col gap-2 hover:bg-white/5 transition-colors">
+      <div className="flex gap-2">
+        {/* 左侧：输入示例图片 */}
+        <div className="flex-1 rounded-md bg-white/5 border border-dashed border-white/10 flex items-center justify-center demo-input-placeholder overflow-hidden">
+          {inputImg ? (
+            <img
+              src={inputImg}
+              alt="输入示例图"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-[10px] text-gray-400">输入示例图（待替换）</span>
+          )}
+        </div>
+        {/* 右侧：输出 PPTX 示例图片 */}
+        <div className="flex-1 rounded-md bg-primary-500/10 border border-dashed border-primary-300/40 flex items-center justify-center demo-output-placeholder overflow-hidden">
+          {outputImg ? (
+            <img
+              src={outputImg}
+              alt="PPTX 示例图"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-[10px] text-primary-200">PPTX 示例图（待替换）</span>
+          )}
+        </div>
+      </div>
+      <div>
+        <p className="text-[13px] text-white font-medium mb-1">{title}</p>
+        <p className="text-[11px] text-gray-400 leading-snug">{desc}</p>
+      </div>
     </div>
   );
 };

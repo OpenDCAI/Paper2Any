@@ -171,7 +171,7 @@ const Ppt2PolishPage = () => {
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-5.1');
-  const [genFigModel, setGenFigModel] = useState('gemini-2.5-flash-image-preview');
+  const [genFigModel, setGenFigModel] = useState('gemini-2.5-flash-image');
   const [language, setLanguage] = useState<'zh' | 'en'>('zh');
   const [resultPath, setResultPath] = useState<string | null>(null);
 
@@ -237,6 +237,11 @@ const Ppt2PolishPage = () => {
     
     if (!llmApiUrl.trim() || !apiKey.trim()) {
       setError('请先配置模型 API URL 和 API Key');
+      return;
+    }
+
+    if (!globalPrompt.trim()) {
+      setError('请输入风格提示词');
       return;
     }
     
@@ -373,17 +378,28 @@ const Ppt2PolishPage = () => {
       // 直接进入美化步骤
       setCurrentStep('beautify');
       
-      // 不自动开始美化，让用户先查看原始图片，然后点击按钮开始美化
-      // 或者，如果需要自动开始美化第一页，可以取消下面的注释
-      console.log('等待用户点击开始美化第一页...');
-      
-      // 自动开始美化第一页（使用 get_down=true 只美化单页）
+      // 触发批量生成 (Cycle Batch Beautify)
       if (results.length > 0) {
-        setTimeout(() => {
-          console.log('自动开始美化第一页...');
-          // 传入 convertedSlides，避免依赖异步的 outlineData state
-          startBeautifyCurrentSlide(results, 0, currentResultPath, convertedSlides);
-        }, 500);
+        setIsGeneratingInitial(true);
+        console.log('开始批量美化所有页面...');
+        
+        // 异步执行批量生成，不阻塞 UI 渲染（UI 会显示 Loading）
+        // 注意：generateInitialPPT 内部会处理错误提示
+        generateInitialPPT(convertedSlides, results, currentResultPath)
+          .then((updatedResults) => {
+            console.log('批量美化完成');
+            const finalResults = updatedResults.map(res => ({
+              ...res,
+              status: 'done' as const
+            }));
+            setBeautifyResults(finalResults);
+          })
+          .catch((err) => {
+            console.error("Batch generation failed:", err);
+          })
+          .finally(() => {
+            setIsGeneratingInitial(false);
+          });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : '解析失败，请重试';
@@ -457,17 +473,36 @@ const Ppt2PolishPage = () => {
     setOutlineData(newData.map((s, i) => ({ ...s, pageNum: i + 1 })));
   };
 
-  const handleConfirmOutline = () => {
-    const results: BeautifyResult[] = outlineData.map((slide, index) => ({
+  const handleConfirmOutline = async () => {
+    // 初始化结果状态，使用 Slide 数据中的 asset_ref 作为 beforeImage
+    const results: BeautifyResult[] = outlineData.map((slide) => ({
       slideId: slide.id,
-      beforeImage: MOCK_BEFORE_IMAGES[index % MOCK_BEFORE_IMAGES.length],
-      afterImage: MOCK_AFTER_IMAGES[index % MOCK_AFTER_IMAGES.length],
+      beforeImage: slide.asset_ref || '',  // 确保使用真实的图片路径
+      afterImage: '', // 初始为空，等待批量生成
       status: 'pending',
     }));
     setBeautifyResults(results);
     setCurrentSlideIndex(0);
     setCurrentStep('beautify');
-    startBeautifyCurrentSlide(results, 0);
+    
+    // 触发批量生成
+    setIsGeneratingInitial(true);
+    try {
+      // 传入 outlineData，因为 generateInitialPPT 内部需要用它来构建 pagecontent
+      const updatedResults = await generateInitialPPT(outlineData, results);
+      
+      // 更新结果状态，将状态标记为 done
+      const finalResults = updatedResults.map(res => ({
+        ...res,
+        status: 'done' as const // 显式类型断言
+      }));
+      setBeautifyResults(finalResults);
+    } catch (error) {
+      console.error("Batch generation failed:", error);
+      // 错误已在 generateInitialPPT 中通过 setError 处理，这里只需确保 loading 状态结束
+    } finally {
+      setIsGeneratingInitial(false);
+    }
   };
 
   // ============== 生成初始 PPT ==============
@@ -483,16 +518,10 @@ const Ppt2PolishPage = () => {
     
     try {
       // 根据文档 2.2，对于 pptx 类型，需要先传入图片路径格式的 pagecontent
-      // 从 all_output_files 中找到对应的本地路径，或者使用 result_path 构建路径
+      // 从 all_output_files 中找到对应的图片 URL（后端会自动处理为本地路径）
       const pagecontent = slides.map((slide, index) => {
-        // 从 asset_ref (HTTP URL) 转换为本地路径
-        // 例如: http://127.0.0.1:8000/outputs/ABC123/paper2ppt/1766173632/ppt_images/slide_000.png
-        // 转换为: /home/ubuntu/szl/DataFlow-Agent/outputs/ABC123/paper2ppt/1766173632/ppt_images/slide_000.png
-        let localPath = slide.asset_ref || '';
-        if (localPath.startsWith('http://')) {
-          localPath = localPath.replace('http://127.0.0.1:8000/outputs/', '/home/ubuntu/szl/DataFlow-Agent/outputs/');
-        }
-        return { ppt_img_path: localPath };
+        const path = slide.asset_ref || '';
+        return { ppt_img_path: path };
       }).filter(item => item.ppt_img_path);
       
       const formData = new FormData();
@@ -544,7 +573,7 @@ const Ppt2PolishPage = () => {
         throw new Error(data.message || '生成失败');
       }
       
-      // 更新美化结果，使用生成的 ppt_pages/page_*.png 作为 beforeImage
+      // 更新美化结果，使用生成的 ppt_pages/page_*.png 作为 afterImage
       let updatedResults = initialResults;
       if (data.all_output_files) {
         updatedResults = initialResults.map((result, index) => {
@@ -553,7 +582,8 @@ const Ppt2PolishPage = () => {
           );
           return {
             ...result,
-            beforeImage: pageImageUrl || result.beforeImage,
+            // beforeImage 保持原始 PPT 截图
+            afterImage: pageImageUrl || '',
           };
         });
         setBeautifyResults(updatedResults);
@@ -631,14 +661,10 @@ const Ppt2PolishPage = () => {
       // 编辑模式下，必须传递 pagecontent，包含原图路径
       console.log('使用的 outlineData:', currentOutlineData);
       const pagecontent = currentOutlineData.map((slide, i) => {
-        // 转换为本地路径格式
-        let localPath = slide.asset_ref || '';
-        console.log(`slide ${i} asset_ref:`, slide.asset_ref);
-        if (localPath.startsWith('http://')) {
-          localPath = localPath.replace('http://127.0.0.1:8000/outputs/', '/home/ubuntu/szl/DataFlow-Agent/outputs/');
-        }
-        console.log(`slide ${i} localPath:`, localPath);
-        return { ppt_img_path: localPath };
+        // 直接传递 asset_ref（URL），后端会自动转换为本地路径
+        const path = slide.asset_ref || '';
+        console.log(`slide ${i} asset_ref:`, path);
+        return { ppt_img_path: path };
       });
       console.log('pagecontent to send:', pagecontent);
       formData.append('pagecontent', JSON.stringify(pagecontent));
@@ -683,6 +709,11 @@ const Ppt2PolishPage = () => {
         pageImageUrl = data.all_output_files?.find((url: string) => url.includes(slidePattern));
         console.log('Fallback 到原图 URL:', pageImageUrl);
       }
+
+      // 添加时间戳防止缓存
+      if (pageImageUrl) {
+        pageImageUrl = `${pageImageUrl}?t=${new Date().getTime()}`;
+      }
       
       console.log('最终使用的图片 URL:', pageImageUrl);
       
@@ -708,10 +739,7 @@ const Ppt2PolishPage = () => {
       const nextIndex = currentSlideIndex + 1;
       setCurrentSlideIndex(nextIndex);
       setSlidePrompt('');
-      // 自动开始美化下一页
-      setTimeout(() => {
-        startBeautifyCurrentSlide(null, nextIndex); // 传入 null，从 state 读取
-      }, 100);
+      // 移除自动美化逻辑，因为现在是预先批量生成好了
     } else {
       setCurrentStep('complete');
     }
@@ -978,13 +1006,14 @@ const Ppt2PolishPage = () => {
           
           <div>
             <label className="block text-sm text-gray-300 mb-2">图像生成模型</label>
-            <input
-              type="text"
+            <select
               value={genFigModel}
               onChange={(e) => setGenFigModel(e.target.value)}
-              placeholder="gemini-2.5-flash-image-preview"
-              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500"
-            />
+              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
+            >
+              <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
+              <option value="gemini-2.5-flash-image">gemini-2.5-flash-image</option>
+            </select>
           </div>
           
           <div>
@@ -1005,8 +1034,8 @@ const Ppt2PolishPage = () => {
             <button onClick={() => setStyleMode('preset')} className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${styleMode === 'preset' ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white' : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'}`}>
               <Sparkles size={16} /> 预设风格
             </button>
-            <button onClick={() => setStyleMode('reference')} className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${styleMode === 'reference' ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white' : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'}`}>
-              <ImageIcon size={16} /> 参考图片
+            <button disabled className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all bg-white/5 text-gray-600 border border-white/5 cursor-not-allowed opacity-50`}>
+              <ImageIcon size={16} /> 参考图片 (Coming Soon)
             </button>
           </div>
           {styleMode === 'preset' && (
@@ -1021,8 +1050,8 @@ const Ppt2PolishPage = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-2">风格提示词（可选）</label>
-                <textarea value={globalPrompt} onChange={(e) => setGlobalPrompt(e.target.value)} placeholder="例如：使用蓝色系配色，保持简洁风格..." rows={3} className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500 resize-none" />
+                <label className="block text-sm text-gray-300 mb-2">风格提示词（必填）</label>
+                <textarea value={globalPrompt} onChange={(e) => setGlobalPrompt(e.target.value)} placeholder="例如：使用紫色系配色，保持学术风格 / 多啦A梦风格 / 赛博朋克风格 ...... "  rows={3} className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500 resize-none" />
               </div>
             </>
           )}
@@ -1051,6 +1080,61 @@ const Ppt2PolishPage = () => {
         </div>
       </div>
       {error && <div className="mt-4 flex items-center gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-4 py-3"><AlertCircle size={16} /> {error}</div>}
+
+      {/* 示例区 */}
+      <div className="space-y-4 mt-8">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-gray-200">示例：从 Paper 到 PPTX</h3>
+          <span className="text-[11px] text-gray-500">
+            下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果，你可以替换为自己的示例图片。
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <DemoCard
+            title="论文 PDF → 符合论文主题的 科研绘图（PPT）"
+            desc="上传英文论文 PDF，自动提炼研究背景、方法、实验设计和结论，生成结构清晰、符合学术风格的汇报 PPTX。"
+            inputImg="/p2f_paper_pdf_img.png"
+            outputImg="/p2f_paper_pdf_img_2.png"
+          />
+          <DemoCard
+            title="科研配图 / 示意图截图 → 可编辑 PPTX"
+            desc="上传科研配图或示意图截图，自动识别段落层级与要点，自动排版为可编辑的英文 PPTX。"
+            inputImg="/p2f_paper_model_img.png"
+            outputImg="/p2f_paper_modle_img_2.png"
+          />
+          <DemoCard
+            title="论文摘要文本 → 科研绘图 PPTX"
+            desc="粘贴论文摘要或章节内容，一键生成包含标题层级、关键要点与图示占位的 PPTX 大纲，方便后续细化与美化。"
+            inputImg="/p2f_paper_content.png"
+            outputImg="/p2f_paper_content_2.png"
+          />
+          <DemoCard
+            title="论文 PDF → 符合论文主题的 技术路线图 PPT + SVG"
+            desc="根据论文方法部分，自动梳理技术路线与模块依赖关系，生成清晰的技术路线图 PPTX 与 SVG 示意图。"
+            inputImg="/p2t_paper_img.png"
+            outputImg="/p2t_paper_img_2.png"
+          />
+          <DemoCard
+            title="论文摘要文本 → 符合论文主题的 技术路线图 PPT + SVG"
+            desc="从整篇技术方案 PDF 中提取关键步骤与时间轴，自动生成技术路线时间线 PPTX 与 SVG。"
+            inputImg="/p2t_paper_text.png"
+            outputImg="/p2t_paper_text_2.png"
+          />
+          <DemoCard
+            title="论文 PDF → 自动提取实验数据 绘制成 PPT"
+            desc="从论文实验部分 PDF 中提取表格与结果描述，自动生成对比柱状图 / 折线图 PPTX，便于直观展示结果。"
+            inputImg="/p2e_paper_1.png"
+            outputImg="/p2e_paper_2.png"
+          />
+          <DemoCard
+            title="论文实验表格文本 → 自动整理实验数据 绘制成 PPT"
+            desc="从文本形式的实验结果描述中抽取指标与对照组，一键生成适合汇报的实验结果 PPTX。"
+            inputImg="/p2f_exp_content_1.png"
+            outputImg="/p2f_exp_content_2.png"
+          />
+        </div>
+      </div>
     </div>
   );
 
@@ -1206,12 +1290,122 @@ const Ppt2PolishPage = () => {
 
   return (
     <div className="w-full h-screen flex flex-col bg-[#050512] overflow-hidden">
-      {showBanner && (<div className="w-full bg-gradient-to-r from-cyan-600 via-teal-600 to-emerald-500 relative overflow-hidden flex-shrink-0"><div className="absolute inset-0 bg-black opacity-20"></div><div className="relative max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between"><div className="flex items-center gap-3"><Star size={14} className="text-yellow-300 fill-yellow-300" /><span className="text-sm text-white">✨ Ppt2Polish - 智能 PPT 美化工具</span></div><div className="flex items-center gap-2"><a href="https://github.com/OpenDCAI/DataFlow-Agent" target="_blank" rel="noopener noreferrer" className="px-3 py-1 bg-white/90 text-gray-900 rounded-full text-xs font-medium hover:bg-white transition-all flex items-center gap-1"><Github size={12} /> GitHub</a><button onClick={() => setShowBanner(false)} className="p-1 hover:bg-white/20 rounded-full"><X size={14} className="text-white" /></button></div></div></div>)}
+      {showBanner && (
+        <div className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 relative overflow-hidden flex-shrink-0">
+          <div className="absolute inset-0 bg-black opacity-20"></div>
+          <div className="absolute inset-0 animate-pulse">
+            <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white to-transparent opacity-10 animate-shimmer"></div>
+          </div>
+          
+          <div className="relative max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-start">
+              <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
+                <Star size={16} className="text-yellow-300 fill-yellow-300 animate-pulse" />
+                <span className="text-xs font-bold text-white">开源项目</span>
+              </div>
+              
+              <span className="text-sm font-medium text-white">
+                🚀 探索更多 AI 数据处理工具
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap justify-center">
+              <a
+                href="https://github.com/OpenDCAI/DataFlow"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
+              >
+                <Github size={14} />
+                <span>DataFlow</span>
+                <span className="bg-purple-600 text-white px-2 py-0.5 rounded-full text-[10px]">HOT</span>
+              </a>
+
+              <a
+                href="https://github.com/OpenDCAI/DataFlow-Agent"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
+              >
+                <Github size={14} />
+                <span>DataFlow-Agent</span>
+                <span className="bg-pink-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
+              </a>
+
+              <button
+                onClick={() => setShowBanner(false)}
+                className="p-1 hover:bg-white/20 rounded-full transition-colors"
+                aria-label="关闭"
+              >
+                <X size={16} className="text-white" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex-1 w-full overflow-auto"><div className="max-w-7xl mx-auto px-6 py-8 pb-24">{renderStepIndicator()}{currentStep === 'upload' && renderUploadStep()}{currentStep === 'beautify' && renderBeautifyStep()}{currentStep === 'complete' && renderCompleteStep()}</div></div>
-      <style>{`.glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); }`}</style>
+      <style>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        .animate-shimmer {
+          animation: shimmer 3s infinite;
+        }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); }
+        .demo-input-placeholder {
+          min-height: 80px;
+        }
+        .demo-output-placeholder {
+          min-height: 80px;
+        }
+      `}</style>
+    </div>
+  );
+};
+
+interface DemoCardProps {
+  title: string;
+  desc: string;
+  inputImg?: string;
+  outputImg?: string;
+}
+
+const DemoCard = ({ title, desc, inputImg, outputImg }: DemoCardProps) => {
+  return (
+    <div className="glass rounded-lg border border-white/10 p-3 flex flex-col gap-2 hover:bg-white/5 transition-colors">
+      <div className="flex gap-2">
+        {/* 左侧：输入示例图片 */}
+        <div className="flex-1 rounded-md bg-white/5 border border-dashed border-white/10 flex items-center justify-center demo-input-placeholder overflow-hidden">
+          {inputImg ? (
+            <img
+              src={inputImg}
+              alt="输入示例图"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-[10px] text-gray-400">输入示例图（待替换）</span>
+          )}
+        </div>
+        {/* 右侧：输出 PPTX 示例图片 */}
+        <div className="flex-1 rounded-md bg-primary-500/10 border border-dashed border-primary-300/40 flex items-center justify-center demo-output-placeholder overflow-hidden">
+          {outputImg ? (
+            <img
+              src={outputImg}
+              alt="PPTX 示例图"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-[10px] text-primary-200">PPTX 示例图（待替换）</span>
+          )}
+        </div>
+      </div>
+      <div>
+        <p className="text-[13px] text-white font-medium mb-1">{title}</p>
+        <p className="text-[11px] text-gray-400 leading-snug">{desc}</p>
+      </div>
     </div>
   );
 };
 
 export default Ppt2PolishPage;
-

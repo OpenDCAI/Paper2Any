@@ -415,7 +415,7 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                                 save_path=str(clean_bg_path),
                                 aspect_ratio="16:9",
                                 api_url=state.request.chat_api_url,
-                                api_key=os.getenv("DF_API_KEY") or state.request.chat_api_key,
+                                api_key=state.request.api_key or os.getenv("DF_API_KEY") or state.request.chat_api_key,
                                 model=state.request.gen_fig_model,
                                 image_path=str(temp_img_path),
                                 use_edit=True,
