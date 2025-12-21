@@ -38,8 +38,8 @@ def create_app() -> FastAPI:
     app.include_router(paper2video.router, prefix="/paper2video", tags=["paper2video"])
     # Paper2Graph / Paper2PPT 假接口，对接前端 /api/*
     app.include_router(paper2any.router, prefix="/api", tags=["paper2any"])
-    # Paper2PPT full pipeline JSON 接口
-    app.include_router(paper2ppt.router, prefix="/paper2ppt", tags=["paper2ppt"])
+    # Paper2PPT full pipeline JSON 接口，对接前端 /api/paper2ppt/*
+    app.include_router(paper2ppt.router, prefix="/api/paper2ppt", tags=["paper2ppt"])
     # pdf2ppt_with_sam workflow 接口：仅上传 PDF，返回 PPTX 文件
     app.include_router(pdf2ppt.router, prefix="/api", tags=["pdf2ppt"])
 

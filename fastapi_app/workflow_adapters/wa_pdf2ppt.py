@@ -72,8 +72,16 @@ async def run_pdf2ppt_wf_api(req: Paper2PPTRequest) -> Paper2PPTResponse:
     # 统一输出根目录，按 invite_code + 时间戳 区分
     result_root = _ensure_result_path_for_pdf2ppt(getattr(req, "invite_code", None))
 
-    # 构造与 tests/test_pdf2ppt.py 中一致的最小 state/request
-    p2f_req = Paper2FigureRequest()
+    # 构造 state/request，传入前端配置的参数
+    p2f_req = Paper2FigureRequest(
+        chat_api_url=req.chat_api_url,
+        api_key=req.api_key,
+        model=req.model,
+        gen_fig_model=req.gen_fig_model,
+        language=req.language,
+        style=req.style,
+        page_count=req.page_count,
+    )
     state = Paper2FigureState(
         messages=[],
         request=p2f_req,
