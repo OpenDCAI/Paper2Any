@@ -20,6 +20,39 @@ OCR 分辨率与锐化（UPSCALE_LONG_SIDE_TO、UPSCALE_INTERP、ENABLE_SHARPEN�
 - 也可在其它组件或脚本中通过对外函数直接调用
 """
 
+# 函数一览：
+# natural_key(s): 生成用于文件名“自然排序”的 key，将数字部分按整数比较。
+# list_images_in_dir(d): 按自然顺序列出目录中的所有图片文件路径。
+# read_bgr(path): 以兼容非 ASCII 路径的方式读取图片，并返回标准 BGR uint8 格式。
+# debug_dump(img, tag): 将中间图像写入调试目录并记录基础统计信息。
+# images_to_pdf(image_paths, output_pdf_path): 将一组图片顺序导出为单个 PDF 文件。
+# pdf_to_images(pdf_path, out_dir, dpi): 将 PDF 每一页按指定分辨率渲染为 PNG，并返回图片路径列表。
+# upscale_if_needed(bgr, long_side_to, interp): 若分辨率偏低则按长边放大图像，返回放大后图像和缩放比例。
+# sharpen(bgr, amount): 使用“反锐化掩模”方式对图像进行轻度锐化。
+# preprocess_for_ocr(bgr): 对整页图像做放大与可选锐化，生成适合 OCR 的版本及缩放比例。
+# is_cjk(s): 判断字符串中是否包含 CJK（中日韩）字符。
+# iou(a, b): 计算两个矩形框的交并比（IoU）。
+# merge_lines(lines, y_tol, x_gap): 将 OCR 的短行/单词按行方向与间距合并成句级文本行。
+# text_score(lines): 根据字符数量、平均置信度及是否含 CJK，估计一组文本行的整体得分。
+# paddle_ocr(bgr, drop_score): 调用 PaddleOCR 对整页 BGR 图像做 OCR，并按置信度阈值过滤结果。
+# paddle_ocr_page_with_layout(img_path): 对单页图片做预处理 + OCR + 行合并 + 行高/背景色估计并返回布局信息。
+# extract_text_color(bgr, bbox, bg_color): 从给定文字区域估计主文字颜色，尽量排除接近背景的颜色。
+# estimate_background_color(bgr, lines): 用文字 mask 反选背景区域，估计页面主背景颜色。
+# px_to_emu(px, emu_per_px): 将像素值按给定比例转换为 PPT 使用的 EMU 单位。
+# analyze_line_heights(lines): 统计 OCR 行框高度分布，估计正文行高的中位数。
+# classify_line_role(bbox, img_h_px, body_h_px): 根据行高与垂直位置粗略区分标题、副标题和正文。
+# estimate_font_pt(bbox, img_h_px, body_h_px, slide_h_in): 依据原图行高比例估计在 PPT 中的字号大小。
+# add_background(slide, bgr, slide_w_emu, slide_h_emu, tmp_path): 将整页背景图添加到 PPT 幻灯片并删除临时文件。
+# build_text_mask_from_lines(bgr, lines): 基于 OCR 行框生成粗略的文字区域二值 mask。
+# build_adaptive_mask(bgr, lines): 结合局部对比度与自适应阈值，生成更精细的文字主 mask。
+# is_simple_background_region(bgr, mask): 判断文字区域邻域背景是否近似纯色（方差较小）。
+# fill_with_neighbor(bgr, mask): 对复杂背景的文字区域先用邻域像素进行粗填充，缓解 inpaint 伪影。
+# make_clean_background(bgr, lines): 基于文字 mask 和 inpaint 生成“去文字的干净底图”。
+# ocr_images_to_ppt(image_paths, output_pptx, add_background_image, clean_background, use_text_color): 将图片序列通过 OCR 转成带背景与覆盖文本框的可编辑 PPT。
+# images_to_pdf_and_ppt(image_paths, output_pdf_path, output_pptx_path, add_background_image, clean_background, extract_text_color): 将给定图片列表一站式转换为 PDF 和 PPTX 并返回路径。
+# convert_images_dir_to_pdf_and_ppt(input_dir, output_pdf_path, output_pptx_path, add_background_image, clean_background, extract_text_color): 从图片目录读取图片并生成对应的 PDF + PPTX。
+# convert_images_dir_to_pdf_and_ppt_api(input_dir, output_pdf_path, output_pptx_path, api_url, api_key, model, use_api_inpaint, add_background_image, clean_background, use_text_color): 异步版本的目录转 PDF/PPTX，优先使用图像编辑 API 做 inpainting，失败时回退到本地 inpaint。
+
 import os
 import re
 from typing import Sequence, Optional, Dict, Any, List, Tuple
@@ -1144,7 +1177,7 @@ async def convert_images_dir_to_pdf_and_ppt_api(
                             cv2.imwrite(temp_img_path, bgr)
                             
                             # 构造 inpainting 提示词
-                            inpaint_prompt = "请智能修复图像中文字被移除后的区域，保持背景的连续性、一致性和自然过渡，使修复后的图像看起来完整无缺。"
+                            inpaint_prompt = "请智能修复图像中文字被移除后的区域，保持背景的连续性、一致性和自然过渡，使修复后的图像看起来完整无缺，并且原图涉及的图标你需要尽量保留；"
                             
                             log.info(f"[convert_images_dir_to_pdf_and_ppt_api] slide#{idx} 开始调用图像编辑API进行inpainting（最多重试3次）...")
                             
@@ -1221,3 +1254,46 @@ async def convert_images_dir_to_pdf_and_ppt_api(
         result["pptx"] = output_pptx_path
     
     return result
+
+
+if __name__ == "__main__":
+    """
+    简单本地测试入口：
+    - 直接运行本文件即可测试 PaddleOCR 对指定图片的识别效果
+    - 识别结果会打印在终端，并把画好检测框的图片保存到指定路径
+    """
+    # 测试图片路径（也是可视化输出路径）
+    img_path = "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/tests/test_02.png"
+
+    if not os.path.exists(img_path):
+        raise FileNotFoundError(f"测试图片不存在: {img_path}")
+
+    # 调用封装好的单页接口
+    info = paddle_ocr_page_with_layout(img_path)
+
+    print("=== PaddleOCR 测试结果 ===")
+    print(f"image_size: {info['image_size']}")
+    print(f"body_h_px: {info['body_h_px']}")
+    print(f"bg_color: {info['bg_color']}")
+    print(f"检测到文本框数量: {len(info['lines'])}")
+
+    for i, (bbox, text, conf) in enumerate(info["lines"], start=1):
+        print(f"[{i:02d}] conf={conf:.1f} bbox={bbox} text={text}")
+
+    # 把检测框画在图上，并保存到文件，而不是弹出窗口
+    try:
+        bgr = read_bgr(img_path)
+        vis = bgr.copy()
+        for bbox, text, conf in info["lines"]:
+            x1, y1, x2, y2 = map(int, bbox)
+            cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        save_path = "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/tests/test_01_paddle_frame.png"
+        ok = cv2.imwrite(save_path, vis)
+        if ok:
+            log.info(f"PaddleOCR 可视化结果已保存到: {save_path}")
+        else:
+            log.warning(f"PaddleOCR 可视化结果保存失败: {save_path}")
+    except Exception as e:
+        log.warning(f"可视化失败: {e}")
+        # 不影响纯文本打印结果

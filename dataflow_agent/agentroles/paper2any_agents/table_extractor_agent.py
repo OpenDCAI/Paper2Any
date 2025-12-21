@@ -179,20 +179,28 @@ class TableExtractor(BaseAgent):
             out_dir = get_project_root() / "outputs" / "table_extractor"
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        table_key = self._normalize_table_num(pre_tool_results.get("table_num"))
+        table_key = self._normalize_table_num(self.state.asset_ref)
+
         file_name = f"{table_key}.png" if table_key else "table.png"
+
         png_path = str((out_dir / file_name).resolve())
 
         html_content = self._wrap_html_document(html_code)
 
         try:
             self._render_html_to_png(html_content, png_path)
+
             state.table_img_path = png_path
+
+            log.critical(f'[table_img_path 表格图像路径]:   {png_path}')
+
             # 同步到 result，方便下游直接读
             result["table_img_path"] = png_path
         except Exception as e:
             # 不抛异常，避免影响主流程；把错误写回结果
+            log.error(f"渲染表格图片失败: {e}", exc_info=True)
             result["render_error"] = str(e)
+        
 
 
 # ----------------------------------------------------------------------

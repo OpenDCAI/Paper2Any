@@ -416,8 +416,8 @@ def build_gemini_edit_request(
                     "parts": [
                         {"text": prompt},
                         {
-                            "inlineData": {
-                                "mimeType": f"image/{fmt}",
+                            "inline_data": {
+                                "mime_type": f"image/{fmt}",
                                 "data": b64,
                             }
                         },

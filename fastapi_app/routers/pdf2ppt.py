@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.logger import get_logger
-from fastapi_app.utils import validate_invite_code  # 邀请码校验，与其它接口保持一致
+from fastapi_app.utils import validate_invite_code
 from fastapi_app.schemas import Paper2PPTRequest
 from fastapi_app.workflow_adapters.wa_pdf2ppt import run_pdf2ppt_wf_api
 
@@ -26,14 +26,14 @@ BASE_OUTPUT_DIR = Path("outputs")
 PROJECT_ROOT = get_project_root()
 
 
-def create_run_dir(task_type: str) -> Path:
+def create_run_dir(invite_code: str, task_type: str) -> Path:
     """
     为一次 pdf2ppt 请求创建独立目录：
-        outputs/{task_type}/{timestamp}_{short_uuid}/input/
+        outputs/{invite_code}/{task_type}/{timestamp}/input/
     """
-    ts = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
-    rid = uuid.uuid4().hex[:6]
-    run_dir = BASE_OUTPUT_DIR / task_type / f"{ts}_{rid}"
+    ts = int(datetime.utcnow().timestamp())
+    code = invite_code or "default"
+    run_dir = BASE_OUTPUT_DIR / code / task_type / str(ts)
 
     (run_dir / "input").mkdir(parents=True, exist_ok=True)
     return run_dir
@@ -43,21 +43,33 @@ def create_run_dir(task_type: str) -> Path:
 async def generate_pdf2ppt(
     request: Request,
     pdf_file: UploadFile = File(...),
-    invite_code: Optional[str] = Form(None),
+    # API 配置 - 必填
+    chat_api_url: str = Form(...),
+    api_key: str = Form(...),
+    invite_code: str = Form(...),
+    # 可选配置
+    model: str = Form("gpt-4o"),
+    gen_fig_model: str = Form("gemini-2.5-flash-image"),
+    language: str = Form("zh"),
+    style: str = Form("现代简约风格"),
+    page_count: int = Form(8),
 ):
     """
-    pdf2ppt 接口：
+    pdf2ppt 接口：一键将 PDF 转换为 PPT
 
     - 前端通过 multipart/form-data 传入：
         - pdf_file: 待转换的 PDF 文件
-        - invite_code: （可选）邀请码，用于权限控制/统计
-    - 路由层负责：
-        - 校验邀请码
-        - 保存 pdf_file 到本地 outputs/pdf2ppt/.../input/input.pdf
-        - 调用 run_pdf2ppt_wf_api（封装了 pdf2ppt_with_sam workflow）
-        - 返回生成的 PPTX 文件（二进制下载）
+        - chat_api_url: LLM API URL
+        - api_key: LLM API Key
+        - invite_code: 邀请码
+        - model: 语言模型（可选）
+        - gen_fig_model: 图像生成模型（可选）
+        - language: 语言（可选）
+        - style: 风格描述（可选）
+        - page_count: 生成页数（可选）
+    - 返回：生成的 PPTX 文件（二进制下载）
     """
-    # 0. 邀请码校验（如不需要，可去掉本行及参数）
+    # 0. 邀请码校验
     validate_invite_code(invite_code)
 
     # 1. 基础参数校验
@@ -65,7 +77,7 @@ async def generate_pdf2ppt(
         raise HTTPException(status_code=400, detail="pdf_file is required")
 
     # 2. 为本次请求创建独立目录
-    run_dir = create_run_dir("pdf2ppt")
+    run_dir = create_run_dir(invite_code, "pdf2ppt")
     input_dir = run_dir / "input"
 
     original_name = pdf_file.filename or "uploaded.pdf"
@@ -82,6 +94,14 @@ async def generate_pdf2ppt(
     wf_req = Paper2PPTRequest(
         input_type="PDF",
         input_content=str(abs_pdf_path),
+        chat_api_url=chat_api_url,
+        api_key=api_key,
+        model=model,
+        gen_fig_model=gen_fig_model,
+        language=language,
+        style=style,
+        page_count=page_count,
+        invite_code=invite_code,
     )
 
     # 4. 调用 workflow（受信号量保护）

@@ -90,7 +90,7 @@ def _run_sam_on_pages(image_paths: List[str], base_dir: str) -> List[Dict[str, A
             min_area=200,
             min_score=0.0,
             iou_threshold=0.2,
-            top_k=25,
+            top_k=15,
             nms_by="mask",
         )
         log.info(f"[pdf2ppt_with_sam][page#{page_idx+1}] SAM found {len(layout_items)} items")
@@ -415,7 +415,7 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                                 save_path=str(clean_bg_path),
                                 aspect_ratio="16:9",
                                 api_url=state.request.chat_api_url,
-                                api_key=os.getenv("DF_API_KEY") or state.request.chat_api_key,
+                                api_key=state.request.api_key or os.getenv("DF_API_KEY") or state.request.chat_api_key,
                                 model=state.request.gen_fig_model,
                                 image_path=str(temp_img_path),
                                 use_edit=True,
@@ -448,7 +448,7 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                     cv2.imwrite(str(temp_img_path), bgr)
                     
                     # 构造inpainting提示词
-                    inpaint_prompt = "请智能修复图像中文字被移除后的区域，保持背景的连续性、一致性和自然过渡，使修复后的图像看起来完整无缺。"
+                    inpaint_prompt = "请智能修复图像中文字被移除后的区域，保持背景的连续性、一致性和自然过渡，使修复后的图像看起来完整无缺，并且原图涉及的图标你需要尽量保留；"
                     
                     # 调用图像编辑API进行inpainting（带重试）
                     clean_bg_path = base_dir / "clean_backgrounds" / f"clean_bg_{page_idx+1:03d}.png"

@@ -11,7 +11,7 @@ from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.workflow.registry import register
-
+from dataflow_agent.agentroles import create_react_agent
 from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
 from dataflow_agent.toolkits.imtool.ppt_tool import convert_images_dir_to_pdf_and_ppt, convert_images_dir_to_pdf_and_ppt_api
 
@@ -120,7 +120,7 @@ async def _make_prompt_for_structured_page(item: Dict[str, Any], style: str, sta
     base = _serialize_prompt_dict(prompt_dict)
 
     if not asset_ref:
-        prompt = f"{base}\n\n根据上述内容。生成{style}风格的PPT图像。"
+        prompt = f"{base}\n\n根据上述内容。生成{style}风格的 PPT 图像, \n 使用语言：{state.request.language}"
         return prompt, None, False
 
     # table 走占位提取
@@ -141,17 +141,18 @@ async def _make_prompt_for_structured_page(item: Dict[str, Any], style: str, sta
             state = await agent.execute(state=state)
 
             table_img_path = str(getattr(state, "table_img_path", "") or "").strip()
+            log.critical(f'[table_img_path 表格图像路径]:   {table_img_path}')
 
         if not table_img_path:
             raise ValueError(f"[paper2ppt] 表格提取失败，未得到 table_img_path。asset_ref={asset_ref}")
 
         image_path = _resolve_asset_path(table_img_path, state)
-        prompt = f"{base}\n\n根据上述内容绘制ppt，把这个图作为PPT的一部分。生成{style}风格的PPT。"
+        prompt = f"{base}\n\n根据上述内容绘制ppt，把这个图作为PPT的一部分。生成{style}风格的PPT. \n 使用语言：{state.request.language} !!!"
         return prompt, image_path, True
 
     # 默认：当作图片路径，走编辑
     image_path = _resolve_asset_path(asset_ref, state)
-    prompt = f"{base}\n\n根据上述内容绘制ppt，把这个图作为PPT的一部分。生成{style}风格的PPT。"
+    prompt = f"{base}\n\n根据上述内容绘制ppt，把这个图作为PPT的一部分。生成{style}风格的PPT. \n 使用语言：{state.request.language} !!!"
     return prompt, image_path, True
 
 
@@ -232,6 +233,10 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
         return state
 
     def _route(state: Paper2FigureState) -> str:
+        # 如果是 all_edited_down，说明用户只想打包下载，不需要生成或编辑，直接去导出
+        if getattr(state.request, "all_edited_down", False):
+            return "export_ppt_assets"
+
         # gen_down == False: 第一次批量生成
         if not getattr(state, "gen_down", False):
             return "generate_pages"
@@ -298,8 +303,16 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
             if is_direct_image_list and (not isinstance(item, dict) or ("title" not in item and "layout_description" not in item)):
                 # 规则 2：只做风格化编辑
                 image_path = _abs_path(direct_img_path)
-                prompt = f"修改成{style}风格"
+                # 强化提示词，确保模型进行重绘而不是原图输出
+                prompt = (
+                    f"Please beautify and re-design this PowerPoint slide image. "
+                    f"Keep all the original text and structure, but completely transform it into a professional, "
+                    f"visually stunning presentation slide in {style} style. "
+                    f"Make sure the colors, layout, and background are improved significantly."
+                )
                 log.info(f"[paper2ppt] page={idx} direct image edit: image={image_path}, save={save_path}")
+
+                log.critical(f'[强化提示词，确保模型进行重绘而不是原图输出]: {prompt}')
 
                 ok = await _call_image_api_with_retry(
                     lambda: generate_or_edit_and_save_image_async(
@@ -410,17 +423,29 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
         prompt = (getattr(state, "edit_page_prompt", "") or "").strip()
         if idx < 0:
             raise ValueError("[paper2ppt] edit_page_num 必须是 0-based 且 >=0")
-        if not prompt:
-            raise ValueError("[paper2ppt] edit_page_prompt 不能为空")
+        
+        # 允许 prompt 为空（前端可能只传了 page_id 来重新生成），此时使用默认强化提示词
+        # if not prompt:
+        #     raise ValueError("[paper2ppt] edit_page_prompt 不能为空")
 
-        # 取出原图路径：优先 generated_pages，其次 pagecontent[i].generated_img_path
+        # 取出原图路径：优先 generated_pages，其次 pagecontent[i].ppt_img_path
         old_path: Optional[str] = None
+        
+        # Debug log
+        log.info(f"[paper2ppt] edit_single_page: idx={idx}")
+        log.info(f"[paper2ppt] generated_pages={getattr(state, 'generated_pages', None)}")
+        log.info(f"[paper2ppt] pagecontent length={len(state.pagecontent or [])}")
+        if state.pagecontent and idx < len(state.pagecontent):
+            log.info(f"[paper2ppt] pagecontent[{idx}]={state.pagecontent[idx]}")
+        
         if getattr(state, "generated_pages", None) and idx < len(state.generated_pages):
             old_path = state.generated_pages[idx]
+            log.info(f"[paper2ppt] got old_path from generated_pages: {old_path}")
         if not old_path and idx < len(state.pagecontent or []):
             it = state.pagecontent[idx]
             if isinstance(it, dict):
                 old_path = it.get("generated_img_path") or it.get("ppt_img_path") or it.get("img_path")
+                log.info(f"[paper2ppt] got old_path from pagecontent: {old_path}")
         if not old_path:
             raise ValueError(f"[paper2ppt] 找不到要编辑的页图路径: idx={idx}")
 
@@ -433,11 +458,30 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
         # B1 策略：编辑时直接覆盖原始 page_{idx:03d}.png，避免 *_edit_*.png 累积
         save_path = str((img_dir / f"page_{idx:03d}.png").resolve())
         aspect_ratio = getattr(state, "aspect_ratio", None) or "16:9"
+        style = getattr(state.request, "style", None) or "kartoon"
+
+        # 强化提示词，确保模型进行重绘
+        if prompt:
+            # 用户提供了具体修改意见
+            full_prompt = (
+                f"Beautify this PowerPoint slide based on this instruction: '{prompt}'. "
+                f"Transform the existing design into a high-end, professional {style} style presentation. "
+                f"Enhance the visual aesthetics, layout, and background while preserving the core message."
+            )
+        else:
+            # 用户未提供具体修改意见，仅仅请求重新生成/美化
+            full_prompt = (
+                f"Beautify and re-design this PowerPoint slide. "
+                f"Transform the existing design into a high-end, professional {style} style presentation. "
+                f"Enhance the visual aesthetics, layout, and background while preserving the core message."
+            )
 
         log.info(f"[paper2ppt] edit_single_page idx={idx} old={old_path} save={save_path}")
 
+        log.critical(f'[full_prompt] {full_prompt}')
+
         await generate_or_edit_and_save_image_async(
-            prompt=prompt,
+            prompt=full_prompt,
             save_path=save_path,
             aspect_ratio=aspect_ratio,
             api_url=state.request.chat_api_url,
@@ -502,7 +546,7 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
             api_url=state.request.chat_api_url,
             api_key=os.getenv("DF_API_KEY") or state.request.chat_api_key,
             model=state.request.gen_fig_model,
-            use_api_inpaint=True,  # 启用 API inpainting
+            use_api_inpaint=False,  # 启用 API inpainting
         )
 
         # 可选：把导出结果路径挂到 state 上，方便后续使用

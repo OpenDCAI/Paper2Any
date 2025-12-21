@@ -29,10 +29,11 @@ async def run_paper2page_content_pipeline_pdf() -> Paper2FigureState:
     req = Paper2FigureRequest()
     req.input_type = "PDF"
     req.model = "gpt-5.1"
-    req.page_count = 4
+    req.page_count = 3
     req.chat_api_url = "https://api.apiyi.com/v1"
-    req.style = "赛博朋克的风格；英文；"
-
+    req.style = "北京大学风格；英文；"
+    # req.gen_fig_model = "gemini-3-pro-image-preview"
+# gemini-3-pro-image-preview 
     req.all_edited_down = True
     
 
@@ -40,7 +41,7 @@ async def run_paper2page_content_pipeline_pdf() -> Paper2FigureState:
         messages=[],
         agent_results={},
         request=req,
-        paper_file=f"{get_project_root()}/tests/2506.02454v1.pdf",
+        paper_file=f"{get_project_root()}/tests/2512.16676v1.pdf",
         # paper_file=f"{get_project_root()}/tests/test.pptx",   
         # result_path = "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/outputs"
     )
