@@ -134,6 +134,63 @@ Paper2Any 当前包含以下几个子能力：
 
 ---
 
+#### 📸 ShowCase - Paper2PPT
+
+##### 论文 PDF 转 PPT
+
+<table>
+<tr>
+<th width="25%">输入</th>
+<th width="25%">输出</th>
+<th width="25%">输入</th>
+<th width="25%">输出</th>
+</tr>
+<tr>
+<td align="center">
+<img src="static/paper2ppt/input_1.png" alt="输入：论文 PDF" width="100%"/>
+<br><sub>📄 论文 PDF</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/ouput_1.png" alt="输出：生成 PPT" width="100%"/>
+<br><sub>📊 生成的 PPT</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_3.png" alt="输入：论文内容" width="100%"/>
+<br><sub>📝 论文内容</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/ouput_3.png" alt="输出：生成 PPT" width="100%"/>
+<br><sub>📊 生成的 PPT</sub>
+</td>
+</tr>
+<tr>
+<td colspan="2" align="center">
+<strong>PPT 生成</strong> - 上传论文 PDF，自动提取关键信息，生成结构化的学术汇报 PPT。
+</td>
+<td colspan="2" align="center">
+<strong>PPT 生成</strong> - 智能分析论文内容，生成排版精美、逻辑清晰的演示文稿。
+</td>
+</tr>
+</table>
+
+##### PPT Polish (待补充)
+
+<table>
+<tr>
+<th width="50%">输入</th>
+<th width="50%">输出</th>
+</tr>
+</table>
+
+##### PDF2PPT (待补充)
+
+<table>
+<tr>
+<th width="50%">输入</th>
+<th width="50%">输出</th>
+</tr>
+</table>
+
 #### 📸 ShowCase - Paper2Figure
 
 ##### 模型架构图生成

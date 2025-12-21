@@ -707,13 +707,15 @@ const Paper2PptPage = () => {
           
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-gray-400 mb-1">图像生成模型</label>
-              <input 
-                type="text" 
-                value={genFigModel} 
+              <label className="block text-xs text-gray-400 mb-1">图像生成模型（中文使用3 pro）</label>
+              <select
+                value={genFigModel}
                 onChange={e => setGenFigModel(e.target.value)}
                 className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
-              />
+              >
+                <option value="gemini-2.5-flash-image">Gemini 2.5 (Flash Image)</option>
+                <option value="gemini-3.0-pro-image-preview">Gemini 3.0 Pro (中文推荐)</option>
+              </select>
             </div>
             <div>
               <label className="block text-xs text-gray-400 mb-1">生成页数</label>
@@ -795,48 +797,18 @@ const Paper2PptPage = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           <DemoCard
-            title="论文 PDF → 符合论文主题的 科研绘图（PPT）"
-            desc="上传英文论文 PDF，自动提炼研究背景、方法、实验设计和结论，生成结构清晰、符合学术风格的汇报 PPTX。"
-            inputImg="/p2f_paper_pdf_img.png"
-            outputImg="/p2f_paper_pdf_img_2.png"
+            title="论文 PDF → 学术 PPT"
+            desc="上传论文 PDF，自动提取关键信息，生成结构化的学术汇报 PPT。"
+            inputImg="/paper2ppt/input_1.png"
+            outputImg="/paper2ppt/ouput_1.png"
           />
           <DemoCard
-            title="科研配图 / 示意图截图 → 可编辑 PPTX"
-            desc="上传科研配图或示意图截图，自动识别段落层级与要点，自动排版为可编辑的英文 PPTX。"
-            inputImg="/p2f_paper_model_img.png"
-            outputImg="/p2f_paper_modle_img_2.png"
-          />
-          <DemoCard
-            title="论文摘要文本 → 科研绘图 PPTX"
-            desc="粘贴论文摘要或章节内容，一键生成包含标题层级、关键要点与图示占位的 PPTX 大纲，方便后续细化与美化。"
-            inputImg="/p2f_paper_content.png"
-            outputImg="/p2f_paper_content_2.png"
-          />
-          <DemoCard
-            title="论文 PDF → 符合论文主题的 技术路线图 PPT + SVG"
-            desc="根据论文方法部分，自动梳理技术路线与模块依赖关系，生成清晰的技术路线图 PPTX 与 SVG 示意图。"
-            inputImg="/p2t_paper_img.png"
-            outputImg="/p2t_paper_img_2.png"
-          />
-          <DemoCard
-            title="论文摘要文本 → 符合论文主题的 技术路线图 PPT + SVG"
-            desc="从整篇技术方案 PDF 中提取关键步骤与时间轴，自动生成技术路线时间线 PPTX 与 SVG。"
-            inputImg="/p2t_paper_text.png"
-            outputImg="/p2t_paper_text_2.png"
-          />
-          <DemoCard
-            title="论文 PDF → 自动提取实验数据 绘制成 PPT"
-            desc="从论文实验部分 PDF 中提取表格与结果描述，自动生成对比柱状图 / 折线图 PPTX，便于直观展示结果。"
-            inputImg="/p2e_paper_1.png"
-            outputImg="/p2e_paper_2.png"
-          />
-          <DemoCard
-            title="论文实验表格文本 → 自动整理实验数据 绘制成 PPT"
-            desc="从文本形式的实验结果描述中抽取指标与对照组，一键生成适合汇报的实验结果 PPTX。"
-            inputImg="/p2f_exp_content_1.png"
-            outputImg="/p2f_exp_content_2.png"
+            title="论文内容 → 演示文稿"
+            desc="智能分析论文内容，生成排版精美、逻辑清晰的演示文稿。"
+            inputImg="/paper2ppt/input_3.png"
+            outputImg="/paper2ppt/ouput_3.png"
           />
         </div>
       </div>
