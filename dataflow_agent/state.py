@@ -467,3 +467,5 @@ class Paper2FigureState(MainState):
     slide_images: List[str] = field(default_factory=list)
     ocr_pages: List[str] = field(default_factory=list)
     sam_pages: List[str] = field(default_factory=list)
+    mineru_pages: List[Dict[str, Any]] = field(default_factory=list)
+    use_ai_edit: bool = True

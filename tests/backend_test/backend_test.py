@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from fastapi_app.main import app
 import os
+from dataflow_agent.utils import get_project_root   
 
 client = TestClient(app)
 
@@ -115,7 +116,7 @@ def test_call_pagecontent_pptx():
     )
 
     # 自己准备一个 .pptx 放在指定位置，然后修改下面的路径
-    pptx_path = Path("/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/tests/paper2ppt_editable.pptx")
+    pptx_path = Path(f"{get_project_root()}/tests/paper2ppt_editable.pptx")
     assert pptx_path.exists(), f"pptx file not found: {pptx_path}"
 
     with pptx_path.open("rb") as f:
@@ -150,7 +151,7 @@ def test_ppt_json_with_direct_image_pagecontent():
     data = _base_form_ppt_json()
 
     # 注意：这里的 result_path 和图片路径示例需要你自己保证存在
-    result_path = "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/outputs/ABC123/paper2ppt/1766070298"
+    result_path = f"{get_project_root()}/outputs/ABC123/paper2ppt/1766070298"
     data["result_path"] = result_path
 
     pagecontent = [
@@ -184,7 +185,7 @@ def test_ppt_json_with_structured_pagecontent():
     """
     data = _base_form_ppt_json()
 
-    result_path = "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/outputs/ABC123/paper2ppt/1766067301"
+    result_path = f"{get_project_root()}/outputs/ABC123/paper2ppt/1766067301"
     data["result_path"] = result_path
 
     pagecontent = [
@@ -251,7 +252,7 @@ def test_ppt_json_edit_mode():
     """
     data = _base_form_ppt_json()
 
-    result_path = "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/outputs/ABC123/paper2ppt/1766070298"
+    result_path = f"{get_project_root()}/outputs/ABC123/paper2ppt/1766070298"
     data["result_path"] = result_path
 
     data["get_down"] = "true"
@@ -279,7 +280,7 @@ def test_pdf2ppt_generate():
     - 上传一个 PDF（使用项目内置示例）
     - 期望返回 200 且响应体为 PPTX 二进制内容
     """
-    pdf_path = Path("/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/outputs/ABC123/paper2ppt/1766067301/paper2ppt.pdf")
+    pdf_path = Path(f"{get_project_root()}/outputs/ABC123/paper2ppt/1766067301/paper2ppt.pdf")
     assert pdf_path.exists(), f"pdf file not found: {pdf_path}"
 
     data = {
