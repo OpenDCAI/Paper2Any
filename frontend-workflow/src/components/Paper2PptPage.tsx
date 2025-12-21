@@ -714,7 +714,7 @@ const Paper2PptPage = () => {
                 className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
               >
                 <option value="gemini-2.5-flash-image">Gemini 2.5 (Flash Image)</option>
-                <option value="gemini-3.0-pro-image-preview">Gemini 3.0 Pro (中文推荐)</option>
+                <option value="gemini-3-pro-image-preview">Gemini 3.0 Pro (中文推荐)</option>
               </select>
             </div>
             <div>
