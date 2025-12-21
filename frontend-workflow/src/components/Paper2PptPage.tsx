@@ -331,6 +331,17 @@ const Paper2PptPage = () => {
         };
       });
       
+      // 预加载所有图片到浏览器缓存，避免切换页面时延迟
+      if (data.all_output_files && Array.isArray(data.all_output_files)) {
+        console.log('预加载所有生成的图片...');
+        data.all_output_files.forEach((url: string) => {
+          if (url.endsWith('.png') || url.endsWith('.jpg') || url.endsWith('.jpeg')) {
+            const img = new Image();
+            img.src = url;
+          }
+        });
+      }
+      
       setGenerateResults(updatedResults);
       
     } catch (err) {
@@ -561,6 +572,14 @@ const Paper2PptPage = () => {
     a.click();
   };
 
+  const handleDownloadPdf = () => {
+    if (!pdfPreviewUrl) return;
+    const a = document.createElement('a');
+    a.href = pdfPreviewUrl;
+    a.download = 'paper2ppt_result.pdf';
+    a.click();
+  };
+
   // ============== 渲染函数 ==============
   const renderStepIndicator = () => {
     const steps = [
@@ -714,7 +733,7 @@ const Paper2PptPage = () => {
                 className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
               >
                 <option value="gemini-2.5-flash-image">Gemini 2.5 (Flash Image)</option>
-                <option value="gemini-3.0-pro-image-preview">Gemini 3.0 Pro (中文推荐)</option>
+                <option value="gemini-3-pro-image-preview">Gemini 3 Pro (中文推荐)</option>
               </select>
             </div>
             <div>
@@ -1031,9 +1050,9 @@ const Paper2PptPage = () => {
                 </button>
               )}
               {pdfPreviewUrl && (
-                <a href={pdfPreviewUrl} target="_blank" rel="noopener noreferrer" className="px-6 py-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold flex items-center gap-2 transition-all">
+                <button onClick={handleDownloadPdf} className="px-6 py-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold flex items-center gap-2 transition-all">
                   <Download size={18} /> 下载 PDF
-                </a>
+                </button>
               )}
             </div>
             <div>

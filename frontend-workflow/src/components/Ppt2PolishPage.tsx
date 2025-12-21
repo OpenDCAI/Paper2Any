@@ -587,6 +587,27 @@ const Ppt2PolishPage = () => {
           };
         });
         setBeautifyResults(updatedResults);
+        
+        // 同时更新 outlineData 的 asset_ref 为生成后的图片路径
+        // 这样后续"重新生成"时才能正确传递路径给后端
+        setOutlineData(prev => prev.map((slide, index) => {
+          const pageImageUrl = data.all_output_files.find((url: string) => 
+            url.includes(`page_${String(index).padStart(3, '0')}.png`)
+          );
+          return {
+            ...slide,
+            asset_ref: pageImageUrl || slide.asset_ref,
+          };
+        }));
+        
+        // 预加载所有图片到浏览器缓存，避免切换页面时延迟
+        console.log('预加载所有生成的图片...');
+        data.all_output_files.forEach((url: string) => {
+          if (url.endsWith('.png') || url.endsWith('.jpg') || url.endsWith('.jpeg')) {
+            const img = new Image();
+            img.src = url;
+          }
+        });
       }
       
       // 返回更新后的结果，供调用方使用
