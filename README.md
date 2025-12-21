@@ -173,9 +173,11 @@ Paper2Any 当前包含以下几个子能力：
 </tr>
 </table>
 
-#### 📸 ShowCase PPT Polish - PPT 智能美化
+---
 
-**🎨 PPT 增色美化** - 基于原有 PPT 内容，智能调整风格、配色与视觉层次
+#### 📸 ShowCase - PPT Polish（PPT 智能美化）
+
+<p><sub>🎨 <b>PPT 增色美化</b> — 基于原有 PPT 内容，智能调整风格、配色与视觉层次</sub></p>
 
 <table>
 <tr>
@@ -200,7 +202,7 @@ Paper2Any 当前包含以下几个子能力：
 </tr>
 </table>
 
-**✍️ PPT 润色拓展** - 将纯文字或简易空白 PPT 智能润色，自动生成精美排版与视觉元素
+<p><sub>✍️ <b>PPT 润色拓展</b> — 将纯文字或简易空白 PPT 智能润色，自动生成精美排版与视觉元素</sub></p>
 
 <table>
 <tr>
@@ -225,7 +227,7 @@ Paper2Any 当前包含以下几个子能力：
 </tr>
 </table>
 
-
+---
 
 #### 📸 ShowCase - Paper2Figure
 

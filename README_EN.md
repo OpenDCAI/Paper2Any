@@ -333,9 +333,11 @@ From paper PDF / text content, generate well-structured and beautifully formatte
 </tr>
 </table>
 
-#### 📸 Showcase PPT Polish - Smart PPT Enhancement
+---
 
-**🎨 PPT Color Enhancement** - Intelligently adjust style, color scheme and visual hierarchy based on existing PPT content
+#### 📸 Showcase - PPT Polish (Smart PPT Enhancement)
+
+<p><sub>🎨 <b>PPT Color Enhancement</b> — Intelligently adjust style, color scheme and visual hierarchy based on existing PPT content</sub></p>
 
 <table>
 <tr>
@@ -360,7 +362,7 @@ From paper PDF / text content, generate well-structured and beautifully formatte
 </tr>
 </table>
 
-**✍️ PPT Polish & Expand** - Transform plain text or simple blank PPT into polished presentations with auto-generated layouts and visual elements
+<p><sub>✍️ <b>PPT Polish & Expand</b> — Transform plain text or simple blank PPT into polished presentations with auto-generated layouts and visual elements</sub></p>
 
 <table>
 <tr>
