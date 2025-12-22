@@ -258,3 +258,5 @@ fastapi_app/outputs/
 nohup.out
 
 invite_codes.txt
+
+frontend-workflow/vite.config.ts

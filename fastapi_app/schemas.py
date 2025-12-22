@@ -179,6 +179,7 @@ class Paper2PPTRequest(BaseModel):
     page_count: int = 5
 
     all_edited_down: bool = False
+    use_ai_edit: bool = False
 
     def get(self, key: str, default=None):
         """
