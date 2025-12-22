@@ -672,6 +672,7 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
             clean_bg_path.parent.mkdir(parents=True, exist_ok=True)
             
             use_ai_bg = bool(getattr(state, "use_ai_edit", False))
+            log.critical(f"[pdf2ppt 是否使用AI： ][page#{page_idx+1}] use_ai_bg={use_ai_bg}")
             bg_image_path_for_ppt = None  # 最终用于PPT背景的图片路径
 
             if use_ai_bg and os.path.exists(img_path):

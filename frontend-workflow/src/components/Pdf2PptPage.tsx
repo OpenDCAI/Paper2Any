@@ -1,7 +1,7 @@
 import { useState, ChangeEvent } from 'react';
 import { 
   UploadCloud, Download, Loader2, CheckCircle2, 
-  AlertCircle, Github, Star, X, FileText, ArrowRight, Key, Globe
+  AlertCircle, Github, Star, X, FileText, ArrowRight, Key, Globe, ToggleLeft, ToggleRight, Sparkles, Image
 } from 'lucide-react';
 
 // ============== 主组件 ==============
@@ -16,10 +16,12 @@ const Pdf2PptPage = () => {
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
   
-  // 三个必填配置
+  // 配置
   const [inviteCode, setInviteCode] = useState('');
+  const [useAiEdit, setUseAiEdit] = useState(false);
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
+  const [genFigModel, setGenFigModel] = useState('gemini-2.5-flash-image');
 
   const validateDocFile = (file: File): boolean => {
     const ext = file.name.split('.').pop()?.toLowerCase();
@@ -59,13 +61,16 @@ const Pdf2PptPage = () => {
       setError('请输入邀请码');
       return;
     }
-    if (!apiKey.trim()) {
-      setError('请输入 API Key');
-      return;
-    }
-    if (!llmApiUrl.trim()) {
-      setError('请输入 API URL');
-      return;
+    
+    if (useAiEdit) {
+      if (!apiKey.trim()) {
+        setError('开启 AI 增强时必须输入 API Key');
+        return;
+      }
+      if (!llmApiUrl.trim()) {
+        setError('开启 AI 增强时必须输入 API URL');
+        return;
+      }
     }
     
     setIsProcessing(true);
@@ -98,9 +103,16 @@ const Pdf2PptPage = () => {
     try {
       const formData = new FormData();
       formData.append('pdf_file', selectedFile);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
       formData.append('invite_code', inviteCode.trim());
+      
+      if (useAiEdit) {
+        formData.append('use_ai_edit', 'true');
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+        formData.append('gen_fig_model', genFigModel);
+      } else {
+        formData.append('use_ai_edit', 'false');
+      }
       
       const res = await fetch('/api/pdf2ppt/generate', {
         method: 'POST',
@@ -276,48 +288,95 @@ const Pdf2PptPage = () => {
                   )}
                 </div>
 
-                {/* 三个必填配置 */}
-                <div className="space-y-4 mb-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
-                        <Key size={12} /> 邀请码 <span className="text-red-400">*</span>
-                      </label>
-                      <input 
-                        type="text" 
-                        value={inviteCode} 
-                        onChange={e => setInviteCode(e.target.value)}
-                        placeholder="xxx-xxx"
-                        className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
-                        <Key size={12} /> API Key <span className="text-red-400">*</span>
-                      </label>
-                      <input 
-                        type="password" 
-                        value={apiKey} 
-                        onChange={e => setApiKey(e.target.value)}
-                        placeholder="sk-..."
-                        className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
+                {/* 必填配置：邀请码 */}
+                <div className="mb-6">
                     <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
-                      <Globe size={12} /> API URL <span className="text-red-400">*</span>
+                      <Key size={12} /> 邀请码 <span className="text-red-400">*</span>
                     </label>
                     <input 
                       type="text" 
-                      value={llmApiUrl} 
-                      onChange={e => setLlmApiUrl(e.target.value)}
-                      placeholder="https://api.openai.com/v1"
+                      value={inviteCode} 
+                      onChange={e => setInviteCode(e.target.value)}
+                      placeholder="xxx-xxx"
                       className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
                     />
-                  </div>
                 </div>
+
+                {/* AI 增强选项开关 */}
+                <div className="mb-4 flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/5">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20">
+                      <Sparkles size={16} className="text-purple-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-white">AI 背景增强</p>
+                      <p className="text-xs text-gray-400">使用 Gemini 模型清除文字并修复背景</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setUseAiEdit(!useAiEdit)}
+                    className="focus:outline-none transition-colors"
+                  >
+                    {useAiEdit ? (
+                      <ToggleRight size={32} className="text-purple-500" />
+                    ) : (
+                      <ToggleLeft size={32} className="text-gray-500" />
+                    )}
+                  </button>
+                </div>
+
+                {/* AI 增强配置面板 - 仅开启时显示 */}
+                {useAiEdit && (
+                  <div className="space-y-4 mb-6 p-4 rounded-xl border border-purple-500/20 bg-purple-500/5 animate-in fade-in slide-in-from-top-2">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
+                        <Globe size={12} /> API URL <span className="text-red-400">*</span>
+                      </label>
+                      <input 
+                        type="text" 
+                        value={llmApiUrl} 
+                        onChange={e => setLlmApiUrl(e.target.value)}
+                        placeholder="https://api.openai.com/v1"
+                        className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
+                          <Key size={12} /> API Key <span className="text-red-400">*</span>
+                        </label>
+                        <input 
+                          type="password" 
+                          value={apiKey} 
+                          onChange={e => setApiKey(e.target.value)}
+                          placeholder="sk-..."
+                          className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
+                          <Image size={12} /> 生成模型
+                        </label>
+                        <div className="relative">
+                          <select 
+                            value={genFigModel} 
+                            onChange={e => setGenFigModel(e.target.value)}
+                            className="w-full appearance-none rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                          >
+                            <option value="gemini-2.5-flash-image">Gemini 2.5 Flash</option>
+                            <option value="gemini-3-pro-image-preview">Gemini 3 Pro</option>
+                          </select>
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* 进度条 */}
                 {isProcessing && (

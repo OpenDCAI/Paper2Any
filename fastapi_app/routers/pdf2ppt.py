@@ -43,11 +43,12 @@ def create_run_dir(invite_code: str, task_type: str) -> Path:
 async def generate_pdf2ppt(
     request: Request,
     pdf_file: UploadFile = File(...),
-    # API 配置 - 必填
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
+    # API 配置 - 如果 use_ai_edit=True 则必填
+    chat_api_url: str = Form(None),
+    api_key: str = Form(None),
     invite_code: str = Form(...),
     # 可选配置
+    use_ai_edit: bool = Form(False),
     model: str = Form("gpt-4o"),
     gen_fig_model: str = Form("gemini-2.5-flash-image"),
     language: str = Form("zh"),
@@ -59,9 +60,10 @@ async def generate_pdf2ppt(
 
     - 前端通过 multipart/form-data 传入：
         - pdf_file: 待转换的 PDF 文件
-        - chat_api_url: LLM API URL
-        - api_key: LLM API Key
         - invite_code: 邀请码
+        - use_ai_edit: 是否启用 AI 增强（默认 False）
+        - chat_api_url: LLM API URL（开启 AI 增强时必填）
+        - api_key: LLM API Key（开启 AI 增强时必填）
         - model: 语言模型（可选）
         - gen_fig_model: 图像生成模型（可选）
         - language: 语言（可选）
@@ -71,6 +73,14 @@ async def generate_pdf2ppt(
     """
     # 0. 邀请码校验
     validate_invite_code(invite_code)
+
+    # 0.5 如果启用 AI 增强，必须校验 API 配置
+    if use_ai_edit:
+        if not chat_api_url or not api_key:
+            raise HTTPException(
+                status_code=400, 
+                detail="When use_ai_edit is True, chat_api_url and api_key are required"
+            )
 
     # 1. 基础参数校验
     if pdf_file is None:
@@ -94,14 +104,15 @@ async def generate_pdf2ppt(
     wf_req = Paper2PPTRequest(
         input_type="PDF",
         input_content=str(abs_pdf_path),
-        chat_api_url=chat_api_url,
-        api_key=api_key,
+        chat_api_url=chat_api_url or "",
+        api_key=api_key or "",
         model=model,
         gen_fig_model=gen_fig_model,
         language=language,
         style=style,
         page_count=page_count,
         invite_code=invite_code,
+        use_ai_edit=use_ai_edit,
     )
 
     # 4. 调用 workflow（受信号量保护）
