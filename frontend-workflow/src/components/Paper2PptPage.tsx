@@ -914,6 +914,18 @@ const Paper2PptPage = () => {
             inputImg="/paper2ppt/input_3.png"
             outputImg="/paper2ppt/ouput_3.png"
           />
+          <DemoCard
+            title="输入长文本 → PPT"
+            desc="支持直接粘贴长文本内容，AI 自动提炼核心观点并生成 PPT 大纲。"
+            inputImg="/paper2ppt/input_2.png"
+            outputImg="/paper2ppt/ouput_2.png"
+          />
+          <DemoCard
+            title="输入PPT主题 → 符合主题内容的PPT"
+            desc="仅需输入一个主题，AI 将进行深度搜索研究，生成内容丰富、风格匹配的 PPT。"
+            inputImg="/paper2ppt/input_4.png"
+            outputImg="/paper2ppt/ouput_4.png"
+          />
         </div>
       </div>
     </div>

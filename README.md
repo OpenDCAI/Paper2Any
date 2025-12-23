@@ -8,7 +8,7 @@
 
 <!-- **从论文与原始数据，到图表、PPT 和数据管线的一站式 AI Orchestrator** -->
 
-[![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-2F80ED?style=flat-square&logo=apache&logoColor=white)](LICENSE)
 [![GitHub Repo](https://img.shields.io/badge/GitHub-OpenDCAI%2FDataFlow--Agent-24292F?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/DataFlow-Agent)
 [![Stars](https://img.shields.io/github/stars/OpenDCAI/DataFlow-Agent?style=flat-square&logo=github&label=Stars&color=F2C94C)](https://github.com/OpenDCAI/DataFlow-Agent/stargazers)
@@ -572,21 +572,21 @@ python gradio_app/app.py
 
 ### 环境要求
 
-![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![pip](https://img.shields.io/badge/pip-latest-3776AB?style=flat-square&logo=pypi&logoColor=white)
 
 ---
 
 ### 🐧 Linux 安装
 
-> 建议使用 Conda 创建隔离环境（推荐 Python 3.12）。  
+> 建议使用 Conda 创建隔离环境（推荐 Python 3.11）。  
 > 下述命令以 Ubuntu 为例，其他发行版请参考对应包管理器命令。
 
 #### 1. 创建环境并安装基础依赖
 
 ```bash
 # 0. 创建并激活 conda 环境
-conda create -n dataflow-agent python=3.12 -y
+conda create -n dataflow-agent python=3.11 -y
 conda activate dataflow-agent
 
 # 1. 克隆仓库
@@ -637,7 +637,7 @@ export DF_API_URL=xxx  # 可选：如需使用第三方 API 中转站
 第三方 API 中转示例：
 
 - https://api.apiyi.com/
-- http://123.129.219.111:3000/
+- http://123.119.219.111:3000/
 
 ---
 

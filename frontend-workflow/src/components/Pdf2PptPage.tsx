@@ -260,8 +260,9 @@ const Pdf2PptPage = () => {
         </div>
       )}
 
-      <div className="flex-1 overflow-auto flex items-center justify-center">
-        <div className="max-w-2xl w-full mx-auto px-6 py-8">
+      <div className="flex-1 overflow-auto">
+        <div className="max-w-6xl w-full mx-auto px-6 py-8">
+          <div className="max-w-2xl mx-auto">
           {/* 标题 */}
           <div className="text-center mb-8">
             <p className="text-xs uppercase tracking-[0.2em] text-purple-300 mb-3 font-semibold">PDF → PPTX</p>
@@ -475,6 +476,32 @@ const Pdf2PptPage = () => {
           <p className="text-center text-xs text-gray-500 mt-6">
             支持的文件格式：PDF | 最大文件大小：50MB
           </p>
+          </div>
+
+          {/* 示例区 */}
+          <div className="space-y-4 mt-16 max-w-4xl mx-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-gray-200">示例：从 PDF 到 可编辑 PPTX（文字 + 元素ICON）</h3>
+              <span className="text-[11px] text-gray-500">
+                下方示例展示不同模式下的转换效果。
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <DemoCard
+                title="基础转换（白色背景）"
+                desc="快速将 PDF 转换为可编辑的 PPT，保留原始排版和内容，适合标准文档转换。"
+                inputImg="/pdf2ppt/input_1.png"
+                outputImg="/pdf2ppt/output_1.png"
+              />
+              <DemoCard
+                title="AI 增强模式（AI重塑背景）"
+                desc="利用 AI 清除原有背景，智能重塑页面风格，提升视觉效果，打造专业演示文稿。"
+                inputImg="/pdf2ppt/input_2.png"
+                outputImg="/pdf2ppt/output_2.png"
+              />
+            </div>
+          </div>
         </div>
 
       </div>
@@ -488,7 +515,73 @@ const Pdf2PptPage = () => {
           animation: shimmer 3s infinite;
         }
         .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); }
+        .demo-input-placeholder {
+          min-height: 120px;
+        }
+        .demo-output-placeholder {
+          min-height: 120px;
+        }
       `}</style>
+    </div>
+  );
+};
+
+interface DemoCardProps {
+  title: string;
+  desc: string;
+  inputImg?: string;
+  outputImg?: string;
+}
+
+const DemoCard = ({ title, desc, inputImg, outputImg }: DemoCardProps) => {
+  return (
+    <div className="glass rounded-lg border border-white/10 p-4 flex flex-col gap-3 hover:bg-white/5 transition-colors">
+      <div className="flex gap-3">
+        {/* 左侧：输入示例图片 */}
+        <div className="flex-1 rounded-md bg-white/5 border border-dashed border-white/10 flex items-center justify-center demo-input-placeholder overflow-hidden relative group">
+          {inputImg ? (
+            <>
+              <img
+                src={inputImg}
+                alt="输入示例图"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-xs text-white font-medium">Input (PDF)</span>
+              </div>
+            </>
+          ) : (
+            <span className="text-[10px] text-gray-400">输入示例图</span>
+          )}
+        </div>
+        
+        {/* 中间箭头 */}
+        <div className="flex items-center justify-center text-gray-500">
+          <ArrowRight size={16} />
+        </div>
+
+        {/* 右侧：输出 PPTX 示例图片 */}
+        <div className="flex-1 rounded-md bg-violet-500/10 border border-dashed border-violet-300/40 flex items-center justify-center demo-output-placeholder overflow-hidden relative group">
+          {outputImg ? (
+            <>
+              <img
+                src={outputImg}
+                alt="PPTX 示例图"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-xs text-white font-medium">Output (PPTX)</span>
+              </div>
+            </>
+          ) : (
+            <span className="text-[10px] text-violet-200">PPTX 示例图</span>
+          )}
+        </div>
+      </div>
+      <div>
+        <p className="text-sm text-white font-medium mb-1">{title}</p>
+        <p className="text-xs text-gray-400 leading-relaxed">{desc}</p>
+      </div>
     </div>
   );
 };
