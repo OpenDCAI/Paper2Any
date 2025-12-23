@@ -199,7 +199,7 @@ async def run_paper2ppt_wf_api(
         f"pagecontent_len={len(getattr(state, 'pagecontent', []) or [])}"
     )
 
-    final_state: Paper2FigureState = await run_workflow("paper2ppt", state)
+    final_state: Paper2FigureState = await run_workflow("paper2ppt_parallel", state)
 
     # 提取关键输出
     ppt_pdf_path = getattr(final_state, "ppt_pdf_path", "")

@@ -57,10 +57,10 @@ const Pdf2PptPage = () => {
       setError('请先选择 PDF 文件');
       return;
     }
-    if (!inviteCode.trim()) {
-      setError('请输入邀请码');
-      return;
-    }
+    // if (!inviteCode.trim()) {
+    //   setError('请输入邀请码');
+    //   return;
+    // }
     
     if (useAiEdit) {
       if (!apiKey.trim()) {
@@ -289,7 +289,7 @@ const Pdf2PptPage = () => {
                 </div>
 
                 {/* 必填配置：邀请码 */}
-                <div className="mb-6">
+                {/* <div className="mb-6">
                     <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
                       <Key size={12} /> 邀请码 <span className="text-red-400">*</span>
                     </label>
@@ -300,7 +300,7 @@ const Pdf2PptPage = () => {
                       placeholder="xxx-xxx"
                       className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
                     />
-                </div>
+                </div> */}
 
                 {/* AI 增强选项开关 */}
                 <div className="mb-4 flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/5">

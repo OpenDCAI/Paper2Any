@@ -103,10 +103,10 @@ const Paper2PptPage = () => {
       setError('请先选择 PDF 文件');
       return;
     }
-    if (!inviteCode.trim()) {
-      setError('请输入邀请码');
-      return;
-    }
+    // if (!inviteCode.trim()) {
+    //   setError('请输入邀请码');
+    //   return;
+    // }
     if (!apiKey.trim()) {
       setError('请输入 API Key');
       return;
@@ -673,7 +673,7 @@ const Paper2PptPage = () => {
           
           {/* API 配置 */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            {/* <div>
               <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
                 <Key size={12} /> 邀请码 *
               </label>
@@ -684,7 +684,7 @@ const Paper2PptPage = () => {
                 placeholder="xxx-xxx"
                 className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
               />
-            </div>
+            </div> */}
             <div>
               <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
                 <Key size={12} /> API Key *

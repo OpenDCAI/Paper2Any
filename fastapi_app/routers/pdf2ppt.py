@@ -26,7 +26,7 @@ BASE_OUTPUT_DIR = Path("outputs")
 PROJECT_ROOT = get_project_root()
 
 
-def create_run_dir(invite_code: str, task_type: str) -> Path:
+def create_run_dir(invite_code: Optional[str], task_type: str) -> Path:
     """
     为一次 pdf2ppt 请求创建独立目录：
         outputs/{invite_code}/{task_type}/{timestamp}/input/
@@ -46,7 +46,7 @@ async def generate_pdf2ppt(
     # API 配置 - 如果 use_ai_edit=True 则必填
     chat_api_url: str = Form(None),
     api_key: str = Form(None),
-    invite_code: str = Form(...),
+    invite_code: Optional[str] = Form(None),
     # 可选配置
     use_ai_edit: bool = Form(False),
     model: str = Form("gpt-4o"),
@@ -72,7 +72,7 @@ async def generate_pdf2ppt(
     - 返回：生成的 PPTX 文件（二进制下载）
     """
     # 0. 邀请码校验
-    validate_invite_code(invite_code)
+    # validate_invite_code(invite_code)
 
     # 0.5 如果启用 AI 增强，必须校验 API 配置
     if use_ai_edit:
@@ -111,7 +111,7 @@ async def generate_pdf2ppt(
         language=language,
         style=style,
         page_count=page_count,
-        invite_code=invite_code,
+        invite_code=invite_code or "",
         use_ai_edit=use_ai_edit,
     )
 

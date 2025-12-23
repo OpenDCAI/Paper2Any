@@ -230,10 +230,10 @@ const Ppt2PolishPage = () => {
       return;
     }
     
-    if (!inviteCode.trim()) {
-      setError('请先输入邀请码');
-      return;
-    }
+    // if (!inviteCode.trim()) {
+    //   setError('请先输入邀请码');
+    //   return;
+    // }
     
     if (!llmApiUrl.trim() || !apiKey.trim()) {
       setError('请先配置模型 API URL 和 API Key');
@@ -980,7 +980,7 @@ const Ppt2PolishPage = () => {
             配置
           </h3>
           
-          <div>
+          {/* <div>
             <label className="block text-sm text-gray-300 mb-2">邀请码</label>
             <input
               type="text"
@@ -989,7 +989,7 @@ const Ppt2PolishPage = () => {
               placeholder="请输入邀请码"
               className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500"
             />
-          </div>
+          </div> */}
           
           <div>
             <label className="block text-sm text-gray-300 mb-2">模型 API URL</label>

@@ -266,13 +266,13 @@ const Paper2FigurePage = () => {
     setStageProgress(0);
     setShowOutputPanel(true);
 
-    if (!inviteCode.trim()) {
-      setError('请先输入邀请码');
-      return;
-    }
+    // if (!inviteCode.trim()) {
+    //   setError('请先输入邀请码');
+    //   return;
+    // }
 
     // 点击生成后，立刻根据邀请码加载历史文件列表（所有历史任务）
-    await fetchHistoryFiles(inviteCode);
+    // await fetchHistoryFiles(inviteCode);
 
     if (!llmApiUrl.trim() || !apiKey.trim()) {
       setError('请先配置模型 API URL 和 API Key');
@@ -648,7 +648,7 @@ const Paper2FigurePage = () => {
 
               {showAdvanced && (
                 <div className="space-y-3">
-                  <div>
+                  {/* <div>
                     <label className="block text-xs text-gray-400 mb-1">邀请码</label>
                     <input
                       type="text"
@@ -657,7 +657,7 @@ const Paper2FigurePage = () => {
                       placeholder="请输入邀请码"
                       className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     />
-                  </div>
+                  </div> */}
 
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">模型 API URL</label>
@@ -882,7 +882,7 @@ const Paper2FigurePage = () => {
                 )}
 
                 {/* 新增：邀请码历史任务输出文件列表（所有 graphType 通用） */}
-                {showOutputPanel && (
+                {/* {showOutputPanel && (
                   <div className="mt-3 glass rounded-lg border border-white/10 p-3 text-xs text-gray-200">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium">邀请码所有任务输出文件列表</span>
@@ -907,7 +907,8 @@ const Paper2FigurePage = () => {
                           if (ext === 'pptx') icon = <FileText size={12} />;
                           else if (['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'tiff', 'svg'].includes(ext)) {
                             icon = <ImageIcon size={12} />;
-                          }
+
+                            }
 
                           return (
                             <li key={url} className="flex items-center justify-between gap-2">
@@ -932,7 +933,7 @@ const Paper2FigurePage = () => {
                       </ul>
                     )}
                   </div>
-                )}
+                )} */}
 
                 {error && (
                   <div className="flex items-start gap-2 text-xs text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-3 py-2 mt-1">
