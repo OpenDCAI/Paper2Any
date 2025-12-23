@@ -574,10 +574,8 @@ const Paper2PptPage = () => {
 
   const handleDownloadPdf = () => {
     if (!pdfPreviewUrl) return;
-    const a = document.createElement('a');
-    a.href = pdfPreviewUrl;
-    a.download = 'paper2ppt_result.pdf';
-    a.click();
+    // 在新窗口打开 PDF
+    window.open(pdfPreviewUrl, '_blank');
   };
 
   // ============== 渲染函数 ==============
@@ -1044,17 +1042,19 @@ const Paper2PptPage = () => {
         ) : (
           <div className="space-y-4">
             <div className="flex gap-4 justify-center">
-              {downloadUrl && (
-                <button onClick={handleDownload} className="px-6 py-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold flex items-center gap-2 transition-all">
-                  <Download size={18} /> 下载 PPT
-                </button>
-              )}
+              {/* 已移除 PPTX 下载按钮 */}
               {pdfPreviewUrl && (
                 <button onClick={handleDownloadPdf} className="px-6 py-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold flex items-center gap-2 transition-all">
                   <Download size={18} /> 下载 PDF
                 </button>
               )}
             </div>
+            
+            {/* 引导去 PDF2PPT */}
+            <div className="text-center text-sm text-gray-400 bg-white/5 border border-white/10 rounded-lg p-3">
+              如果需要继续 PDF 转可编辑 PPTX，请前往 <a href="/pdf2ppt" className="text-purple-400 hover:text-purple-300 hover:underline font-medium transition-colors">PDF2PPT 页面</a>
+            </div>
+
             <div>
               <button onClick={() => { setCurrentStep('upload'); setSelectedFile(null); setOutlineData([]); setGenerateResults([]); setDownloadUrl(null); setPdfPreviewUrl(null); setResultPath(null); setError(null); }} className="text-sm text-gray-400 hover:text-white transition-colors">
                 <RotateCcw size={14} className="inline mr-1" /> 处理新的论文

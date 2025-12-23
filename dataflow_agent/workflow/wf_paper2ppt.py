@@ -554,7 +554,7 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
         out = await convert_images_dir_to_pdf_and_ppt_api(
             input_dir=str(img_dir),
             output_pdf_path=str(pdf_path),
-            output_pptx_path=str(pptx_path),
+            output_pptx_path=None,
             api_url=state.request.chat_api_url,
             api_key=os.getenv("DF_API_KEY") or state.request.chat_api_key,
             model=state.request.gen_fig_model,
@@ -563,7 +563,7 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
 
         # 可选：把导出结果路径挂到 state 上，方便后续使用
         setattr(state, "ppt_pdf_path", out.get("pdf") or str(pdf_path))
-        setattr(state, "ppt_pptx_path", out.get("pptx") or str(pptx_path))
+        setattr(state, "ppt_pptx_path", None)
 
         return state
 
