@@ -482,7 +482,7 @@ const Paper2FigurePage = () => {
               >
                 <Github size={14} />
                 <span>DataFlow</span>
-                {stars.dataflow !== null && <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.dataflow}</span>}
+                <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
                 <span className="bg-purple-600 text-white px-2 py-0.5 rounded-full text-[10px]">HOT</span>
               </a>
 
@@ -494,7 +494,7 @@ const Paper2FigurePage = () => {
               >
                 <Github size={14} />
                 <span>DataFlow-Agent</span>
-                {stars.agent !== null && <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.agent}</span>}
+                <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.agent || 'Star'}</span>
                 <span className="bg-pink-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
               </a>
 
