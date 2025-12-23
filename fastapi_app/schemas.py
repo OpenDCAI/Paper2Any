@@ -165,7 +165,7 @@ class Paper2PPTRequest(BaseModel):
     # bg_rm_model: str = f"{get_project_root()}/models/RMBG-2.0"
 
     # ---------------------- 输入类型设置 ----------------------
-    input_type: Literal["PDF", "TEXT", "PPT"] = "PDF"
+    input_type: Literal["PDF", "TEXT", "PPT", "TOPIC"] = "PDF"
     input_content: str = ""
 
     # ---------------------- 输出图像比例设置 ----------------------

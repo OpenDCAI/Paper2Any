@@ -9,7 +9,7 @@ import re
 from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register
-from dataflow_agent.agentroles import create_react_agent
+from dataflow_agent.agentroles import create_react_agent, create_simple_agent
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
 
@@ -218,6 +218,19 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         state = await agent.execute(state=state)
         return state
 
+    async def deep_research_agent(state: Paper2FigureState) -> Paper2FigureState:
+        """
+        Deep Research Agent: 接收 Topic，生成长文，更新 state.text_content
+        """
+        log.info("[paper2page_content] Entering deep_research_agent...")
+        agent = create_simple_agent(
+            name="deep_research_agent",
+            temperature=0.7,
+            parser_type="text", # 直接输出长文本
+        )
+        state = await agent.execute(state=state)
+        return state
+
     # ==============================================================
     # 注册 nodes / edges
     # ==============================================================
@@ -230,6 +243,9 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         if t == "TEXT":
             log.critical("走 TEXT 路径")
             return "prepare_text_input"
+        if t == "TOPIC":
+            log.critical("走 TOPIC 路径 (Deep Research)")
+            return "deep_research_agent"
         if t in ["PPT", "PPTX"]:
             log.critical("走 PPT 路径")
             return "ppt_to_images"
@@ -241,6 +257,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         "parse_pdf_pages": parse_pdf_pages,
         "prepare_text_input": prepare_text_input,
         "ppt_to_images": ppt_to_images,
+        "deep_research_agent": deep_research_agent,
         "outline_agent": outline_agent,
         "_end_": lambda state: state,
     }
@@ -248,6 +265,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
     edges = [
         ("parse_pdf_pages", "outline_agent"),
         ("prepare_text_input", "outline_agent"),
+        ("deep_research_agent", "outline_agent"),
         ("ppt_to_images", "_end_"),
         ("outline_agent", "_end_"),
     ]

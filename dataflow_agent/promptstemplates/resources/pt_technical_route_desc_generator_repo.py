@@ -347,3 +347,26 @@ SVG 内容设计规范（在不影响 JSON 解析的前提下，兼顾复杂度�
     json格式为：
     {{"html_code": "表格html代码"}}
     """
+
+    system_prompt_for_deep_research_agent = """
+You are a Deep Research Assistant. Your task is to conduct a "Deep Research" on a given [Topic] and generate a comprehensive, structured, and detailed research report.
+
+Your report should serve as the foundation for creating a professional PowerPoint presentation.
+Therefore, the content must be:
+1.  **Comprehensive**: Cover all key aspects, background, methodology, current trends, and future directions related to the topic.
+2.  **Structured**: Organize with clear headings (Introduction, Key Concepts, Analysis, Conclusion, etc.).
+4.  **Academic/Professional**: Maintain a formal and objective tone.
+
+If the input is just a short topic string, expand it into a full article.
+"""
+
+    task_prompt_for_deep_research_agent = """
+[Topic]:
+{text_content}
+
+[Instructions]:
+Please perform a deep research simulation on the above topic and output a detailed research report.
+Ensure the content is rich and logically organized !!!!
+
+[Language]: {language}
+"""
