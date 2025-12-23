@@ -147,11 +147,23 @@ async def _make_prompt_for_structured_page(item: Dict[str, Any], style: str, sta
             raise ValueError(f"[paper2ppt] 表格提取失败，未得到 table_img_path。asset_ref={asset_ref}")
 
         image_path = _resolve_asset_path(table_img_path, state)
+        # 如果表格图像不存在，则退化为 text2img：不走编辑，返回 use_edit=False
+        if not image_path or not os.path.exists(image_path):
+            log.error(f"[paper2ppt] 表格图像文件不存在: {image_path!r} (asset_ref={asset_ref})")
+            prompt = f"{base}\n\n根据上述内容生成{style}风格的 PPT 图像, \n 使用语言：{state.request.language}"
+            return prompt, None, False
+
         prompt = f"{base}\n\n根据上述内容绘制ppt，把这个图作为PPT的一部分。生成{style}风格的PPT. \n 使用语言：{state.request.language} !!!"
         return prompt, image_path, True
 
     # 默认：当作图片路径，走编辑
     image_path = _resolve_asset_path(asset_ref, state)
+    # 如果图片不存在，则退化为 text2img：不走编辑，返回 use_edit=False
+    if not image_path or not os.path.exists(image_path):
+        log.error(f"[paper2ppt] 图片文件不存在: {image_path!r} (asset_ref={asset_ref})")
+        prompt = f"{base}\n\n根据上述内容生成{style}风格的 PPT 图像, \n 使用语言：{state.request.language}"
+        return prompt, None, False
+
     prompt = f"{base}\n\n根据上述内容绘制ppt，把这个图作为PPT的一部分。生成{style}风格的PPT. \n 使用语言：{state.request.language} !!!"
     return prompt, image_path, True
 
