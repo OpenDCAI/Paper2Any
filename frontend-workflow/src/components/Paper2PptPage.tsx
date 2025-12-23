@@ -1170,10 +1170,15 @@ const Paper2PptPage = () => {
           
           <div className="relative max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-start">
-              <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
+              <a
+                href="https://github.com/OpenDCAI"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 hover:bg-white/30 transition-colors"
+              >
                 <Star size={16} className="text-yellow-300 fill-yellow-300 animate-pulse" />
-                <span className="text-xs font-bold text-white">开源项目</span>
-              </div>
+                <span className="text-xs font-bold text-white">GitHub开源项目</span>
+              </a>
               
               <span className="text-sm font-medium text-white">
                 🚀 探索更多 AI 数据处理工具
