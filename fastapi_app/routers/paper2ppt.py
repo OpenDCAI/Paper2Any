@@ -111,7 +111,7 @@ async def paper2ppt_pagecontent_json(
     - input_type='text'：需要 text
     - 可选：reference_img（风格参考图）
     """
-    validate_invite_code(invite_code)
+    # validate_invite_code(invite_code)
 
     norm_input_type = input_type.lower().strip()
 
@@ -213,7 +213,7 @@ async def paper2ppt_ppt_json(
     - get_down=false：生成模式（需要 pagecontent）
     - get_down=true：编辑模式（需要 page_id(0-based) + edit_prompt，pagecontent 可选）
     """
-    validate_invite_code(invite_code)
+    # validate_invite_code(invite_code)
 
     # 转换字符串形式的布尔值
     get_down_bool = get_down.lower() in ("true", "1", "yes")
@@ -317,7 +317,7 @@ async def paper2ppt_full_json(
     - paper2page_content -> paper2ppt
     - get_down 固定为 False（首次生成）
     """
-    validate_invite_code(invite_code)
+    # validate_invite_code(invite_code)
 
     norm_input_type = input_type.lower().strip()
 

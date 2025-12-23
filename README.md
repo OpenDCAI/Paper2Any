@@ -18,7 +18,7 @@
 <a href="https://github.com/OpenDCAI/DataFlow-Agent#-快速开始" target="_blank">
   <img alt="Quickstart" src="https://img.shields.io/badge/🚀-快速开始-2F80ED?style=for-the-badge" />
 </a>
-<a href="https://dcai-paper2any.cpolar.top/" target="_blank">
+<a href="http://dcai-paper2any.nas.cpolar.cn/" target="_blank">
   <img alt="Online Demo" src="https://img.shields.io/badge/🌐-在线体验_Paper2Any-56CCF2?style=for-the-badge" />
 </a>
 <a href="docs/" target="_blank">
@@ -58,7 +58,7 @@
 > 🆕 <strong>2025-12-12 · Paper2Figure 网页端内测上线（需邀请码）</strong><br>
 > 支持一键生成多种<strong>可编辑</strong>科研绘图（模型架构图 / 技术路线图 / 实验数据图）<br>
 > 📧 邀请码申请（限前 50 名）：<a href="mailto:liuzhou225919@163.com">liuzhou225919@163.com</a><br>
-> 🌐 在线体验：<a href="https://dcai-paper2any.cpolar.top/">https://dcai-paper2any.cpolar.top/</a>
+> 🌐 在线体验：<a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
 
 - 2024-09-01 · 发布 <code>0.1.0</code> 首个版本（详见 <a href="docs/changelog.md">changelog</a>）
 
@@ -473,7 +473,7 @@ Paper2Any 当前包含以下几个子能力：
 
 **方式一：Web 前端（推荐）**
 
-(目前在线版只支持邀请用户体验)访问在线体验地址：[https://dcai-paper2any.cpolar.top/](https://dcai-paper2any.cpolar.top/)
+(目前在线版只支持邀请用户体验)访问在线体验地址：[http://dcai-paper2any.nas.cpolar.cn/](http://dcai-paper2any.nas.cpolar.cn/)
 
 <div align="center">
   <img src="static/frontend_pages/paper2figure-1.png" alt="Web UI - Paper2Figure" width="48%"/>

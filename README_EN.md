@@ -16,7 +16,7 @@
 <a href="https://github.com/OpenDCAI/DataFlow-Agent#-quick-start" target="_blank">
   <img alt="Quickstart" src="https://img.shields.io/badge/🚀-Quick_Start-2F80ED?style=for-the-badge" />
 </a>
-<a href="https://dcai-paper2any.cpolar.top/" target="_blank">
+<a href="http://dcai-paper2any.nas.cpolar.cn/" target="_blank">
   <img alt="Online Demo" src="https://img.shields.io/badge/🌐-Online_Demo_Paper2Any-56CCF2?style=for-the-badge" />
 </a>
 <a href="docs/" target="_blank">
@@ -55,7 +55,7 @@ English | [中文](README.md)
 🎉 <strong>Paper2Figure Web beta is live</strong> (invitation code required)<br>
 One-click generation of multiple <strong>editable</strong> scientific figures, including model architecture diagrams, technical roadmap diagrams, and experimental plots.<br>
 📧 <strong>Contact via email for invitation code</strong> (limited to first 50 users): <a href="mailto:liuzhou225919@163.com">liuzhou225919@163.com</a><br>
-👉 URL: <a href="https://dcai-paper2any.cpolar.top/">https://dcai-paper2any.cpolar.top/</a>
+👉 URL: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
 </td>
 </tr>
 <tr>
@@ -456,7 +456,7 @@ Upload experimental result screenshots or tables, automatically extract key data
 
 **Option 1: Web Frontend (Recommended)**
 
-(Online version currently requires invitation code) Visit: [https://dcai-paper2any.cpolar.top/](https://dcai-paper2any.cpolar.top/)
+(Online version currently requires invitation code) Visit: [http://dcai-paper2any.nas.cpolar.cn/](http://dcai-paper2any.nas.cpolar.cn/)
 
 <div align="center">
 <img src="static/frontend_pages/paper2figure-1.png" alt="Web UI" width="80%"/>

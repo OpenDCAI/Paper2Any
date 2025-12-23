@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import time
@@ -224,12 +225,13 @@ def _extract_image_path_from_pagecontent_item(item: Any) -> Optional[str]:
     return None
 
 
-@register("paper2ppt")
-def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
+@register("paper2ppt_parallel")
+def create_paper2ppt_parallel_graph() -> GenericGraphBuilder:  # noqa: N802
     """
-    Workflow factory: dfa run --wf paper2ppt
+    Workflow factory: dfa run --wf paper2ppt_parallel
 
     功能：
+    - 并行版本：并发调用 AI 接口生成/编辑所有 PPT 页面
     - 若 state.gen_down == False：批量生成/编辑每页 PPT 图，保存到统一目录
     - 若 state.gen_down == True：按 0-based edit_page_num 对已有页面图做二次编辑（edit_page_prompt）
     """
@@ -257,14 +259,11 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
 
     async def generate_pages(state: Paper2FigureState) -> Paper2FigureState:
         """
-        批量生成/编辑页面图：
+        批量生成/编辑页面图（并行版本）：
         - pagecontent 是结构化 list[dict]：按 asset 规则决定 text2img / img2img
         - pagecontent 直接是图片路径列表：逐页用“修改成xxx风格”编辑
-
-        出错时的处理策略：
-        - 调用底层图像生成函数最多重试 3 次；
-        - 若 3 次都失败，则跳过当前页，继续后面的页；
-        - 不中断整个 workflow，最终仍然导出已有页面到 PDF/PPTX。
+        
+        并发调用：使用 asyncio.gather 同时处理所有页面。
         """
         import asyncio
 
@@ -300,17 +299,21 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
 
         # 清空旧数据（避免重复执行堆积）
         state.generated_pages = []
-        new_pagecontent: List[Dict[str, Any]] = []
-
-        for idx, item in enumerate(state.pagecontent or []):
+        
+        # 定义单个页面处理任务
+        async def _process_single_page(idx: int, item: Any) -> Dict[str, Any]:
+            """
+            处理单个页面：返回生成的 result item (dict)。
+            如果失败，result item 中的 generated_img_path 为 None。
+            """
+            save_path = str((img_dir / f"page_{idx:03d}.png").resolve())
+            
             # Case B: pagecontent 本身就是图片路径
             direct_img_path = _extract_image_path_from_pagecontent_item(item)
             is_direct_image_list = bool(direct_img_path) and (
                 isinstance(item, str)
                 or (isinstance(item, dict) and set(item.keys()).intersection({"ppt_img_path", "img_path", "path", "image_path"}))
             )
-
-            save_path = str((img_dir / f"page_{idx:03d}.png").resolve())
 
             if is_direct_image_list and (not isinstance(item, dict) or ("title" not in item and "layout_description" not in item)):
                 # 规则 2：只做风格化编辑
@@ -339,48 +342,46 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
                     )
                 )
                 if not ok:
-                    # 记录失败信息，但不中断；不把该页加入 generated_pages/new_pagecontent
-                    new_pagecontent.append(
-                        {
-                            "source_img_path": image_path,
-                            "generated_img_path": None,
-                            "page_idx": idx,
-                            "mode": "edit_direct_image_failed",
-                            "style": style,
-                        }
-                    )
-                    continue
-
-                state.generated_pages.append(save_path)
-                new_pagecontent.append(
-                    {
+                    # 记录失败信息
+                    return {
                         "source_img_path": image_path,
-                        "generated_img_path": save_path,
+                        "generated_img_path": None,
                         "page_idx": idx,
-                        "mode": "edit_direct_image",
+                        "mode": "edit_direct_image_failed",
                         "style": style,
                     }
-                )
-                continue
+
+                return {
+                    "source_img_path": image_path,
+                    "generated_img_path": save_path,
+                    "page_idx": idx,
+                    "mode": "edit_direct_image",
+                    "style": style,
+                }
 
             # Case A: 结构化页面
             if not isinstance(item, dict):
                 log.warning(f"[paper2ppt] page={idx} 非 dict 且非 image path，跳过。item={item}")
-                continue
+                return {
+                    "page_idx": idx,
+                    "mode": "invalid_item_skipped",
+                    "generated_img_path": None,
+                }
 
             try:
+                # 注意：_make_prompt_for_structured_page 可能是 async 的，因为它可能调用 table_extractor agent
                 prompt, image_path, use_edit = await _make_prompt_for_structured_page(item, style=style, state=state)
             except Exception as e:  # noqa: BLE001
                 log.error(f"[paper2ppt] page={idx} prompt 构造失败: {e}")
-                # prompt 都构造不出来，直接记录失败并跳过本页
                 failed_item = dict(item)
-                failed_item["generated_img_path"] = None
-                failed_item["page_idx"] = idx
-                failed_item["mode"] = "prompt_build_failed"
-                failed_item["style"] = style
-                failed_item["error"] = str(e)
-                new_pagecontent.append(failed_item)
-                continue
+                failed_item.update({
+                    "generated_img_path": None,
+                    "page_idx": idx,
+                    "mode": "prompt_build_failed",
+                    "style": style,
+                    "error": str(e),
+                })
+                return failed_item
 
             log.info(
                 f"[paper2ppt] page={idx} structured: use_edit={use_edit}, "
@@ -400,23 +401,70 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
                 )
             )
             if not ok:
-                # 记录失败信息，但不中断；不写入 generated_pages
                 failed_item = dict(item)
-                failed_item["generated_img_path"] = None
-                failed_item["page_idx"] = idx
-                failed_item["mode"] = "generate_failed" if not use_edit else "edit_failed"
-                failed_item["style"] = style
-                new_pagecontent.append(failed_item)
-                continue
+                failed_item.update({
+                    "generated_img_path": None,
+                    "page_idx": idx,
+                    "mode": "generate_failed" if not use_edit else "edit_failed",
+                    "style": style,
+                })
+                return failed_item
 
-            state.generated_pages.append(save_path)
-            # 透传原始结构化信息，并写入生成结果
+            # 成功
             out_item = dict(item)
-            out_item["generated_img_path"] = save_path
-            out_item["page_idx"] = idx
-            out_item["mode"] = "edit" if use_edit else "generate"
-            out_item["style"] = style
-            new_pagecontent.append(out_item)
+            out_item.update({
+                "generated_img_path": save_path,
+                "page_idx": idx,
+                "mode": "edit" if use_edit else "generate",
+                "style": style,
+            })
+            return out_item
+
+        # -----------------------------------------------------------
+        # 并发执行逻辑
+        # -----------------------------------------------------------
+        page_items = state.pagecontent or []
+        tasks = []
+        for idx, item in enumerate(page_items):
+            tasks.append(_process_single_page(idx, item))
+        
+        log.info(f"[paper2ppt_parallel] start generating {len(tasks)} pages concurrently...")
+        start_time = time.time()
+        
+        # 使用 gather 并发执行所有任务
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        cost_time = time.time() - start_time
+        log.info(f"[paper2ppt_parallel] all pages finished. cost={cost_time:.2f}s")
+
+        # 整理结果
+        new_pagecontent: List[Dict[str, Any]] = []
+        state.generated_pages = []
+
+        for i, res in enumerate(results):
+            if isinstance(res, Exception):
+                # 理论上 _process_single_page 内部捕获了大部分异常，这里是防漏
+                log.error(f"[paper2ppt_parallel] page {i} unhandled exception: {res}")
+                # 构造一个失败项
+                failed_item = dict(page_items[i]) if isinstance(page_items[i], dict) else {"raw_item": str(page_items[i])}
+                failed_item.update({
+                    "generated_img_path": None,
+                    "page_idx": i,
+                    "mode": "unhandled_exception",
+                    "error": str(res)
+                })
+                new_pagecontent.append(failed_item)
+            else:
+                # res 是 dict
+                res_dict = res  # type: ignore
+                new_pagecontent.append(res_dict)
+                gen_path = res_dict.get("generated_img_path")
+
+                if gen_path:
+                    state.generated_pages.append(gen_path)
+                else:
+                    # 占位，防止索引错位
+                    state.generated_pages.append("")
 
         state.pagecontent = new_pagecontent
         state.gen_down = True
@@ -436,28 +484,23 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
         if idx < 0:
             raise ValueError("[paper2ppt] edit_page_num 必须是 0-based 且 >=0")
         
-        # 允许 prompt 为空（前端可能只传了 page_id 来重新生成），此时使用默认强化提示词
-        # if not prompt:
-        #     raise ValueError("[paper2ppt] edit_page_prompt 不能为空")
-
         # 取出原图路径：优先 generated_pages，其次 pagecontent[i].ppt_img_path
         old_path: Optional[str] = None
         
         # Debug log
         log.info(f"[paper2ppt] edit_single_page: idx={idx}")
-        log.info(f"[paper2ppt] generated_pages={getattr(state, 'generated_pages', None)}")
-        log.info(f"[paper2ppt] pagecontent length={len(state.pagecontent or [])}")
-        if state.pagecontent and idx < len(state.pagecontent):
-            log.info(f"[paper2ppt] pagecontent[{idx}]={state.pagecontent[idx]}")
+        # log.info(f"[paper2ppt] generated_pages={getattr(state, 'generated_pages', None)}")
         
         if getattr(state, "generated_pages", None) and idx < len(state.generated_pages):
             old_path = state.generated_pages[idx]
             log.info(f"[paper2ppt] got old_path from generated_pages: {old_path}")
+        
         if not old_path and idx < len(state.pagecontent or []):
             it = state.pagecontent[idx]
             if isinstance(it, dict):
                 old_path = it.get("generated_img_path") or it.get("ppt_img_path") or it.get("img_path")
                 log.info(f"[paper2ppt] got old_path from pagecontent: {old_path}")
+        
         if not old_path:
             raise ValueError(f"[paper2ppt] 找不到要编辑的页图路径: idx={idx}")
 
@@ -489,7 +532,6 @@ def create_paper2ppt_graph() -> GenericGraphBuilder:  # noqa: N802
             )
 
         log.info(f"[paper2ppt] edit_single_page idx={idx} old={old_path} save={save_path}")
-
         log.critical(f'[full_prompt] {full_prompt}')
 
         await generate_or_edit_and_save_image_async(
