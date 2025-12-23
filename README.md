@@ -595,7 +595,7 @@ git clone https://github.com/OpenDCAI/DataFlow-Agent.git
 cd DataFlow-Agent
 
 # 2. 安装基础依赖
-pip install -r requirements.txt
+pip install -r requirements-base.txt
 
 # 3. 开发模式安装
 pip install -e .
@@ -615,6 +615,17 @@ conda install -c conda-forge tectonic -y
 # inkscape：用于 SVG / 矢量图处理（Ubuntu 示例）
 sudo apt-get update
 sudo apt-get install -y inkscape
+```
+
+##### 2.1 PPT / PDF 相关系统依赖（Paper2PPT 与 PPT 美化推荐安装）
+
+如果你需要使用 **Paper2PPT / PPT 智能美化 / PDF2PPT** 等功能，建议在 Linux 下额外安装以下系统依赖（以 Ubuntu 为例）：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libreoffice        # 用于 PPT 打开 / 转换等操作
+sudo apt-get install -y poppler-utils      # 提供 pdftoppm / pdftocairo 等 PDF 工具
+sudo apt-get install -y wkhtmltopdf        # HTML 转 PDF，部分版式转换场景会用到
 ```
 
 #### 3. 配置环境变量
@@ -683,9 +694,11 @@ export default defineConfig({
 > - 当你部署了前端，还需要**手动新建**一个 `invite_codes.txt` 文件，并写入你的邀请码（例如：`ABCDEFG123456`）。
 > - 然后再启动后端；
 > - 如果暂时不想部署前后端，可以先通过本地脚本体验 Paper2Any 的核心能力：
->   - `python tests/test_paper2figure_with_sam.py`：模型架构图生成
->   - `python tests/test_paper2technical.py`：技术路线图生成
->   - `python tests/test_paper2beamer.py`：Beamer PPT 生成
+>   - `python script/run_paper2figure.py`：模型架构图生成
+>   - `python script/run_paper2expfigure.py`：实验数据图生成
+>   - `python script/run_paper2technical.py`：技术路线图生成
+>   - `python script/run_paper2ppt.py`：论文内容生成可编辑 PPT
+>   - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`：PDF2PPT（保留版式 + 可编辑内容）
 
 **特点**：
 - ✨ 现代化 UI 设计
@@ -744,7 +757,7 @@ DataFlow-Agent/
 ## 📐 项目架构
 
 <div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/projs_dist.png" alt="项目架构图" width="800"/>
+<img src="static/projs_dist.png" alt="项目架构图" width="800"/>
 <br><sub>DataFlow-Agent 延伸的核心应用：Paper2Any（论文多模态工作流）、Easy-DataFlow（数据治理管线）</sub>
 </div>
 

@@ -609,6 +609,17 @@ sudo apt-get update
 sudo apt-get install -y inkscape
 ```
 
+#### PPT / PDF related system dependencies (recommended for Paper2PPT & PPT polishing)
+
+If you plan to use **Paper2PPT / PPT polishing / PDF2PPT** features, we recommend installing the following packages on Linux (Ubuntu example):
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libreoffice       # Office / PPT operations
+sudo apt-get install -y poppler-utils     # PDF utilities (pdftoppm, pdftocairo, etc.)
+sudo apt-get install -y wkhtmltopdf       # HTML to PDF, used in some layout conversion workflows
+```
+
 ### Environment Configuration
 
 ```bash
@@ -669,9 +680,11 @@ Visit `http://localhost:3000`
 > - After you have deployed the frontend, you also need to **manually create** an `invite_codes.txt` file at the project root and write your invitation code inside (e.g. `ABCDEFG123456`).
 > - Then start the backend.
 > - If you don’t want to deploy the frontend/backend for now, you can still try the core Paper2Any features locally via:
->   - `python tests/test_paper2figure_with_sam.py`: model architecture diagram generation
->   - `python tests/test_paper2technical.py`: technical roadmap generation
->   - `python tests/test_paper2video.py`: Beamer PPT slide generation
+>   - `python script/run_paper2figure.py`: model architecture diagram generation
+>   - `python script/run_paper2expfigure.py`: experimental figure generation
+>   - `python script/run_paper2technical.py`: technical roadmap generation
+>   - `python script/run_paper2ppt.py`: content-based PPT generation
+>   - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`: PDF2PPT (layout-preserving & editable)
 
 **Features**:
 - ✨ Modern UI design
