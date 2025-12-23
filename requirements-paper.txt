@@ -18,7 +18,7 @@
 # Paper2Figure
 pdfplumber
 transformers==4.57.3
-mineru[core]
+# mineru[core]
 mineru-vl-utils
 python-pptx
 PyPDF2

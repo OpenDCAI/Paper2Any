@@ -86,3 +86,4 @@ opencv-python
 # speech
 librosa
 soundfile
+python-pptx
