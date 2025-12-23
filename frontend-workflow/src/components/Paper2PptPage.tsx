@@ -1170,10 +1170,15 @@ const Paper2PptPage = () => {
           
           <div className="relative max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-start">
-              <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
+              <a
+                href="https://github.com/OpenDCAI"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 hover:bg-white/30 transition-colors"
+              >
                 <Star size={16} className="text-yellow-300 fill-yellow-300 animate-pulse" />
-                <span className="text-xs font-bold text-white">开源项目</span>
-              </div>
+                <span className="text-xs font-bold text-white">GitHub开源项目</span>
+              </a>
               
               <span className="text-sm font-medium text-white">
                 🚀 探索更多 AI 数据处理工具
@@ -1189,7 +1194,7 @@ const Paper2PptPage = () => {
               >
                 <Github size={14} />
                 <span>DataFlow</span>
-                {stars.dataflow !== null && <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.dataflow}</span>}
+                <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
                 <span className="bg-purple-600 text-white px-2 py-0.5 rounded-full text-[10px]">HOT</span>
               </a>
 
@@ -1201,7 +1206,7 @@ const Paper2PptPage = () => {
               >
                 <Github size={14} />
                 <span>DataFlow-Agent</span>
-                {stars.agent !== null && <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.agent}</span>}
+                <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.agent || 'Star'}</span>
                 <span className="bg-pink-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
               </a>
 
