@@ -55,9 +55,8 @@
 ## 🔥 News
 
 > [!TIP]
-> 🆕 <strong>2025-12-12 · Paper2Figure 网页端内测上线（需邀请码）</strong><br>
+> 🆕 <strong>2025-12-12 · Paper2Figure 网页端公测上线</strong><br>
 > 支持一键生成多种<strong>可编辑</strong>科研绘图（模型架构图 / 技术路线图 / 实验数据图）<br>
-> 📧 邀请码申请（限前 50 名）：<a href="mailto:liuzhou225919@163.com">liuzhou225919@163.com</a><br>
 > 🌐 在线体验：<a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
 
 - 2024-09-01 · 发布 <code>0.1.0</code> 首个版本（详见 <a href="docs/changelog.md">changelog</a>）

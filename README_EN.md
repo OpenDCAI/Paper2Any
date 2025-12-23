@@ -52,9 +52,8 @@ English | [中文](README.md)
 <tr>
 <td width="120"><strong>2025.12.12</strong></td>
 <td>
-🎉 <strong>Paper2Figure Web beta is live</strong> (invitation code required)<br>
+🎉 <strong>Paper2Figure Web public beta is live</strong><br>
 One-click generation of multiple <strong>editable</strong> scientific figures, including model architecture diagrams, technical roadmap diagrams, and experimental plots.<br>
-📧 <strong>Contact via email for invitation code</strong> (limited to first 50 users): <a href="mailto:liuzhou225919@163.com">liuzhou225919@163.com</a><br>
 👉 URL: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
 </td>
 </tr>
