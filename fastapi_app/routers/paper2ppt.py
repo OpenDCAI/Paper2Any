@@ -90,8 +90,8 @@ async def paper2ppt_pagecontent_json(
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
     invite_code: Optional[str] = Form(None),
-    # 输入相关：支持 text/pdf/pptx
-    input_type: str = Form(...),  # 'text' | 'pdf' | 'pptx'
+    # 输入相关：支持 text/pdf/pptx/topic
+    input_type: str = Form(...),  # 'text' | 'pdf' | 'pptx' | 'topic'
     file: Optional[UploadFile] = File(None),
     text: Optional[str] = Form(None),
     # 可选控制参数（对 pagecontent 也可能有用）
@@ -153,8 +153,15 @@ async def paper2ppt_pagecontent_json(
         (input_dir / "input.txt").resolve().write_text(text, encoding="utf-8")
         wf_input_type = "TEXT"
         wf_input_content = text
+    elif norm_input_type == "topic":
+        if not text:
+            raise HTTPException(status_code=400, detail="text (topic) is required when input_type is 'topic'")
+            
+        (input_dir / "input_topic.txt").resolve().write_text(text, encoding="utf-8")
+        wf_input_type = "TOPIC"
+        wf_input_content = text
     else:
-        raise HTTPException(status_code=400, detail="invalid input_type, must be one of: text, pdf, pptx")
+        raise HTTPException(status_code=400, detail="invalid input_type, must be one of: text, pdf, pptx, topic")
 
     p2ppt_req = Paper2PPTRequest(
         language=language,

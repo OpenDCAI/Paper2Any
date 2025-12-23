@@ -71,6 +71,29 @@ const Paper2FigurePage = () => {
   const [allOutputFiles, setAllOutputFiles] = useState<string[]>([]);
   const [showOutputPanel, setShowOutputPanel] = useState(false);
 
+  // GitHub Stars
+  const [stars, setStars] = useState<{dataflow: number | null, agent: number | null}>({ dataflow: null, agent: null });
+
+  useEffect(() => {
+    const fetchStars = async () => {
+      try {
+        const [res1, res2] = await Promise.all([
+          fetch('https://api.github.com/repos/OpenDCAI/DataFlow'),
+          fetch('https://api.github.com/repos/OpenDCAI/DataFlow-Agent')
+        ]);
+        const data1 = await res1.json();
+        const data2 = await res2.json();
+        setStars({
+          dataflow: data1.stargazers_count,
+          agent: data2.stargazers_count
+        });
+      } catch (e) {
+        console.error('Failed to fetch stars', e);
+      }
+    };
+    fetchStars();
+  }, []);
+
   // 根据邀请码拉取历史文件列表（所有 graph_type）
   const fetchHistoryFiles = async (code: string) => {
     const invite = code.trim();
@@ -435,10 +458,15 @@ const Paper2FigurePage = () => {
           
           <div className="relative max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-start">
-              <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
+              <a
+                href="https://github.com/OpenDCAI"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 hover:bg-white/30 transition-colors"
+              >
                 <Star size={16} className="text-yellow-300 fill-yellow-300 animate-pulse" />
-                <span className="text-xs font-bold text-white">开源项目</span>
-              </div>
+                <span className="text-xs font-bold text-white">GitHub开源项目</span>
+              </a>
               
               <span className="text-sm font-medium text-white">
                 🚀 探索更多 AI 数据处理工具
@@ -454,6 +482,7 @@ const Paper2FigurePage = () => {
               >
                 <Github size={14} />
                 <span>DataFlow</span>
+                <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
                 <span className="bg-purple-600 text-white px-2 py-0.5 rounded-full text-[10px]">HOT</span>
               </a>
 
@@ -465,6 +494,7 @@ const Paper2FigurePage = () => {
               >
                 <Github size={14} />
                 <span>DataFlow-Agent</span>
+                <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.agent || 'Star'}</span>
                 <span className="bg-pink-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
               </a>
 

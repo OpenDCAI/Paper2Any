@@ -1,9 +1,9 @@
-import { useState, ChangeEvent } from 'react';
+import { useState, useEffect, ChangeEvent } from 'react';
 import { 
   UploadCloud, Settings2, Download, Loader2, CheckCircle2, 
   AlertCircle, ChevronDown, ChevronUp, Github, Star, X, Sparkles,
   ArrowRight, ArrowLeft, GripVertical, Trash2, Edit3, Check, RotateCcw,
-  MessageSquare, RefreshCw, FileText, Key, Globe, Cpu
+  MessageSquare, RefreshCw, FileText, Key, Globe, Cpu, Type, Lightbulb
 } from 'lucide-react';
 
 // ============== 类型定义 ==============
@@ -32,6 +32,8 @@ const Paper2PptPage = () => {
   const [currentStep, setCurrentStep] = useState<Step>('upload');
   
   // Step 1: 上传相关状态
+  const [uploadMode, setUploadMode] = useState<'file' | 'text' | 'topic'>('file');
+  const [textContent, setTextContent] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [stylePreset, setStylePreset] = useState<'modern' | 'business' | 'academic' | 'creative'>('modern');
@@ -72,6 +74,29 @@ const Paper2PptPage = () => {
   const [language, setLanguage] = useState<'zh' | 'en'>('zh');
   const [resultPath, setResultPath] = useState<string | null>(null);
 
+  // GitHub Stars
+  const [stars, setStars] = useState<{dataflow: number | null, agent: number | null}>({ dataflow: null, agent: null });
+
+  useEffect(() => {
+    const fetchStars = async () => {
+      try {
+        const [res1, res2] = await Promise.all([
+          fetch('https://api.github.com/repos/OpenDCAI/DataFlow'),
+          fetch('https://api.github.com/repos/OpenDCAI/DataFlow-Agent')
+        ]);
+        const data1 = await res1.json();
+        const data2 = await res2.json();
+        setStars({
+          dataflow: data1.stargazers_count,
+          agent: data2.stargazers_count
+        });
+      } catch (e) {
+        console.error('Failed to fetch stars', e);
+      }
+    };
+    fetchStars();
+  }, []);
+
   // ============== Step 1: 上传处理 ==============
   const validateDocFile = (file: File): boolean => {
     const ext = file.name.split('.').pop()?.toLowerCase();
@@ -99,10 +124,15 @@ const Paper2PptPage = () => {
   };
 
   const handleUploadAndParse = async () => {
-    if (!selectedFile) {
+    if (uploadMode === 'file' && !selectedFile) {
       setError('请先选择 PDF 文件');
       return;
     }
+    if ((uploadMode === 'text' || uploadMode === 'topic') && !textContent.trim()) {
+      setError(uploadMode === 'text' ? '请输入长文本内容' : '请输入 Topic 主题');
+      return;
+    }
+    
     // if (!inviteCode.trim()) {
     //   setError('请输入邀请码');
     //   return;
@@ -117,8 +147,14 @@ const Paper2PptPage = () => {
     
     try {
       const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('input_type', 'pdf');
+      if (uploadMode === 'file' && selectedFile) {
+        formData.append('file', selectedFile);
+        formData.append('input_type', 'pdf');
+      } else {
+        formData.append('text', textContent.trim());
+        formData.append('input_type', uploadMode); // 'text' or 'topic'
+      }
+      
       formData.append('invite_code', inviteCode.trim());
       formData.append('chat_api_url', llmApiUrl.trim());
       formData.append('api_key', apiKey.trim());
@@ -128,7 +164,7 @@ const Paper2PptPage = () => {
       formData.append('gen_fig_model', genFigModel);
       formData.append('page_count', String(pageCount));
       
-      console.log('Sending request to /api/paper2ppt/pagecontent_json with input_type=pdf');
+      console.log(`Sending request to /api/paper2ppt/pagecontent_json with input_type=${uploadMode}`);
       
       const res = await fetch('/api/paper2ppt/pagecontent_json', {
         method: 'POST',
@@ -170,7 +206,7 @@ const Paper2PptPage = () => {
       }
       
       if (!data.pagecontent || data.pagecontent.length === 0) {
-        throw new Error('解析结果为空，请检查 PDF 文件是否正确');
+        throw new Error('解析结果为空，请检查输入内容是否正确');
       }
       
       const convertedSlides: SlideOutline[] = data.pagecontent.map((item: any, index: number) => ({
@@ -624,43 +660,94 @@ const Paper2PptPage = () => {
           </span>
         </h1>
         <p className="text-base text-gray-300 max-w-2xl mx-auto leading-relaxed">
-          上传论文 PDF，AI 智能分析内容并生成精美幻灯片。<br />
+          上传论文 PDF 或输入 Topic，AI 智能分析内容并生成精美幻灯片。<br />
           <span className="text-purple-400">支持逐页编辑、重新生成，打造完美演示文稿！</span>
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 左侧：上传区域 */}
-        <div className="glass rounded-xl border border-white/10 p-6">
-          <h3 className="text-white font-semibold flex items-center gap-2 mb-4">
-            <FileText size={18} className="text-purple-400" /> 上传论文 PDF
-          </h3>
-          <div 
-            className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center gap-4 transition-all ${
-              isDragOver ? 'border-purple-500 bg-purple-500/10' : 'border-white/20 hover:border-purple-400'
-            }`} 
-            onDragOver={e => { e.preventDefault(); setIsDragOver(true); }} 
-            onDragLeave={e => { e.preventDefault(); setIsDragOver(false); }} 
-            onDrop={handleDrop}
-          >
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
-              <UploadCloud size={32} className="text-purple-400" />
-            </div>
-            <div>
-              <p className="text-white font-medium mb-1">拖拽论文 PDF 到此处</p>
-              <p className="text-sm text-gray-400">仅支持 PDF 格式</p>
-            </div>
-            <label className="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-medium cursor-pointer hover:from-purple-700 hover:to-pink-700 transition-all">
-              选择文件
-              <input type="file" accept=".pdf" className="hidden" onChange={handleFileChange} />
-            </label>
-            {selectedFile && (
-              <div className="px-4 py-2 bg-purple-500/20 border border-purple-500/40 rounded-lg">
-                <p className="text-sm text-purple-300">✓ {selectedFile.name}</p>
-                <p className="text-xs text-gray-400 mt-1">✨ 将分析论文内容生成 PPT</p>
-              </div>
-            )}
+        {/* 左侧：输入区域 */}
+        <div className="glass rounded-xl border border-white/10 p-6 relative overflow-hidden">
+          {/* 装饰背景光 */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-1 bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-50 blur-sm"></div>
+
+          {/* 炫酷模式切换 Tabs */}
+          <div className="grid grid-cols-3 gap-3 mb-6 p-1.5 bg-black/40 rounded-2xl border border-white/5">
+            {[
+              { id: 'file', label: '上传文件', icon: FileText, sub: 'PDF' },
+              { id: 'text', label: '长文本', icon: Type, sub: 'Paste Content' },
+              { id: 'topic', label: 'Topic', icon: Lightbulb, sub: 'Deep Research' },
+            ].map((item) => (
+              <button 
+                key={item.id}
+                onClick={() => setUploadMode(item.id as any)}
+                className={`relative group flex flex-col items-center justify-center py-3 rounded-xl transition-all duration-300 overflow-hidden ${
+                  uploadMode === item.id 
+                    ? 'bg-gradient-to-br from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/30 scale-[1.02] ring-1 ring-white/20' 
+                    : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200 hover:scale-[1.02]'
+                }`}
+              >
+                {/* 选中态的光效扫光动画 */}
+                {uploadMode === item.id && (
+                  <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-shimmer-fast"></div>
+                )}
+                
+                <item.icon size={22} className={`mb-1.5 transition-colors ${uploadMode === item.id ? 'text-white' : 'text-gray-500 group-hover:text-purple-400'}`} />
+                <span className={`text-sm font-bold tracking-wide ${uploadMode === item.id ? 'text-white' : 'text-gray-300'}`}>{item.label}</span>
+                <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === item.id ? 'text-purple-100' : 'text-gray-600'}`}>{item.sub}</span>
+              </button>
+            ))}
           </div>
+
+          <div className="mb-3 flex items-center gap-2 px-1">
+            <span className="w-1 h-4 rounded-full bg-purple-500"></span>
+            <h3 className="text-white font-medium text-sm">
+              {uploadMode === 'file' ? '请上传您的 PDF 论文或 PPT' : uploadMode === 'text' ? '请输入需要生成 PPT 的长文本' : '请输入研究主题 (Topic)'}
+            </h3>
+          </div>
+
+          {uploadMode === 'file' ? (
+            <div 
+              className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center gap-4 transition-all h-[300px] ${
+                isDragOver ? 'border-purple-500 bg-purple-500/10' : 'border-white/20 hover:border-purple-400'
+              }`} 
+              onDragOver={e => { e.preventDefault(); setIsDragOver(true); }} 
+              onDragLeave={e => { e.preventDefault(); setIsDragOver(false); }} 
+              onDrop={handleDrop}
+            >
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
+                <UploadCloud size={32} className="text-purple-400" />
+              </div>
+              <div>
+                <p className="text-white font-medium mb-1">拖拽论文 PDF 到此处</p>
+                <p className="text-sm text-gray-400">仅支持 PDF 格式</p>
+              </div>
+              <label className="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-medium cursor-pointer hover:from-purple-700 hover:to-pink-700 transition-all">
+                选择文件
+                <input type="file" accept=".pdf" className="hidden" onChange={handleFileChange} />
+              </label>
+              {selectedFile && (
+                <div className="px-4 py-2 bg-purple-500/20 border border-purple-500/40 rounded-lg">
+                  <p className="text-sm text-purple-300">✓ {selectedFile.name}</p>
+                  <p className="text-xs text-gray-400 mt-1">✨ 将分析论文内容生成 PPT</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col h-[300px]">
+              <textarea
+                value={textContent}
+                onChange={e => setTextContent(e.target.value)}
+                placeholder={uploadMode === 'text' 
+                  ? "请在此处粘贴长文本内容，我们将为您生成 PPT 大纲..." 
+                  : "请输入一个主题 (Topic)，我们将自动进行深度搜索并生成 PPT..."}
+                className="flex-1 w-full rounded-xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+              />
+              <p className="text-xs text-gray-500 mt-2 text-right">
+                {uploadMode === 'text' ? `${textContent.length} 字符` : 'Deep Research Agent 将为您扩展内容'}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* 右侧：配置区域 */}
@@ -787,13 +874,13 @@ const Paper2PptPage = () => {
 
           <button 
             onClick={handleUploadAndParse} 
-            disabled={!selectedFile || isUploading} 
+            disabled={(uploadMode === 'file' && !selectedFile) || ((uploadMode === 'text' || uploadMode === 'topic') && !textContent.trim()) || isUploading} 
             className="w-full py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold flex items-center justify-center gap-2 transition-all"
           >
             {isUploading ? (
-              <><Loader2 size={18} className="animate-spin" /> 解析中...</>
+              <><Loader2 size={18} className="animate-spin" /> {uploadMode === 'topic' ? '深度研究中...' : '解析中...'}</>
             ) : (
-              <><ArrowRight size={18} /> 开始解析</>
+              <><ArrowRight size={18} /> {uploadMode === 'topic' ? '开始 Research' : '开始解析'}</>
             )}
           </button>
         </div>
@@ -1083,10 +1170,15 @@ const Paper2PptPage = () => {
           
           <div className="relative max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-start">
-              <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
+              <a
+                href="https://github.com/OpenDCAI"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 hover:bg-white/30 transition-colors"
+              >
                 <Star size={16} className="text-yellow-300 fill-yellow-300 animate-pulse" />
-                <span className="text-xs font-bold text-white">开源项目</span>
-              </div>
+                <span className="text-xs font-bold text-white">GitHub开源项目</span>
+              </a>
               
               <span className="text-sm font-medium text-white">
                 🚀 探索更多 AI 数据处理工具
@@ -1102,6 +1194,7 @@ const Paper2PptPage = () => {
               >
                 <Github size={14} />
                 <span>DataFlow</span>
+                <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
                 <span className="bg-purple-600 text-white px-2 py-0.5 rounded-full text-[10px]">HOT</span>
               </a>
 
@@ -1113,6 +1206,7 @@ const Paper2PptPage = () => {
               >
                 <Github size={14} />
                 <span>DataFlow-Agent</span>
+                <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.agent || 'Star'}</span>
                 <span className="bg-pink-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
               </a>
 
@@ -1145,6 +1239,9 @@ const Paper2PptPage = () => {
         }
         .animate-shimmer {
           animation: shimmer 3s infinite;
+        }
+        .animate-shimmer-fast {
+          animation: shimmer 1.5s infinite;
         }
         .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); }
         .demo-input-placeholder {
