@@ -24,7 +24,7 @@ python-pptx
 PyPDF2
 kornia 
 timm
-
+lmdb>=1.4.1
 
 cairosvg
 vtracer
@@ -32,6 +32,7 @@ ultralytics
 transformers
 scikit-image
 pdf2image
+imgaug>=0.4.0
 
 pillow
 # pytesseract  # 已改用 PaddleOCR
