@@ -332,7 +332,7 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
             )
             return state
 
-        mineru_port = 8001  # MinerU 服务端口
+        mineru_port = 8010  # MinerU 服务端口
 
         if getattr(state, "agent_results", None) is None:
             state.agent_results = {}

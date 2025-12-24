@@ -30,7 +30,7 @@ from dataflow_agent.logger import get_logger
 
 from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
 from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove, local_tool_for_raster_to_svg, free_bg_rm_model
-from dataflow_agent.toolkits.imtool.sam_tool import segment_layout_boxes, free_sam_model
+from dataflow_agent.toolkits.imtool.sam_tool import segment_layout_boxes, segment_layout_boxes_server, free_sam_model
 from dataflow_agent.toolkits.imtool.mineru_tool import (
     svg_to_emf,
     recursive_mineru_layout,
@@ -267,21 +267,40 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         out_dir.mkdir(parents=True, exist_ok=True)
 
         sam_ckpt = f'{get_project_root()}/sam_b.pt'
-        # 1. SAM 分割 + 过滤 + 裁剪子图
-        layout_items = segment_layout_boxes(
-            image_path      = str(img_path),
-            output_dir      = str(out_dir),
-            checkpoint      = sam_ckpt,
-            # 这里的参数可以根据 mask_detail_level 调整
-            min_area        = 200,
-            min_score       = 0.0,
-            iou_threshold   = 0.2,
-            top_k           = 15,
-            nms_by          = "mask",
-        )
+        # SAM LB Port 8020
+        sam_server_urls = ["http://localhost:8020"]
+
+        # 1. SAM 分割 + 过滤 + 裁剪子图 (优先使用远程服务)
+        try:
+            layout_items = segment_layout_boxes_server(
+                image_path      = str(img_path),
+                output_dir      = str(out_dir),
+                server_urls     = sam_server_urls,
+                checkpoint      = sam_ckpt,
+                min_area        = 200,
+                min_score       = 0.0,
+                iou_threshold   = 0.2,
+                top_k           = 15,
+                nms_by          = "mask",
+            )
+        except Exception as e:
+            log.error(f"[figure_layout_sam] Remote SAM failed: {e}. Fallback to local.")
+            # Fallback to local if server fails
+            layout_items = segment_layout_boxes(
+                image_path      = str(img_path),
+                output_dir      = str(out_dir),
+                checkpoint      = sam_ckpt,
+                # 这里的参数可以根据 mask_detail_level 调整
+                min_area        = 200,
+                min_score       = 0.0,
+                iou_threshold   = 0.2,
+                top_k           = 15,
+                nms_by          = "mask",
+            )
+            # 只有本地运行时才需要手动释放模型
+            free_sam_model(checkpoint= sam_ckpt)
+
         log.info(f"[figure_layout_sam] SAM 分割结果: {len(layout_items)} 个布局元素")
-        # 3. 释放 SAM 模型占用的显存
-        free_sam_model(checkpoint= sam_ckpt)
 
         # layout 图实际像素尺寸，用于把归一化 bbox 转为像素 bbox
         try:
@@ -355,8 +374,8 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         out_dir.mkdir(parents=True, exist_ok=True)
         log.info(f"[figure_mask] MinerU 输出目录: {out_dir}")
 
-        # MinerU 端口：优先从 state.request.mineru_port 读取，默认 8001
-        port = getattr(state.request, "mineru_port", 8001)
+        # MinerU 端口：优先从 state.request.mineru_port 读取，默认 8010
+        port = getattr(state.request, "mineru_port", 8010)
         max_depth = getattr(state, "mask_detail_level", 3)
 
         log.critical(f"mask detail level : {max_depth} ")
@@ -676,6 +695,22 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             # 设置PPT尺寸，依据原始带内容图
             img = Image.open(state.fig_draft_path)
             width_px, height_px = img.size
+
+            # --- 检查尺寸并计算缩放 (PPT限制56英寸) ---
+            max_ppt_inches = 56.0
+            dpi = 96.0
+            max_pixels = int(max_ppt_inches * dpi)
+            
+            scale_ratio = 1.0
+            if width_px > max_pixels or height_px > max_pixels:
+                scale_ratio = max_pixels / max(width_px, height_px)
+                # 留点余量，避免临界值误差
+                scale_ratio *= 0.99 
+                log.warning(f"[figure_ppt_generation] Image size ({width_px}x{height_px}) exceeds PPT limit. Scaling by {scale_ratio:.4f}")
+                
+                width_px = int(width_px * scale_ratio)
+                height_px = int(height_px * scale_ratio)
+
             slide_width_px, slide_height_px = setup_presentation_size(prs, width_px, height_px)
 
             # 空白布局
@@ -699,8 +734,16 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
                     return False
 
                 x1, y1, x2, y2 = bbox
+
+                # 应用缩放
+                if scale_ratio != 1.0:
+                    x1 = int(x1 * scale_ratio)
+                    y1 = int(y1 * scale_ratio)
+                    x2 = int(x2 * scale_ratio)
+                    y2 = int(y2 * scale_ratio)
+
                 if x2 <= x1 or y2 <= y1:
-                    log.warning(f"[figure_ppt_generation] 非法 bbox 像素坐标: {bbox}")
+                    log.warning(f"[figure_ppt_generation] 非法 bbox 像素坐标: {bbox} (scaled)")
                     return False
 
                 # 像素 → 英寸，完全沿用 utils.pixels_to_inches 的规则
@@ -748,13 +791,22 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             img_drawn = 0
             text_drawn = 0
             for element in state.fig_mask or []:
-                elem_type = element.get('type', '')
+                # 应用缩放 (使用副本以免修改原数据)
+                element_copy = element.copy()
+                if scale_ratio != 1.0:
+                    old_bbox = element_copy.get('bbox', [0,0,0,0])
+                    if len(old_bbox) == 4:
+                        element_copy['bbox'] = [
+                            int(val * scale_ratio) for val in old_bbox
+                        ]
+
+                elem_type = element_copy.get('type', '')
 
                 if elem_type == 'text':
-                    add_text_element(slide_main, element)
+                    add_text_element(slide_main, element_copy)
                     text_drawn += 1
                 elif elem_type in ['image', 'table']:
-                    add_image_element(slide_main, element)
+                    add_image_element(slide_main, element_copy)
                     img_drawn += 1
 
             # =========================
