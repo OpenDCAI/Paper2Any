@@ -569,7 +569,7 @@ def transform_sub_bbox(sub_bbox, parent_bbox):
 async def recursive_run_mineru_http(
     image_path: Path,
     out_dir: Path,
-    port:int = 8001,
+    port:int = 8010,
     max_depth: int = 2,
     current_depth: int = 0,
 ):

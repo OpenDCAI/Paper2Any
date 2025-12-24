@@ -56,6 +56,8 @@ OCR 分辨率与锐化（UPSCALE_LONG_SIDE_TO、UPSCALE_INTERP、ENABLE_SHARPEN�
 import os
 import re
 from typing import Sequence, Optional, Dict, Any, List, Tuple
+import requests
+import random
 
 import fitz  # PyMuPDF
 from pathlib import Path
@@ -71,6 +73,7 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.logger import get_logger
+from typing import Union
 
 log = get_logger(__name__)
 
@@ -471,6 +474,60 @@ def paddle_ocr_page_with_layout(img_path: str) -> Dict[str, Any]:
         "body_h_px": body_h_px,
         "bg_color": bg_color,
     }
+
+
+def paddle_ocr_page_with_layout_server(
+    img_path: str,
+    server_urls: Union[str, List[str]],
+) -> Dict[str, Any]:
+    """
+    对单页图片执行远程 OCR 处理。
+
+    参数:
+        img_path: 图片路径
+        server_urls: OCR 服务器 URL 或 URL 列表
+
+    返回:
+        同 paddle_ocr_page_with_layout
+    """
+    if isinstance(server_urls, str):
+        urls = [server_urls]
+    else:
+        urls = list(server_urls)
+    
+    if not urls:
+        raise ValueError("No server URLs provided")
+    
+    base_url = random.choice(urls)
+    api_url = f"{base_url.rstrip('/')}/predict"
+    
+    abs_img_path = os.path.abspath(img_path)
+    payload = {"image_path": abs_img_path}
+    
+    try:
+        response = requests.post(api_url, json=payload, timeout=300)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Transform lines back to tuples if needed, though list is fine
+        # lines: [[bbox, text, conf], ...] -> [(bbox, text, conf), ...]
+        lines = []
+        for line_obj in data.get("lines", []):
+            lines.append((
+                line_obj.get("bbox"),
+                line_obj.get("text"),
+                line_obj.get("conf")
+            ))
+            
+        return {
+            "image_size": tuple(data.get("image_size", [0, 0])),
+            "lines": lines,
+            "body_h_px": data.get("body_h_px"),
+            "bg_color": tuple(data.get("bg_color")) if data.get("bg_color") else None
+        }
+        
+    except Exception as e:
+        raise RuntimeError(f"Failed to call OCR server at {api_url}: {e}")
 
 
 # ----------------------------

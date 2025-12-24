@@ -640,29 +640,24 @@ pip install -e .
 
 #### 2. 安装 Paper2Any 相关依赖（可选但推荐）
 
-Paper2Any 涉及 LaTeX 渲染与矢量图处理，需要额外依赖（见 `requirements-paper.txt`）：
+Paper2Any 涉及 LaTeX 渲染、矢量图处理以及 PPT/PDF 转换，需要额外依赖：
 
 ```bash
-# Python 依赖
-pip install -r requirements-paper.txt
+# 1. Python 依赖
+# (如果 requirements-paper.txt 安装失败，可尝试 requirements-paper-backup.txt)
+pip install -r requirements-paper.txt || pip install -r requirements-paper-backup.txt
 
-# tectonic：LaTeX 引擎（推荐用 conda 安装）
+# 2. LaTeX 引擎 (tectonic) - 推荐用 conda 安装
 conda install -c conda-forge tectonic -y
 
-# inkscape：用于 SVG / 矢量图处理（Ubuntu 示例）
+# 3. 系统依赖 (Ubuntu 示例)
+# 包含：
+# - inkscape: SVG / 矢量图处理
+# - libreoffice: PPT 打开 / 转换
+# - poppler-utils: PDF 工具 (pdftoppm / pdftocairo)
+# - wkhtmltopdf: HTML 转 PDF
 sudo apt-get update
-sudo apt-get install -y inkscape
-```
-
-##### 2.1 PPT / PDF 相关系统依赖（Paper2PPT 与 PPT 美化推荐安装）
-
-如果你需要使用 **Paper2PPT / PPT 智能美化 / PDF2PPT** 等功能，建议在 Linux 下额外安装以下系统依赖（以 Ubuntu 为例）：
-
-```bash
-sudo apt-get update
-sudo apt-get install -y libreoffice        # 用于 PPT 打开 / 转换等操作
-sudo apt-get install -y poppler-utils      # 提供 pdftoppm / pdftocairo 等 PDF 工具
-sudo apt-get install -y wkhtmltopdf        # HTML 转 PDF，部分版式转换场景会用到
+sudo apt-get install -y inkscape libreoffice poppler-utils wkhtmltopdf
 ```
 
 #### 3. 配置环境变量
@@ -676,6 +671,35 @@ export DF_API_URL=xxx  # 可选：如需使用第三方 API 中转站
 
 - https://api.apiyi.com/
 - http://123.119.219.111:3000/
+
+<details>
+<summary><b>🔧 高级配置：本地模型服务负载均衡</b></summary>
+
+<br>
+
+如果是本地部署高并发环境，可以使用 `script/start_model_servers.sh` 启动本地模型服务集群（MinerU / SAM / OCR）。
+
+**脚本位置**：`dev/DataFlow-Agent/script/start_model_servers.sh`
+
+**主要配置项说明**：
+
+*   **MinerU (PDF 解析)**
+    *   `MINERU_MODEL_PATH`: 模型路径 (默认 `models/MinerU2.5-2509-1.2B`)
+    *   `MINERU_GPU_UTIL`: 显存占用比例 (默认 `0.2`)
+    *   **实例配置**: 脚本默认在 GPU 0 和 GPU 4 上各启动 4 个实例 (共 8 个)，端口范围 8011-8018。
+    *   **Load Balancer**: 端口 8010，自动分发请求。
+
+*   **SAM (Segment Anything Model)**
+    *   **实例配置**: 默认在 GPU 2 和 GPU 3 上各启动 1 个实例，端口 8021-8022。
+    *   **Load Balancer**: 端口 8020。
+
+*   **OCR (PaddleOCR)**
+    *   **配置**: 运行在 CPU 上，使用 uvicorn 的 worker 机制 (默认 4 workers)。
+    *   **端口**: 8003。
+
+使用前请根据实际 GPU 数量和显存情况修改脚本中的 `gpu_id` 和实例数量。
+
+</details>
 
 ---
 

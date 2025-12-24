@@ -10,7 +10,7 @@
 
 # vllm serve models/MinerU2.5-2509-1.2B \
 #     --host 127.0.0.1 \
-#     --port 8001 \
+#     --port 8010 \
 #     --logits-processors mineru_vl_utils:MinerULogitsProcessor \
 #     --gpu-memory-utilization 0.4
 

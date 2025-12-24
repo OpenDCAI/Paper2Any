@@ -1,7 +1,6 @@
 -r requirements-base.txt
 
 # paper 系（NLP / 文本 / LLM 实验）特有或易变更依赖，请在这里追加或覆盖版本
-# 示例（按需解除注释并改成你期望的版本）：
 # transformers==4.46.0
 # datasets==3.2.0
 # evaluate==0.4.3
