@@ -236,19 +236,19 @@ Paper2Any 当前包含以下几个子能力：
 </tr>
 <tr>
 <td align="center">
-<img src="" alt="输入：PDF 页面" width="100%"/>
+<img src="static/pdf2ppt/input_1.png" alt="输入：PDF 页面" width="100%"/>
 <br><sub>📄 PDF 页面</sub>
 </td>
 <td align="center">
-<img src="" alt="输出：生成 PPT 页面" width="100%"/>
+<img src="static/pdf2ppt/output_1.png" alt="输出：生成 PPT 页面（白色背景）" width="100%"/>
 <br><sub>📊 生成的 PPT 页面</sub>
 </td>
 <td align="center">
-<img src="" alt="输入：PDF 页面" width="100%"/>
+<img src="static/pdf2ppt/input_2.png" alt="输入：PDF 页面" width="100%"/>
 <br><sub>📄 PDF 页面</sub>
 </td>
 <td align="center">
-<img src="" alt="输出：生成 PPT 页面" width="100%"/>
+<img src="static/pdf2ppt/output_2.png" alt="输出：生成 PPT 页面（AI重绘）" width="100%"/>
 <br><sub>📊 生成的 PPT 页面</sub>
 </td>
 </tr>
