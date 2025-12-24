@@ -244,7 +244,7 @@ async def main() -> None:
     if req.need_debug:
         if final_state.get("execution_result", {}).get("success"):
             print("\n================ 最终 Pipeline 执行成功 ================\n")
-            print(f"================ 可通过 python {req.python_file_path} 处理你的完整数据！ ================")
+            print(f"================ 可通过 python {req.python_file_path} 处理的完整数据！ ================")
             print(final_state["execution_result"]["stdout"])
         else:
             print("\n================== 调试失败，放弃 ==================\n")

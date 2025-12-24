@@ -669,31 +669,26 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-#### Paper2Any extra dependencies (optional but recommended)
+#### Paper2Any Extra Dependencies (Optional but Recommended)
 
-Paper2Any requires extra Python dependencies (see `requirements-paper.txt`) and a few system/conda tools for rendering and vector graphics processing:
+Paper2Any involves LaTeX rendering, vector graphics processing, and PPT/PDF conversion, which require additional dependencies:
 
 ```bash
-# Install Paper2Any dependencies
-pip install -r requirements-paper.txt
+# 1. Python Dependencies
+# (If requirements-paper.txt fails, try requirements-paper-backup.txt)
+pip install -r requirements-paper.txt || pip install -r requirements-paper-backup.txt
 
-# tectonic: recommended to install via conda (LaTeX engine)
+# 2. LaTeX Engine (tectonic) - Recommended via conda
 conda install -c conda-forge tectonic -y
 
-# inkscape: for SVG/vector graphics processing (Linux)
+# 3. System Dependencies (Ubuntu example)
+# Includes:
+# - inkscape: SVG / Vector graphics processing
+# - libreoffice: PPT operations / conversion
+# - poppler-utils: PDF utilities (pdftoppm / pdftocairo)
+# - wkhtmltopdf: HTML to PDF
 sudo apt-get update
-sudo apt-get install -y inkscape
-```
-
-#### PPT / PDF related system dependencies (recommended for Paper2PPT & PPT polishing)
-
-If you plan to use **Paper2PPT / PPT polishing / PDF2PPT** features, we recommend installing the following packages on Linux (Ubuntu example):
-
-```bash
-sudo apt-get update
-sudo apt-get install -y libreoffice       # Office / PPT operations
-sudo apt-get install -y poppler-utils     # PDF utilities (pdftoppm, pdftocairo, etc.)
-sudo apt-get install -y wkhtmltopdf       # HTML to PDF, used in some layout conversion workflows
+sudo apt-get install -y inkscape libreoffice poppler-utils wkhtmltopdf
 ```
 
 ### Environment Configuration
@@ -709,6 +704,35 @@ Third-party API gateways:
 [https://api.apiyi.com/](https://api.apiyi.com/)
 
 [http://123.119.219.111:3000/](http://123.119.219.111:3000/)
+
+<details>
+<summary><b>🔧 Advanced Config: Local Model Service Load Balancing</b></summary>
+
+<br>
+
+For high-concurrency local deployments, use `script/start_model_servers.sh` to start a cluster of local model services (MinerU / SAM / OCR).
+
+**Script Location**: `dev/DataFlow-Agent/script/start_model_servers.sh`
+
+**Key Configuration Items**:
+
+*   **MinerU (PDF Parsing)**
+    *   `MINERU_MODEL_PATH`: Model path (default `models/MinerU2.5-2509-1.2B`)
+    *   `MINERU_GPU_UTIL`: GPU memory utilization (default `0.2`)
+    *   **Instance Config**: Defaults to 4 instances each on GPU 0 and GPU 4 (8 total), port range 8011-8018.
+    *   **Load Balancer**: Port 8010, automatically distributes requests.
+
+*   **SAM (Segment Anything Model)**
+    *   **Instance Config**: Defaults to 1 instance each on GPU 2 and GPU 3, ports 8021-8022.
+    *   **Load Balancer**: Port 8020.
+
+*   **OCR (PaddleOCR)**
+    *   **Config**: Runs on CPU, uses uvicorn worker mechanism (default 4 workers).
+    *   **Port**: 8003.
+
+Before use, please modify `gpu_id` and instance counts in the script according to your actual GPU quantity and memory availability.
+
+</details>
 
 ---
 

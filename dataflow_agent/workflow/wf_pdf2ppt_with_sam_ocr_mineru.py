@@ -26,6 +26,7 @@ from collections import Counter
 import cv2
 import numpy as np
 import fitz  # PyMuPDF
+import yaml
 from PIL import Image
 
 from dataflow_agent.workflow.registry import register
@@ -36,7 +37,7 @@ from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.utils import get_project_root
 
 # Tools
-from dataflow_agent.toolkits.imtool.sam_tool import segment_layout_boxes, free_sam_model
+from dataflow_agent.toolkits.imtool.sam_tool import segment_layout_boxes, segment_layout_boxes_server, free_sam_model
 from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove, free_bg_rm_model
 from dataflow_agent.toolkits.imtool.mineru_tool import recursive_mineru_layout
 from dataflow_agent.toolkits.imtool.req_img import gemini_multi_image_edit_async
@@ -47,6 +48,61 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 
 log = get_logger(__name__)
+
+# Load configuration from yaml
+def load_server_config():
+    root = get_project_root()
+    config_path = root / "conf" / "model_servers.yaml"
+    if not config_path.exists():
+        log.warning(f"Config file not found at {config_path}, using defaults.")
+        return {}
+    try:
+        with open(config_path, "r") as f:
+            return yaml.safe_load(f) or {}
+    except Exception as e:
+        log.error(f"Failed to load config: {e}")
+        return {}
+
+SERVER_CONFIG = load_server_config()
+
+# Helper to construct URLs
+def get_sam_urls():
+    # Check env var first
+    if os.environ.get("SAM_SERVER_URLS"):
+        return os.environ.get("SAM_SERVER_URLS").split(",")
+    
+    # Try config
+    sam_cfg = SERVER_CONFIG.get("sam", {})
+    instances = sam_cfg.get("instances", [])
+    if instances:
+        urls = []
+        for inst in instances:
+            for port in inst.get("ports", []):
+                urls.append(f"http://127.0.0.1:{port}")
+        if urls:
+            return urls
+            
+    # Default
+    return ["http://localhost:8021", "http://localhost:8022"]
+
+def get_ocr_urls():
+    # Check env var first
+    if os.environ.get("OCR_SERVER_URLS"):
+        return os.environ.get("OCR_SERVER_URLS").split(",")
+
+    # Try config
+    ocr_cfg = SERVER_CONFIG.get("ocr", {})
+    if ocr_cfg:
+        host = ocr_cfg.get("host", "0.0.0.0")
+        if host == "0.0.0.0": host = "127.0.0.1"
+        port = ocr_cfg.get("port", 8003)
+        return [f"http://{host}:{port}"]
+
+    # Default
+    return ["http://localhost:8003"]
+
+SAM_SERVER_URLS = get_sam_urls()
+OCR_SERVER_URLS = get_ocr_urls()
 
 
 def _ensure_result_path(state: Paper2FigureState) -> str:
@@ -84,17 +140,33 @@ def _run_sam_on_pages(image_paths: List[str], base_dir: str) -> List[Dict[str, A
         out_dir = Path(base_dir) / "layout_items" / f"page_{page_idx+1:03d}"
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        # 1. SAM 分割
-        layout_items = segment_layout_boxes(
-            image_path=str(img_path_obj),
-            output_dir=str(out_dir),
-            checkpoint=sam_ckpt,
-            min_area=200,
-            min_score=0.0,
-            iou_threshold=0.4,
-            top_k=25,
-            nms_by="mask",
-        )
+        # 1. SAM 分割 (使用远程服务)
+        try:
+            layout_items = segment_layout_boxes_server(
+                image_path=str(img_path_obj),
+                output_dir=str(out_dir),
+                server_urls=SAM_SERVER_URLS,
+                checkpoint=sam_ckpt,
+                min_area=200,
+                min_score=0.0,
+                iou_threshold=0.4,
+                top_k=25,
+                nms_by="mask",
+            )
+        except Exception as e:
+            log.error(f"[pdf2ppt_with_sam] Remote SAM failed: {e}. Fallback to local.")
+            # Fallback to local if server fails
+            layout_items = segment_layout_boxes(
+                image_path=str(img_path_obj),
+                output_dir=str(out_dir),
+                checkpoint=sam_ckpt,
+                min_area=200,
+                min_score=0.0,
+                iou_threshold=0.4,
+                top_k=25,
+                nms_by="mask",
+            )
+            
         log.info(f"[pdf2ppt_with_sam][page#{page_idx+1}] SAM found {len(layout_items)} items")
 
         # 2. 映射 bbox 到像素坐标（基于整页尺寸）
@@ -169,7 +241,12 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
         ocr_pages: List[Dict[str, Any]] = []
         for page_idx, img_path in enumerate(image_paths):
             try:
-                result = ppt_tool.paddle_ocr_page_with_layout(img_path)
+                # 优先使用远程 OCR 服务
+                try:
+                    result = ppt_tool.paddle_ocr_page_with_layout_server(img_path, server_urls=OCR_SERVER_URLS)
+                except Exception as e:
+                    log.warning(f"[pdf2ppt_with_sam][OCR] remote failed: {e}. Fallback to local.")
+                    result = ppt_tool.paddle_ocr_page_with_layout(img_path)
             except Exception as e:
                 log.error(f"[pdf2ppt_with_sam][OCR] page#{page_idx+1} failed: {e}")
                 result = {
@@ -202,7 +279,8 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
         mineru_dir.mkdir(parents=True, exist_ok=True)
 
         # MinerU 端口，优先从 state.request.mineru_port 读取
-        port = getattr(getattr(state, "request", None), "mineru_port", 8001)
+        # MinerU LB Port 8010
+        port = getattr(getattr(state, "request", None), "mineru_port", 8010)
         # 复杂度深度可从 state 或常量
         max_depth = getattr(state, "mask_detail_level", 3)
 

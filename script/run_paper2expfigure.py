@@ -57,8 +57,8 @@ def parse_args():
     parser.add_argument(
         "--mineru_port",
         type=int,
-        default=8001,
-        help="MinerU 服务端口（默认：8001）"
+        default=8010,
+        help="MinerU 服务端口（默认：8010）"
     )
     
     parser.add_argument(
