@@ -153,7 +153,7 @@ Paper2Any 当前包含以下几个子能力：
 <br><sub>📄 论文 PDF</sub>
 </td>
 <td align="center">
-<img src="static/paper2ppt/ouput_1.png" alt="输出：生成 PPT" width="100%"/>
+<img src="static/paper2ppt/output_1.png" alt="输出：生成 PPT" width="100%"/>
 <br><sub>📊 生成的 PPT</sub>
 </td>
 <td align="center">
@@ -161,7 +161,7 @@ Paper2Any 当前包含以下几个子能力：
 <br><sub>📝 论文内容</sub>
 </td>
 <td align="center">
-<img src="static/paper2ppt/ouput_3.png" alt="输出：生成 PPT" width="100%"/>
+<img src="static/paper2ppt/output_3.png" alt="输出：生成 PPT" width="100%"/>
 <br><sub>📊 生成的 PPT</sub>
 </td>
 </tr>
@@ -173,6 +173,52 @@ Paper2Any 当前包含以下几个子能力：
 <strong>PPT 生成</strong> - 智能分析论文内容，可以自动插入论文内部表格和插图到PPT。
 </td>
 </tr>
+<tr>
+<td align="center">
+<img src="static/paper2ppt/input_2-1.png" alt="输入：文本 1" width="100%"/>
+<br><sub>📄 输入文本 1</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_2-2.png" alt="输入：文本 2" width="100%"/>
+<br><sub>📄 输入文本 2</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_2-3.png" alt="输入：文本 3" width="100%"/>
+<br><sub>📄 输入文本 3</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/output_2.png" alt="输出：生成 PPT" width="100%"/>
+<br><sub>📊 生成的 PPT</sub>
+</td>
+</tr>
+<tr>
+<td colspan="4" align="center">
+<strong>Text2PPT</strong> - 输入长文本/大纲，自动生成结构化的 PPT。
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="static/paper2ppt/input_4-1.png" alt="输入：主题 1" width="100%"/>
+<br><sub>📄 输入主题 1</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_4-2.png" alt="输入：主题 2" width="100%"/>
+<br><sub>📄 输入主题 2</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_4-3.png" alt="输入：主题 3" width="100%"/>
+<br><sub>📄 输入主题 3</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/output_4.png" alt="输出：生成 PPT" width="100%"/>
+<br><sub>📊 生成的 PPT</sub>
+</td>
+</tr>
+<tr>
+<td colspan="4" align="center">
+<strong>Topic2PPT</strong> - 输入简短主题，自动扩充内容并生成 PPT。
+</td>
+</tr>
 </table>
 
 ---
@@ -181,7 +227,7 @@ Paper2Any 当前包含以下几个子能力：
 
 <!-- 占位：PDF2PPT 示例，后续可补充具体图片路径与说明 -->
 
-<!-- <table>
+<table>
 <tr>
 <th width="25%">输入</th>
 <th width="25%">输出</th>
@@ -190,31 +236,23 @@ Paper2Any 当前包含以下几个子能力：
 </tr>
 <tr>
 <td align="center">
-<img src="" alt="输入：PDF 页面" width="100%"/>
+<img src="static/pdf2ppt/input_1.png" alt="输入：PDF 页面" width="100%"/>
 <br><sub>📄 PDF 页面</sub>
 </td>
 <td align="center">
-<img src="" alt="输出：生成 PPT 页面" width="100%"/>
+<img src="static/pdf2ppt/output_1.png" alt="输出：生成 PPT 页面（白色背景）" width="100%"/>
 <br><sub>📊 生成的 PPT 页面</sub>
 </td>
 <td align="center">
-<img src="" alt="输入：PDF 页面" width="100%"/>
+<img src="static/pdf2ppt/input_2.png" alt="输入：PDF 页面" width="100%"/>
 <br><sub>📄 PDF 页面</sub>
 </td>
 <td align="center">
-<img src="" alt="输出：生成 PPT 页面" width="100%"/>
+<img src="static/pdf2ppt/output_2.png" alt="输出：生成 PPT 页面（AI重绘）" width="100%"/>
 <br><sub>📊 生成的 PPT 页面</sub>
 </td>
 </tr>
-<tr>
-<td colspan="2" align="center">
-<strong>PDF2PPT</strong> - 保留原始版式和背景，将 PDF 页面转换为可编辑的 PPT 页面。
-</td>
-<td colspan="2" align="center">
-<strong>PDF2PPT</strong> - 适合会议汇报、课堂讲解等场景，一键从论文 PDF 生成演示文稿。
-</td>
-</tr>
-</table> -->
+</table>
 
 ---
 

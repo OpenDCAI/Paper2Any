@@ -158,7 +158,7 @@ Paper2Any currently includes the following sub-capabilities:
 <br><sub>📄 Paper PDF</sub>
 </td>
 <td align="center">
-<img src="static/paper2ppt/ouput_1.png" alt="Output: generated PPT" width="100%"/>
+<img src="static/paper2ppt/output_1.png" alt="Output: generated PPT" width="100%"/>
 <br><sub>📊 Generated PPT</sub>
 </td>
 <td align="center">
@@ -166,7 +166,7 @@ Paper2Any currently includes the following sub-capabilities:
 <br><sub>📝 Paper content</sub>
 </td>
 <td align="center">
-<img src="static/paper2ppt/ouput_3.png" alt="Output: generated PPT" width="100%"/>
+<img src="static/paper2ppt/output_3.png" alt="Output: generated PPT" width="100%"/>
 <br><sub>📊 Generated PPT</sub>
 </td>
 </tr>
@@ -176,6 +176,83 @@ Paper2Any currently includes the following sub-capabilities:
 </td>
 <td colspan="2" align="center">
 <strong>PPT Generation</strong> - Intelligently analyze paper content and automatically insert internal tables and figures into the slides.
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="static/paper2ppt/input_2-1.png" alt="Input: text 1" width="100%"/>
+<br><sub>📄 Input text 1</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_2-2.png" alt="Input: text 2" width="100%"/>
+<br><sub>📄 Input text 2</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_2-3.png" alt="Input: text 3" width="100%"/>
+<br><sub>📄 Input text 3</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/output_2.png" alt="Output: generated PPT" width="100%"/>
+<br><sub>📊 Generated PPT</sub>
+</td>
+</tr>
+<tr>
+<td colspan="4" align="center">
+<strong>Text2PPT</strong> - Input long text/outline, automatically generate structured PPT.
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="static/paper2ppt/input_4-1.png" alt="Input: topic 1" width="100%"/>
+<br><sub>📄 Input topic 1</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_4-2.png" alt="Input: topic 2" width="100%"/>
+<br><sub>📄 Input topic 2</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_4-3.png" alt="Input: topic 3" width="100%"/>
+<br><sub>📄 Input topic 3</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/output_4.png" alt="Output: generated PPT" width="100%"/>
+<br><sub>📊 Generated PPT</sub>
+</td>
+</tr>
+<tr>
+<td colspan="4" align="center">
+<strong>Topic2PPT</strong> - Input brief topic, automatically expand content and generate PPT.
+</td>
+</tr>
+</table>
+
+---
+
+#### 📸 Showcase - PDF2PPT
+
+<table>
+<tr>
+<th width="25%">Input</th>
+<th width="25%">Output</th>
+<th width="25%">Input</th>
+<th width="25%">Output</th>
+</tr>
+<tr>
+<td align="center">
+<img src="static/pdf2ppt/input_1.png" alt="Input: PDF page" width="100%"/>
+<br><sub>📄 PDF page</sub>
+</td>
+<td align="center">
+<img src="static/pdf2ppt/output_1.png" alt="Output: generated PPT page" width="100%"/>
+<br><sub>📊 Generated PPT page</sub>
+</td>
+<td align="center">
+<img src="static/pdf2ppt/input_2.png" alt="Input: PDF page" width="100%"/>
+<br><sub>📄 PDF page</sub>
+</td>
+<td align="center">
+<img src="static/pdf2ppt/output_2.png" alt="Output: generated PPT page" width="100%"/>
+<br><sub>📊 Generated PPT page</sub>
 </td>
 </tr>
 </table>
