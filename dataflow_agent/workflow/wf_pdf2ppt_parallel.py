@@ -199,7 +199,7 @@ def _run_sam_on_pages(image_paths: List[str], base_dir: str) -> List[Dict[str, A
     return results
 
 
-@register("pdf2ppt_with_sam_ocr_mineru")
+@register("pdf2ppt_parallel")
 def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
     """
     Workflow factory: dfa run --wf pdf2ppt_with_sam
