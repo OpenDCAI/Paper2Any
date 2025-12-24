@@ -390,6 +390,9 @@ class Paper2FigureRequest(MainRequest):
     # 是否编辑完毕，也就是是否需要重新生成完整的 PPT
     all_edited_down: bool = False
 
+    # pdf2ppt是否使用AI编辑
+    use_ai_edit: bool = False
+
 @dataclass
 class Paper2FigureState(MainState):
     request: Paper2FigureRequest = field(default_factory=Paper2FigureRequest)
@@ -467,3 +470,6 @@ class Paper2FigureState(MainState):
     slide_images: List[str] = field(default_factory=list)
     ocr_pages: List[str] = field(default_factory=list)
     sam_pages: List[str] = field(default_factory=list)
+    mineru_pages: List[Dict[str, Any]] = field(default_factory=list)
+    # pdf2ppt是否使用AI编辑
+    use_ai_edit: bool = False

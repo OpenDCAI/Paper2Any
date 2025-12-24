@@ -85,7 +85,7 @@ async def list_paper2figure_history_files(
     不再往更深层递归。返回 URL 列表，前端可直接打开/下载。
     """
     # 邀请码校验
-    validate_invite_code(invite_code)
+    # validate_invite_code(invite_code)
 
     project_root = get_project_root()
     base_dir = project_root / "outputs" / invite_code
@@ -157,7 +157,7 @@ async def generate_paper2figure(
         - 返回生成的 PPTX 文件
     """
     # 0. 邀请码校验
-    validate_invite_code(invite_code)
+    # validate_invite_code(invite_code)
 
     # 1. 基础参数校验
     if input_type in ("file", "image"):
@@ -298,7 +298,7 @@ async def generate_paper2figure_json(
         - svg_image_filename
     """
     # 0. 邀请码校验
-    validate_invite_code(invite_code)
+    # validate_invite_code(invite_code)
 
     # 1. 基础参数校验（与 generate_paper2figure 保持一致）
     if input_type in ("file", "image"):
@@ -425,7 +425,7 @@ async def generate_paper2beamer(
     - 返回一个简单的 PPTX 文件，供前端下载测试。
     """
     # 0. 邀请码校验
-    validate_invite_code(invite_code)
+    # validate_invite_code(invite_code)
 
     if input_type != "file":
         raise HTTPException(status_code=400, detail="paper2beamer currently only supports input_type='file'")

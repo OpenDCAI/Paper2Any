@@ -124,7 +124,9 @@ def validate_invite_code(code: str | None) -> None:
     """
     校验邀请码是否有效。无效则抛出 403。
     """
-    if not code:
-        raise HTTPException(status_code=403, detail="invite_code is required")
-    if code not in VALID_INVITE_CODES:
-        raise HTTPException(status_code=403, detail="Invalid invite_code")
+    # 邀请码机制已取消，始终通过校验
+    pass
+    # if not code:
+    #     raise HTTPException(status_code=403, detail="invite_code is required")
+    # if code not in VALID_INVITE_CODES:
+    #     raise HTTPException(status_code=403, detail="Invalid invite_code")

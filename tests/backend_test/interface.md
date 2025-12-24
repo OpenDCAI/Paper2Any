@@ -169,7 +169,7 @@ text        string  必填  原始文本内容
       "asset_ref": null
     }
   ],
-  "result_path": "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/outputs/ABC123/paper2ppt/1766077323",
+  "result_path": "../DataFlow-Agent/outputs/ABC123/paper2ppt/1766077323",
   "all_output_files": []
 }
 ```
@@ -226,7 +226,7 @@ file        file  必填  PDF 文件（multipart/form-data 里的文件字段名
       "asset_ref": null
     }
   ],
-  "result_path": "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/outputs/ABC123/paper2ppt/1766077329",
+  "result_path": "../DataFlow-Agent/outputs/ABC123/paper2ppt/1766077329",
   "all_output_files": [
     "http://testserver/outputs/ABC123/paper2ppt/1766077329/input/auto/input_span.pdf",
     "http://testserver/outputs/ABC123/paper2ppt/1766077329/input/auto/input_origin.pdf",
@@ -255,13 +255,13 @@ file        file  必填  PPTX 文件（multipart/form-data 字段名 "file"）
   "ppt_pptx_path": "",
   "pagecontent": [
     {
-      "ppt_img_path": "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/outputs/ABC123/paper2ppt/1766077408/ppt_images/slide_000.png"
+      "ppt_img_path": "../DataFlow-Agent/outputs/ABC123/paper2ppt/1766077408/ppt_images/slide_000.png"
     },
     {
-      "ppt_img_path": "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/outputs/ABC123/paper2ppt/1766077408/ppt_images/slide_001.png"
+      "ppt_img_path": "../DataFlow-Agent/outputs/ABC123/paper2ppt/1766077408/ppt_images/slide_001.png"
     }
   ],
-  "result_path": "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/outputs/ABC123/paper2ppt/1766077408",
+  "result_path": "../DataFlow-Agent/outputs/ABC123/paper2ppt/1766077408",
   "all_output_files": [
     "http://testserver/outputs/ABC123/paper2ppt/1766077408/ppt_images/slide_000.png",
     "http://testserver/outputs/ABC123/paper2ppt/1766077408/ppt_images/input.pdf",

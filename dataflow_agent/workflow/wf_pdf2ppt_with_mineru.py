@@ -24,6 +24,7 @@ from typing import List, Dict, Any, Optional
 from collections import Counter
 
 import cv2
+import numpy as np
 import fitz  # PyMuPDF
 from PIL import Image
 
@@ -38,6 +39,7 @@ from dataflow_agent.utils import get_project_root
 from dataflow_agent.toolkits.imtool.sam_tool import segment_layout_boxes, free_sam_model
 from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove, free_bg_rm_model
 from dataflow_agent.toolkits.imtool.mineru_tool import recursive_mineru_layout
+from dataflow_agent.toolkits.imtool.req_img import gemini_multi_image_edit_async
 from dataflow_agent.toolkits.imtool import ppt_tool
 
 from pptx import Presentation
@@ -89,8 +91,8 @@ def _run_sam_on_pages(image_paths: List[str], base_dir: str) -> List[Dict[str, A
             checkpoint=sam_ckpt,
             min_area=200,
             min_score=0.0,
-            iou_threshold=0.2,
-            top_k=15,
+            iou_threshold=0.4,
+            top_k=25,
             nms_by="mask",
         )
         log.info(f"[pdf2ppt_with_sam][page#{page_idx+1}] SAM found {len(layout_items)} items")
@@ -211,10 +213,12 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                 out_dir = mineru_dir / f"page_{page_idx+1:03d}"
                 out_dir.mkdir(parents=True, exist_ok=True)
 
+                log.critical(f"【mineru node】:  {out_dir}")
+
                 mineru_items = await recursive_mineru_layout(
                     image_path=str(img_path),
                     port=port,
-                    max_depth=max_depth,
+                    max_depth=3,
                     output_dir=str(out_dir),
                 )
                 
@@ -238,6 +242,9 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                 })
 
         state.mineru_pages = mineru_pages
+
+        log.critical(f"[state.mineru_pages]:  {state.mineru_pages}")
+
         return state
 
     async def slides_sam_node(state: Paper2FigureState) -> Paper2FigureState:
@@ -338,6 +345,8 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
         3. 背景生成开关：
            - 使用 state.use_ai_edit 控制是否调用 AI 生成纯净背景；
            - 关闭时直接使用纯白背景。
+        4. 并行 API 调用：
+           - 将 Inpainting API 调用改为并行执行，加快多页处理速度。
         """
         
         ocr_pages: List[Dict[str, Any]] = getattr(state, "ocr_pages", []) or []
@@ -350,8 +359,14 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
 
         # 建立索引
         sam_dict = {p.get("page_idx", 0): p.get("layout_items", []) for p in sam_pages}
+        
         # mineru_dict 存放 {"blocks": [], "mineru_output_dir": ...}
-        mineru_dict = {p.get("page_idx", 0): p for p in mineru_pages}
+        # 修复：为了防止 page_idx 类型不一致 (int vs str)，构建更鲁棒的索引
+        mineru_dict = {}
+        for p in mineru_pages:
+            pid = p.get("page_idx", 0)
+            mineru_dict[pid] = p        # 原始类型
+            mineru_dict[str(pid)] = p   # 字符串类型兼容
 
         # 以 PPT 工具里的默认比例创建 Presentation
         prs = Presentation()
@@ -363,29 +378,44 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
         # 初始化 base_dir，确保后续逻辑都能访问
         base_dir = Path(_ensure_result_path(state))
 
-        # -----------------------------------------------------------
-        # 全局字体统计 (可选：也可按页统计，这里演示按页统计更灵活)
-        # -----------------------------------------------------------
+        # ==========================================================
+        # 辅助函数：API 重试逻辑
+        # ==========================================================
+        async def _call_image_api_with_retry(coro_factory, retries: int = 3, delay: float = 1.0) -> bool:
+            """
+            对图像生成/编辑进行最多 retries 次重试。
+            """
+            last_err: Optional[Exception] = None
+            for attempt in range(1, retries + 1):
+                try:
+                    await coro_factory()
+                    return True
+                except Exception as e:
+                    last_err = e
+                    log.error(f"[pdf2ppt_with_sam] image api failed attempt {attempt}/{retries}: {e}")
+                    if attempt < retries:
+                        try:
+                            await asyncio.sleep(delay)
+                        except Exception:
+                            pass
+            log.error(f"[pdf2ppt_with_sam] image api failed after {retries} attempts: {last_err}")
+            return False
+
+        # ==========================================================
+        # 辅助函数：字体和几何计算
+        # ==========================================================
         def _get_dominant_font_size(lines, img_h):
             """计算正文文本的“众数”字号 (pt)"""
             sizes = []
             for bbox, _, _ in lines:
-                # 粗略估算 pt: (bbox_h / img_h) * 7.5 * 72 ? 
-                # 复用 ppt_tool.estimate_font_pt 的逻辑
-                # ppt_tool.estimate_font_pt 内部逻辑通常是: (bbox_height_px / img_height_px) * slide_height_inches * 72 * factor
-                # 这里我们直接调用它算一遍
                 pt = ppt_tool.estimate_font_pt(bbox, img_h_px=img_h, body_h_px=None).pt
                 if pt:
-                    sizes.append(round(pt)) # 取整方便统计
-            
-            if not sizes: return 12.0 # 默认
-            
-            # 统计众数
+                    sizes.append(round(pt)) 
+            if not sizes: return 12.0
             counts = Counter(sizes)
             dominant = counts.most_common(1)[0][0]
             return float(dominant)
 
-        # 辅助函数：计算 IoU / 包含关系
         def _bbox_area(bbox):
             return max(0, bbox[2] - bbox[0]) * max(0, bbox[3] - bbox[1])
 
@@ -397,22 +427,35 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
             return max(0, x2 - x1) * max(0, y2 - y1)
 
         def _is_inside(inner, outer, threshold=0.9):
-            """判断 inner 是否大部分在 outer 内部"""
             inter = _get_intersection_area(inner, outer)
             inner_a = _bbox_area(inner)
             if inner_a <= 0: return False
             return (inter / inner_a) >= threshold
 
         def _is_overlap(bbox1, bbox2, threshold=0.1):
-            """判断两者是否有显著重叠"""
             inter = _get_intersection_area(bbox1, bbox2)
             min_area = min(_bbox_area(bbox1), _bbox_area(bbox2))
             if min_area <= 0: return False
             return (inter / min_area) >= threshold
 
-        # 循环处理每一页
+        # ==========================================================
+        # Phase 1: 准备渲染数据 & 创建 AI 任务
+        # ==========================================================
+        
+        pages_render_data: List[Dict[str, Any]] = []
+        ai_coroutines = []  # List of awaitables
+        
+        # 循环处理每一页的布局分析
         for pinfo in ocr_pages:
             page_idx = pinfo.get("page_idx", 0)
+            
+            # 兼容性查找
+            mineru_page_data = mineru_dict.get(page_idx)
+            if not mineru_page_data:
+                mineru_page_data = mineru_dict.get(str(page_idx), {})
+                if mineru_page_data:
+                    log.warning(f"[pdf2ppt_with_sam] page_idx mismatch fixed by str conversion: {page_idx}")
+            
             img_path = pinfo.get("path")
             lines = pinfo.get("lines", []) # List of (bbox, text, conf)
             
@@ -431,27 +474,23 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
             # -----------------------------------------------------------
             # Step 1: 分析 MinerU 结果，划定 "Image Zone" 并找回 sub_images
             # -----------------------------------------------------------
-            mineru_page_data = mineru_dict.get(page_idx, {})
             mineru_blocks = mineru_page_data.get("blocks", [])
             mineru_out_dir = mineru_page_data.get("mineru_output_dir")
             
             image_zones = []  # List of {"bbox": [x1,y1,x2,y2], "type": str, "img_path": str}
             
-            # 尝试定位 sub_images 目录：从 page_xxx 根目录递归查找所有名为 sub_images 的目录
+            # 尝试定位 sub_images 目录
             sub_images_dir = None
             sub_images_dirs: List[Path] = []
             if mineru_out_dir:
                 try:
                     page_root = Path(mineru_out_dir)
-                    # 1) 直接 page_xxx/sub_images
                     direct = page_root / "sub_images"
                     if direct.exists() and direct.is_dir():
                         sub_images_dirs.append(direct)
-                    # 2) 递归查找所有名为 sub_images 的子目录
                     for d in page_root.rglob("sub_images"):
                         if d.is_dir():
                             sub_images_dirs.append(d)
-                    # 去重，按出现顺序
                     seen = set()
                     unique_dirs: List[Path] = []
                     for d in sub_images_dirs:
@@ -459,31 +498,16 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                         if rp not in seen:
                             seen.add(rp)
                             unique_dirs.append(d)
-                    # 选择第一个包含 png 的目录作为主 sub_images_dir
                     for d in unique_dirs:
                         pngs = list(d.glob("*.png"))
                         if pngs:
                             sub_images_dir = d
                             break
-                    # 打 log
                     if sub_images_dir:
                         sub_files = sorted([p.name for p in sub_images_dir.glob("*.png")])
-                        log.info(
-                            f"[pdf2ppt_with_sam][page#{page_idx+1}] MinerU sub_images dir: {sub_images_dir}, "
-                            f"found {len(sub_files)} pngs: {sub_files}"
-                        )
-                    else:
-                        log.info(
-                            f"[pdf2ppt_with_sam][page#{page_idx+1}] MinerU sub_images dir: None (no pngs found under {mineru_out_dir})"
-                        )
+                        log.info(f"[pdf2ppt_with_sam][page#{page_idx+1}] MinerU sub_images dir: {sub_images_dir}, found {len(sub_files)} pngs")
                 except Exception as e:
-                    log.error(
-                        f"[pdf2ppt_with_sam][page#{page_idx+1}] search sub_images failed under {mineru_out_dir}: {e}"
-                    )
-            else:
-                log.info(
-                    f"[pdf2ppt_with_sam][page#{page_idx+1}] MinerU sub_images dir: None (mineru_out_dir is empty)"
-                )
+                    log.error(f"[pdf2ppt_with_sam][page#{page_idx+1}] search sub_images failed: {e}")
 
             for idx, blk in enumerate(mineru_blocks):
                 btype = (blk.get("type") or "").lower()
@@ -491,7 +515,6 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                 if not bbox or len(bbox) != 4:
                     continue
                 
-                # 转换 norm -> px
                 x1 = int(round(bbox[0] * w0))
                 y1 = int(round(bbox[1] * h0))
                 x2 = int(round(bbox[2] * w0))
@@ -500,24 +523,16 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                 if x2 <= x1 or y2 <= y1: continue
                 px_bbox = [x1, y1, x2, y2]
                 
-                # 属于图表区的类型
                 is_image_zone = btype in ['image', 'figure', 'table', 'formula']
-                
                 img_path_found = None
                 
                 if is_image_zone:
-                    # 策略 A: 优先从 block 信息里找 path
                     if blk.get("img_path") and os.path.exists(blk["img_path"]):
                         img_path_found = blk["img_path"]
                     
-                    # 策略 B: 从 sub_images 目录里找匹配的文件
                     if not img_path_found and sub_images_dir:
                         try:
-                            # MinerU 命名通常包含 depth 和 blk 索引，比如:
-                            # depth0_blk1_page_002_1.png
-                            # 这里根据当前递归深度和 idx 推一个合理前缀
                             depth = blk.get("depth", 0)
-                            # 深度可能不存在，则尝试从 type 里解析，失败则置 0
                             try:
                                 depth = int(depth)
                             except Exception:
@@ -530,15 +545,11 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                         except Exception as e:
                             log.error(f"[pdf2ppt_with_sam][page#{page_idx+1}] match sub_images failed: {e}")
 
-                    # 策略 C (兜底且最稳): 手动 Crop
                     if not img_path_found:
-                        # base_dir 已在函数开头定义
                         fallback_dir = base_dir / "mineru_fallback_crops" / f"page_{page_idx+1:03d}"
                         fallback_dir.mkdir(parents=True, exist_ok=True)
                         save_path = fallback_dir / f"mineru_{idx}_{btype}.png"
-                        
                         try:
-                            # 只有当文件不存在时才 crop，避免重复
                             if not save_path.exists():
                                 crop = pil_img.crop((x1, y1, x2, y2))
                                 crop.save(save_path)
@@ -554,15 +565,13 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                         })
 
             # -----------------------------------------------------------
-            # Step 2: 过滤 OCR 文字 (如果落在 Image Zone 内则丢弃)
-            # 并且为剩余文本分配类型 (Title vs Body)
+            # Step 2: 过滤 OCR 文字
             # -----------------------------------------------------------
             final_ocr_lines = [] # (bbox, text, conf, type)
             body_lines_for_stats = []
             
             for line in lines:
                 l_bbox, l_text, l_conf = line
-                
                 is_in_image = False
                 for zone in image_zones:
                     if _is_inside(l_bbox, zone["bbox"]):
@@ -570,15 +579,11 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                         break
                 
                 if not is_in_image:
-                    # 判定是否为 Title:
-                    # 简单规则：如果该行在 MinerU 的 Title block 内，或者位于页面顶部且字号很大
-                    # 这里利用 MinerU 的 block type
                     l_type = "body"
                     for blk in mineru_blocks:
                         btype = (blk.get("type") or "").lower()
                         b_bbox = blk.get("bbox")
                         if not b_bbox: continue
-                        # 转换 MinerU bbox
                         bx1 = int(round(b_bbox[0] * w0))
                         by1 = int(round(b_bbox[1] * h0))
                         bx2 = int(round(b_bbox[2] * w0))
@@ -592,9 +597,6 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                     if l_type == "body":
                         body_lines_for_stats.append((l_bbox, l_text, l_conf))
 
-            # -----------------------------------------------------------
-            # 计算标准字号
-            # -----------------------------------------------------------
             std_body_pt = _get_dominant_font_size(body_lines_for_stats, h0)
             std_title_pt = std_body_pt * 1.5
             log.info(f"[pdf2ppt_with_sam][page#{page_idx+1}] Standard Body Font: {std_body_pt}pt, Title: {std_title_pt}pt")
@@ -608,8 +610,6 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
             for item in raw_sam_items:
                 s_bbox = item.get("bbox_px")
                 if not s_bbox: continue
-                
-                # 3.1 过滤落在 Image Zone 内的 SAM 块
                 is_in_image = False
                 for zone in image_zones:
                     if _is_inside(s_bbox, zone["bbox"], threshold=0.6):
@@ -617,7 +617,6 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                         break
                 if is_in_image: continue
 
-                # 3.2 过滤包含 OCR 文字的 SAM 块
                 is_text_block = False
                 for line in final_ocr_lines:
                     l_bbox = line[0]
@@ -626,7 +625,6 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                         break
                 if is_text_block: continue
 
-                # 3.3 基础物理属性过滤
                 w = s_bbox[2] - s_bbox[0]
                 h = s_bbox[3] - s_bbox[1]
                 if w < 5 or h < 5: continue
@@ -635,31 +633,138 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                 final_sam_items.append(item)
 
             # -----------------------------------------------------------
-            # Step 4: 生成 PPT 页面
+            # Step 4: 准备 AI 背景生成任务
             # -----------------------------------------------------------
-            slide = prs.slides.add_slide(prs.slide_layouts[6])
-            
-            scale_x = slide_w_emu / w0
-            scale_y = slide_h_emu / h0
-
-            # 4.1 背景处理：根据 state.use_ai_edit 决定是否调用 AI 生成背景
             clean_bg_path = base_dir / "clean_backgrounds" / f"clean_bg_{page_idx+1:03d}.png"
             clean_bg_path.parent.mkdir(parents=True, exist_ok=True)
             
             use_ai_bg = bool(getattr(state, "use_ai_edit", False))
+            log.critical(f"[pdf2ppt 是否使用AI： ][page#{page_idx+1}] use_ai_bg={use_ai_bg}")
             
-            if use_ai_bg:
-                # 这里如果未来需要重新启用 AI 背景，可在此处恢复调用 generate_or_edit_and_save_image_async
-                # 目前根据业务需求，默认不使用 AI 生成背景
-                log.info(f"[pdf2ppt_with_sam][page#{page_idx+1}] use_ai_edit=True 但当前已移除 AI 背景生成逻辑，继续使用纯色背景")
-            
-            # 统一使用纯白背景，防止外部依赖/调用失败
-            bg = slide.background
-            fill = bg.fill
-            fill.solid()
-            fill.fore_color.rgb = RGBColor(255, 255, 255)
+            ai_task = None
+            if use_ai_bg and os.path.exists(img_path):
+                try:
+                    # A. 生成 Mask (黑底白框)
+                    ori_cv = cv2.imread(img_path)
+                    if ori_cv is not None:
+                        h_cv, w_cv = ori_cv.shape[:2]
+                        mask_cv = np.zeros((h_cv, w_cv), dtype=np.uint8)  # 黑底
+                        
+                        # 绘制 OCR 区域 (白框)
+                        for line in final_ocr_lines:
+                            bbox = line[0]
+                            pad = 5
+                            mx1 = int(max(0, bbox[0] - pad))
+                            my1 = int(max(0, bbox[1] - pad))
+                            mx2 = int(min(w_cv, bbox[2] + pad))
+                            my2 = int(min(h_cv, bbox[3] + pad))
+                            cv2.rectangle(mask_cv, (mx1, my1), (mx2, my2), (255), -1)
+                        
+                        mask_path = base_dir / "masks" / f"mask_{page_idx+1:03d}.png"
+                        mask_path.parent.mkdir(parents=True, exist_ok=True)
+                        cv2.imwrite(str(mask_path), mask_cv)
+                        
+                        # B. 准备 AI 调用闭包
+                        req_cfg = getattr(state, "request", None) or {}
+                        if not isinstance(req_cfg, dict):
+                            req_cfg = req_cfg.__dict__ if hasattr(req_cfg, "__dict__") else {}
+                            
+                        api_key = req_cfg.get("api_key") or os.getenv("DF_API_KEY")
+                        api_url = req_cfg.get("chat_api_url") or "https://api.apiyi.com"
+                        model_name = req_cfg.get("gen_fig_model") or "gemini-3-pro-image-preview"
 
-            # 4.2 渲染 MinerU Image Zones
+                        if api_key:
+                            log.info(f"[pdf2ppt_with_sam][page#{page_idx+1}] Scheduling Gemini Inpainting...")
+                            prompt = (
+                                "Use the second image as a mask to remove text from the first image. "
+                                "Fill the removed text areas with background texture to make it clean. "
+                                "Keep non-text areas (figures, tables) unchanged."
+                            )
+                            
+                            async def _run_ai_job(_p_idx=page_idx, _img_p=img_path, _mask_p=str(mask_path), _out_p=str(clean_bg_path)):
+                                await _call_image_api_with_retry(
+                                    lambda: gemini_multi_image_edit_async(
+                                        prompt=prompt,
+                                        image_paths=[_img_p, _mask_p],
+                                        save_path=_out_p,
+                                        api_url=api_url,
+                                        api_key=api_key,
+                                        model=model_name,
+                                        resolution="1K", 
+                                        timeout=300
+                                    )
+                                )
+                            
+                            ai_task = _run_ai_job()
+                            ai_coroutines.append(ai_task)
+                        else:
+                            log.warning("Skipping AI edit: No API Key provided")
+                except Exception as e:
+                    log.error(f"[pdf2ppt_with_sam][page#{page_idx+1}] Prepare AI task failed: {e}")
+
+            # 保存所有需要在渲染阶段使用的数据
+            pages_render_data.append({
+                "page_idx": page_idx,
+                "scale_x": slide_w_emu / w0,
+                "scale_y": slide_h_emu / h0,
+                "clean_bg_path": str(clean_bg_path),
+                "image_zones": image_zones,
+                "final_sam_items": final_sam_items,
+                "final_ocr_lines": final_ocr_lines,
+                "std_title_pt": std_title_pt,
+                "std_body_pt": std_body_pt,
+                "ai_task": ai_task  # 用于追踪哪个页面发起了 AI 请求
+            })
+
+        # ==========================================================
+        # Phase 2: 并发执行 AI 任务
+        # ==========================================================
+        if ai_coroutines:
+            log.info(f"[pdf2ppt_with_sam] Executing {len(ai_coroutines)} AI background tasks in parallel...")
+            start_t = __import__("time").time()
+            # 忽略异常，确保后续 PPT 渲染能继续（失败的会降级为白底）
+            await asyncio.gather(*ai_coroutines, return_exceptions=True)
+            cost = __import__("time").time() - start_t
+            log.info(f"[pdf2ppt_with_sam] AI tasks finished. cost={cost:.2f}s")
+
+        # ==========================================================
+        # Phase 3: 生成 PPT 页面 (组装)
+        # ==========================================================
+        for p_data in pages_render_data:
+            # 取出数据
+            scale_x = p_data["scale_x"]
+            scale_y = p_data["scale_y"]
+            clean_bg_path = p_data["clean_bg_path"]
+            image_zones = p_data["image_zones"]
+            final_sam_items = p_data["final_sam_items"]
+            final_ocr_lines = p_data["final_ocr_lines"]
+            std_title_pt = p_data["std_title_pt"]
+            std_body_pt = p_data["std_body_pt"]
+
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+
+            # 3.1 设置背景
+            bg_image_path_for_ppt = None
+            if os.path.exists(clean_bg_path):
+                bg_image_path_for_ppt = clean_bg_path
+            
+            if bg_image_path_for_ppt:
+                try:
+                    slide.shapes.add_picture(bg_image_path_for_ppt, 0, 0, prs.slide_width, prs.slide_height)
+                except Exception as e:
+                    log.error(f"Failed to set slide background image: {e}")
+                    # 降级
+                    bg = slide.background
+                    fill = bg.fill
+                    fill.solid()
+                    fill.fore_color.rgb = RGBColor(255, 255, 255)
+            else:
+                bg = slide.background
+                fill = bg.fill
+                fill.solid()
+                fill.fore_color.rgb = RGBColor(255, 255, 255)
+
+            # 3.2 渲染 MinerU Image Zones
             for zone in image_zones:
                 ipath = zone["img_path"]
                 if not os.path.exists(ipath): 
@@ -677,7 +782,7 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                 except Exception as e:
                     log.error(f"Failed to add mineru image: {e}")
 
-            # 4.3 渲染 SAM Icons
+            # 3.3 渲染 SAM Icons
             for item in final_sam_items:
                 ipath = item.get("fg_png_path") or item.get("png_path")
                 if not ipath or not os.path.exists(ipath): continue
@@ -693,7 +798,7 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                 except Exception as e:
                     log.error(f"Failed to add SAM icon: {e}")
 
-            # 4.4 渲染 OCR Text (强制统一字号)
+            # 3.4 渲染 OCR Text
             for line in final_ocr_lines:
                 bbox, text, conf, l_type = line
                 x1, y1, x2, y2 = bbox
@@ -714,7 +819,6 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                 p = tf.paragraphs[0]
                 p.text = text
                 
-                # 应用标准字号
                 if l_type == "title":
                     p.font.size = Pt(std_title_pt)
                     p.font.bold = True

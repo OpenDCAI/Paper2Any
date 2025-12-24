@@ -1263,7 +1263,7 @@ if __name__ == "__main__":
     - 识别结果会打印在终端，并把画好检测框的图片保存到指定路径
     """
     # 测试图片路径（也是可视化输出路径）
-    img_path = "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/tests/test_02.png"
+    img_path = f"{get_project_root()}/tests/test_02.png"
 
     if not os.path.exists(img_path):
         raise FileNotFoundError(f"测试图片不存在: {img_path}")
@@ -1288,7 +1288,7 @@ if __name__ == "__main__":
             x1, y1, x2, y2 = map(int, bbox)
             cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
-        save_path = "/home/ubuntu/liuzhou/myproj/dev_2/DataFlow-Agent/tests/test_01_paddle_frame.png"
+        save_path = f"{get_project_root()}/tests/test_01_paddle_frame.png"
         ok = cv2.imwrite(save_path, vis)
         if ok:
             log.info(f"PaddleOCR 可视化结果已保存到: {save_path}")

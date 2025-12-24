@@ -1,4 +1,4 @@
-import { useState, ChangeEvent } from 'react';
+import { useState, useEffect, ChangeEvent } from 'react';
 import { 
   Presentation, UploadCloud, Settings2, Download, Loader2, CheckCircle2, 
   AlertCircle, ChevronDown, ChevronUp, Github, Star, X, Sparkles,
@@ -175,6 +175,29 @@ const Ppt2PolishPage = () => {
   const [language, setLanguage] = useState<'zh' | 'en'>('zh');
   const [resultPath, setResultPath] = useState<string | null>(null);
 
+  // GitHub Stars
+  const [stars, setStars] = useState<{dataflow: number | null, agent: number | null}>({ dataflow: null, agent: null });
+
+  useEffect(() => {
+    const fetchStars = async () => {
+      try {
+        const [res1, res2] = await Promise.all([
+          fetch('https://api.github.com/repos/OpenDCAI/DataFlow'),
+          fetch('https://api.github.com/repos/OpenDCAI/DataFlow-Agent')
+        ]);
+        const data1 = await res1.json();
+        const data2 = await res2.json();
+        setStars({
+          dataflow: data1.stargazers_count,
+          agent: data2.stargazers_count
+        });
+      } catch (e) {
+        console.error('Failed to fetch stars', e);
+      }
+    };
+    fetchStars();
+  }, []);
+
   // ============== Step 1: 上传处理 ==============
   const validateDocFile = (file: File): boolean => {
     const ext = file.name.split('.').pop()?.toLowerCase();
@@ -230,10 +253,10 @@ const Ppt2PolishPage = () => {
       return;
     }
     
-    if (!inviteCode.trim()) {
-      setError('请先输入邀请码');
-      return;
-    }
+    // if (!inviteCode.trim()) {
+    //   setError('请先输入邀请码');
+    //   return;
+    // }
     
     if (!llmApiUrl.trim() || !apiKey.trim()) {
       setError('请先配置模型 API URL 和 API Key');
@@ -587,6 +610,27 @@ const Ppt2PolishPage = () => {
           };
         });
         setBeautifyResults(updatedResults);
+        
+        // 同时更新 outlineData 的 asset_ref 为生成后的图片路径
+        // 这样后续"重新生成"时才能正确传递路径给后端
+        setOutlineData(prev => prev.map((slide, index) => {
+          const pageImageUrl = data.all_output_files.find((url: string) => 
+            url.includes(`page_${String(index).padStart(3, '0')}.png`)
+          );
+          return {
+            ...slide,
+            asset_ref: pageImageUrl || slide.asset_ref,
+          };
+        }));
+        
+        // 预加载所有图片到浏览器缓存，避免切换页面时延迟
+        console.log('预加载所有生成的图片...');
+        data.all_output_files.forEach((url: string) => {
+          if (url.endsWith('.png') || url.endsWith('.jpg') || url.endsWith('.jpeg')) {
+            const img = new Image();
+            img.src = url;
+          }
+        });
       }
       
       // 返回更新后的结果，供调用方使用
@@ -825,6 +869,7 @@ const Ppt2PolishPage = () => {
       if (pdfUrl) {
         setPdfDownloadUrl(pdfUrl);
       }
+      // 只要有一个文件生成成功即可
       if (!pptxUrl && !pdfUrl) {
         throw new Error('未找到生成的文件');
       }
@@ -908,7 +953,7 @@ const Ppt2PolishPage = () => {
         </p>
         <h1 className="text-4xl md:text-5xl font-bold mb-4">
           <span className="bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400 bg-clip-text text-transparent">
-            Ppt2Polish
+            PptPolish
           </span>
         </h1>
         <p className="text-base text-gray-300 max-w-2xl mx-auto leading-relaxed">
@@ -959,7 +1004,7 @@ const Ppt2PolishPage = () => {
             配置
           </h3>
           
-          <div>
+          {/* <div>
             <label className="block text-sm text-gray-300 mb-2">邀请码</label>
             <input
               type="text"
@@ -968,7 +1013,7 @@ const Ppt2PolishPage = () => {
               placeholder="请输入邀请码"
               className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500"
             />
-          </div>
+          </div> */}
           
           <div>
             <label className="block text-sm text-gray-300 mb-2">模型 API URL</label>
@@ -1082,57 +1127,110 @@ const Ppt2PolishPage = () => {
       {error && <div className="mt-4 flex items-center gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-4 py-3"><AlertCircle size={16} /> {error}</div>}
 
       {/* 示例区 */}
-      <div className="space-y-4 mt-8">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-gray-200">示例：从 Paper 到 PPTX</h3>
-          <span className="text-[11px] text-gray-500">
-            下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果，你可以替换为自己的示例图片。
-          </span>
+      {/* 示例区 */}
+      <div className="space-y-8 mt-10">
+        {/* 第一组：PPT 增色美化 */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-1 h-8 bg-gradient-to-b from-cyan-400 to-teal-500 rounded-full"></div>
+            <div>
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Sparkles size={18} className="text-cyan-400" />
+                PPT 增色美化
+              </h3>
+              <p className="text-sm text-gray-400">
+                基于原有 PPT 内容，智能调整风格、配色与视觉层次，让演示更具专业感与吸引力
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Demo 1 */}
+            <div className="glass rounded-xl border border-white/10 p-4 hover:border-cyan-500/30 transition-all">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-gray-500 mb-2 text-center">原始 PPT</p>
+                  <div className="rounded-lg overflow-hidden border border-white/10 aspect-[16/9] bg-white/5">
+                    <img src="/ppt2polish/paper2ppt_orgin_1.png" alt="原始PPT示例1" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-cyan-400 mb-2 text-center">增色后</p>
+                  <div className="rounded-lg overflow-hidden border border-cyan-500/30 aspect-[16/9] bg-gradient-to-br from-cyan-500/5 to-teal-500/5">
+                    <img src="/ppt2polish/paper2ppt_polish_1.png" alt="美化后PPT示例1" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Demo 2 */}
+            <div className="glass rounded-xl border border-white/10 p-4 hover:border-cyan-500/30 transition-all">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-gray-500 mb-2 text-center">原始 PPT</p>
+                  <div className="rounded-lg overflow-hidden border border-white/10 aspect-[16/9] bg-white/5">
+                    <img src="/ppt2polish/paper2ppt_orgin_2.png" alt="原始PPT示例2" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-cyan-400 mb-2 text-center">增色后</p>
+                  <div className="rounded-lg overflow-hidden border border-cyan-500/30 aspect-[16/9] bg-gradient-to-br from-cyan-500/5 to-teal-500/5">
+                    <img src="/ppt2polish/paper2ppt_polish_2.png" alt="美化后PPT示例2" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          <DemoCard
-            title="论文 PDF → 符合论文主题的 科研绘图（PPT）"
-            desc="上传英文论文 PDF，自动提炼研究背景、方法、实验设计和结论，生成结构清晰、符合学术风格的汇报 PPTX。"
-            inputImg="/p2f_paper_pdf_img.png"
-            outputImg="/p2f_paper_pdf_img_2.png"
-          />
-          <DemoCard
-            title="科研配图 / 示意图截图 → 可编辑 PPTX"
-            desc="上传科研配图或示意图截图，自动识别段落层级与要点，自动排版为可编辑的英文 PPTX。"
-            inputImg="/p2f_paper_model_img.png"
-            outputImg="/p2f_paper_modle_img_2.png"
-          />
-          <DemoCard
-            title="论文摘要文本 → 科研绘图 PPTX"
-            desc="粘贴论文摘要或章节内容，一键生成包含标题层级、关键要点与图示占位的 PPTX 大纲，方便后续细化与美化。"
-            inputImg="/p2f_paper_content.png"
-            outputImg="/p2f_paper_content_2.png"
-          />
-          <DemoCard
-            title="论文 PDF → 符合论文主题的 技术路线图 PPT + SVG"
-            desc="根据论文方法部分，自动梳理技术路线与模块依赖关系，生成清晰的技术路线图 PPTX 与 SVG 示意图。"
-            inputImg="/p2t_paper_img.png"
-            outputImg="/p2t_paper_img_2.png"
-          />
-          <DemoCard
-            title="论文摘要文本 → 符合论文主题的 技术路线图 PPT + SVG"
-            desc="从整篇技术方案 PDF 中提取关键步骤与时间轴，自动生成技术路线时间线 PPTX 与 SVG。"
-            inputImg="/p2t_paper_text.png"
-            outputImg="/p2t_paper_text_2.png"
-          />
-          <DemoCard
-            title="论文 PDF → 自动提取实验数据 绘制成 PPT"
-            desc="从论文实验部分 PDF 中提取表格与结果描述，自动生成对比柱状图 / 折线图 PPTX，便于直观展示结果。"
-            inputImg="/p2e_paper_1.png"
-            outputImg="/p2e_paper_2.png"
-          />
-          <DemoCard
-            title="论文实验表格文本 → 自动整理实验数据 绘制成 PPT"
-            desc="从文本形式的实验结果描述中抽取指标与对照组，一键生成适合汇报的实验结果 PPTX。"
-            inputImg="/p2f_exp_content_1.png"
-            outputImg="/p2f_exp_content_2.png"
-          />
+        {/* 第二组：PPT 润色拓展 */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-1 h-8 bg-gradient-to-b from-purple-400 to-pink-500 rounded-full"></div>
+            <div>
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Edit3 size={18} className="text-purple-400" />
+                PPT 润色拓展
+              </h3>
+              <p className="text-sm text-gray-400">
+                将纯文字或简易空白 PPT 智能润色拓展，自动生成精美排版与视觉元素，一键变身专业演示
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Demo 3 */}
+            <div className="glass rounded-xl border border-white/10 p-4 hover:border-purple-500/30 transition-all">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-gray-500 mb-2 text-center">原始 PPT</p>
+                  <div className="rounded-lg overflow-hidden border border-white/10 aspect-[16/9] bg-white/5">
+                    <img src="/ppt2polish/orgin_3.png" alt="原始PPT示例3" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-purple-400 mb-2 text-center">润色后</p>
+                  <div className="rounded-lg overflow-hidden border border-purple-500/30 aspect-[16/9] bg-gradient-to-br from-purple-500/5 to-pink-500/5">
+                    <img src="/ppt2polish/polish_3.png" alt="美化后PPT示例3" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Demo 4 */}
+            <div className="glass rounded-xl border border-white/10 p-4 hover:border-purple-500/30 transition-all">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-gray-500 mb-2 text-center">原始 PPT</p>
+                  <div className="rounded-lg overflow-hidden border border-white/10 aspect-[16/9] bg-white/5">
+                    <img src="/ppt2polish/orgin_4.png" alt="原始PPT示例4" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-purple-400 mb-2 text-center">润色后</p>
+                  <div className="rounded-lg overflow-hidden border border-purple-500/30 aspect-[16/9] bg-gradient-to-br from-purple-500/5 to-pink-500/5">
+                    <img src="/ppt2polish/polish_4.png" alt="美化后PPT示例4" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1269,17 +1367,19 @@ const Ppt2PolishPage = () => {
       ) : (
         <div className="space-y-4">
           <div className="flex gap-4 justify-center">
-            {downloadUrl && (
-              <button onClick={handleDownload} className="px-6 py-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold flex items-center gap-2 transition-all">
-                <Download size={18} /> 下载 PPT
-              </button>
-            )}
+            {/* 已移除 PPTX 下载按钮 */}
             {pdfDownloadUrl && (
               <a href={pdfDownloadUrl} target="_blank" rel="noopener noreferrer" className="px-6 py-3 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold flex items-center gap-2 transition-all">
                 <Download size={18} /> 下载 PDF
               </a>
             )}
           </div>
+
+          {/* 引导去 PDF2PPT */}
+          <div className="text-center text-sm text-gray-400 bg-white/5 border border-white/10 rounded-lg p-3">
+            如果需要继续 PDF 转可编辑 PPTX，请前往 <a href="/pdf2ppt" className="text-teal-400 hover:text-teal-300 hover:underline font-medium transition-colors">PDF2PPT 页面</a>
+          </div>
+
           <button onClick={() => { setCurrentStep('upload'); setSelectedFile(null); setOutlineData([]); setBeautifyResults([]); setDownloadUrl(null); setPdfDownloadUrl(null); }} className="text-sm text-gray-400 hover:text-white transition-colors">
             <RotateCcw size={14} className="inline mr-1" /> 处理新的文档
           </button>
@@ -1299,10 +1399,15 @@ const Ppt2PolishPage = () => {
           
           <div className="relative max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-start">
-              <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
+              <a
+                href="https://github.com/OpenDCAI"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 hover:bg-white/30 transition-colors"
+              >
                 <Star size={16} className="text-yellow-300 fill-yellow-300 animate-pulse" />
-                <span className="text-xs font-bold text-white">开源项目</span>
-              </div>
+                <span className="text-xs font-bold text-white">GitHub开源项目</span>
+              </a>
               
               <span className="text-sm font-medium text-white">
                 🚀 探索更多 AI 数据处理工具
@@ -1318,6 +1423,7 @@ const Ppt2PolishPage = () => {
               >
                 <Github size={14} />
                 <span>DataFlow</span>
+                <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
                 <span className="bg-purple-600 text-white px-2 py-0.5 rounded-full text-[10px]">HOT</span>
               </a>
 
@@ -1329,6 +1435,7 @@ const Ppt2PolishPage = () => {
               >
                 <Github size={14} />
                 <span>DataFlow-Agent</span>
+                <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.agent || 'Star'}</span>
                 <span className="bg-pink-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
               </a>
 

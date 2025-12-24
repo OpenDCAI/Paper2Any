@@ -4,6 +4,7 @@ from .paper_idea_extractor import PaperIdeaExtractor, create_paper_idea_extracto
 from .chart_type_recommender import ChartTypeRecommender, create_chart_type_recommender
 from .chart_code_generator import ChartCodeGenerator, create_chart_code_generator
 from .fig_desc_generator import FigureDescGenerator
+from .deep_research_agent import DeepResearchAgent, create_deep_research_agent
 
 __all__ = [
     "PaperIdeaExtractor",
@@ -13,4 +14,6 @@ __all__ = [
     "ChartCodeGenerator",
     "create_chart_code_generator",
     "FigureDescGenerator",
+    "DeepResearchAgent",
+    "create_deep_research_agent",
 ]

@@ -1,7 +1,7 @@
-import { useState, ChangeEvent } from 'react';
+import { useState, useEffect, ChangeEvent } from 'react';
 import { 
   UploadCloud, Download, Loader2, CheckCircle2, 
-  AlertCircle, Github, Star, X, FileText, ArrowRight, Key, Globe
+  AlertCircle, Github, Star, X, FileText, ArrowRight, Key, Globe, ToggleLeft, ToggleRight, Sparkles, Image
 } from 'lucide-react';
 
 // ============== 主组件 ==============
@@ -15,11 +15,36 @@ const Pdf2PptPage = () => {
   const [downloadBlob, setDownloadBlob] = useState<Blob | null>(null);
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
+
+  // GitHub Stars
+  const [stars, setStars] = useState<{dataflow: number | null, agent: number | null}>({ dataflow: null, agent: null });
+
+  useEffect(() => {
+    const fetchStars = async () => {
+      try {
+        const [res1, res2] = await Promise.all([
+          fetch('https://api.github.com/repos/OpenDCAI/DataFlow'),
+          fetch('https://api.github.com/repos/OpenDCAI/DataFlow-Agent')
+        ]);
+        const data1 = await res1.json();
+        const data2 = await res2.json();
+        setStars({
+          dataflow: data1.stargazers_count,
+          agent: data2.stargazers_count
+        });
+      } catch (e) {
+        console.error('Failed to fetch stars', e);
+      }
+    };
+    fetchStars();
+  }, []);
   
-  // 三个必填配置
+  // 配置
   const [inviteCode, setInviteCode] = useState('');
+  const [useAiEdit, setUseAiEdit] = useState(false);
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
+  const [genFigModel, setGenFigModel] = useState('gemini-2.5-flash-image');
 
   const validateDocFile = (file: File): boolean => {
     const ext = file.name.split('.').pop()?.toLowerCase();
@@ -55,17 +80,20 @@ const Pdf2PptPage = () => {
       setError('请先选择 PDF 文件');
       return;
     }
-    if (!inviteCode.trim()) {
-      setError('请输入邀请码');
-      return;
-    }
-    if (!apiKey.trim()) {
-      setError('请输入 API Key');
-      return;
-    }
-    if (!llmApiUrl.trim()) {
-      setError('请输入 API URL');
-      return;
+    // if (!inviteCode.trim()) {
+    //   setError('请输入邀请码');
+    //   return;
+    // }
+    
+    if (useAiEdit) {
+      if (!apiKey.trim()) {
+        setError('开启 AI 增强时必须输入 API Key');
+        return;
+      }
+      if (!llmApiUrl.trim()) {
+        setError('开启 AI 增强时必须输入 API URL');
+        return;
+      }
     }
     
     setIsProcessing(true);
@@ -98,9 +126,16 @@ const Pdf2PptPage = () => {
     try {
       const formData = new FormData();
       formData.append('pdf_file', selectedFile);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
       formData.append('invite_code', inviteCode.trim());
+      
+      if (useAiEdit) {
+        formData.append('use_ai_edit', 'true');
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+        formData.append('gen_fig_model', genFigModel);
+      } else {
+        formData.append('use_ai_edit', 'false');
+      }
       
       const res = await fetch('/api/pdf2ppt/generate', {
         method: 'POST',
@@ -173,10 +208,15 @@ const Pdf2PptPage = () => {
           
           <div className="relative max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-start">
-              <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
+              <a
+                href="https://github.com/OpenDCAI"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 hover:bg-white/30 transition-colors"
+              >
                 <Star size={16} className="text-yellow-300 fill-yellow-300 animate-pulse" />
-                <span className="text-xs font-bold text-white">开源项目</span>
-              </div>
+                <span className="text-xs font-bold text-white">GitHub开源项目</span>
+              </a>
               
               <span className="text-sm font-medium text-white">
                 🚀 探索更多 AI 数据处理工具
@@ -192,6 +232,7 @@ const Pdf2PptPage = () => {
               >
                 <Github size={14} />
                 <span>DataFlow</span>
+                <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
                 <span className="bg-purple-600 text-white px-2 py-0.5 rounded-full text-[10px]">HOT</span>
               </a>
 
@@ -203,6 +244,7 @@ const Pdf2PptPage = () => {
               >
                 <Github size={14} />
                 <span>DataFlow-Agent</span>
+                <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.agent || 'Star'}</span>
                 <span className="bg-pink-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
               </a>
 
@@ -218,8 +260,9 @@ const Pdf2PptPage = () => {
         </div>
       )}
 
-      <div className="flex-1 overflow-auto flex items-center justify-center">
-        <div className="max-w-2xl w-full mx-auto px-6 py-8">
+      <div className="flex-1 overflow-auto">
+        <div className="max-w-6xl w-full mx-auto px-6 py-8">
+          <div className="max-w-2xl mx-auto">
           {/* 标题 */}
           <div className="text-center mb-8">
             <p className="text-xs uppercase tracking-[0.2em] text-purple-300 mb-3 font-semibold">PDF → PPTX</p>
@@ -276,48 +319,95 @@ const Pdf2PptPage = () => {
                   )}
                 </div>
 
-                {/* 三个必填配置 */}
-                <div className="space-y-4 mb-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
-                        <Key size={12} /> 邀请码 <span className="text-red-400">*</span>
-                      </label>
-                      <input 
-                        type="text" 
-                        value={inviteCode} 
-                        onChange={e => setInviteCode(e.target.value)}
-                        placeholder="xxx-xxx"
-                        className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
-                        <Key size={12} /> API Key <span className="text-red-400">*</span>
-                      </label>
-                      <input 
-                        type="password" 
-                        value={apiKey} 
-                        onChange={e => setApiKey(e.target.value)}
-                        placeholder="sk-..."
-                        className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
+                {/* 必填配置：邀请码 */}
+                {/* <div className="mb-6">
                     <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
-                      <Globe size={12} /> API URL <span className="text-red-400">*</span>
+                      <Key size={12} /> 邀请码 <span className="text-red-400">*</span>
                     </label>
                     <input 
                       type="text" 
-                      value={llmApiUrl} 
-                      onChange={e => setLlmApiUrl(e.target.value)}
-                      placeholder="https://api.openai.com/v1"
+                      value={inviteCode} 
+                      onChange={e => setInviteCode(e.target.value)}
+                      placeholder="xxx-xxx"
                       className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
                     />
+                </div> */}
+
+                {/* AI 增强选项开关 */}
+                <div className="mb-4 flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/5">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20">
+                      <Sparkles size={16} className="text-purple-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-white">AI 背景增强</p>
+                      <p className="text-xs text-gray-400">使用 Gemini 模型清除文字并修复背景</p>
+                    </div>
                   </div>
+                  <button 
+                    onClick={() => setUseAiEdit(!useAiEdit)}
+                    className="focus:outline-none transition-colors"
+                  >
+                    {useAiEdit ? (
+                      <ToggleRight size={32} className="text-purple-500" />
+                    ) : (
+                      <ToggleLeft size={32} className="text-gray-500" />
+                    )}
+                  </button>
                 </div>
+
+                {/* AI 增强配置面板 - 仅开启时显示 */}
+                {useAiEdit && (
+                  <div className="space-y-4 mb-6 p-4 rounded-xl border border-purple-500/20 bg-purple-500/5 animate-in fade-in slide-in-from-top-2">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
+                        <Globe size={12} /> API URL <span className="text-red-400">*</span>
+                      </label>
+                      <input 
+                        type="text" 
+                        value={llmApiUrl} 
+                        onChange={e => setLlmApiUrl(e.target.value)}
+                        placeholder="https://api.openai.com/v1"
+                        className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
+                          <Key size={12} /> API Key <span className="text-red-400">*</span>
+                        </label>
+                        <input 
+                          type="password" 
+                          value={apiKey} 
+                          onChange={e => setApiKey(e.target.value)}
+                          placeholder="sk-..."
+                          className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
+                          <Image size={12} /> 生成模型
+                        </label>
+                        <div className="relative">
+                          <select 
+                            value={genFigModel} 
+                            onChange={e => setGenFigModel(e.target.value)}
+                            className="w-full appearance-none rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                          >
+                            <option value="gemini-2.5-flash-image">Gemini 2.5 Flash</option>
+                            <option value="gemini-3-pro-image-preview">Gemini 3 Pro</option>
+                          </select>
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* 进度条 */}
                 {isProcessing && (
@@ -386,64 +476,34 @@ const Pdf2PptPage = () => {
           <p className="text-center text-xs text-gray-500 mt-6">
             支持的文件格式：PDF | 最大文件大小：50MB
           </p>
-        </div>
+          </div>
 
-        {/* 示例区 */}
-        <div className="max-w-7xl mx-auto px-6 pb-12 w-full">
-          <div className="space-y-4">
+          {/* 示例区 */}
+          <div className="space-y-4 mt-16 max-w-4xl mx-auto">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-gray-200">示例：从 Paper 到 PPTX</h3>
+              <h3 className="text-sm font-medium text-gray-200">示例：从 PDF 到 可编辑 PPTX（文字 + 元素ICON）</h3>
               <span className="text-[11px] text-gray-500">
-                下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果，你可以替换为自己的示例图片。
+                下方示例展示不同模式下的转换效果。
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <DemoCard
-                title="论文 PDF → 符合论文主题的 科研绘图（PPT）"
-                desc="上传英文论文 PDF，自动提炼研究背景、方法、实验设计和结论，生成结构清晰、符合学术风格的汇报 PPTX。"
-                inputImg="/p2f_paper_pdf_img.png"
-                outputImg="/p2f_paper_pdf_img_2.png"
+                title="基础转换（白色背景）"
+                desc="快速将 PDF 转换为可编辑的 PPT，保留原始排版和内容，适合标准文档转换。"
+                inputImg="/pdf2ppt/input_1.png"
+                outputImg="/pdf2ppt/output_1.png"
               />
               <DemoCard
-                title="科研配图 / 示意图截图 → 可编辑 PPTX"
-                desc="上传科研配图或示意图截图，自动识别段落层级与要点，自动排版为可编辑的英文 PPTX。"
-                inputImg="/p2f_paper_model_img.png"
-                outputImg="/p2f_paper_modle_img_2.png"
-              />
-              <DemoCard
-                title="论文摘要文本 → 科研绘图 PPTX"
-                desc="粘贴论文摘要或章节内容，一键生成包含标题层级、关键要点与图示占位的 PPTX 大纲，方便后续细化与美化。"
-                inputImg="/p2f_paper_content.png"
-                outputImg="/p2f_paper_content_2.png"
-              />
-              <DemoCard
-                title="论文 PDF → 符合论文主题的 技术路线图 PPT + SVG"
-                desc="根据论文方法部分，自动梳理技术路线与模块依赖关系，生成清晰的技术路线图 PPTX 与 SVG 示意图。"
-                inputImg="/p2t_paper_img.png"
-                outputImg="/p2t_paper_img_2.png"
-              />
-              <DemoCard
-                title="论文摘要文本 → 符合论文主题的 技术路线图 PPT + SVG"
-                desc="从整篇技术方案 PDF 中提取关键步骤与时间轴，自动生成技术路线时间线 PPTX 与 SVG。"
-                inputImg="/p2t_paper_text.png"
-                outputImg="/p2t_paper_text_2.png"
-              />
-              <DemoCard
-                title="论文 PDF → 自动提取实验数据 绘制成 PPT"
-                desc="从论文实验部分 PDF 中提取表格与结果描述，自动生成对比柱状图 / 折线图 PPTX，便于直观展示结果。"
-                inputImg="/p2e_paper_1.png"
-                outputImg="/p2e_paper_2.png"
-              />
-              <DemoCard
-                title="论文实验表格文本 → 自动整理实验数据 绘制成 PPT"
-                desc="从文本形式的实验结果描述中抽取指标与对照组，一键生成适合汇报的实验结果 PPTX。"
-                inputImg="/p2f_exp_content_1.png"
-                outputImg="/p2f_exp_content_2.png"
+                title="AI 增强模式（AI重塑背景）"
+                desc="利用 AI 清除原有背景，智能重塑页面风格，提升视觉效果，打造专业演示文稿。"
+                inputImg="/pdf2ppt/input_2.png"
+                outputImg="/pdf2ppt/output_2.png"
               />
             </div>
           </div>
         </div>
+
       </div>
 
       <style>{`
@@ -456,10 +516,10 @@ const Pdf2PptPage = () => {
         }
         .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); }
         .demo-input-placeholder {
-          min-height: 80px;
+          min-height: 120px;
         }
         .demo-output-placeholder {
-          min-height: 80px;
+          min-height: 120px;
         }
       `}</style>
     </div>
@@ -475,36 +535,52 @@ interface DemoCardProps {
 
 const DemoCard = ({ title, desc, inputImg, outputImg }: DemoCardProps) => {
   return (
-    <div className="glass rounded-lg border border-white/10 p-3 flex flex-col gap-2 hover:bg-white/5 transition-colors">
-      <div className="flex gap-2">
+    <div className="glass rounded-lg border border-white/10 p-4 flex flex-col gap-3 hover:bg-white/5 transition-colors">
+      <div className="flex gap-3">
         {/* 左侧：输入示例图片 */}
-        <div className="flex-1 rounded-md bg-white/5 border border-dashed border-white/10 flex items-center justify-center demo-input-placeholder overflow-hidden">
+        <div className="flex-1 rounded-md bg-white/5 border border-dashed border-white/10 flex items-center justify-center demo-input-placeholder overflow-hidden relative group">
           {inputImg ? (
-            <img
-              src={inputImg}
-              alt="输入示例图"
-              className="w-full h-full object-cover"
-            />
+            <>
+              <img
+                src={inputImg}
+                alt="输入示例图"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-xs text-white font-medium">Input (PDF)</span>
+              </div>
+            </>
           ) : (
-            <span className="text-[10px] text-gray-400">输入示例图（待替换）</span>
+            <span className="text-[10px] text-gray-400">输入示例图</span>
           )}
         </div>
+        
+        {/* 中间箭头 */}
+        <div className="flex items-center justify-center text-gray-500">
+          <ArrowRight size={16} />
+        </div>
+
         {/* 右侧：输出 PPTX 示例图片 */}
-        <div className="flex-1 rounded-md bg-primary-500/10 border border-dashed border-primary-300/40 flex items-center justify-center demo-output-placeholder overflow-hidden">
+        <div className="flex-1 rounded-md bg-violet-500/10 border border-dashed border-violet-300/40 flex items-center justify-center demo-output-placeholder overflow-hidden relative group">
           {outputImg ? (
-            <img
-              src={outputImg}
-              alt="PPTX 示例图"
-              className="w-full h-full object-cover"
-            />
+            <>
+              <img
+                src={outputImg}
+                alt="PPTX 示例图"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-xs text-white font-medium">Output (PPTX)</span>
+              </div>
+            </>
           ) : (
-            <span className="text-[10px] text-primary-200">PPTX 示例图（待替换）</span>
+            <span className="text-[10px] text-violet-200">PPTX 示例图</span>
           )}
         </div>
       </div>
       <div>
-        <p className="text-[13px] text-white font-medium mb-1">{title}</p>
-        <p className="text-[11px] text-gray-400 leading-snug">{desc}</p>
+        <p className="text-sm text-white font-medium mb-1">{title}</p>
+        <p className="text-xs text-gray-400 leading-relaxed">{desc}</p>
       </div>
     </div>
   );

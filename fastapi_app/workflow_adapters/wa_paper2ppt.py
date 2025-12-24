@@ -80,6 +80,8 @@ def _init_state_from_request(
     elif input_type == "TEXT":
         # 纯文本场景：直接作为 text_content
         state.text_content = input_content
+    elif input_type == "TOPIC":
+        state.text_content = input_content
     else:
         log.warning(f"[paper2ppt] Unknown input_type on init_state: {input_type}")
 
@@ -199,7 +201,7 @@ async def run_paper2ppt_wf_api(
         f"pagecontent_len={len(getattr(state, 'pagecontent', []) or [])}"
     )
 
-    final_state: Paper2FigureState = await run_workflow("paper2ppt", state)
+    final_state: Paper2FigureState = await run_workflow("paper2ppt_parallel", state)
 
     # 提取关键输出
     ppt_pdf_path = getattr(final_state, "ppt_pdf_path", "")
