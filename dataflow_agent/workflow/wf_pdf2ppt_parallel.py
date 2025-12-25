@@ -232,35 +232,41 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
     async def slides_ocr_node(state: Paper2FigureState) -> Paper2FigureState:
         """
         对每一页图片用 PaddleOCR 做 OCR。
+        使用 asyncio.to_thread 包装同步调用，避免阻塞事件循环。
         """
         image_paths: List[str] = getattr(state, "slide_images", []) or []
         if not image_paths:
             log.error("[pdf2ppt_with_sam] no slide_images for OCR")
             return state
 
-        ocr_pages: List[Dict[str, Any]] = []
-        for page_idx, img_path in enumerate(image_paths):
-            try:
-                # 优先使用远程 OCR 服务
+        def _sync_ocr_all_pages():
+            """同步执行所有页面的 OCR"""
+            ocr_pages: List[Dict[str, Any]] = []
+            for page_idx, img_path in enumerate(image_paths):
                 try:
-                    result = ppt_tool.paddle_ocr_page_with_layout_server(img_path, server_urls=OCR_SERVER_URLS)
+                    # 优先使用远程 OCR 服务
+                    try:
+                        result = ppt_tool.paddle_ocr_page_with_layout_server(img_path, server_urls=OCR_SERVER_URLS)
+                    except Exception as e:
+                        log.warning(f"[pdf2ppt_with_sam][OCR] remote failed: {e}. Fallback to local.")
+                        result = ppt_tool.paddle_ocr_page_with_layout(img_path)
                 except Exception as e:
-                    log.warning(f"[pdf2ppt_with_sam][OCR] remote failed: {e}. Fallback to local.")
-                    result = ppt_tool.paddle_ocr_page_with_layout(img_path)
-            except Exception as e:
-                log.error(f"[pdf2ppt_with_sam][OCR] page#{page_idx+1} failed: {e}")
-                result = {
-                    "image_size": None,
-                    "lines": [],
-                    "body_h_px": None,
-                    "bg_color": None,
-                    "path": img_path,
-                    "page_idx": page_idx,
-                }
-            result["page_idx"] = page_idx
-            result["path"] = img_path
-            ocr_pages.append(result)
+                    log.error(f"[pdf2ppt_with_sam][OCR] page#{page_idx+1} failed: {e}")
+                    result = {
+                        "image_size": None,
+                        "lines": [],
+                        "body_h_px": None,
+                        "bg_color": None,
+                        "path": img_path,
+                        "page_idx": page_idx,
+                    }
+                result["page_idx"] = page_idx
+                result["path"] = img_path
+                ocr_pages.append(result)
+            return ocr_pages
 
+        # 在线程池中执行同步 OCR，不阻塞事件循环
+        ocr_pages = await asyncio.to_thread(_sync_ocr_all_pages)
         state.ocr_pages = ocr_pages
         return state
 
@@ -328,6 +334,7 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
     async def slides_sam_node(state: Paper2FigureState) -> Paper2FigureState:
         """
         对每一页图片运行 SAM 用于图标 / 图块分割。
+        使用 asyncio.to_thread 包装同步调用，避免阻塞事件循环。
         """
         image_paths: List[str] = getattr(state, "slide_images", []) or []
         if not image_paths:
@@ -335,7 +342,9 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
             return state
 
         base_dir = _ensure_result_path(state)
-        sam_pages = _run_sam_on_pages(image_paths, base_dir)
+        
+        # 在线程池中执行同步 SAM，不阻塞事件循环
+        sam_pages = await asyncio.to_thread(_run_sam_on_pages, image_paths, base_dir)
         state.sam_pages = sam_pages
         return state
 
@@ -344,6 +353,7 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
         对每一页 SAM layout PNG 做背景抠图：
         - 输入: state.sam_pages[*].layout_items[].png_path 或传入的 sam_pages
         - 输出: 为每个 layout_item 写入 fg_png_path（抠完背景的 PNG）
+        使用 asyncio.to_thread 包装同步调用，避免阻塞事件循环。
         """
         # 支持从参数传入 sam_pages（用于并行分支）
         if sam_pages is None:
@@ -359,56 +369,62 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
 
         model_path = getattr(getattr(state, "request", None), "bg_rm_model", None)
 
-        processed = 0
-        
-        for p in sam_pages:
-            page_idx = p.get("page_idx", 0)
-            for it in p.get("layout_items", []):
-                png_path = it.get("png_path")
-                if not png_path or not os.path.exists(png_path):
-                    continue
-                
-                # 背景抠图 - 添加页码前缀避免文件名冲突
-                try:
-                    # 从原始路径提取文件名
-                    original_stem = Path(png_path).stem
-                    # 创建带页码的输出文件名
-                    output_filename = f"page_{page_idx+1:03d}_{original_stem}_bg_removed.png"
-                    output_path = icons_dir / output_filename
+        def _sync_bg_remove():
+            """同步执行所有背景移除"""
+            processed = 0
+            for p in sam_pages:
+                page_idx = p.get("page_idx", 0)
+                for it in p.get("layout_items", []):
+                    png_path = it.get("png_path")
+                    if not png_path or not os.path.exists(png_path):
+                        continue
                     
-                    req = {
-                        "image_path": png_path,
-                        "output_dir": str(icons_dir),
-                    }
-                    if model_path:
-                        req["model_path"] = model_path
-                    
-                    fg_path = local_tool_for_bg_remove(req)
-                    
-                    # 重命名文件以包含页码
-                    if fg_path and os.path.exists(fg_path):
-                        # 将生成的文件重命名为带页码的文件名
-                        fg_path_obj = Path(fg_path)
-                        if fg_path_obj.name != output_filename:
-                            new_fg_path = fg_path_obj.parent / output_filename
-                            fg_path_obj.rename(new_fg_path)
-                            fg_path = str(new_fg_path)
+                    # 背景抠图 - 添加页码前缀避免文件名冲突
+                    try:
+                        # 从原始路径提取文件名
+                        original_stem = Path(png_path).stem
+                        # 创建带页码的输出文件名
+                        output_filename = f"page_{page_idx+1:03d}_{original_stem}_bg_removed.png"
+                        output_path = icons_dir / output_filename
                         
-                        it["fg_png_path"] = fg_path
-                    else:
+                        req = {
+                            "image_path": png_path,
+                            "output_dir": str(icons_dir),
+                        }
+                        if model_path:
+                            req["model_path"] = model_path
+                        
+                        fg_path = local_tool_for_bg_remove(req)
+                        
+                        # 重命名文件以包含页码
+                        if fg_path and os.path.exists(fg_path):
+                            # 将生成的文件重命名为带页码的文件名
+                            fg_path_obj = Path(fg_path)
+                            if fg_path_obj.name != output_filename:
+                                new_fg_path = fg_path_obj.parent / output_filename
+                                fg_path_obj.rename(new_fg_path)
+                                fg_path = str(new_fg_path)
+                            
+                            it["fg_png_path"] = fg_path
+                        else:
+                            it["fg_png_path"] = png_path
+                        
+                        processed += 1
+                    except Exception as e:
+                        log.error(f"[pdf2ppt_with_sam][bg_rm] failed for {png_path}: {e}")
                         it["fg_png_path"] = png_path
-                    
-                    processed += 1
-                except Exception as e:
-                    log.error(f"[pdf2ppt_with_sam][bg_rm] failed for {png_path}: {e}")
-                    it["fg_png_path"] = png_path
 
-        # 抠图完成后可尝试释放模型（忽略失败）
-        try:
-            if model_path:
-                free_bg_rm_model(model_path=model_path)
-        except Exception as e:
-            log.error(f"[pdf2ppt_with_sam] free_bg_rm_model failed: {e}")
+            # 抠图完成后可尝试释放模型（忽略失败）
+            try:
+                if model_path:
+                    free_bg_rm_model(model_path=model_path)
+            except Exception as e:
+                log.error(f"[pdf2ppt_with_sam] free_bg_rm_model failed: {e}")
+            
+            return processed
+
+        # 在线程池中执行同步背景移除，不阻塞事件循环
+        processed = await asyncio.to_thread(_sync_bg_remove)
 
         log.info(f"[pdf2ppt_with_sam] bg remove processed: {processed} items")
         
