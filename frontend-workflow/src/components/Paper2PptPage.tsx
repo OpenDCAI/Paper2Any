@@ -3,7 +3,8 @@ import {
   UploadCloud, Settings2, Download, Loader2, CheckCircle2, 
   AlertCircle, ChevronDown, ChevronUp, Github, Star, X, Sparkles,
   ArrowRight, ArrowLeft, GripVertical, Trash2, Edit3, Check, RotateCcw,
-  MessageSquare, RefreshCw, FileText, Key, Globe, Cpu, Type, Lightbulb
+  MessageSquare, RefreshCw, FileText, Key, Globe, Cpu, Type, Lightbulb,
+  Copy, Share2
 } from 'lucide-react';
 
 // ============== 类型定义 ==============
@@ -78,6 +79,28 @@ const Paper2PptPage = () => {
 
   // GitHub Stars
   const [stars, setStars] = useState<{dataflow: number | null, agent: number | null}>({ dataflow: null, agent: null });
+  const [copySuccess, setCopySuccess] = useState('');
+
+  const shareText = `发现一个超好用的AI工具 DataFlow-Agent！🚀
+支持论文转PPT、PDF转PPT、PPT美化等功能，科研打工人的福音！
+
+🔗 在线体验：https://dcai-paper2any.nas.cpolar.cn/
+⭐ GitHub Agent：https://github.com/OpenDCAI/DataFlow-Agent
+🌟 GitHub Core：https://github.com/OpenDCAI/DataFlow
+
+转发本文案+截图，联系管理员即可获取免费Key！🎁
+#AI工具 #PPT制作 #科研效率 #开源项目`;
+
+  const handleCopyShareText = async () => {
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setCopySuccess('文案已复制！快去分享吧');
+      setTimeout(() => setCopySuccess(''), 2000);
+    } catch (err) {
+      console.error('复制失败', err);
+      setCopySuccess('复制失败，请手动复制');
+    }
+  };
 
   useEffect(() => {
     const fetchStars = async () => {
@@ -809,9 +832,19 @@ const Paper2PptPage = () => {
               />
             </div> */}
             <div>
-              <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
-                <Key size={12} /> API Key *
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs text-gray-400 flex items-center gap-1">
+                  <Key size={12} /> API Key *
+                </label>
+                <a
+                  href="https://api.apiyi.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-purple-300 hover:text-purple-200 hover:underline"
+                >
+                  点击购买
+                </a>
+              </div>
               <input 
                 type="password" 
                 value={apiKey} 
@@ -838,12 +871,16 @@ const Paper2PptPage = () => {
               <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
                 <Cpu size={12} /> 模型
               </label>
-              <input 
-                type="text" 
+              <select 
                 value={model} 
                 onChange={e => setModel(e.target.value)}
                 className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
-              />
+              >
+                <option value="gpt-4o">gpt-4o</option>
+                <option value="gpt-5.1">gpt-5.1</option>
+                <option value="gpt-5.2">gpt-5.2</option>
+                <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
+              </select>
             </div>
           </div>
           
@@ -1220,6 +1257,84 @@ const Paper2PptPage = () => {
             <AlertCircle size={16} /> {error}
           </div>
         )}
+
+        {/* 分享与交流群区域 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8 text-left">
+          {/* 获取免费 Key */}
+          <div className="glass rounded-xl border border-white/10 p-5 flex flex-col items-center text-center hover:bg-white/5 transition-colors">
+            <div className="w-12 h-12 rounded-full bg-yellow-500/20 text-yellow-300 flex items-center justify-center mb-3">
+              <Star size={24} />
+            </div>
+            <h4 className="text-white font-semibold mb-2">获取免费 API Key</h4>
+            <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+              点击下方平台图标复制推广文案<br/>
+              分享至朋友圈/小红书/推特，截图联系管理员领 Key！
+            </p>
+            
+            {/* 分享按钮组 */}
+            <div className="flex items-center justify-center gap-4 mb-5 w-full">
+              <button onClick={handleCopyShareText} className="flex flex-col items-center gap-1 group">
+                <div className="w-10 h-10 rounded-full bg-[#00C300]/20 text-[#00C300] flex items-center justify-center border border-[#00C300]/30 group-hover:scale-110 transition-transform">
+                  <MessageSquare size={18} />
+                </div>
+                <span className="text-[10px] text-gray-400">微信</span>
+              </button>
+              <button onClick={handleCopyShareText} className="flex flex-col items-center gap-1 group">
+                <div className="w-10 h-10 rounded-full bg-[#FF2442]/20 text-[#FF2442] flex items-center justify-center border border-[#FF2442]/30 group-hover:scale-110 transition-transform">
+                  <span className="font-bold text-xs">小红书</span>
+                </div>
+                <span className="text-[10px] text-gray-400">小红书</span>
+              </button>
+              <button onClick={handleCopyShareText} className="flex flex-col items-center gap-1 group">
+                <div className="w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center border border-white/20 group-hover:scale-110 transition-transform">
+                  <span className="font-bold text-lg">𝕏</span>
+                </div>
+                <span className="text-[10px] text-gray-400">Twitter</span>
+              </button>
+              <button onClick={handleCopyShareText} className="flex flex-col items-center gap-1 group">
+                <div className="w-10 h-10 rounded-full bg-purple-500/20 text-purple-300 flex items-center justify-center border border-purple-500/30 group-hover:scale-110 transition-transform">
+                  <Copy size={18} />
+                </div>
+                <span className="text-[10px] text-gray-400">复制</span>
+              </button>
+            </div>
+
+            {copySuccess && (
+              <div className="mb-4 px-3 py-1 bg-green-500/20 text-green-300 text-xs rounded-full animate-in fade-in zoom-in">
+                ✨ {copySuccess}
+              </div>
+            )}
+
+            <div className="w-full space-y-2">
+               <a href="https://dcai-paper2any.nas.cpolar.cn/" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-purple-300 truncate transition-colors border border-white/5 text-center">
+                 🌐 在线体验地址
+               </a>
+               <div className="flex gap-2">
+                 <a href="https://github.com/OpenDCAI/DataFlow-Agent" target="_blank" rel="noopener noreferrer" className="flex-1 py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-gray-300 truncate transition-colors border border-white/5 flex items-center justify-center gap-1">
+                   <Github size={12} /> Agent
+                 </a>
+                 <a href="https://github.com/OpenDCAI/DataFlow" target="_blank" rel="noopener noreferrer" className="flex-1 py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-gray-300 truncate transition-colors border border-white/5 flex items-center justify-center gap-1">
+                   <Github size={12} /> Core
+                 </a>
+               </div>
+            </div>
+          </div>
+
+          {/* 交流群 */}
+          <div className="glass rounded-xl border border-white/10 p-5 flex flex-col items-center text-center hover:bg-white/5 transition-colors">
+            <div className="w-12 h-12 rounded-full bg-green-500/20 text-green-300 flex items-center justify-center mb-3">
+              <MessageSquare size={24} />
+            </div>
+            <h4 className="text-white font-semibold mb-2">加入交流群</h4>
+            <p className="text-xs text-gray-400 mb-4">
+              体验合格？遇到问题？<br/>欢迎扫码加入交流群反馈与讨论
+            </p>
+            <div className="w-32 h-32 bg-white p-1 rounded-lg mb-2">
+              <img src="/wechat.png" alt="交流群二维码" className="w-full h-full object-contain" />
+            </div>
+            <p className="text-[10px] text-gray-500">扫码加入微信交流群</p>
+          </div>
+        </div>
       </div>
     );
   };

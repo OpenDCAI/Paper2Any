@@ -243,7 +243,7 @@ async def generate_paper2figure(
         graph_type=graph_type,
         style=style,
         figure_complex=final_figure_complex,
-        invite_code=invite_code,
+        invite_code=invite_code or "",
     )
 
     # 6. 重任务段：受信号量保护，调用真实 workflow
@@ -375,7 +375,7 @@ async def generate_paper2figure_json(
         aspect_ratio="16:9",
         graph_type=graph_type,
         style=style,
-        invite_code=invite_code,
+        invite_code=invite_code or "",
     )
 
     # 6. 重任务段：受信号量保护，调用真实 workflow

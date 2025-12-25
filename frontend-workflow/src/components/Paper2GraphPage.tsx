@@ -701,7 +701,19 @@ const Paper2FigurePage = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">API Key</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs text-gray-400">
+                        API Key
+                      </label>
+                      <a
+                        href="https://api.apiyi.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-primary-300 hover:text-primary-200 hover:underline"
+                      >
+                        点击购买
+                      </a>
+                    </div>
                     <input
                       type="password"
                       value={apiKey}
