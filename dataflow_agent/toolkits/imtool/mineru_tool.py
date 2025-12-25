@@ -10,7 +10,7 @@
 
 # vllm serve models/MinerU2.5-2509-1.2B \
 #     --host 127.0.0.1 \
-#     --port 8001 \
+#     --port 8010 \
 #     --logits-processors mineru_vl_utils:MinerULogitsProcessor \
 #     --gpu-memory-utilization 0.4
 
@@ -23,6 +23,7 @@ import os
 import shutil
 import subprocess
 import re
+import random
 from PIL import Image
 from mineru_vl_utils import MinerUClient
 
@@ -202,7 +203,22 @@ def run_mineru_pdf_extract(
     if output_dir:
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    # 3. 执行命令
+    # 3. 简单的负载均衡 (Simple Load Balancing) for GPU
+    #    从环境变量 MINERU_DEVICES 中读取可用设备列表 (默认 "5,6,7")
+    #    随机选择一个设备 ID 分配给当前子进程
+    available_devices_str = os.environ.get("MINERU_DEVICES", "5,6,7")
+    # 清理并分割字符串，去除空白
+    available_devices = [d.strip() for d in available_devices_str.split(",") if d.strip()]
+    
+    env = os.environ.copy()
+    if available_devices:
+        selected_device = random.choice(available_devices)
+        env["CUDA_VISIBLE_DEVICES"] = selected_device
+        print(f"[MinerU] Assigned GPU: {selected_device} (from pool: {available_devices})")
+    else:
+        print("[MinerU] No GPU devices configured in MINERU_DEVICES, using system default.")
+
+    # 4. 执行命令
     subprocess.run(
         mineru_cmd,
         shell=False,
@@ -210,6 +226,7 @@ def run_mineru_pdf_extract(
         text=True,
         stderr=None,
         stdout=None,
+        env=env,
     )
 
 
@@ -582,4 +599,3 @@ def _shrink_markdown(md: str, max_h1: int = 6, max_chars: int = 10_000) -> str:
         keep += line[:remain]
 
     return keep
-

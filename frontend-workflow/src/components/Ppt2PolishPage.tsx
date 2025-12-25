@@ -140,6 +140,8 @@ const Ppt2PolishPage = () => {
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
   const [referenceImagePreview, setReferenceImagePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [progressStatus, setProgressStatus] = useState('');
   
   // Step 2: Outline 相关状态
   const [outlineData, setOutlineData] = useState<SlideOutline[]>([]);
@@ -172,7 +174,7 @@ const Ppt2PolishPage = () => {
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-5.1');
   const [genFigModel, setGenFigModel] = useState('gemini-2.5-flash-image');
-  const [language, setLanguage] = useState<'zh' | 'en'>('zh');
+  const [language, setLanguage] = useState<'zh' | 'en'>('en');
   const [resultPath, setResultPath] = useState<string | null>(null);
 
   // GitHub Stars
@@ -270,6 +272,28 @@ const Ppt2PolishPage = () => {
     
     setIsUploading(true);
     setError(null);
+    setProgress(0);
+    setProgressStatus('正在初始化...');
+
+    // 模拟进度
+    const progressInterval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 90) return 90;
+        const messages = [
+           '正在上传 PPT...',
+           '正在分析页面结构...',
+           '正在提取内容...',
+           '正在识别图片...',
+           '正在生成美化方案...'
+        ];
+        const msgIndex = Math.floor(prev / 20);
+        if (msgIndex < messages.length) {
+          setProgressStatus(messages[msgIndex]);
+        }
+        // 调整进度速度，使其在 3 分钟左右达到 90%
+        return prev + (Math.random() * 0.6 + 0.2);
+      });
+    }, 1000);
     
     try {
       // 调用 /paper2ppt/pagecontent_json 接口
@@ -398,38 +422,52 @@ const Ppt2PolishPage = () => {
       
       console.log('解析完成，进入美化步骤, results.length:', results.length, 'currentResultPath:', currentResultPath);
       
-      // 直接进入美化步骤
-      setCurrentStep('beautify');
-      
-      // 触发批量生成 (Cycle Batch Beautify)
-      if (results.length > 0) {
-        setIsGeneratingInitial(true);
-        console.log('开始批量美化所有页面...');
+      clearInterval(progressInterval);
+      setProgress(100);
+      setProgressStatus('解析完成！');
+
+      // 稍微延迟一下跳转
+      setTimeout(() => {
+        // 直接进入美化步骤
+        setCurrentStep('beautify');
         
-        // 异步执行批量生成，不阻塞 UI 渲染（UI 会显示 Loading）
-        // 注意：generateInitialPPT 内部会处理错误提示
-        generateInitialPPT(convertedSlides, results, currentResultPath)
-          .then((updatedResults) => {
-            console.log('批量美化完成');
-            const finalResults = updatedResults.map(res => ({
-              ...res,
-              status: 'done' as const
-            }));
-            setBeautifyResults(finalResults);
-          })
-          .catch((err) => {
-            console.error("Batch generation failed:", err);
-          })
-          .finally(() => {
-            setIsGeneratingInitial(false);
-          });
-      }
+        // 触发批量生成 (Cycle Batch Beautify)
+        if (results.length > 0) {
+          setIsGeneratingInitial(true);
+          console.log('开始批量美化所有页面...');
+          
+          // 异步执行批量生成，不阻塞 UI 渲染（UI 会显示 Loading）
+          // 注意：generateInitialPPT 内部会处理错误提示
+          generateInitialPPT(convertedSlides, results, currentResultPath)
+            .then((updatedResults) => {
+              console.log('批量美化完成');
+              const finalResults = updatedResults.map(res => ({
+                ...res,
+                status: 'done' as const
+              }));
+              setBeautifyResults(finalResults);
+            })
+            .catch((err) => {
+              console.error("Batch generation failed:", err);
+            })
+            .finally(() => {
+              setIsGeneratingInitial(false);
+            });
+        }
+      }, 500);
     } catch (err) {
+      clearInterval(progressInterval);
+      setProgress(0);
       const message = err instanceof Error ? err.message : '解析失败，请重试';
       setError(message);
       console.error(err);
     } finally {
-      setIsUploading(false);
+      if (currentStep !== 'beautify') {
+        setIsUploading(false);
+      } else {
+        // 如果成功跳转，在组件卸载或状态切换前保持 loading 状态防止闪烁
+        setIsUploading(false);
+      }
     }
   };
 
@@ -1122,6 +1160,21 @@ const Ppt2PolishPage = () => {
           <button onClick={handleUploadAndParse} disabled={!selectedFile || isUploading} className="w-full py-3 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold flex items-center justify-center gap-2 transition-all">
             {isUploading ? <><Loader2 size={18} className="animate-spin" /> 解析中...</> : <><ArrowRight size={18} /> 开始解析</>}
           </button>
+
+          {isUploading && (
+            <div className="mt-4 animate-in fade-in slide-in-from-top-2">
+              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <span>{progressStatus}</span>
+                <span>{Math.round(progress)}%</span>
+              </div>
+              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-cyan-500 to-teal-500 transition-all duration-300 ease-out"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
       {error && <div className="mt-4 flex items-center gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-4 py-3"><AlertCircle size={16} /> {error}</div>}

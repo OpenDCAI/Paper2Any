@@ -800,7 +800,7 @@ def search_operator_by_description(query: str, top_k: int = 4) -> str:
     """
     根据功能描述搜索最匹配的数据处理算子。
     
-    当你需要在 pipeline 中添加新算子时，必须先调用此工具搜索真实存在的算子。
+    当需要在 pipeline 中添加新算子时，必须先调用此工具搜索真实存在的算子。
     禁止使用此工具返回结果之外的算子名称。
     
     **重要**：该工具会返回匹配质量评估(match_quality)：

@@ -48,6 +48,11 @@ Design philosophy:
 
 from pathlib import Path
 from typing import Any, Dict, List, Sequence, Union, Optional
+import base64
+import requests
+import random
+import zlib
+import os
 
 import numpy as np
 from PIL import Image
@@ -291,6 +296,101 @@ def run_sam_auto(
             )
 
     return all_items
+
+
+def run_sam_auto_server(
+    image_path: str,
+    server_urls: Union[str, List[str]],
+    checkpoint: str = "sam_b.pt",
+    device: str = "cuda",
+) -> List[Dict[str, Any]]:
+    """
+    Run SAM auto segmentation via remote/local server.
+
+    Parameters
+    ----------
+    image_path : str
+        Path to the input image.
+    server_urls : str or List[str]
+        Single URL or list of URLs for the SAM model server(s).
+        e.g. "http://localhost:8001" or ["http://localhost:8001", "http://localhost:8002"]
+    checkpoint : str, optional
+        SAM checkpoint, by default "sam_b.pt".
+    device : str, optional
+        Device string, by default "cuda".
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        Same structure as run_sam_auto.
+    """
+    if isinstance(server_urls, str):
+        urls = [server_urls]
+    else:
+        urls = list(server_urls)
+    
+    if not urls:
+        raise ValueError("No server URLs provided")
+    
+    # Simple random load balancing
+    base_url = random.choice(urls)
+    api_url = f"{base_url.rstrip('/')}/predict"
+    
+    # Ensure image path is absolute for server to access
+    abs_image_path = os.path.abspath(image_path)
+    
+    payload = {
+        "image_path": abs_image_path,
+        "checkpoint": checkpoint,
+        "device": device
+    }
+    
+    try:
+        response = requests.post(api_url, json=payload, timeout=300)
+        response.raise_for_status()
+        data = response.json()
+        
+        items_raw = data.get("items", [])
+        all_items: List[Dict[str, Any]] = []
+        
+        for it in items_raw:
+            # Deserialize mask
+            mask_b64 = it.get("mask_b64")
+            mask_shape = it.get("mask_shape")
+            
+            if mask_b64 and mask_shape:
+                try:
+                    compressed_bytes = base64.b64decode(mask_b64)
+                    # Decompress using zlib
+                    mask_bytes = zlib.decompress(compressed_bytes)
+                    # Reconstruct numpy bool array
+                    # Note: mask_bytes is flattened bool bytes
+                    mask_flat = np.frombuffer(mask_bytes, dtype=bool)
+                    mask = mask_flat.reshape(tuple(mask_shape))
+                except Exception as e:
+                    # Fallback for uncompressed data (backward compatibility) or decompression error
+                    try:
+                        mask_bytes = base64.b64decode(mask_b64)
+                        mask_flat = np.frombuffer(mask_bytes, dtype=bool)
+                        mask = mask_flat.reshape(tuple(mask_shape))
+                    except Exception:
+                        print(f"Failed to decode/decompress mask: {e}")
+                        mask = None
+            else:
+                mask = None
+            
+            all_items.append({
+                "mask": mask,
+                "bbox": it.get("bbox"),
+                "score": it.get("score"),
+                "area": it.get("area", 0)
+            })
+            
+        return all_items
+        
+    except Exception as e:
+        # Log error or handle retry logic here if needed
+        raise RuntimeError(f"Failed to call SAM server at {api_url}: {e}")
 
 
 def run_sam_auto_batch(
@@ -1096,6 +1196,61 @@ def segment_layout_boxes(
     """
     # 1) SAM 自动分割
     items = run_sam_auto(image_path, checkpoint=checkpoint, device=device)
+
+    # 2) 过滤 + NMS + Top-K
+    items = postprocess_sam_items(
+        items,
+        min_area=min_area,
+        min_score=min_score,
+        iou_threshold=iou_threshold,
+        top_k=top_k,
+        nms_by=nms_by,
+        score_key_for_nms="score",
+        sort_key_for_topk="area",
+    )
+
+    # 3) 将每个实例按 bbox 裁剪为 PNG 小图
+    saved_paths = save_sam_instances(
+        image_path=image_path,
+        items=items,
+        output_dir=output_dir,
+        prefix="layout_",
+        mode="bbox",
+    )
+
+    # 4) 绑定 png_path & type
+    for i, p in enumerate(saved_paths):
+        if i >= len(items):
+            break
+        items[i]["png_path"] = p
+        # 标记为布局框，和 MinerU 的 type 区分开
+        items[i]["type"] = "layout_box"
+
+    return items
+
+
+def segment_layout_boxes_server(
+    image_path: str,
+    output_dir: str,
+    server_urls: Union[str, List[str]],
+    checkpoint: str = "sam_b.pt",
+    device: str = "cuda",
+    min_area: int = 0,
+    min_score: float = 0.0,
+    iou_threshold: float = 0.5,
+    top_k: Optional[int] = None,
+    nms_by: str = "bbox",
+) -> List[Dict[str, Any]]:
+    """
+    Server version of segment_layout_boxes.
+    """
+    # 1) SAM 自动分割 (Remote)
+    items = run_sam_auto_server(
+        image_path, 
+        server_urls=server_urls, 
+        checkpoint=checkpoint, 
+        device=device
+    )
 
     # 2) 过滤 + NMS + Top-K
     items = postprocess_sam_items(

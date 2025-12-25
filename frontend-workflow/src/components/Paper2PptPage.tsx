@@ -40,6 +40,8 @@ const Paper2PptPage = () => {
   const [globalPrompt, setGlobalPrompt] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [pageCount, setPageCount] = useState(6);
+  const [progress, setProgress] = useState(0);
+  const [progressStatus, setProgressStatus] = useState('');
   
   // Step 2: Outline 相关状态
   const [outlineData, setOutlineData] = useState<SlideOutline[]>([]);
@@ -71,7 +73,7 @@ const Paper2PptPage = () => {
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-5.1');
   const [genFigModel, setGenFigModel] = useState('gemini-2.5-flash-image');
-  const [language, setLanguage] = useState<'zh' | 'en'>('zh');
+  const [language, setLanguage] = useState<'zh' | 'en'>('en');
   const [resultPath, setResultPath] = useState<string | null>(null);
 
   // GitHub Stars
@@ -144,7 +146,29 @@ const Paper2PptPage = () => {
     
     setIsUploading(true);
     setError(null);
+    setProgress(0);
+    setProgressStatus('正在初始化...');
     
+    // 模拟进度
+    const progressInterval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 90) return 90;
+        const messages = [
+           '正在内容准备...',
+           '正在解析内容...',
+           '正在分析结构...',
+           '正在提取关键点...',
+           '正在生成大纲...'
+        ];
+        const msgIndex = Math.floor(prev / 20);
+        if (msgIndex < messages.length) {
+          setProgressStatus(messages[msgIndex]);
+        }
+        // 调整进度速度，使其在 3 分钟左右达到 90%
+        return prev + (Math.random() * 0.6 + 0.2);
+      });
+    }, 1000);
+
     try {
       const formData = new FormData();
       if (uploadMode === 'file' && selectedFile) {
@@ -218,15 +242,29 @@ const Paper2PptPage = () => {
         asset_ref: item.asset_ref || null,
       }));
       
-      setOutlineData(convertedSlides);
-      setCurrentStep('outline');
+      clearInterval(progressInterval);
+      setProgress(100);
+      setProgressStatus('解析完成！');
+      
+      // 稍微延迟一下跳转，让用户看到 100%
+      setTimeout(() => {
+        setOutlineData(convertedSlides);
+        setCurrentStep('outline');
+      }, 500);
       
     } catch (err) {
+      clearInterval(progressInterval);
+      setProgress(0);
       const message = err instanceof Error ? err.message : '解析失败，请重试';
       setError(message);
       console.error(err);
     } finally {
-      setIsUploading(false);
+      if (currentStep !== 'outline') {
+         setIsUploading(false);
+      } else {
+         // 如果成功跳转，在组件卸载或状态切换前保持 loading 状态防止闪烁，这里不需要特别处理，因为 setCurrentStep 已经切换了视图
+         setIsUploading(false);
+      }
     }
   };
 
@@ -883,6 +921,21 @@ const Paper2PptPage = () => {
               <><ArrowRight size={18} /> {uploadMode === 'topic' ? '开始 Research' : '开始解析'}</>
             )}
           </button>
+
+          {isUploading && (
+            <div className="mt-4 animate-in fade-in slide-in-from-top-2">
+              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <span>{progressStatus}</span>
+                <span>{Math.round(progress)}%</span>
+              </div>
+              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-300 ease-out"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
