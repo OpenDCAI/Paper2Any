@@ -713,11 +713,68 @@ export MINERU_DEVICES="0,1,2,3"
 
 ---
 
-### 🪟 Windows 安装（预留）
+### 🪟 Windows 安装
 
-> [!NOTE]
-> Windows 安装说明正在整理中，后续将在此补充。  
+> [!NOTE]  
 > 目前推荐优先在 Linux / WSL 环境下体验 DataFlow-Agent。
+> 若你需要在 原生 Windows 上部署，请按以下步骤操作。
+
+#### 1. 创建环境并安装基础依赖
+
+```bash
+# 0. 创建并激活 conda 环境
+conda create -n dataflow-agent python=3.12 -y
+conda activate dataflow-agent
+
+# 1. 克隆仓库
+git clone https://github.com/OpenDCAI/DataFlow-Agent.git
+cd DataFlow-Agent
+
+# 2. 安装基础依赖
+pip install -r requirements-win-base.txt
+
+# 3. 开发模式安装
+pip install -e .
+```
+
+#### 2. 安装 Paper2Any 相关依赖（推荐）
+
+Paper2Any 涉及 LaTeX 渲染与矢量图处理，需要额外依赖（见 `requirements-paper.txt`）：
+
+```bash
+# Python 依赖
+pip install -r requirements-paper.txt
+
+# tectonic：LaTeX 引擎（推荐用 conda 安装）
+conda install -c conda-forge tectonic -y
+```
+
+🎨 安装 Inkscape（SVG/矢量图处理｜推荐/必装）
+
+- 下载并安装（Windows 64-bit MSI）：  
+  https://inkscape.org/release/inkscape-1.4.2/windows/64-bit/msi/?redirected=1  
+  选择 **Windows Installer Package（msi）**
+
+- 将 Inkscape 可执行文件目录加入系统环境变量 `Path`（示例）：
+  - `C:\Program Files\Inkscape\bin\`
+
+> [!TIP]  
+> 配置 `Path` 后建议重新打开终端（或重启 VS Code / PowerShell），确保环境变量生效。
+
+⚡ 安装 Windows 编译版 vLLM（可选｜用于本地推理加速）
+
+- 发布页参考：https://github.com/SystemPanic/vllm-windows/releases  
+- 推荐版本：**0.11.0**（示例 whl 文件名如下）
+
+```bash
+pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
+```
+
+> [!IMPORTANT]  
+> 请确保 `.whl` 与当前环境匹配：  
+> - Python：`cp312`（Python 3.12）  
+> - 平台：`win_amd64`  
+> - CUDA：`cu124`（需与你本机 CUDA/驱动适配）
 
 ---
 
@@ -759,6 +816,19 @@ export default defineConfig({
 ```
 
 访问 `http://localhost:3000`
+
+**Windows 加载MinerU预训练模型**
+```bash
+# 加载MinerU预训练模型
+# PowerShell环境下启动
+vllm serve opendatalab/MinerU2.5-2509-1.2B `
+  --host 127.0.0.1 `
+  --port 8010 `
+  --logits-processors mineru_vl_utils:MinerULogitsProcessor `
+  --gpu-memory-utilization 0.6 `
+  --trust-remote-code `
+  --enforce-eager
+```
 
 > [!TIP]
 > **Paper2Figure 网页端内测说明**

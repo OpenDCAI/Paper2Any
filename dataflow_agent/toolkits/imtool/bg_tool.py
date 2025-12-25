@@ -21,6 +21,7 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
+import platform
 
 import numpy as np
 from PIL import Image, ImageFilter
@@ -61,12 +62,15 @@ def ensure_model(model_path: Path) -> None:
 
     # 确保目录存在
     model_path.parent.mkdir(parents=True, exist_ok=True)
-
+    # 判断当前系统是否为Windows
+    is_windows = platform.system().lower() == "windows"
+    # Windows用双引号包裹路径，Linux/macOS用单引号（保持原有逻辑）
+    quote = '"' if is_windows else "'"
     # 直接下载到目标目录
     cmd = (
         f"modelscope download "
         f"--model AI-ModelScope/RMBG-2.0 "
-        f"--local_dir '{model_path.parent}' "
+        f"--local_dir {quote}{model_path}{quote} "
     )
     os.system(cmd)
 

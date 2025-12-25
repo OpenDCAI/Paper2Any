@@ -693,6 +693,81 @@ pip install doclayout_yolo --no-deps
 # - wkhtmltopdf: HTML to PDF
 sudo apt-get update
 sudo apt-get install -y inkscape libreoffice poppler-utils wkhtmltopdf
+
+```
+
+### 🪟 Windows Installation
+
+> [!NOTE]  
+> Currently, it is recommended to experience DataFlow-Agent in a Linux / WSL environment first.
+> If you need to deploy it on native Windows, please follow the steps below.
+
+#### 1. Create Environment and Install Basic Dependencies
+
+```bash
+# 0. Create and activate the conda environment
+conda create -n dataflow-agent python=3.12 -y
+conda activate dataflow-agent
+
+# 1. Clone the repository
+git clone https://github.com/OpenDCAI/DataFlow-Agent.git
+cd DataFlow-Agent
+
+# 2. Install basic dependencies
+pip install -r requirements-win-base.txt
+
+# 3. Install in development mode
+pip install -e .
+```
+
+#### 2. Install Paper2Any-related Dependencies (Recommended)
+
+Paper2Any involves LaTeX rendering and vector graphics processing, which requires additional dependencies (see `requirements-paper.txt`):
+
+```bash
+# Python dependencies
+pip install -r requirements-paper.txt
+
+# tectonic: LaTeX engine (conda installation recommended)
+conda install -c conda-forge tectonic -y
+```
+
+🎨 Install Inkscape (SVG/Vector Graphics Processing | Recommended/Mandatory)
+
+- Download and install (Windows 64-bit MSI):  
+  https://inkscape.org/release/inkscape-1.4.2/windows/64-bit/msi/?redirected=1  
+  Select the **Windows Installer Package (msi)**
+
+- Add the Inkscape executable directory to the system environment variable `Path` (example):
+  - `C:\Program Files\Inkscape\bin\`
+
+> [!TIP]  
+> After configuring `Path`, it is recommended to reopen the terminal (or restart VS Code / PowerShell) to ensure the environment variable takes effect.
+
+⚡ Install Windows-compiled vLLM (Optional | For Local Inference Acceleration)
+
+- Release page reference: https://github.com/SystemPanic/vllm-windows/releases  
+- Recommended version: **0.11.0** (example .whl filename is as follows)
+
+```bash
+pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
+```
+
+> [!IMPORTANT]  
+> Please ensure the `.whl` file matches your current environment:  
+> - Python: `cp312` (Python 3.12)  
+> - Platform: `win_amd64`  
+> - CUDA: `cu124` (must be compatible with your local CUDA/driver version)
+
+#### PPT / PDF related system dependencies (recommended for Paper2PPT & PPT polishing)
+
+If you plan to use **Paper2PPT / PPT polishing / PDF2PPT** features, we recommend installing the following packages on Linux (Ubuntu example):
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libreoffice       # Office / PPT operations
+sudo apt-get install -y poppler-utils     # PDF utilities (pdftoppm, pdftocairo, etc.)
+sudo apt-get install -y wkhtmltopdf       # HTML to PDF, used in some layout conversion workflows
 ```
 
 ### Environment Configuration
@@ -783,6 +858,19 @@ export default defineConfig({
 ```
 
 Visit `http://localhost:3000`
+
+**Loading MinerU Pre-trained Model on Windows**
+```bash
+# Load MinerU pre-trained model
+# PowerShell环境下启动
+vllm serve opendatalab/MinerU2.5-2509-1.2B `
+  --host 127.0.0.1 `
+  --port 8010 `
+  --logits-processors mineru_vl_utils:MinerULogitsProcessor `
+  --gpu-memory-utilization 0.6 `
+  --trust-remote-code `
+  --enforce-eager
+```
 
 > [!TIP]
 > **Paper2Figure Web Beta Access**
