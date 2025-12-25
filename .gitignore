@@ -260,6 +260,7 @@ nohup.out
 invite_codes.txt
 
 frontend-workflow/vite.config.ts
+.vscode
 
 logs/
 conf/
