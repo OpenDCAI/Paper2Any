@@ -650,7 +650,11 @@ pip install -r requirements-paper.txt || pip install -r requirements-paper-backu
 # 2. LaTeX 引擎 (tectonic) - 推荐用 conda 安装
 conda install -c conda-forge tectonic -y
 
-# 3. 系统依赖 (Ubuntu 示例)
+# 3. 解决 doclayout_yolo 依赖冲突（重要）
+# 由于 doclayout_yolo 可能与 paddleocr 存在依赖冲突（albumentations 版本不一致），建议忽略依赖检查单独安装：
+pip install doclayout_yolo --no-deps
+
+# 4. 系统依赖 (Ubuntu 示例)
 # 包含：
 # - inkscape: SVG / 矢量图处理
 # - libreoffice: PPT 打开 / 转换
@@ -665,6 +669,12 @@ sudo apt-get install -y inkscape libreoffice poppler-utils wkhtmltopdf
 ```bash
 export DF_API_KEY=your_api_key_here
 export DF_API_URL=xxx  # 可选：如需使用第三方 API 中转站
+
+# [可选] 配置 MinerU PDF 解析任务的 GPU 资源池（负载均衡）
+# 指定一组可用 GPU ID（逗号分隔），PDF 解析任务会自动随机选择一张卡运行，避免拥堵。
+# 默认值：5,6,7
+# 这个主要用于 paper2ppt场景下，mineru的解析服务
+export MINERU_DEVICES="0,1,2,3"
 ```
 
 第三方 API 中转示例：
@@ -679,7 +689,7 @@ export DF_API_URL=xxx  # 可选：如需使用第三方 API 中转站
 
 如果是本地部署高并发环境，可以使用 `script/start_model_servers.sh` 启动本地模型服务集群（MinerU / SAM / OCR）。
 
-**脚本位置**：`dev/DataFlow-Agent/script/start_model_servers.sh`
+**脚本位置**：`/DataFlow-Agent/script/start_model_servers.sh`
 
 **主要配置项说明**：
 

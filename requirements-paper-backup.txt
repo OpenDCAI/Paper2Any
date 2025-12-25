@@ -78,7 +78,7 @@ dill==0.3.8
 diskcache==5.6.3
 distro==1.9.0
 dnspython==2.8.0
-# doclayout_yolo==0.0.4
+# doclayout_yolo==0.0.4  # pip install doclayout_yolo --no-deps
 docstring-parser==0.15
 editdistpy==0.1.6
 einops==0.8.1

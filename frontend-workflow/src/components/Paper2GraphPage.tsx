@@ -613,7 +613,7 @@ const Paper2FigurePage = () => {
                       <div className="flex items-center justify-center gap-2 text-gray-600 text-sm">
                         <FileText size={20} />
                         <span className="font-medium">
-                          拖拽 {uploadMode === 'file' ? 'PDF / 图片' : '图片'} 到此处，或点击选择文件
+                          拖拽 {uploadMode === 'file' ? 'PDF' : '图片'} 到此处，或点击选择文件
                         </span>
                       </div>
                       <label className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-500 text-white text-xs font-medium cursor-pointer hover:bg-primary-600 transition-colors">
@@ -646,7 +646,7 @@ const Paper2FigurePage = () => {
                         value={textContent}
                         onChange={e => setTextContent(e.target.value)}
                         rows={8}
-                        placeholder="在这里粘贴论文的摘要、章节内容，或任意需要转换为 PPTX 的文字（支持中英文）..."
+                        placeholder="在这里粘贴论文的摘要、章节内容，或任意需要转换为 PPTX 的文本（支持中英文）..."
                         className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 bg-white/80 resize-none"
                       />
                       <p className="text-[11px] text-gray-500">

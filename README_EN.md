@@ -681,7 +681,11 @@ pip install -r requirements-paper.txt || pip install -r requirements-paper-backu
 # 2. LaTeX Engine (tectonic) - Recommended via conda
 conda install -c conda-forge tectonic -y
 
-# 3. System Dependencies (Ubuntu example)
+# 3. Resolve doclayout_yolo dependency conflict (Important)
+# Due to a conflict between doclayout_yolo and paddleocr (albumentations version mismatch), install it separately ignoring dependencies:
+pip install doclayout_yolo --no-deps
+
+# 4. System Dependencies (Ubuntu example)
 # Includes:
 # - inkscape: SVG / Vector graphics processing
 # - libreoffice: PPT operations / conversion
@@ -697,6 +701,11 @@ sudo apt-get install -y inkscape libreoffice poppler-utils wkhtmltopdf
 export DF_API_KEY=your_api_key_here
 export DF_API_URL=xxx 
 # If using third-party API gateway
+
+# [Optional] Configure GPU resource pool for MinerU PDF parsing (Load Balancing)
+# Specify a list of available GPU IDs (comma-separated). The PDF parsing task will automatically and randomly select one GPU to run on, avoiding congestion.
+# Default: 5,6,7
+export MINERU_DEVICES="0,1,2,3"
 ```
 
 Third-party API gateways:
