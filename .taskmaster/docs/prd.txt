@@ -1,198 +1,110 @@
-# Product Requirements Document: Paper2Any User Management System
+# Product Requirements Document: Paper2Any User System (Minimal v1)
 
 ## Overview
 
-Build a user authentication, rate limiting, and file management system for Paper2Any using Supabase as the backend database. The system integrates with the existing React frontend and FastAPI backend.
-
-## Goals
-
-1. Enable user registration and login for Paper2Any
-2. Limit workflow usage to prevent abuse (10 calls/day per user)
-3. Persist user-generated files with 30-day retention
-4. Provide a foundation for future monetization
+Add user authentication and usage limiting to Paper2Any using Supabase.
 
 ## Technical Stack
 
-- **Database**: Supabase (PostgreSQL)
-- **Auth**: Supabase Auth (Email/Password + OAuth)
-- **Storage**: Supabase Storage (for user files)
-- **Frontend**: React (frontend-workflow/)
-- **Backend**: FastAPI (fastapi_app/)
+- **Auth & Database**: Supabase (Auth + PostgreSQL + Storage)
+- **Frontend**: React + Vite (frontend-workflow/) - direct Supabase client
+- **Backend**: FastAPI (fastapi_app/) - JWT verification only
 
-## Functional Requirements
+## Database Schema
 
-### 1. User Authentication
+Only 2 custom tables (auth.users is built-in):
 
-#### 1.1 Email/Password Registration
-- User provides email and password
-- Email verification required before activation
-- Password requirements: minimum 8 characters
+```sql
+-- Track daily usage per user
+CREATE TABLE usage_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  workflow_type TEXT NOT NULL,
+  called_at TIMESTAMPTZ DEFAULT now()
+);
 
-#### 1.2 OAuth Social Login
-- Google OAuth integration
-- GitHub OAuth integration
-- Auto-create user profile on first OAuth login
+-- Track user files
+CREATE TABLE user_files (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  file_path TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  file_size BIGINT,
+  workflow_type TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
 
-#### 1.3 Session Management
-- JWT-based authentication via Supabase
-- Token refresh mechanism
-- Logout functionality
+-- RLS: users only see their own data
+ALTER TABLE usage_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_files ENABLE ROW LEVEL SECURITY;
 
-### 2. Rate Limiting System
+CREATE POLICY "Users read own usage" ON usage_records FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users insert own usage" ON usage_records FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users read own files" ON user_files FOR ALL USING (auth.uid() = user_id);
+```
 
-#### 2.1 Usage Tracking
-- Track workflow calls per user per day
-- Store usage records in Supabase table
-- Reset counter daily at midnight UTC
+## Frontend Requirements
 
-#### 2.2 Limit Enforcement
-- Default limit: 10 workflow calls per day
-- Return 429 error when limit exceeded
-- Show remaining quota in API response headers
+### Auth (use Supabase client directly)
+- Login page: email + password form
+- Register page: email + password + confirmation
+- Call `supabase.auth.signInWithPassword()` / `signUp()` / `signOut()`
+- Store session in Zustand, persist to localStorage
 
-#### 2.3 Usage Dashboard
-- Display current usage count to user
-- Show reset time
-- Usage history (optional)
+### Protected Routes
+- Check auth state, redirect to /login if not authenticated
+- Pass JWT token in Authorization header for API calls
 
-### 3. File Management
+### Usage Display
+- Show "剩余次数: X/10" in header
+- Disable workflow button when quota = 0
 
-#### 3.1 File Storage
-- Store generated files (PPT, PDF, Video) in Supabase Storage
-- Organize by user_id/workflow_type/timestamp
-- Maximum file size: 100MB per file
+### File List
+- Simple table: filename, size, date, download button
+- Delete button per file
 
-#### 3.2 File Retention
-- Auto-delete files after 30 days
-- Supabase scheduled function for cleanup
-- User can manually delete files earlier
+## Backend Requirements
 
-#### 3.3 File Access
-- Authenticated download URLs
-- List user's files with metadata
-- File preview (for supported formats)
+### Auth Middleware
+- Verify Supabase JWT from Authorization header
+- Extract user_id, attach to request state
+- Return 401 if invalid/missing token
 
-### 4. Database Schema
+### Rate Limit Check (before workflow execution)
+```python
+# Pseudo-code
+today_count = db.query(usage_records)
+    .filter(user_id=current_user, DATE(called_at)=today)
+    .count()
 
-#### 4.1 Tables
+if today_count >= 10:
+    raise HTTPException(429, "Daily limit reached")
+```
 
-**users** (managed by Supabase Auth)
-- id (uuid, primary key)
-- email
-- created_at
-- last_sign_in_at
+### After Workflow Success
+1. Upload output file to Supabase Storage: `user_files/{user_id}/{timestamp}_{filename}`
+2. Insert record to user_files table
+3. Insert record to usage_records table
+4. Return file download URL
 
-**user_profiles**
-- id (uuid, references auth.users)
-- display_name
-- avatar_url
-- created_at
-- updated_at
-
-**usage_records**
-- id (uuid, primary key)
-- user_id (uuid, references auth.users)
-- workflow_type (text)
-- called_at (timestamp)
-- date (date, for daily aggregation)
-
-**user_files**
-- id (uuid, primary key)
-- user_id (uuid, references auth.users)
-- file_path (text)
-- file_name (text)
-- file_type (text)
-- file_size (bigint)
-- workflow_type (text)
-- created_at (timestamp)
-- expires_at (timestamp)
-
-#### 4.2 Row Level Security (RLS)
-- Users can only access their own records
-- Enable RLS on all tables
-
-### 5. API Endpoints
-
-#### 5.1 Auth Endpoints (via Supabase client)
-- POST /auth/signup - Email registration
-- POST /auth/login - Email login
-- POST /auth/logout - Logout
-- GET /auth/user - Get current user
-- POST /auth/oauth/{provider} - OAuth redirect
-
-#### 5.2 Usage Endpoints
-- GET /api/usage/quota - Get remaining quota
-- GET /api/usage/history - Get usage history
-
-#### 5.3 File Endpoints
-- GET /api/files - List user files
-- GET /api/files/{file_id}/download - Download file
-- DELETE /api/files/{file_id} - Delete file
-
-### 6. Frontend Integration
-
-#### 6.1 Auth UI Components
-- Login page with email/password form
-- Registration page
-- OAuth buttons (Google, GitHub)
-- Password reset flow
-
-#### 6.2 Protected Routes
-- Redirect unauthenticated users to login
-- Store auth state in Zustand
-
-#### 6.3 Usage Display
-- Show quota in header/sidebar
-- Warning when approaching limit
-- Block action when limit reached
-
-#### 6.4 File Management UI
-- File list page
-- Download buttons
-- Delete confirmation
-
-### 7. Backend Integration
-
-#### 7.1 Auth Middleware
-- Verify Supabase JWT on protected endpoints
-- Extract user_id from token
-- Pass user context to workflow handlers
-
-#### 7.2 Rate Limit Middleware
-- Check usage count before workflow execution
-- Increment counter after successful execution
-- Return appropriate error when exceeded
-
-#### 7.3 File Save Hook
-- After workflow completion, upload output to Supabase Storage
-- Create record in user_files table
-- Return file URL to frontend
-
-## Non-Functional Requirements
-
-### Security
-- All API endpoints require authentication (except public pages)
-- HTTPS only
-- No sensitive data in logs
-
-### Performance
-- Auth checks < 100ms
-- File uploads support up to 100MB
-
-### Scalability
-- Supabase handles scaling automatically
-- Consider connection pooling for high traffic
+### API Endpoints
+- GET /api/quota - returns `{used: N, limit: 10}`
+- GET /api/files - returns user's file list
+- DELETE /api/files/{id} - delete file from storage + table
 
 ## Out of Scope (v1)
 
+- OAuth (Google/GitHub)
+- Password reset (use Supabase default)
+- Email verification (use Supabase default)
+- User profile/display name
 - Admin dashboard
-- Multiple user roles/tiers
-- Payment integration
-- API key authentication
-- Team/organization features
+- Auto file cleanup (manual for now)
+- Usage history
 
-## Success Metrics
+## Success Criteria
 
-- User registration completion rate > 80%
-- Average login time < 2 seconds
-- Zero unauthorized data access incidents
+- User can register, login, logout
+- Unauthenticated users cannot access workflows
+- Users limited to 10 workflow calls per day
+- Generated files saved and downloadable
