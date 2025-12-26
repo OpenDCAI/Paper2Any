@@ -124,3 +124,34 @@ async def get_optional_user(
         return await get_current_user(credentials)
     except HTTPException:
         return None
+
+
+async def require_auth_and_quota(
+    user: CurrentUser = Depends(get_current_user),
+) -> CurrentUser:
+    """
+    Verify authentication and check rate limit quota.
+
+    This dependency chains:
+    1. JWT authentication (via get_current_user)
+    2. Rate limit check (via rate_limiter.is_limited)
+
+    Use this for workflow endpoints that should be rate-limited.
+
+    Returns:
+        CurrentUser if authenticated and within quota
+
+    Raises:
+        HTTPException: 401 if not authenticated
+        HTTPException: 429 if daily quota exceeded
+    """
+    # Import here to avoid circular dependency
+    from fastapi_app.services.rate_limiter import rate_limiter
+
+    if await rate_limiter.is_limited(user.user_id):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Daily limit reached (10 calls/day). Try again tomorrow.",
+        )
+
+    return user
