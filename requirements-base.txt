@@ -87,3 +87,8 @@ opencv-python
 librosa
 soundfile
 python-pptx
+
+# Supabase integration (auth, rate limiting, storage)
+supabase>=2.0.0
+python-jose[cryptography]>=3.3.0
+pydantic-settings>=2.0.0

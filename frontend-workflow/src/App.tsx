@@ -4,10 +4,13 @@ import Paper2GraphPage from './components/Paper2GraphPage';
 import Paper2PptPage from './components/Paper2PptPage';
 import Pdf2PptPage from './components/Pdf2PptPage';
 import Ppt2PolishPage from './components/Ppt2PolishPage';
-import { Workflow, Zap } from 'lucide-react';
+import { FilesPage } from './components/FilesPage';
+import { QuotaDisplay } from './components/QuotaDisplay';
+import { UserMenu } from './components/UserMenu';
+import { Workflow } from 'lucide-react';
 
 function App() {
-  const [activePage, setActivePage] = useState<'paper2figure' | 'paper2ppt' | 'pdf2ppt' | 'ppt2polish'>('paper2figure');
+  const [activePage, setActivePage] = useState<'paper2figure' | 'paper2ppt' | 'pdf2ppt' | 'ppt2polish' | 'files'>('paper2figure');
 
   return (
     <div className="w-screen h-screen bg-[#0a0a1a] overflow-hidden relative">
@@ -74,24 +77,22 @@ function App() {
               >
                 PptPolish
               </button>
+              <button
+                onClick={() => setActivePage('files')}
+                className={`px-3 py-1.5 rounded-full text-sm ${
+                  activePage === 'files'
+                    ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow'
+                    : 'glass text-gray-300 hover:bg-white/10'
+                }`}
+              >
+                My Files
+              </button>
             </div>
 
-            {/* 右侧操作按钮 */}
-            <div className="flex items-center gap-2">
-              <button className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors glow ${
-                activePage === 'ppt2polish' 
-                  ? 'bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600' 
-                  : activePage === 'pdf2ppt'
-                    ? 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600'
-                    : activePage === 'paper2ppt'
-                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
-                      : 'bg-primary-500 hover:bg-primary-600'
-              }`}>
-                <Zap size={18} className="text-white" />
-                <span className="text-sm text-white font-medium">
-                  {activePage === 'paper2figure' ? 'Paper2Figure' : activePage === 'paper2ppt' ? 'Paper2PPT' : activePage === 'pdf2ppt' ? 'Pdf2PPT' : 'Ppt2Polish'}
-                </span>
-              </button>
+            {/* 右侧：配额显示 & 用户菜单 */}
+            <div className="flex items-center gap-3">
+              <QuotaDisplay />
+              <UserMenu />
             </div>
           </div>
         </div>
@@ -104,6 +105,7 @@ function App() {
           {activePage === 'paper2ppt' && <Paper2PptPage />}
           {activePage === 'pdf2ppt' && <Pdf2PptPage />}
           {activePage === 'ppt2polish' && <Ppt2PolishPage />}
+          {activePage === 'files' && <FilesPage />}
         </div>
       </main>
 

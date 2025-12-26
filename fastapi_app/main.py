@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi_app.routers import paper2video
 from fastapi_app.routers import paper2any, paper2ppt
 from fastapi_app.routers import pdf2ppt
+from fastapi_app.routers import auth, user
 from dataflow_agent.utils import get_project_root
 
 
@@ -35,6 +36,8 @@ def create_app() -> FastAPI:
     )
 
     # 路由挂载
+    app.include_router(auth.router, prefix="/api", tags=["auth"])
+    app.include_router(user.router, prefix="/api", tags=["user"])
     app.include_router(paper2video.router, prefix="/paper2video", tags=["paper2video"])
     # Paper2Graph / Paper2PPT 假接口，对接前端 /api/*
     app.include_router(paper2any.router, prefix="/api", tags=["paper2any"])

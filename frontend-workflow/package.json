@@ -8,12 +8,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "reactflow": "^11.10.4",
+    "@supabase/supabase-js": "^2.89.0",
     "@tsparticles/react": "^3.0.0",
     "@tsparticles/slim": "^3.0.3",
     "lucide-react": "^0.294.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "reactflow": "^11.10.4",
     "zustand": "^4.4.7"
   },
   "devDependencies": {

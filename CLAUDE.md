@@ -48,10 +48,52 @@ cd frontend-workflow && npm install && npm run dev
 ## Environment Variables
 
 ```bash
+# Core API Configuration
 DF_API_KEY=<your_api_key>            # OpenAI-compatible API key
 DF_API_URL=<optional_api_url>        # Custom API endpoint
 MINERU_DEVICES="0,1,2,3"             # GPU pool for PDF parsing
+
+# Supabase Configuration (Required for Auth & Rate Limiting)
+SUPABASE_URL=https://xciveaaildyzbreltihu.supabase.co
+SUPABASE_ANON_KEY=<anon_key>         # Public key (respects RLS)
+SUPABASE_SERVICE_ROLE_KEY=<key>      # Server-only (bypasses RLS)
+SUPABASE_JWT_SECRET=<jwt_secret>     # For token verification
+DAILY_WORKFLOW_LIMIT=10              # Rate limit per user/day
 ```
+
+## Supabase Setup
+
+**Project**: `dataflow-agent` (Region: ap-southeast-1)
+**Dashboard**: https://supabase.com/dashboard/project/xciveaaildyzbreltihu
+
+### Database Schema
+
+| Table | Purpose |
+|-------|---------|
+| `usage_records` | Track daily API calls per user for rate limiting |
+| `user_files` | Track generated files stored in Supabase Storage |
+
+Both tables have **Row Level Security (RLS)** enabled - users can only access their own data.
+
+### Storage
+
+- **Bucket**: `user-files` (private, 50MB limit)
+- **Path convention**: `user-files/{user_id}/{timestamp}_{filename}`
+- RLS policies ensure users can only access their own folder
+
+### Migrations
+
+SQL migration files are in `fastapi_app/migrations/`:
+- `001_initial_schema.sql` - Tables and indexes
+- `002_rls_policies.sql` - Row Level Security policies
+- `003_storage_policies.sql` - Storage bucket policies
+
+### Getting Credentials
+
+1. Go to [Project Settings > API](https://supabase.com/dashboard/project/xciveaaildyzbreltihu/settings/api)
+2. Copy: Project URL, anon key, service_role key
+3. Go to API > JWT Settings for JWT Secret
+4. Create `.env` from `.env.example` and fill in values
 
 ## Architecture
 
