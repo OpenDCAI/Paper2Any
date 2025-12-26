@@ -35,7 +35,7 @@ from dataflow_agent.toolkits.imtool.mineru_tool import (
     svg_to_emf,
     recursive_mineru_layout,
 )
-from dataflow_agent.agentroles import create_graph_agent
+from dataflow_agent.agentroles import create_graph_agent,create_react_agent
 
 import re, pdfplumber, PyPDF2, time, shutil, fitz
 import numpy as np
@@ -158,7 +158,9 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         """
         图标提示词生成器节点
         """
-        figure_desc_generator = create_graph_agent("figure_desc_generator")
+        figure_desc_generator = create_react_agent("figure_desc_generator",
+                                                    max_retries=5,
+                                                    model_name="gpt-5.1")
         state = await figure_desc_generator.execute(state, use_agent=True)
         return state
 
