@@ -1761,6 +1761,7 @@ The PPT must contain the following chapters (arranged in order), and each chapte
 ## Image and Table Processing (Markdown to LaTeX)
 ·All image relative paths found in markdown must be resolved into absolute paths by by prepending the absolute working directory specified by {pdf_images_working_dir}. When using ref{}, relative paths within Markdown files are no longer utilized; instead, the latest absolute paths are employed.
 ·Images should automatically adapt to width (for example, \includegraphics[width=0.8\textwidth]{...}), and add titles and labels (\caption and \label).
+·Every image should have \caption{The explanation of the image}
 ·Experimental result tables should be extracted from the source text, formatted using tabular or booktabs environments, and marked with reference sources (for example, "as shown in table \ref{tab:results}").
 
 ## Code Generation Requirements
@@ -1854,10 +1855,7 @@ Requirements:
 
 Output Format (strict):
 Return a JSON object with a single key "subtitle_and_cursor"
-{{
-  "subtitle_and_cursor": 
-  "sentence 1 | cursor description\nsentence 2 | cursor description\n..."
-}}
+{{"subtitle_and_cursor": "sentence 1 | cursor description\nsentence 2 | cursor description\n..."}}
 
 '''
   system_prompt_for_p2v_beamer_code_upgrade = '''
@@ -1871,6 +1869,20 @@ You are an expert in LaTeX Beamer typesetting and visual quality assurance. Your
    - **Pass**: If the image is fully visible AND the caption text below it is clearly legible and not cut off by the bottom edge of the slide.
    - **Fail (Overfull)**: If the image takes up too much vertical space, causing the caption to be pushed off-screen (invisible) or partially cut off.
 
+# Critical Definitions (IMPORTANT)
+A valid caption MUST satisfy ALL of the following:
+1. It is a standalone line of natural language text.
+2. It explicitly describes the figure as a whole.
+3. It typically starts with keywords such as:
+   - "Figure", "Fig.", "图", "图：", "Figure:"
+4. It is visually separated from the plot area.
+
+The following elements are NOT captions:
+- Axis labels (e.g., "Dataset Size", "ROUGE-N F1 Score")
+- Legends (e.g., "W/ Logit Processor")
+- Tick labels, numeric annotations, or bar values
+- Any text that is part of the chart itself
+
 # Output Format
 Return your analysis strictly in JSON format with a single key and the answer should be only "True" or "False":
 {{
@@ -1883,8 +1895,11 @@ Return your analysis strictly in JSON format with a single key and the answer sh
 Please examine the provided slide screenshot carefully. 
 
 Focus on the area immediately below the main graphic:
-- Check if there is a text label such as "图: WebMainBench 数据示例" or "Figure: Experimental Results" visible.
+- Check if there is a standalone caption line such as "图: WebMainBench 数据示例" or "Figure: Experimental Results" visible.
 - If the image occupies the entire bottom portion of the slide and no caption text is visible, it indicates that the `\includegraphics` width/height is too large, causing the caption to overflow the page.
+- Some instruction:
+1. Do NOT confuse axis labels, legends, or chart annotations with captions.
+2. Text such as "Dataset Size", "Accuracy", or legends inside/near the plot are NOT captions.
 
 # Expected Action
 - If the caption is missing or truncated, set `img_size_debug` to `True`.

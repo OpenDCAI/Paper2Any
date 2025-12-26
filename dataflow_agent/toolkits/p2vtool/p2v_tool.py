@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataflow_agent.logger import get_logger
 import subprocess
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional, List
+from typing import Dict, Any, Tuple, Optional, List, Union
 import os
 import json
 from PIL import Image, ImageFont, ImageDraw
@@ -28,7 +28,6 @@ def get_image_paths(directory_path: str) -> List[str]:
     
     base_path = Path(directory_path)
     if not base_path.is_dir():
-        # 如果目录不存在，返回空列表并打印错误
         print(f"Error: Directory not found at {directory_path}")
         return []
 
@@ -36,15 +35,12 @@ def get_image_paths(directory_path: str) -> List[str]:
     
     # 2. 递归遍历目录并收集路径
     for ext in image_extensions:
-        # rglob(ext) 查找所有匹配该扩展名的文件，无论嵌套多深
-        # extend() 将迭代器的所有元素添加到列表中
-        found_image_paths.extend(base_path.rglob(ext))
+        found_image_paths.extend(base_path.glob(ext))
 
     #3. 对找到的图片路径按照文件名日期进行排序，确保顺序
     def natural_sort_key(path: Path):
-        file_name = path.name
-        numbers = re.findall(r'(\d+)', file_name)
-        return tuple(int(n) for n in numbers)
+        numbers = re.findall(r'(\d+)', path.name)
+        return tuple(int(n) for n in numbers) if numbers else (float('inf'),)
     
     found_image_paths.sort(key=natural_sort_key)
     return [str(p.resolve()) for p in found_image_paths]
@@ -516,7 +512,7 @@ def parser_beamer_latex(code: str):
 
     return head_content, frames_cleaned
 
-def resize_latex_image(code):
+def resize_latex_image(code: Union[str, List[str]]):
     # 改进正则：
     # 1. 允许 width= 后面有空格
     # 2. 捕获数值后的单位（如 \textwidth, \linewidth, \columnwidth）
@@ -529,5 +525,14 @@ def resize_latex_image(code):
         
         new_val = max(0.1, current_val - 0.2)
         return f"{prefix}{new_val:.1f}{unit}"
+    
+    if isinstance(code, str):
+        return re.sub(pattern, shrink_width_logic, code)
 
-    return re.sub(pattern, shrink_width_logic, code)
+    if isinstance(code, list):
+        new_code = code.copy()
+        for i, line in enumerate(new_code):
+            if isinstance(line, str) and "includegraphics" in line:
+                new_code[i] = re.sub(pattern, shrink_width_logic, line)
+        return new_code
+    raise TypeError(f"Unsupported code type: {type(code)}")
