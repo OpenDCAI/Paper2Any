@@ -126,6 +126,52 @@ dataflow_agent/
 - **Gradio** (`gradio_app/`): Web UI with dynamic page discovery
 - **React** (`frontend-workflow/`): Paper2Any visual interface with ReactFlow
 
+## Dependency Tiers
+
+The project has tiered dependencies to support different development scenarios:
+
+| File | Purpose | Size |
+|------|---------|------|
+| `requirements-lite.txt` | API dev, auth testing, no ML models | ~200MB |
+| `requirements-base.txt` | Full backend with torch/transformers | ~4GB |
+| `requirements-paper.txt` | Paper workflows (MinerU, SAM, PaddleOCR) | ~8GB |
+
+### Lightweight Development (Recommended for API work)
+
+```bash
+# Install lite dependencies (no heavy ML models)
+pip install -r requirements-lite.txt
+
+# Run tests with mock API server
+./scripts/run_lite_tests.sh
+```
+
+### Mock API Server
+
+For testing without real LLM/image API calls:
+
+```bash
+# Start mock server (simulates OpenAI-compatible API)
+python -m tests.mocks.mock_api_server
+
+# Or use in tests with fixtures from tests/mocks/conftest_mock.py
+```
+
+The mock server provides:
+- `POST /v1/chat/completions` - Chat completions (streaming supported)
+- `POST /v1/images/generations` - Image generation
+- `GET /v1/models` - Model listing
+
+### ML Model Dependencies
+
+| Model | Package | VRAM | Purpose |
+|-------|---------|------|---------|
+| MinerU | `mineru-vl-utils` | 4GB | PDF parsing |
+| SAM | `ultralytics` | 2GB | Image segmentation |
+| YOLO | `ultralytics` | 1GB | Object detection |
+| PaddleOCR | `paddleocr` | 512MB | Text recognition |
+| RMBG | ONNX model | 1GB | Background removal |
+
 ## System Dependencies
 
 Linux: `inkscape`, `libreoffice`, `poppler-utils`, `wkhtmltopdf`, `tectonic`
