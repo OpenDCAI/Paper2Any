@@ -88,7 +88,7 @@ const Paper2PptPage = () => {
 ⭐ GitHub Agent：https://github.com/OpenDCAI/DataFlow-Agent
 🌟 GitHub Core：https://github.com/OpenDCAI/DataFlow
 
-转发本文案+截图，联系管理员即可获取免费Key！🎁
+转发本文案+截图，联系微信群管理员即可获取免费Key！🎁
 #AI工具 #PPT制作 #科研效率 #开源项目`;
 
   const handleCopyShareText = async () => {
@@ -1268,7 +1268,7 @@ const Paper2PptPage = () => {
             <h4 className="text-white font-semibold mb-2">获取免费 API Key</h4>
             <p className="text-xs text-gray-400 mb-4 leading-relaxed">
               点击下方平台图标复制推广文案<br/>
-              分享至朋友圈/小红书/推特，截图联系管理员领 Key！
+              分享至朋友圈/小红书/推特，截图联系微信群管理员领 Key！
             </p>
             
             {/* 分享按钮组 */}
@@ -1327,7 +1327,7 @@ const Paper2PptPage = () => {
             </div>
             <h4 className="text-white font-semibold mb-2">加入交流群</h4>
             <p className="text-xs text-gray-400 mb-4">
-              体验合格？遇到问题？<br/>欢迎扫码加入交流群反馈与讨论
+              效果满意？遇到问题？<br/>欢迎扫码加入交流群反馈与讨论
             </p>
             <div className="w-32 h-32 bg-white p-1 rounded-lg mb-2">
               <img src="/wechat.png" alt="交流群二维码" className="w-full h-full object-contain" />
