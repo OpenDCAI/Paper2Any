@@ -77,7 +77,9 @@
             "description": "Review all code written in this task. Remove console.logs, debug statements, commented code, TODO hacks. Ensure code follows project conventions.",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              5
+            ],
             "parentTaskId": 13,
             "parentId": "undefined"
           },
@@ -87,7 +89,9 @@
             "description": "Stage and commit all changes for this task with descriptive message. DO NOT push to remote. Format: 'feat(scope): description'",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              6
+            ],
             "parentTaskId": 13,
             "parentId": "undefined"
           }
@@ -171,7 +175,9 @@
             "description": "Write tests in tests/test_supabase_client.py: test client initialization, test connection, test error handling",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              5
+            ],
             "parentTaskId": 14,
             "parentId": "undefined"
           },
@@ -181,7 +187,9 @@
             "description": "Review all code written in this task. Remove console.logs, debug statements, commented code, TODO hacks. Ensure code follows project conventions.",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              6
+            ],
             "parentTaskId": 14,
             "parentId": "undefined"
           },
@@ -191,7 +199,9 @@
             "description": "Stage and commit all changes for this task with descriptive message. DO NOT push to remote. Format: 'feat(scope): description'",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              7
+            ],
             "parentTaskId": 14,
             "parentId": "undefined"
           }
@@ -273,7 +283,9 @@
             "description": "Write tests in tests/test_auth_middleware.py: test valid token, test invalid token, test missing token, test expired token",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              5
+            ],
             "parentTaskId": 15,
             "parentId": "undefined"
           },
@@ -283,7 +295,9 @@
             "description": "Review all code written in this task. Remove console.logs, debug statements, commented code, TODO hacks. Ensure code follows project conventions.",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              6
+            ],
             "parentTaskId": 15,
             "parentId": "undefined"
           },
@@ -293,7 +307,9 @@
             "description": "Stage and commit all changes for this task with descriptive message. DO NOT push to remote. Format: 'feat(scope): description'",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              7
+            ],
             "parentTaskId": 15,
             "parentId": "undefined"
           }
@@ -376,7 +392,9 @@
             "description": "Write tests in tests/test_rate_limiter.py: test quota check, test limit enforcement, test daily reset logic",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              5
+            ],
             "parentTaskId": 16,
             "parentId": "undefined"
           },
@@ -386,7 +404,9 @@
             "description": "Review all code written in this task. Remove console.logs, debug statements, commented code, TODO hacks. Ensure code follows project conventions.",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              6
+            ],
             "parentTaskId": 16,
             "parentId": "undefined"
           },
@@ -396,7 +416,9 @@
             "description": "Stage and commit all changes for this task with descriptive message. DO NOT push to remote. Format: 'feat(scope): description'",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              7
+            ],
             "parentTaskId": 16,
             "parentId": "undefined"
           }
@@ -480,7 +502,9 @@
             "description": "Write tests in tests/test_file_manager.py: test file upload, test file list, test file delete, test storage paths",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              5
+            ],
             "parentTaskId": 17,
             "parentId": "undefined"
           },
@@ -490,7 +514,9 @@
             "description": "Review all code written in this task. Remove console.logs, debug statements, commented code, TODO hacks. Ensure code follows project conventions.",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              6
+            ],
             "parentTaskId": 17,
             "parentId": "undefined"
           },
@@ -500,7 +526,9 @@
             "description": "Stage and commit all changes for this task with descriptive message. DO NOT push to remote. Format: 'feat(scope): description'",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              7
+            ],
             "parentTaskId": 17,
             "parentId": "undefined"
           }
@@ -519,7 +547,7 @@
           "16",
           "17"
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -587,7 +615,9 @@
             "description": "Write tests in tests/test_workflow_integration.py: test authenticated workflow call, test rate limit on workflow, test file save after workflow",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              5
+            ],
             "parentTaskId": 18,
             "parentId": "undefined"
           },
@@ -597,7 +627,9 @@
             "description": "Review all code written in this task. Remove console.logs, debug statements, commented code, TODO hacks. Ensure code follows project conventions.",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              6
+            ],
             "parentTaskId": 18,
             "parentId": "undefined"
           },
@@ -607,11 +639,14 @@
             "description": "Stage and commit all changes for this task with descriptive message. DO NOT push to remote. Format: 'feat(scope): description'",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              7
+            ],
             "parentTaskId": 18,
             "parentId": "undefined"
           }
-        ]
+        ],
+        "updatedAt": "2025-12-26T20:15:13.946Z"
       },
       {
         "id": "19",
@@ -689,7 +724,9 @@
             "description": "Review all code written in this task. Remove console.logs, debug statements, commented code, TODO hacks. Ensure code follows project conventions.",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              5
+            ],
             "parentTaskId": 19,
             "parentId": "undefined"
           },
@@ -699,7 +736,9 @@
             "description": "Stage and commit all changes for this task with descriptive message. DO NOT push to remote. Format: 'feat(scope): description'",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              6
+            ],
             "parentTaskId": 19,
             "parentId": "undefined"
           }
@@ -795,7 +834,9 @@
             "description": "Use Puppeteer MCP to test: 1) Navigate to login page 2) Fill form and submit 3) Verify redirect after login 4) Test registration flow 5) Test error states",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              5
+            ],
             "parentTaskId": 20,
             "parentId": "undefined"
           },
@@ -805,7 +846,9 @@
             "description": "Review all code written in this task. Remove console.logs, debug statements, commented code, TODO hacks. Ensure code follows project conventions.",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              7
+            ],
             "parentTaskId": 20,
             "parentId": "undefined"
           },
@@ -815,7 +858,9 @@
             "description": "Stage and commit all changes for this task with descriptive message. DO NOT push to remote. Format: 'feat(scope): description'",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              8
+            ],
             "parentTaskId": 20,
             "parentId": "undefined"
           },
@@ -825,7 +870,9 @@
             "description": "Present Login/Register UI to PM for UX review. Document feedback on: user flow, error messages, form validation UX, visual design. Create list of improvements for next task.",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              5
+            ],
             "parentTaskId": 20,
             "parentId": "undefined"
           }
@@ -922,7 +969,9 @@
             "description": "Use Puppeteer MCP to test: 1) Unauthenticated redirect to login 2) Authenticated access to protected pages 3) Quota display shows correct values",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              5
+            ],
             "parentTaskId": 21,
             "parentId": "undefined"
           },
@@ -932,7 +981,9 @@
             "description": "Review all code written in this task. Remove console.logs, debug statements, commented code, TODO hacks. Ensure code follows project conventions.",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              7
+            ],
             "parentTaskId": 21,
             "parentId": "undefined"
           },
@@ -942,7 +993,9 @@
             "description": "Stage and commit all changes for this task with descriptive message. DO NOT push to remote. Format: 'feat(scope): description'",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              8
+            ],
             "parentTaskId": 21,
             "parentId": "undefined"
           },
@@ -962,7 +1015,9 @@
             "description": "Present Protected Routes and Quota UI to PM for UX review. Document feedback on: quota display clarity, navigation flow, auth state indicators.",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              5
+            ],
             "parentTaskId": 21,
             "parentId": "undefined"
           }
@@ -1056,7 +1111,9 @@
             "description": "Use Puppeteer MCP to test: 1) File list renders correctly 2) Download button works 3) Delete with confirmation 4) Empty state display",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              5
+            ],
             "parentTaskId": 22,
             "parentId": "undefined"
           },
@@ -1066,7 +1123,9 @@
             "description": "Review all code written in this task. Remove console.logs, debug statements, commented code, TODO hacks. Ensure code follows project conventions.",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              7
+            ],
             "parentTaskId": 22,
             "parentId": "undefined"
           },
@@ -1076,7 +1135,9 @@
             "description": "Stage and commit all changes for this task with descriptive message. DO NOT push to remote. Format: 'feat(scope): description'",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              8
+            ],
             "parentTaskId": 22,
             "parentId": "undefined"
           },
@@ -1096,7 +1157,9 @@
             "description": "Present File List UI to PM for final UX review. Document feedback on: file list usability, download/delete UX, empty states, loading states.",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              5
+            ],
             "parentTaskId": 22,
             "parentId": "undefined"
           }
@@ -1109,7 +1172,7 @@
         "description": "Implement end-to-end integration tests that verify the complete user flow including Supabase Auth with JWT middleware, rate limiting with quota enforcement, and file upload/download functionality work correctly between frontend and backend.",
         "details": "## Implementation Steps\n\n### 1. Create Test Infrastructure\n\n**Create frontend-workflow/tests/e2e/setup.ts**\n```typescript\nimport { createClient } from '@supabase/supabase-js'\n\n// Test configuration\nexport const TEST_CONFIG = {\n  SUPABASE_URL: process.env.VITE_SUPABASE_URL!,\n  SUPABASE_KEY: process.env.VITE_SUPABASE_ANON_KEY!,\n  API_URL: process.env.VITE_API_URL || 'http://localhost:8000',\n  TEST_USER_EMAIL: 'integration-test@example.com',\n  TEST_USER_PASSWORD: 'TestPassword123!'\n}\n\nexport const testSupabase = createClient(\n  TEST_CONFIG.SUPABASE_URL,\n  TEST_CONFIG.SUPABASE_KEY\n)\n\n// Helper to get auth headers\nexport async function getAuthHeaders(): Promise<HeadersInit> {\n  const { data: { session } } = await testSupabase.auth.getSession()\n  if (!session) throw new Error('Not authenticated')\n  return {\n    'Authorization': `Bearer ${session.access_token}`,\n    'Content-Type': 'application/json'\n  }\n}\n```\n\n### 2. Auth Integration Tests\n\n**Create frontend-workflow/tests/e2e/auth.test.ts**\n```typescript\nimport { describe, it, expect, beforeAll, afterAll } from 'vitest'\nimport { TEST_CONFIG, testSupabase, getAuthHeaders } from './setup'\n\ndescribe('Auth Integration', () => {\n  let testUserId: string | null = null\n\n  afterAll(async () => {\n    // Cleanup test user if created\n    if (testUserId) {\n      await testSupabase.auth.admin.deleteUser(testUserId)\n    }\n  })\n\n  it('should register a new user', async () => {\n    const { data, error } = await testSupabase.auth.signUp({\n      email: TEST_CONFIG.TEST_USER_EMAIL,\n      password: TEST_CONFIG.TEST_USER_PASSWORD\n    })\n    \n    expect(error).toBeNull()\n    expect(data.user).toBeDefined()\n    expect(data.user?.email).toBe(TEST_CONFIG.TEST_USER_EMAIL)\n    testUserId = data.user?.id || null\n  })\n\n  it('should login with valid credentials', async () => {\n    const { data, error } = await testSupabase.auth.signInWithPassword({\n      email: TEST_CONFIG.TEST_USER_EMAIL,\n      password: TEST_CONFIG.TEST_USER_PASSWORD\n    })\n    \n    expect(error).toBeNull()\n    expect(data.session).toBeDefined()\n    expect(data.session?.access_token).toBeDefined()\n  })\n\n  it('should reject backend API without JWT', async () => {\n    const response = await fetch(`${TEST_CONFIG.API_URL}/api/quota`)\n    expect(response.status).toBe(401)\n  })\n\n  it('should accept backend API with valid JWT', async () => {\n    const headers = await getAuthHeaders()\n    const response = await fetch(`${TEST_CONFIG.API_URL}/api/quota`, { headers })\n    expect(response.status).toBe(200)\n    \n    const data = await response.json()\n    expect(data).toHaveProperty('used')\n    expect(data).toHaveProperty('limit')\n    expect(data.limit).toBe(10)\n  })\n})\n```\n\n### 3. Rate Limiting Integration Tests\n\n**Create frontend-workflow/tests/e2e/rate-limiting.test.ts**\n```typescript\nimport { describe, it, expect, beforeEach } from 'vitest'\nimport { TEST_CONFIG, testSupabase, getAuthHeaders } from './setup'\n\ndescribe('Rate Limiting Integration', () => {\n  beforeEach(async () => {\n    // Login before each test\n    await testSupabase.auth.signInWithPassword({\n      email: TEST_CONFIG.TEST_USER_EMAIL,\n      password: TEST_CONFIG.TEST_USER_PASSWORD\n    })\n  })\n\n  it('should return quota status with used and limit', async () => {\n    const headers = await getAuthHeaders()\n    const response = await fetch(`${TEST_CONFIG.API_URL}/api/quota`, { headers })\n    \n    expect(response.status).toBe(200)\n    const data = await response.json()\n    \n    expect(typeof data.used).toBe('number')\n    expect(data.limit).toBe(10)\n    expect(data.used).toBeGreaterThanOrEqual(0)\n    expect(data.used).toBeLessThanOrEqual(10)\n  })\n\n  it('should increment usage count after workflow call', async () => {\n    const headers = await getAuthHeaders()\n    \n    // Get initial quota\n    const beforeRes = await fetch(`${TEST_CONFIG.API_URL}/api/quota`, { headers })\n    const beforeQuota = await beforeRes.json()\n    const initialUsed = beforeQuota.used\n\n    // Skip if already at limit\n    if (initialUsed >= 10) {\n      console.log('Skipping test: quota already exhausted')\n      return\n    }\n\n    // Make a workflow call (using a minimal test endpoint or mock)\n    // Note: In real test, call actual workflow endpoint\n    // For integration test, we might need a test-specific endpoint\n\n    // Verify quota increased\n    const afterRes = await fetch(`${TEST_CONFIG.API_URL}/api/quota`, { headers })\n    const afterQuota = await afterRes.json()\n    \n    // Usage should have increased (if workflow succeeded)\n    // expect(afterQuota.used).toBe(initialUsed + 1)\n  })\n\n  it('should return 429 when quota exhausted', async () => {\n    const headers = await getAuthHeaders()\n    \n    // Get current quota\n    const quotaRes = await fetch(`${TEST_CONFIG.API_URL}/api/quota`, { headers })\n    const quota = await quotaRes.json()\n    \n    if (quota.used < 10) {\n      console.log('Skipping 429 test: need exhausted quota')\n      return\n    }\n\n    // Try to call workflow - should get 429\n    // Note: Replace with actual workflow endpoint\n    const response = await fetch(`${TEST_CONFIG.API_URL}/api/paper2figure/generate`, {\n      method: 'POST',\n      headers\n    })\n    \n    expect(response.status).toBe(429)\n  })\n})\n```\n\n### 4. File Upload/Download Integration Tests\n\n**Create frontend-workflow/tests/e2e/files.test.ts**\n```typescript\nimport { describe, it, expect, beforeEach, afterEach } from 'vitest'\nimport { TEST_CONFIG, testSupabase, getAuthHeaders } from './setup'\n\ndescribe('File Management Integration', () => {\n  let createdFileId: string | null = null\n\n  beforeEach(async () => {\n    await testSupabase.auth.signInWithPassword({\n      email: TEST_CONFIG.TEST_USER_EMAIL,\n      password: TEST_CONFIG.TEST_USER_PASSWORD\n    })\n  })\n\n  afterEach(async () => {\n    // Cleanup created test file\n    if (createdFileId) {\n      const headers = await getAuthHeaders()\n      await fetch(`${TEST_CONFIG.API_URL}/api/files/${createdFileId}`, {\n        method: 'DELETE',\n        headers\n      })\n      createdFileId = null\n    }\n  })\n\n  it('should list user files (empty for new user)', async () => {\n    const headers = await getAuthHeaders()\n    const response = await fetch(`${TEST_CONFIG.API_URL}/api/files`, { headers })\n    \n    expect(response.status).toBe(200)\n    const data = await response.json()\n    \n    expect(Array.isArray(data)).toBe(true)\n  })\n\n  it('should include download URL in file list', async () => {\n    const headers = await getAuthHeaders()\n    const response = await fetch(`${TEST_CONFIG.API_URL}/api/files`, { headers })\n    const files = await response.json()\n    \n    if (files.length > 0) {\n      const file = files[0]\n      expect(file).toHaveProperty('id')\n      expect(file).toHaveProperty('file_name')\n      expect(file).toHaveProperty('download_url')\n      \n      // Verify download URL is accessible\n      if (file.download_url) {\n        const downloadRes = await fetch(file.download_url)\n        expect([200, 302]).toContain(downloadRes.status)\n      }\n    }\n  })\n\n  it('should delete file successfully', async () => {\n    const headers = await getAuthHeaders()\n    const listRes = await fetch(`${TEST_CONFIG.API_URL}/api/files`, { headers })\n    const files = await listRes.json()\n    \n    if (files.length > 0) {\n      const fileId = files[0].id\n      const deleteRes = await fetch(`${TEST_CONFIG.API_URL}/api/files/${fileId}`, {\n        method: 'DELETE',\n        headers\n      })\n      \n      expect(deleteRes.status).toBe(200)\n      \n      // Verify file is removed from list\n      const verifyRes = await fetch(`${TEST_CONFIG.API_URL}/api/files`, { headers })\n      const updatedFiles = await verifyRes.json()\n      const stillExists = updatedFiles.some((f: any) => f.id === fileId)\n      expect(stillExists).toBe(false)\n    }\n  })\n})\n```\n\n### 5. Backend Integration Tests\n\n**Create fastapi_app/tests/test_integration.py**\n```python\nimport pytest\nfrom httpx import AsyncClient\nfrom fastapi_app.main import app\n\n@pytest.fixture\ndef test_jwt_token():\n    \"\"\"Generate a valid test JWT token from Supabase test user\"\"\"\n    # In real test, authenticate with Supabase and get real token\n    # For now, this is a placeholder\n    return \"test-token-placeholder\"\n\n@pytest.mark.asyncio\nasync def test_quota_endpoint_requires_auth():\n    async with AsyncClient(app=app, base_url=\"http://test\") as client:\n        response = await client.get(\"/api/quota\")\n        assert response.status_code == 401\n\n@pytest.mark.asyncio\nasync def test_files_endpoint_requires_auth():\n    async with AsyncClient(app=app, base_url=\"http://test\") as client:\n        response = await client.get(\"/api/files\")\n        assert response.status_code == 401\n\n@pytest.mark.asyncio\nasync def test_workflow_endpoint_requires_auth():\n    async with AsyncClient(app=app, base_url=\"http://test\") as client:\n        # Test paper2figure endpoint\n        response = await client.post(\"/api/paper2figure/generate\")\n        assert response.status_code == 401\n\n@pytest.mark.asyncio\nasync def test_quota_returns_correct_format(test_jwt_token):\n    async with AsyncClient(app=app, base_url=\"http://test\") as client:\n        headers = {\"Authorization\": f\"Bearer {test_jwt_token}\"}\n        response = await client.get(\"/api/quota\", headers=headers)\n        \n        # Should be 200 with valid token (or 401 if token invalid in test env)\n        if response.status_code == 200:\n            data = response.json()\n            assert \"used\" in data\n            assert \"limit\" in data\n            assert isinstance(data[\"used\"], int)\n            assert data[\"limit\"] == 10\n```\n\n### 6. Test Configuration Files\n\n**Create frontend-workflow/vitest.config.ts**\n```typescript\nimport { defineConfig } from 'vitest/config'\n\nexport default defineConfig({\n  test: {\n    globals: true,\n    environment: 'node',\n    include: ['tests/e2e/**/*.test.ts'],\n    testTimeout: 30000,\n    hookTimeout: 30000,\n    setupFiles: ['tests/e2e/setup.ts']\n  }\n})\n```\n\n**Add test scripts to frontend-workflow/package.json**\n```json\n{\n  \"scripts\": {\n    \"test:e2e\": \"vitest run --config vitest.config.ts\",\n    \"test:e2e:watch\": \"vitest --config vitest.config.ts\"\n  },\n  \"devDependencies\": {\n    \"vitest\": \"^1.0.0\"\n  }\n}\n```\n\n### 7. CI/CD Integration Test Script\n\n**Create scripts/run_integration_tests.sh**\n```bash\n#!/bin/bash\nset -e\n\necho \"=== DataFlow-Agent Integration Tests ===\"\n\n# Start backend in background\necho \"Starting FastAPI backend...\"\ncd fastapi_app\nuvicorn main:app --host 0.0.0.0 --port 8000 &\nBACKEND_PID=$!\nsleep 5\n\n# Run backend tests\necho \"Running backend integration tests...\"\npytest tests/test_integration.py -v || true\n\n# Run frontend E2E tests\necho \"Running frontend E2E tests...\"\ncd ../frontend-workflow\nnpm run test:e2e || true\n\n# Cleanup\necho \"Cleaning up...\"\nkill $BACKEND_PID 2>/dev/null || true\n\necho \"=== Integration Tests Complete ===\"\n```\n\n### Key Integration Points Verified\n\n1. **Auth Flow**:\n   - Supabase signUp creates user\n   - Supabase signInWithPassword returns session with JWT\n   - Backend rejects requests without Authorization header (401)\n   - Backend accepts requests with valid Supabase JWT\n\n2. **Rate Limiting**:\n   - /api/quota returns {used, limit} format\n   - Usage count increments after workflow call\n   - Backend returns 429 when daily limit exceeded\n\n3. **File Management**:\n   - /api/files returns user's file list with download URLs\n   - Download URLs are accessible\n   - DELETE /api/files/{id} removes file from list and storage",
         "testStrategy": "## Test Execution Plan\n\n### Prerequisites\n1. Supabase project configured and accessible\n2. Backend running on port 8000\n3. Environment variables set:\n   - `VITE_SUPABASE_URL`\n   - `VITE_SUPABASE_ANON_KEY`\n   - `VITE_API_URL`\n   - Backend: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`\n\n### Manual Test Checklist\n\n**Auth Tests (Task 15, 19, 20)**\n- [ ] Register new user via frontend form → verify user created in Supabase dashboard\n- [ ] Login via frontend form → verify session stored in localStorage\n- [ ] Call /api/quota without token → expect 401 Unauthorized\n- [ ] Call /api/quota with valid JWT from logged-in user → expect 200 with {used, limit}\n- [ ] Logout → verify session cleared, API calls return 401\n\n**Rate Limiting Tests (Task 16, 18, 21)**\n- [ ] Fresh user shows \"剩余次数: 10/10\" in header\n- [ ] After workflow call, quota decreases to \"9/10\"\n- [ ] With quota at 0, workflow buttons are disabled\n- [ ] With quota at 0, API call returns 429 Too Many Requests\n- [ ] Next day (or after date change), quota resets to 10\n\n**File Management Tests (Task 17, 22)**\n- [ ] After successful workflow, file appears in file list\n- [ ] File list shows: filename, size, date, download button\n- [ ] Click download → file downloads successfully\n- [ ] Click delete → confirmation dialog appears\n- [ ] Confirm delete → file removed from list\n- [ ] Verify file removed from Supabase Storage\n\n### Automated Test Commands\n```bash\n# Run frontend E2E tests\ncd frontend-workflow && npm run test:e2e\n\n# Run backend integration tests\ncd fastapi_app && pytest tests/test_integration.py -v\n\n# Run full integration suite\n./scripts/run_integration_tests.sh\n```\n\n### Expected Results\n- All auth endpoints return correct status codes (401/200)\n- Quota correctly tracks and enforces 10 calls/day limit\n- Files uploaded to Supabase Storage have working download URLs\n- RLS policies prevent cross-user data access\n- Frontend and backend share consistent session state via JWT",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "15",
           "16",
@@ -1190,7 +1253,9 @@
             "description": "Review all code written in this task. Remove console.logs, debug statements, commented code, TODO hacks. Ensure code follows project conventions.",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              5
+            ],
             "parentTaskId": 23,
             "parentId": "undefined"
           },
@@ -1200,7 +1265,9 @@
             "description": "Stage and commit all changes for this task with descriptive message. DO NOT push to remote. Format: 'feat(scope): description'",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              6
+            ],
             "parentTaskId": 23,
             "parentId": "undefined"
           },
@@ -1210,18 +1277,21 @@
             "description": "Address any remaining UX issues from final PM review. Polish all UI components based on feedback before integration testing.",
             "details": "",
             "status": "pending",
-            "dependencies": [],
+            "dependencies": [
+              7
+            ],
             "parentTaskId": 23,
             "parentId": "undefined"
           }
-        ]
+        ],
+        "updatedAt": "2025-12-26T20:21:01.225Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-12-26T19:27:51.119Z",
+      "lastModified": "2025-12-26T20:21:01.225Z",
       "taskCount": 11,
-      "completedCount": 9,
+      "completedCount": 11,
       "tags": [
         "master"
       ]

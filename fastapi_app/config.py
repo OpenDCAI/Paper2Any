@@ -22,6 +22,7 @@ class Settings(BaseSettings):
 
     # Rate Limiting
     daily_workflow_limit: int = 10
+    daily_anonymous_limit: int = 3  # Lower limit for anonymous users
 
     # Existing DataFlow-Agent settings
     df_api_key: Optional[str] = None

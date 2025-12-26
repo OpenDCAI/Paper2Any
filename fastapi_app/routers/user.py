@@ -23,13 +23,13 @@ async def get_quota(user: CurrentUser = Depends(get_current_user)) -> Quota:
     Returns:
         Quota object with:
         - used: Number of calls made today
-        - limit: Maximum calls allowed per day
+        - limit: Maximum calls allowed per day (lower for anonymous users)
         - remaining: Calls remaining today
 
     Raises:
         401 Unauthorized if not authenticated
     """
-    return await rate_limiter.check_quota(user.user_id)
+    return await rate_limiter.check_quota(user.user_id, user.is_anonymous)
 
 
 @router.get("/files", response_model=List[UserFile])

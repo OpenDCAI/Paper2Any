@@ -38,6 +38,7 @@ class CurrentUser(BaseModel):
     user_id: str
     email: Optional[str] = None
     role: Optional[str] = None
+    is_anonymous: bool = False
 
 
 async def get_current_user(
@@ -94,6 +95,7 @@ async def get_current_user(
             user_id=user_id,
             email=payload.get("email"),
             role=payload.get("role"),
+            is_anonymous=payload.get("is_anonymous", False),
         )
 
     except JWTError as e:
@@ -148,10 +150,11 @@ async def require_auth_and_quota(
     # Import here to avoid circular dependency
     from fastapi_app.services.rate_limiter import rate_limiter
 
-    if await rate_limiter.is_limited(user.user_id):
+    if await rate_limiter.is_limited(user.user_id, user.is_anonymous):
+        limit = rate_limiter.get_limit(user.is_anonymous)
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Daily limit reached (10 calls/day). Try again tomorrow.",
+            detail=f"Daily limit reached ({limit} calls/day). Try again tomorrow.",
         )
 
     return user

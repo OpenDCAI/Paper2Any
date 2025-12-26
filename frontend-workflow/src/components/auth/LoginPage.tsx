@@ -10,9 +10,10 @@ import { Mail, Lock, AlertCircle, Loader2 } from "lucide-react";
 
 interface Props {
   onSwitchToRegister: () => void;
+  footer?: React.ReactNode;
 }
 
-export function LoginPage({ onSwitchToRegister }: Props) {
+export function LoginPage({ onSwitchToRegister, footer }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -102,6 +103,8 @@ export function LoginPage({ onSwitchToRegister }: Props) {
             Sign up
           </button>
         </p>
+
+        {footer}
       </div>
     </div>
   );

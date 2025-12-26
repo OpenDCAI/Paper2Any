@@ -44,11 +44,19 @@ class RateLimitService:
     Service for tracking and enforcing rate limits.
 
     Uses Supabase usage_records table to count daily API calls.
-    Limits are configured via DAILY_WORKFLOW_LIMIT environment variable.
+    Limits are configured via environment variables:
+    - DAILY_WORKFLOW_LIMIT: limit for registered users (default: 10)
+    - DAILY_ANONYMOUS_LIMIT: limit for anonymous users (default: 3)
     """
 
     def __init__(self):
         self.settings = get_settings()
+
+    def get_limit(self, is_anonymous: bool = False) -> int:
+        """Get the applicable limit based on user type."""
+        if is_anonymous:
+            return self.settings.daily_anonymous_limit
+        return self.settings.daily_workflow_limit
 
     async def get_today_count(self, user_id: str) -> int:
         """
@@ -80,30 +88,33 @@ class RateLimitService:
 
         return result.count or 0
 
-    async def check_quota(self, user_id: str) -> Quota:
+    async def check_quota(self, user_id: str, is_anonymous: bool = False) -> Quota:
         """
         Get current quota status for user.
 
         Args:
             user_id: The user's UUID
+            is_anonymous: Whether the user is anonymous (lower limit)
 
         Returns:
             Quota with used, limit, and remaining fields
         """
         used = await self.get_today_count(user_id)
-        return Quota(used=used, limit=self.settings.daily_workflow_limit)
+        limit = self.get_limit(is_anonymous)
+        return Quota(used=used, limit=limit)
 
-    async def is_limited(self, user_id: str) -> bool:
+    async def is_limited(self, user_id: str, is_anonymous: bool = False) -> bool:
         """
         Check if user has exceeded their daily limit.
 
         Args:
             user_id: The user's UUID
+            is_anonymous: Whether the user is anonymous (lower limit)
 
         Returns:
             True if user is rate limited, False otherwise
         """
-        quota = await self.check_quota(user_id)
+        quota = await self.check_quota(user_id, is_anonymous)
         return quota.used >= quota.limit
 
     async def record_usage(

@@ -2,22 +2,23 @@
  * Registration page component.
  *
  * Email/password signup form with password confirmation.
+ * After signup, redirects to OTP verification if email confirmation is required.
  */
 
 import { useState } from "react";
 import { useAuthStore } from "../../stores/authStore";
-import { Mail, Lock, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
+import { Mail, Lock, AlertCircle, Loader2 } from "lucide-react";
 
 interface Props {
   onSwitchToLogin: () => void;
+  footer?: React.ReactNode;
 }
 
-export function RegisterPage({ onSwitchToLogin }: Props) {
+export function RegisterPage({ onSwitchToLogin, footer }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
   const { signUpWithEmail, loading, error, clearError } = useAuthStore();
 
@@ -37,37 +38,10 @@ export function RegisterPage({ onSwitchToLogin }: Props) {
       return;
     }
 
+    // signUpWithEmail will set needsOtpVerification if email confirmation is required
+    // AuthGate will automatically show the OTP verification page
     await signUpWithEmail(email, password);
-
-    // Check if signup was successful (no error in store)
-    const storeError = useAuthStore.getState().error;
-    if (!storeError) {
-      setSuccess(true);
-    }
   };
-
-  // Success state
-  if (success) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0a0a1a]">
-        <div className="glass-dark p-8 rounded-xl w-full max-w-md border border-white/10 text-center">
-          <CheckCircle className="mx-auto text-green-500 mb-4" size={48} />
-          <h2 className="text-xl font-bold text-white mb-2">
-            Check your email
-          </h2>
-          <p className="text-gray-400 mb-4">
-            We've sent a verification link to <strong>{email}</strong>
-          </p>
-          <button
-            onClick={onSwitchToLogin}
-            className="text-primary-400 hover:underline"
-          >
-            Back to login
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   const displayError = localError || error;
 
@@ -170,6 +144,8 @@ export function RegisterPage({ onSwitchToLogin }: Props) {
             Sign in
           </button>
         </p>
+
+        {footer}
       </div>
     </div>
   );

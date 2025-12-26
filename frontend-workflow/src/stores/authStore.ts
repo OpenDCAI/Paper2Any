@@ -20,13 +20,20 @@ interface AuthState {
   loading: boolean;
   error: string | null;
   quota: Quota | null;
+  // For OTP verification flow
+  pendingEmail: string | null;
+  needsOtpVerification: boolean;
 
   // Actions
   setSession: (session: Session | null) => void;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string) => Promise<{ needsVerification: boolean }>;
+  verifyOtp: (email: string, token: string) => Promise<void>;
+  resendOtp: (email: string) => Promise<void>;
+  signInAnonymously: () => Promise<void>;
   signOut: () => Promise<void>;
   clearError: () => void;
+  clearPendingVerification: () => void;
   refreshQuota: () => Promise<void>;
 }
 
@@ -38,6 +45,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loading: true,
   error: null,
   quota: null,
+  pendingEmail: null,
+  needsOtpVerification: false,
 
   setSession: (session) => {
     set({
@@ -84,7 +93,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signUpWithEmail: async (email, password) => {
     if (!isSupabaseConfigured()) {
       set({ error: "Supabase is not configured", loading: false });
-      return;
+      return { needsVerification: false };
     }
 
     set({ loading: true, error: null });
@@ -96,15 +105,104 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     if (error) {
       set({ error: error.message, loading: false });
-      return;
+      return { needsVerification: false };
     }
 
-    // Note: User may need to verify email before session is active
+    // Check if email confirmation is required
+    // If session is null but user exists, email confirmation is pending
+    if (data.user && !data.session) {
+      set({
+        pendingEmail: email,
+        needsOtpVerification: true,
+        loading: false,
+      });
+      return { needsVerification: true };
+    }
+
+    // No verification needed - user is logged in
     set({
       session: data.session,
       user: data.user,
       loading: false,
     });
+    return { needsVerification: false };
+  },
+
+  verifyOtp: async (email, token) => {
+    if (!isSupabaseConfigured()) {
+      set({ error: "Supabase is not configured", loading: false });
+      return;
+    }
+
+    set({ loading: true, error: null });
+
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: "email",
+    });
+
+    if (error) {
+      set({ error: error.message, loading: false });
+      return;
+    }
+
+    set({
+      session: data.session,
+      user: data.user,
+      pendingEmail: null,
+      needsOtpVerification: false,
+      loading: false,
+    });
+
+    // Fetch quota after successful verification
+    get().refreshQuota();
+  },
+
+  resendOtp: async (email) => {
+    if (!isSupabaseConfigured()) {
+      set({ error: "Supabase is not configured" });
+      return;
+    }
+
+    set({ loading: true, error: null });
+
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email,
+    });
+
+    if (error) {
+      set({ error: error.message, loading: false });
+      return;
+    }
+
+    set({ loading: false });
+  },
+
+  signInAnonymously: async () => {
+    if (!isSupabaseConfigured()) {
+      set({ error: "Supabase is not configured", loading: false });
+      return;
+    }
+
+    set({ loading: true, error: null });
+
+    const { data, error } = await supabase.auth.signInAnonymously();
+
+    if (error) {
+      set({ error: error.message, loading: false });
+      return;
+    }
+
+    set({
+      session: data.session,
+      user: data.user,
+      loading: false,
+    });
+
+    // Fetch quota for anonymous user
+    get().refreshQuota();
   },
 
   signOut: async () => {
@@ -131,6 +229,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  clearPendingVerification: () => set({ pendingEmail: null, needsOtpVerification: false }),
 
   refreshQuota: async () => {
     const { session } = get();
