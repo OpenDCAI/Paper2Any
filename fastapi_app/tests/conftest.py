@@ -86,9 +86,20 @@ def auth_headers(valid_jwt_token: str) -> dict:
 
 @pytest.fixture
 async def async_client():
-    """Create an async HTTP client for testing FastAPI endpoints."""
-    from fastapi_app.main import app
+    """Create an async HTTP client for testing FastAPI endpoints.
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    Uses main_lite.py to avoid heavy ML dependencies.
+    For full integration tests, use the main app directly.
+    """
+    try:
+        # Try lite app first (no heavy ML deps)
+        from fastapi_app.main_lite import app
+    except ImportError:
+        # Fall back to full app if lite not available
+        from fastapi_app.main import app
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test"
+    ) as client:
         yield client

@@ -14,4 +14,11 @@ FastAPI backend for DataFlow Agent.
 - /pipeline/*    ：流水线推荐/导出相关接口（基于 wf_pipeline_recommend_* 等）
 """
 
-from .main import app, create_app  # noqa: F401
+# Lazy import to avoid loading heavy dependencies at module level
+# Use: from fastapi_app import app  (will load main.py on first access)
+def __getattr__(name):
+    if name in ("app", "create_app"):
+        from .main import app, create_app
+        return app if name == "app" else create_app
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
