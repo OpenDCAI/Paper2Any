@@ -120,9 +120,10 @@ async def run_paper2page_content_wf_api(req: Paper2PPTRequest) -> Paper2PPTRespo
     state = _init_state_from_request(req, result_path=result_root)
 
     log.info(f"[paper2page_content_wf_api] start, result_path={state.result_path}, input_type={req.input_type}")
-
-    final_state: Paper2FigureState = await run_workflow("paper2page_content", state)
-
+    if req.use_long_paper:
+        final_state: Paper2FigureState = await run_workflow("paper2page_content_for_long_paper", state)
+    else:    
+        final_state: Paper2FigureState = await run_workflow("paper2page_content", state)
     # 提取结果
     pagecontent = final_state["pagecontent"] or []
     log.critical(f"[paper2page_content_wf_api] pagecontent={pagecontent}")
@@ -244,9 +245,12 @@ async def run_paper2ppt_full_pipeline(req: Paper2PPTRequest) -> Paper2PPTRespons
     state_pc = _init_state_from_request(req, result_path=result_root)
     log.info(
         f"[paper2ppt_full_pipeline] step1 paper2page_content, "
-        f"result_path={state_pc.result_path}, input_type={req.input_type}"
+        f"result_path={state_pc.result_path}, input_type={req.input_type}, use_long_paper={req.use_long_paper}"
     )
-    state_pc = await run_workflow("paper2page_content", state_pc)
+    if req.use_long_paper:
+        state_pc = await run_workflow("paper2page_content_for_long_paper", state_pc)
+    else:
+        state_pc = await run_workflow("paper2page_content", state_pc)
 
     pagecontent = getattr(state_pc, "pagecontent", []) or []
     # 确保 result_path 一致

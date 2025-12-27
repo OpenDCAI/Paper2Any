@@ -465,6 +465,15 @@ class Paper2FigureState(MainState):
     ppt_pdf_path: str = ""
     ppt_pptx_path: str = ""
 
+    # 长文PPT专用：
+    long_text: str = ""
+    target_pages: int = 60
+    pages_per_batch: int = 10
+    pages_to_generate: int = 12
+    max_rounds: int = 1
+    current_chunk: str = ""
+    current_text: str = ""
+
     # pdf2ppt 专用 ==============================
     pdf_file: str = ""
     slide_images: List[str] = field(default_factory=list)

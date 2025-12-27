@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import time
+import copy
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 import re
@@ -10,6 +11,8 @@ from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register
 from dataflow_agent.agentroles import create_react_agent, create_simple_agent
+from dataflow_agent.agentroles.paper2any_agents.long_paper_outline_agent import create_long_paper_outline_agent
+from dataflow_agent.agentroles.paper2any_agents.content_expander_agent import create_content_expander
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
 
@@ -36,7 +39,7 @@ Process:
 3. Outline Generation (outline_for_long_text):
    - 根据 state.request.page_count (默认为 60) 和总文本长度，计算分批方案。
    - 将长文本切分为多个 batch。
-   - 对每个 batch 调用 outline_agent 生成对应页面的 outline (generate_outline_for_batch)。
+   - 对每个 batch 调用 long_paper_outline_agent 生成对应页面的 outline (generate_outline_for_batch)。
    - 汇总所有批次的页面内容，并进行首尾衔接处理。
 
 4. Output:
@@ -72,11 +75,18 @@ def _abs_path(p: str) -> str:
         return p
 
 
-def _is_english_text(text: str) -> bool:
+def _is_english_text(text: str | Any) -> bool:
     """简单判断文本是否主要为英文（ASCII占比 > 80%）"""
     if not text:
         # 默认非英文（中文）以保持较低的字符阈值，避免误判导致过度扩写
         return False
+    
+    if not isinstance(text, str):
+        try:
+            text = str(text)
+        except Exception:
+            return False
+
     # 统计前 5000 个字符即可
     sample = text[:5000]
     ascii_count = sum(1 for c in sample if ord(c) < 128)
@@ -167,12 +177,12 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
     # PRE-TOOLS
     # ----------------------------------------------------------------------
     
-    @builder.pre_tool("current_chunk", "outline_agent")
+    @builder.pre_tool("current_chunk", "long_paper_outline_agent")
     def _get_current_chunk(state: Paper2FigureState):
         """提供当前批次的文本内容"""
         return getattr(state, "current_chunk", "")
 
-    @builder.pre_tool("batch_info", "outline_agent")
+    @builder.pre_tool("batch_info", "long_paper_outline_agent")
     def _get_batch_info(state: Paper2FigureState):
         """提供批次信息，用于 prompt 生成"""
         idx = getattr(state, "chunk_index", 0)
@@ -185,17 +195,6 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
             "is_first": idx == 0,
             "is_last": idx == total - 1,
         }
-
-    @builder.pre_tool("text_content", "content_expander")
-    def _get_text_for_expansion(state: Paper2FigureState):
-        """为扩写 agent 提供当前文本"""
-        return state.text_content or ""
-
-    @builder.pre_tool("expansion_round", "content_expander")
-    def _get_expansion_round(state: Paper2FigureState):
-        """提供扩写轮次信息"""
-        return getattr(state, "expansion_round", 0)
-
     @builder.pre_tool("generation_round", "topic_writer")
     def _get_generation_round(state: Paper2FigureState):
         """提供 topic 生成轮次信息"""
@@ -278,9 +277,6 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         """
         TEXT 输入：准备文本内容
         """
-        if not state.text_content:
-            state.text_content = getattr(state.request, "target", "") or ""
-        
         log.info(f"[long_paper] TEXT 输入长度: {len(state.text_content)} 字符")
         return state
 
@@ -300,10 +296,10 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
              log.info(f"[long_paper] 初始长度已满足要求")
              return state
 
-        max_rounds = 3
+        max_rounds = state.max_rounds
         
         agent = create_simple_agent(
-            name="content_expander",
+            name = "content_expander",
             temperature=0.7,
             parser_type="text",
         )
@@ -313,7 +309,10 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
             state.text_content = current_text
             
             state = await agent.execute(state=state)
-            current_text = state.text_content or ""
+            
+            # 增加类型检查，防止 agent 返回 dict 导致后续切片报错
+            # 用户要求：直接把字典当字符串
+            current_text = str(state.text_content) if state.text_content else ""
             
             # 重新计算目标（以防语言变化）
             target_chars = _calculate_target_chars(target_pages, current_text)
@@ -332,36 +331,30 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         TOPIC 多轮生成长文
         """
         target_pages = getattr(state, "target_pages", 60)
-        max_rounds = 4
+        max_rounds = state.max_rounds
         
         current_text = state.text_content or ""
-        # 初始目标（因为没有文本，假定为中文 800 * pages）
         target_chars = target_pages * 800 
         
-        log.info(f"[long_paper] 从 TOPIC 生成长文，当前: {len(current_text)} 字符")
-        
+        log.info(f"[long_paper] 从 TOPIC 生成长文，当前: {len(current_text)} 字符")        
         agent = create_simple_agent(
             name="topic_writer",
-            temperature=0.7,
             parser_type="text",
         )
-        
         for round_num in range(max_rounds):
             state.generation_round = round_num
             state.text_content = current_text
-            
+
             state = await agent.execute(state=state)
-            current_text = state.text_content or ""
+            
+            current_text = str(state.text_content) if state.text_content else ""
             
             # 动态更新目标
             target_chars = _calculate_target_chars(target_pages, current_text)
-            
             log.info(f"[long_paper] 生成轮次 {round_num + 1}/{max_rounds}: {len(current_text)} / {target_chars} 字符")
-            
             if len(current_text) >= target_chars:
                 log.info(f"[long_paper] 生成完成，达到目标长度")
                 break
-        
         state.text_content = current_text
         return state
 
@@ -398,13 +391,12 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         
         log.info(f"[long_paper] 内容不足({len(long_text)} < {target_chars} chars)，开始补充扩写")
         
-        agent = create_simple_agent(
-            name="content_expander",
+        agent = create_content_expander(
             temperature=0.7,
             parser_type="text",
         )
         
-        max_rounds = 5
+        max_rounds = state.max_rounds 
         current_text = long_text
         
         for round_num in range(max_rounds):
@@ -412,7 +404,10 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
             state.text_content = current_text
             
             state = await agent.execute(state=state)
-            current_text = state.text_content or ""
+            
+            # 增加类型检查
+            # 用户要求：直接把字典当字符串
+            current_text = str(state.text_content) if state.text_content else ""
             
             # 重新计算目标
             target_chars = _calculate_target_chars(target_pages, current_text)
@@ -436,15 +431,24 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         """
         为单个批次生成 outline
         """
+        # 深拷贝 state 以防止并发修改冲突
+        state = copy.deepcopy(state)
+
+        log.critical(f"[chunk_text: ] {chunk_text[:200]}")
+        
         # 临时设置当前批次信息
-        state.current_chunk = chunk_text
-        state.chunk_index = batch_idx
-        state.total_chunks = total_batches
+        state.current_chunk     = chunk_text
+        state.chunk_index       = batch_idx
+        state.total_chunks      = total_batches
         state.pages_to_generate = pages_to_generate
         
-        # 调用 outline_agent
+        # 显式设置首尾状态，供 Agent 动态选择 Prompt
+        state.is_first = (batch_idx == 0)
+        state.is_last = (batch_idx == total_batches - 1)
+        
+        # 调用 long_paper_outline_agent
         agent = create_react_agent(
-            name="outline_agent",
+            name = "long_paper_outline_agent",
             temperature=0.1,
             max_retries=5,
             parser_type="json",
@@ -462,12 +466,14 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
 
     async def outline_for_long_text(state: Paper2FigureState) -> Paper2FigureState:
         """
-        对长文本按目标页数分批生成 outline
+        对长文本按目标页数分批生成 outline（并行处理）
         """
+        import asyncio
+        
         long_text = state.long_text or ""
         target_pages = getattr(state, "target_pages", 60)
-        pages_per_batch = 10  # 每批次目标页数
-        pages_to_generate = 12  # 每批次让 agent 生成的页数（含首尾）
+        pages_per_batch = state.pages_per_batch  # 每批次目标页数
+        pages_to_generate = state.pages_to_generate  # 每批次让 agent 生成的页数（含首尾）
         
         if not long_text:
             log.error("[long_paper] 没有长文本内容，无法生成 outline")
@@ -483,44 +489,43 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         
         # 2. 计算分批方案
         batches = calculate_batches(len(long_text), target_pages, pages_per_batch)
-        log.info(f"[long_paper] 分 {len(batches)} 批次，目标 {target_pages} 页")
+        log.info(f"[long_paper] 分 {len(batches)} 批次，目标 {target_pages} 页，将并行处理")
         
-        # 3. 对每个批次生成 outline
-        all_pages = []
+        # 3. 并行处理所有批次
+        tasks = []
+        batch_info = []  # 保存批次信息用于后续处理
         
         for start_char, end_char, batch_idx, is_first, is_last in batches:
-            # 提取当前批次的文本
             chunk_text = long_text[start_char:end_char]
             
-            log.info(f"[long_paper] 处理批次 {batch_idx + 1}/{len(batches)}: "
+            log.info(f"[long_paper] 准备批次 {batch_idx + 1}/{len(batches)}: "
                     f"字符 {start_char}-{end_char} ({len(chunk_text)} chars)")
             
-            # 调用 outline_agent
-            chunk_pages = await generate_outline_for_batch(
+            # 创建异步任务
+            task = generate_outline_for_batch(
                 state=state,
                 chunk_text=chunk_text,
                 batch_idx=batch_idx,
                 total_batches=len(batches),
                 pages_to_generate=pages_to_generate,
             )
-            
-            # 根据位置裁剪页面
-            if is_first:
-                # 首批次：保留 [0:10]（首页 + 9页正文）
-                selected = chunk_pages[0:pages_per_batch]
-                log.info(f"[long_paper] 首批次：生成 {len(chunk_pages)} 页，保留前 {len(selected)} 页")
-            elif is_last:
-                # 末批次：保留 [1:11]（9页正文 + 结束页）
-                selected = chunk_pages[1:pages_per_batch+1] if len(chunk_pages) > 1 else chunk_pages
-                log.info(f"[long_paper] 末批次：生成 {len(chunk_pages)} 页，保留 {len(selected)} 页（去掉首页）")
-            else:
-                # 中间批次：保留 [1:11]（10页正文）
-                selected = chunk_pages[1:pages_per_batch+1] if len(chunk_pages) > 1 else chunk_pages
-                log.info(f"[long_paper] 中间批次：生成 {len(chunk_pages)} 页，保留 {len(selected)} 页（去掉首尾）")
-            
+            tasks.append(task)
+            batch_info.append((batch_idx, is_first, is_last))
+        
+        # 4. 并行执行所有任务
+        log.info(f"[long_paper] 开始并行执行 {len(tasks)} 个批次...")
+        results = await asyncio.gather(*tasks)
+        log.info(f"[long_paper] 并行执行完成，收到 {len(results)} 个结果")
+        
+        # 5. 按顺序处理结果
+        all_pages = []
+        for idx, (chunk_pages, (batch_idx, is_first, is_last)) in enumerate(zip(results, batch_info)):
+            # 不再进行裁剪，直接保留所有生成的页面
+            selected = chunk_pages
+            log.info(f"[long_paper] 批次 {batch_idx + 1}: 生成 {len(chunk_pages)} 页，全部保留")
             all_pages.extend(selected)
         
-        # 4. 确保总页数符合要求
+        # 6. 确保总页数符合要求
         if len(all_pages) > target_pages:
             log.warning(f"[long_paper] 生成页数超出目标({len(all_pages)} > {target_pages})，截断")
             all_pages = all_pages[:target_pages]
@@ -528,7 +533,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
             log.warning(f"[long_paper] 生成页数不足: {len(all_pages)}/{target_pages}")
         
         state.pagecontent = all_pages
-        log.info(f"[long_paper] 最终生成 {len(all_pages)} 页 pagecontent")
+        log.info(f"[long_paper] 并行处理完成，最终生成 {len(all_pages)} 页 pagecontent")
         
         return state
 
