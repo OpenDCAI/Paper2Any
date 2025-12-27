@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, Request
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Request
 from fastapi.responses import FileResponse
 
 from dataflow_agent.utils import get_project_root
@@ -14,9 +14,6 @@ from dataflow_agent.logger import get_logger
 from fastapi_app.utils import validate_invite_code
 from fastapi_app.schemas import Paper2PPTRequest
 from fastapi_app.workflow_adapters.wa_pdf2ppt import run_pdf2ppt_wf_api
-from fastapi_app.auth import require_auth_and_quota, CurrentUser
-from fastapi_app.services.rate_limiter import rate_limiter
-from fastapi_app.services.file_manager import file_manager
 
 log = get_logger(__name__)
 
@@ -29,14 +26,14 @@ BASE_OUTPUT_DIR = Path("outputs")
 PROJECT_ROOT = get_project_root()
 
 
-def create_run_dir(user_id: Optional[str], task_type: str) -> Path:
+def create_run_dir(invite_code: Optional[str], task_type: str) -> Path:
     """
     为一次 pdf2ppt 请求创建独立目录：
-        outputs/{user_id}/{task_type}/{timestamp}/input/
+        outputs/{invite_code}/{task_type}/{timestamp}/input/
     """
     ts = int(datetime.utcnow().timestamp())
-    uid = user_id or "default"
-    run_dir = BASE_OUTPUT_DIR / uid / task_type / str(ts)
+    code = invite_code or "default"
+    run_dir = BASE_OUTPUT_DIR / code / task_type / str(ts)
 
     (run_dir / "input").mkdir(parents=True, exist_ok=True)
     return run_dir
@@ -49,7 +46,7 @@ async def generate_pdf2ppt(
     # API 配置 - 如果 use_ai_edit=True 则必填
     chat_api_url: str = Form(None),
     api_key: str = Form(None),
-    invite_code: Optional[str] = Form(None),  # Kept for backwards compat
+    invite_code: Optional[str] = Form(None),
     # 可选配置
     use_ai_edit: bool = Form(False),
     model: str = Form("gpt-4o"),
@@ -57,13 +54,13 @@ async def generate_pdf2ppt(
     language: str = Form("zh"),
     style: str = Form("现代简约风格"),
     page_count: int = Form(8),
-    user: CurrentUser = Depends(require_auth_and_quota),  # Auth + rate limit check
 ):
     """
     pdf2ppt 接口：一键将 PDF 转换为 PPT
 
     - 前端通过 multipart/form-data 传入：
         - pdf_file: 待转换的 PDF 文件
+        - invite_code: 邀请码
         - use_ai_edit: 是否启用 AI 增强（默认 False）
         - chat_api_url: LLM API URL（开启 AI 增强时必填）
         - api_key: LLM API Key（开启 AI 增强时必填）
@@ -74,7 +71,8 @@ async def generate_pdf2ppt(
         - page_count: 生成页数（可选）
     - 返回：生成的 PPTX 文件（二进制下载）
     """
-    # Auth and rate limit already verified by require_auth_and_quota dependency
+    # 0. 邀请码校验
+    # validate_invite_code(invite_code)
 
     # 0.5 如果启用 AI 增强，必须校验 API 配置
     if use_ai_edit:
@@ -89,7 +87,7 @@ async def generate_pdf2ppt(
         raise HTTPException(status_code=400, detail="pdf_file is required")
 
     # 2. 为本次请求创建独立目录
-    run_dir = create_run_dir(user.user_id, "pdf2ppt")
+    run_dir = create_run_dir(invite_code, "pdf2ppt")
     input_dir = run_dir / "input"
 
     original_name = pdf_file.filename or "uploaded.pdf"
@@ -120,9 +118,6 @@ async def generate_pdf2ppt(
     # 4. 调用 workflow（受信号量保护）
     async with task_semaphore:
         wf_resp = await run_pdf2ppt_wf_api(wf_req)
-
-    # 4.5 Record usage after successful workflow
-    await rate_limiter.record_usage(user.user_id, "pdf2ppt")
 
     # 5. 获取生成的 PPT 路径
     ppt_path = Path(wf_resp.ppt_pptx_path or "")

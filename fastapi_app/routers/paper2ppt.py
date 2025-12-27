@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi_app.schemas import Paper2PPTRequest, Paper2PPTResponse
 from fastapi_app.utils import _from_outputs_url, _to_outputs_url, validate_invite_code
 from fastapi_app.workflow_adapters.wa_paper2ppt import (
@@ -14,9 +14,6 @@ from fastapi_app.workflow_adapters.wa_paper2ppt import (
 )
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
-from fastapi_app.auth import require_auth_and_quota, CurrentUser
-from fastapi_app.services.rate_limiter import rate_limiter
-from fastapi_app.services.file_manager import file_manager
 
 log = get_logger(__name__)
 
@@ -26,13 +23,13 @@ PROJECT_ROOT = get_project_root()
 BASE_OUTPUT_DIR = Path("outputs")
 
 
-def _create_run_dir_for_paper2ppt(user_id: Optional[str]) -> Path:
+def _create_run_dir_for_paper2ppt(invite_code: Optional[str]) -> Path:
     """
     为一次 paper2ppt 请求创建 input 目录，结构：
-        outputs/{user_id or 'default'}/paper2ppt_input/
+        outputs/{invite_code or 'default'}/paper2ppt_input/
     """
-    uid = user_id or "default"
-    run_dir = PROJECT_ROOT / BASE_OUTPUT_DIR / uid / "paper2ppt_input"
+    code = invite_code or "default"
+    run_dir = PROJECT_ROOT / BASE_OUTPUT_DIR / code / "paper2ppt_input"
     run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir
 
@@ -92,7 +89,7 @@ async def paper2ppt_pagecontent_json(
     request: Request,
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
-    invite_code: Optional[str] = Form(None),  # Kept for backwards compat
+    invite_code: Optional[str] = Form(None),
     # 输入相关：支持 text/pdf/pptx/topic
     input_type: str = Form(...),  # 'text' | 'pdf' | 'pptx' | 'topic'
     file: Optional[UploadFile] = File(None),
@@ -104,7 +101,6 @@ async def paper2ppt_pagecontent_json(
     reference_img: Optional[UploadFile] = File(None),
     gen_fig_model: str = Form(...),
     page_count: int = Form(...),
-    user: CurrentUser = Depends(require_auth_and_quota),  # Auth + rate limit check
 ):
     """
     只跑 paper2page_content，返回 pagecontent + result_path。
@@ -115,11 +111,11 @@ async def paper2ppt_pagecontent_json(
     - input_type='text'：需要 text
     - 可选：reference_img（风格参考图）
     """
-    # Auth and rate limit already verified by require_auth_and_quota dependency
+    # validate_invite_code(invite_code)
 
     norm_input_type = input_type.lower().strip()
 
-    run_dir = _create_run_dir_for_paper2ppt(user.user_id)
+    run_dir = _create_run_dir_for_paper2ppt(invite_code)
     input_dir = run_dir / "input"
     input_dir.mkdir(parents=True, exist_ok=True)
 
@@ -185,9 +181,6 @@ async def paper2ppt_pagecontent_json(
 
     resp = await run_paper2page_content_wf_api(p2ppt_req)
 
-    # Record usage after successful workflow
-    await rate_limiter.record_usage(user.user_id, "paper2ppt_pagecontent")
-
     # 等待图片保存完成（PPT 转图片可能需要一点时间）
     import asyncio
     await asyncio.sleep(10)
@@ -203,7 +196,7 @@ async def paper2ppt_ppt_json(
     img_gen_model_name: str = Form(...),
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
-    invite_code: Optional[str] = Form(None),  # Kept for backwards compat
+    invite_code: Optional[str] = Form(None),
     # 控制参数
     style: str = Form(...),
     aspect_ratio: str = Form("16:9"),
@@ -221,14 +214,13 @@ async def paper2ppt_ppt_json(
     page_id: Optional[int] = Form(None),
     # 页面2的编辑提示词（get_down=true 时必传）
     edit_prompt: Optional[str] = Form(None),
-    user: CurrentUser = Depends(require_auth_and_quota),  # Auth + rate limit check
 ):
     """
     只跑 paper2ppt：
     - get_down=false：生成模式（需要 pagecontent）
     - get_down=true：编辑模式（需要 page_id(0-based) + edit_prompt，pagecontent 可选）
     """
-    # Auth and rate limit already verified by require_auth_and_quota dependency
+    # validate_invite_code(invite_code)
 
     # 转换字符串形式的布尔值
     get_down_bool = get_down.lower() in ("true", "1", "yes")
@@ -300,9 +292,6 @@ async def paper2ppt_ppt_json(
         f"all_output_files_count={len(resp.all_output_files) if resp.all_output_files else 0}"
     )
 
-    # Record usage after successful workflow
-    await rate_limiter.record_usage(user.user_id, "paper2ppt_ppt")
-
     # 路由层转 URL
     if resp.ppt_pdf_path:
         resp.ppt_pdf_path = _to_outputs_url(resp.ppt_pdf_path, request)
@@ -319,7 +308,7 @@ async def paper2ppt_full_json(
     img_gen_model_name: str = Form(...),
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
-    invite_code: Optional[str] = Form(None),  # Kept for backwards compat
+    invite_code: Optional[str] = Form(None),
     # 输入：支持 text/pdf/pptx
     input_type: str = Form(...),  # 'text' | 'pdf' | 'pptx'
     file: Optional[UploadFile] = File(None),
@@ -329,18 +318,17 @@ async def paper2ppt_full_json(
     aspect_ratio: str = Form("16:9"),
     style: str = Form(...),
     model: str = Form("gpt-5.1"),
-    user: CurrentUser = Depends(require_auth_and_quota),  # Auth + rate limit check
 ):
     """
     Full pipeline：
     - paper2page_content -> paper2ppt
     - get_down 固定为 False（首次生成）
     """
-    # Auth and rate limit already verified by require_auth_and_quota dependency
+    # validate_invite_code(invite_code)
 
     norm_input_type = input_type.lower().strip()
 
-    run_dir = _create_run_dir_for_paper2ppt(user.user_id)
+    run_dir = _create_run_dir_for_paper2ppt(invite_code)
     input_dir = run_dir / "input"
     input_dir.mkdir(parents=True, exist_ok=True)
 
@@ -390,9 +378,6 @@ async def paper2ppt_full_json(
     )
 
     resp = await run_paper2ppt_full_pipeline(p2ppt_req)
-
-    # Record usage after successful workflow
-    await rate_limiter.record_usage(user.user_id, "paper2ppt_full")
 
     if resp.ppt_pdf_path:
         resp.ppt_pdf_path = _to_outputs_url(resp.ppt_pdf_path, request)
