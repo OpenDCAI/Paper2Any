@@ -5,7 +5,7 @@ import {
   ArrowRight, ArrowLeft, GripVertical, Trash2, Edit3, Check, RotateCcw,
   MessageSquare, Eye, RefreshCw, FileText, Image as ImageIcon, Copy
 } from 'lucide-react';
-import { saveFileRecord } from '../services/fileService';
+import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
 import { useAuthStore } from '../stores/authStore';
@@ -952,10 +952,23 @@ const Ppt2PolishPage = () => {
         throw new Error('未找到生成的文件');
       }
 
-      // Record usage and save file record
+      // Record usage
       await recordUsage(user?.id || null, 'ppt2polish');
       refreshQuota();
-      saveFileRecord('ppt2polish_result.pptx', 'ppt2polish');
+
+      // Fetch PPT file and upload to Supabase Storage
+      if (pptxUrl) {
+        try {
+          const pptRes = await fetch(pptxUrl);
+          if (pptRes.ok) {
+            const pptBlob = await pptRes.blob();
+            const pptName = pptxUrl.split('/').pop() || 'ppt2polish_result.pptx';
+            uploadAndSaveFile(pptBlob, pptName, 'ppt2polish');
+          }
+        } catch (e) {
+          console.warn('[Ppt2PolishPage] Failed to upload file:', e);
+        }
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : '生成最终 PPT 失败';
       setError(message);

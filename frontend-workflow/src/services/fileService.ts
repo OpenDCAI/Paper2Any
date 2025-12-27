@@ -1,10 +1,12 @@
 /**
- * File service for saving workflow output records to Supabase.
+ * File service for saving workflow output files to Supabase Storage.
  *
- * Directly inserts into user_files table using RLS (user can only access own files).
+ * Uploads files to Storage and saves metadata to user_files table.
  */
 
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
+
+const STORAGE_BUCKET = "user-files";
 
 export interface FileRecord {
   id?: string;
@@ -16,53 +18,72 @@ export interface FileRecord {
 }
 
 /**
- * Save a file record to Supabase user_files table.
+ * Upload a file to Supabase Storage and save record to user_files table.
  *
- * Uses RLS - user must be authenticated and can only insert their own records.
- *
- * @param fileName - Name of the generated file (e.g., "output.pptx")
- * @param workflowType - Type of workflow (e.g., "paper2figure", "paper2ppt")
- * @param fileSize - Optional file size in bytes
- * @param downloadUrl - Optional download URL for the file
- * @returns The created file record, or null if failed
+ * @param blob - The file blob to upload
+ * @param fileName - Name of the file
+ * @param workflowType - Type of workflow that generated this file
+ * @returns The created file record with download URL, or null if failed
  */
-export async function saveFileRecord(
+export async function uploadAndSaveFile(
+  blob: Blob,
   fileName: string,
-  workflowType: string,
-  fileSize?: number,
-  downloadUrl?: string
+  workflowType: string
 ): Promise<FileRecord | null> {
   if (!isSupabaseConfigured()) {
-    console.warn("[fileService] Supabase not configured, skipping file save");
+    console.warn("[fileService] Supabase not configured, skipping file upload");
     return null;
   }
 
   try {
-    // Get current user
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      console.warn("[fileService] No authenticated user, skipping file save");
+      console.warn("[fileService] No authenticated user, skipping file upload");
       return null;
     }
 
-    // Insert file record - RLS ensures user_id matches authenticated user
+    // Generate unique file path: user_id/timestamp_filename
+    const timestamp = Date.now();
+    const filePath = `${user.id}/${timestamp}_${fileName}`;
+
+    // Upload to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(filePath, blob, {
+        contentType: blob.type || "application/octet-stream",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("[fileService] Failed to upload file:", uploadError);
+      return null;
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(filePath);
+
+    const downloadUrl = urlData.publicUrl;
+
+    // Save record to user_files table
     const { data, error } = await supabase
       .from("user_files")
       .insert({
         user_id: user.id,
         file_name: fileName,
-        file_size: fileSize || null,
+        file_size: blob.size,
         workflow_type: workflowType,
-        file_path: downloadUrl || "", // Store download URL in file_path field
+        file_path: downloadUrl,
       })
       .select()
       .single();
 
     if (error) {
       console.error("[fileService] Failed to save file record:", error);
+      // Try to delete uploaded file on failure
+      await supabase.storage.from(STORAGE_BUCKET).remove([filePath]);
       return null;
     }
 
@@ -75,7 +96,7 @@ export async function saveFileRecord(
       download_url: downloadUrl,
     };
   } catch (err) {
-    console.error("[fileService] Error saving file record:", err);
+    console.error("[fileService] Error uploading file:", err);
     return null;
   }
 }
@@ -116,7 +137,7 @@ export async function getFileRecords(): Promise<FileRecord[]> {
 }
 
 /**
- * Delete a file record.
+ * Delete a file record and its associated file from Storage.
  *
  * @param fileId - The file record ID to delete
  * @returns true if deleted, false otherwise
@@ -127,6 +148,34 @@ export async function deleteFileRecord(fileId: string): Promise<boolean> {
   }
 
   try {
+    // First get the file record to find the storage path
+    const { data: record, error: fetchError } = await supabase
+      .from("user_files")
+      .select("file_path")
+      .eq("id", fileId)
+      .single();
+
+    if (fetchError) {
+      console.error("[fileService] Failed to fetch file record:", fetchError);
+      return false;
+    }
+
+    // Delete the file from Storage if it exists
+    if (record?.file_path) {
+      try {
+        // Extract path from URL: https://xxx.supabase.co/storage/v1/object/public/user-files/user_id/filename
+        const url = new URL(record.file_path);
+        const pathMatch = url.pathname.match(/\/storage\/v1\/object\/public\/user-files\/(.+)/);
+        if (pathMatch?.[1]) {
+          await supabase.storage.from(STORAGE_BUCKET).remove([decodeURIComponent(pathMatch[1])]);
+        }
+      } catch (e) {
+        console.warn("[fileService] Failed to delete file from storage:", e);
+        // Continue to delete the record even if storage deletion fails
+      }
+    }
+
+    // Delete the record from user_files table
     const { error } = await supabase
       .from("user_files")
       .delete()

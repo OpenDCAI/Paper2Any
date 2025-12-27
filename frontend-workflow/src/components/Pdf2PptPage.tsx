@@ -3,7 +3,7 @@ import {
   UploadCloud, Download, Loader2, CheckCircle2,
   AlertCircle, Github, Star, X, FileText, ArrowRight, Key, Globe, ToggleLeft, ToggleRight, Sparkles, Image, MessageSquare, Copy
 } from 'lucide-react';
-import { saveFileRecord } from '../services/fileService';
+import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
 import { useAuthStore } from '../stores/authStore';
@@ -200,10 +200,11 @@ const Pdf2PptPage = () => {
       setStatusMessage('转换完成！');
       setIsComplete(true);
 
-      // Record usage and save file record
+      // Record usage and upload file to Supabase Storage
       await recordUsage(user?.id || null, 'pdf2ppt');
       refreshQuota();
-      saveFileRecord('pdf2ppt_output.pptx', 'pdf2ppt', blob.size);
+      const outputName = selectedFile?.name.replace('.pdf', '.pptx') || 'pdf2ppt_output.pptx';
+      uploadAndSaveFile(blob, outputName, 'pdf2ppt');
       
     } catch (err) {
       clearInterval(progressInterval);

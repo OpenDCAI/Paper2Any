@@ -12,7 +12,7 @@
 
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage, QuotaInfo } from './quotaService';
-import { saveFileRecord } from './fileService';
+import { uploadAndSaveFile } from './fileService';
 
 export interface WorkflowResult {
   success: boolean;
@@ -114,12 +114,14 @@ export async function callWorkflow(
     // 3. Record usage on success
     await recordUsage(userId, workflowType);
 
-    // 4. Save file record if filename provided
-    if (options.outputFileName) {
-      const fileSize = options.expectBlob
-        ? (await response.clone().blob()).size
-        : undefined;
-      await saveFileRecord(options.outputFileName, workflowType, fileSize);
+    // 4. Upload file to Supabase Storage if blob response
+    if (options.outputFileName && options.expectBlob) {
+      try {
+        const blob = await response.clone().blob();
+        await uploadAndSaveFile(blob, options.outputFileName, workflowType);
+      } catch (e) {
+        console.warn('[workflowService] Failed to upload file:', e);
+      }
     }
 
     // 5. Trigger quota refresh in auth store (async, don't wait)

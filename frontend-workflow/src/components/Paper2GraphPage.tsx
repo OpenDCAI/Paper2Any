@@ -1,6 +1,6 @@
 import { useState, useEffect, ChangeEvent } from 'react';
 import { FileText, UploadCloud, Type, Settings2, Download, Loader2, CheckCircle2, AlertCircle, Image as ImageIcon, ChevronDown, ChevronUp, Github, Star, X } from 'lucide-react';
-import { saveFileRecord } from '../services/fileService';
+import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage, QuotaInfo } from '../services/quotaService';
 import { useAuthStore } from '../stores/authStore';
@@ -397,10 +397,23 @@ const Paper2FigurePage = () => {
         setAllOutputFiles(data.all_output_files ?? []);
         setSuccessMessage('技术路线图已生成，可下载 PPT / SVG 或直接预览 PNG');
 
-        // Record usage and save file record
+        // Record usage
         await recordUsage(user?.id || null, 'paper2figure');
         refreshQuota();
-        saveFileRecord(`tech_route_${Date.now()}.pptx`, 'paper2figure');
+
+        // Fetch PPT file and upload to Supabase Storage
+        if (data.ppt_filename) {
+          try {
+            const pptRes = await fetch(data.ppt_filename);
+            if (pptRes.ok) {
+              const pptBlob = await pptRes.blob();
+              const pptName = data.ppt_filename.split('/').pop() || 'tech_route.pptx';
+              uploadAndSaveFile(pptBlob, pptName, 'paper2figure');
+            }
+          } catch (e) {
+            console.warn('[Paper2GraphPage] Failed to upload tech_route file:', e);
+          }
+        }
       } else {
         // 其他类型：保持原来的 PPTX blob 下载逻辑
         const res = await fetch(BACKEND_API, {
@@ -437,10 +450,10 @@ const Paper2FigurePage = () => {
         setLastFilename(filename);
         setSuccessMessage('PPTX 已生成，正在下载...');
 
-        // Record usage and save file record
+        // Record usage and save file to Supabase Storage
         await recordUsage(user?.id || null, 'paper2figure');
         refreshQuota();
-        saveFileRecord(filename, 'paper2figure', blob.size);
+        uploadAndSaveFile(blob, filename, 'paper2figure');
 
         const a = document.createElement('a');
         a.href = url;
