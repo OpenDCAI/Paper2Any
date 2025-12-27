@@ -181,3 +181,20 @@ Windows: Inkscape (in PATH), tectonic (via conda)
 
 Branch naming: `{username}/dev` (e.g., `lz/dev`, `tch/dev`)
 Feature branches: `{username}/{feature-name}`
+
+## Common Mistakes to Avoid
+
+### Database Column Names
+- `usage_records` 表使用 `called_at`，不是 `created_at`
+- `user_files` 表使用 `created_at`
+- **教训**：查询前先确认数据库实际字段名，不要假设
+
+### Frontend-Supabase 集成
+1. **传递正确的 user ID**：调用 `checkQuota()` 和 `recordUsage()` 时必须传入 `user?.id`，不能硬编码 `null`
+2. **状态更新**：`recordUsage()` 后必须调用 `refreshQuota()` 更新 UI 显示
+3. **RLS 策略**：Supabase RLS 要求 `auth.uid() = user_id`，必须有有效 session 才能查询到数据
+
+### 配额系统
+- 匿名用户：5 次/天
+- 登录用户：10 次/天
+- 错误消息中的配额数字要与实际配置一致
