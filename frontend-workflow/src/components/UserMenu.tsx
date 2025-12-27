@@ -3,10 +3,12 @@
  *
  * Shows user email with a dropdown menu containing sign out option.
  * For anonymous users, shows "Guest" and option to sign in.
+ * Hidden when Supabase is not configured (no auth mode).
  */
 
 import { useState, useRef, useEffect } from "react";
 import { useAuthStore } from "../stores/authStore";
+import { isSupabaseConfigured } from "../lib/supabase";
 import { User, LogOut, ChevronDown, LogIn } from "lucide-react";
 
 export function UserMenu() {
@@ -25,7 +27,8 @@ export function UserMenu() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  if (!user) return null;
+  // Hide when Supabase is not configured or no user
+  if (!isSupabaseConfigured() || !user) return null;
 
   // Check if user is anonymous (no email means anonymous/guest)
   const isAnonymous = user.is_anonymous || !user.email;

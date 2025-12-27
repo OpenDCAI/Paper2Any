@@ -1,8 +1,26 @@
-# DataFlow Agent 工作流编辑器
+# DataFlow Agent Frontend
 
-一个基于 React + ReactFlow 的可视化工作流编辑器，用于配置和管理 DataFlow Agent 工作流。
+Paper2Any 系列工作流的 Web 前端，支持论文转图表、论文转 PPT、PDF 转 PPT、PPT 美化等功能。
 
-## 功能特性
+> **部署指南**: 详细的配置说明（包括可选的 Supabase 用户管理）请参阅 [docs/guides/frontend_deployment.md](../docs/guides/frontend_deployment.md)
+
+## Paper2Any 功能
+
+| 功能 | 描述 |
+|------|------|
+| **Paper2Figure** | 上传论文 PDF，自动生成技术路线图、模型架构图等 |
+| **Paper2PPT** | 上传论文，AI 自动生成演示文稿 |
+| **Pdf2PPT** | PDF 文档转换为可编辑 PPT |
+| **PptPolish** | PPT 美化和润色 |
+| **My Files** | 查看和管理生成的文件（需配置 Supabase） |
+
+---
+
+# 工作流编辑器
+
+基于 React + ReactFlow 的可视化工作流编辑器，用于配置和管理 DataFlow Agent 工作流。
+
+## 编辑器功能
 
 ### ✨ 核心功能
 

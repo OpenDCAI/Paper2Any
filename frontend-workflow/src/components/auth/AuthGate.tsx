@@ -5,10 +5,12 @@
  * - Email/password login and registration
  * - OTP verification for email confirmation
  * - Anonymous login for limited access
+ * - Bypass when Supabase is not configured (no auth mode)
  */
 
 import { useState } from "react";
 import { useAuthStore } from "../../stores/authStore";
+import { isSupabaseConfigured } from "../../lib/supabase";
 import { LoginPage } from "./LoginPage";
 import { RegisterPage } from "./RegisterPage";
 import { VerifyOtpPage } from "./VerifyOtpPage";
@@ -29,6 +31,11 @@ export function AuthGate({ children }: Props) {
   } = useAuthStore();
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [isAnonymousLoading, setIsAnonymousLoading] = useState(false);
+
+  // Skip auth when Supabase is not configured
+  if (!isSupabaseConfigured()) {
+    return <>{children}</>;
+  }
 
   // Show loading spinner during initial session check
   if (loading && !isAnonymousLoading) {

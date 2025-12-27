@@ -2,17 +2,22 @@
  * QuotaDisplay component showing remaining API calls.
  *
  * Shows "剩余次数: X/10" with visual states for normal, low, and exhausted.
+ * Hidden when Supabase is not configured (no quota enforcement).
  */
 
 import { useEffect } from "react";
 import { useAuthStore } from "../stores/authStore";
+import { isSupabaseConfigured } from "../lib/supabase";
 import { Zap, AlertTriangle } from "lucide-react";
 
 export function QuotaDisplay() {
   const { quota, refreshQuota } = useAuthStore();
 
   useEffect(() => {
-    // Always refresh quota on mount - backend returns mock data if not authenticated
+    // Skip quota refresh when Supabase is not configured
+    if (!isSupabaseConfigured()) return;
+
+    // Refresh quota on mount
     refreshQuota();
 
     // Refresh every 60 seconds
@@ -32,7 +37,8 @@ export function QuotaDisplay() {
     };
   }, [refreshQuota]);
 
-  if (!quota) return null;
+  // Hide when Supabase is not configured or no quota data
+  if (!isSupabaseConfigured() || !quota) return null;
 
   const remaining = quota.remaining;
   const isLow = remaining <= 2 && remaining > 0;
