@@ -25,18 +25,25 @@ npm install
 
 ### 2. 配置环境变量
 
-复制 `.env.example` 到 `.env`：
+环境变量在 `frontend-workflow/.env` 中配置：
 
 ```bash
+cd frontend-workflow
 cp .env.example .env
 ```
 
-编辑 `.env` 文件（Supabase 配置是可选的）：
+编辑 `.env` 文件：
 
 ```env
-# Supabase 配置（可选 - 启用用户管理和配额控制）
+# Frontend (Vite) - 可选，留空则禁用用户管理功能
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
+
+# Backend
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_JWT_SECRET=your-jwt-secret
 ```
 
 ### 3. 启动开发服务器
