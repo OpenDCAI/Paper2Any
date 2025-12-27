@@ -264,3 +264,17 @@ frontend-workflow/vite.config.ts
 
 logs/
 conf/
+
+logs
+dev-debug.log
+# Dependency directories
+# Environment variables
+.idea
+# OS specific
+
+# Task files
+# tasks.json
+# tasks/ 
+
+# Taskmaster AI (local task management)
+.taskmaster/

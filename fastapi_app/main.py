@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi_app.routers import paper2video
 from fastapi_app.routers import paper2any, paper2ppt
 from fastapi_app.routers import pdf2ppt
+from fastapi_app.middleware.api_key import APIKeyMiddleware
 from dataflow_agent.utils import get_project_root
 
 
@@ -33,6 +34,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # API key verification for /api/* routes
+    app.add_middleware(APIKeyMiddleware)
 
     # 路由挂载
     app.include_router(paper2video.router, prefix="/paper2video", tags=["paper2video"])
