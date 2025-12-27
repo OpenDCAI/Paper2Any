@@ -1,10 +1,13 @@
 import { useState, useEffect, ChangeEvent } from 'react';
-import { 
-  Presentation, UploadCloud, Settings2, Download, Loader2, CheckCircle2, 
+import {
+  Presentation, UploadCloud, Settings2, Download, Loader2, CheckCircle2,
   AlertCircle, ChevronDown, ChevronUp, Github, Star, X, Sparkles,
   ArrowRight, ArrowLeft, GripVertical, Trash2, Edit3, Check, RotateCcw,
   MessageSquare, Eye, RefreshCw, FileText, Image as ImageIcon, Copy
 } from 'lucide-react';
+import { saveFileRecord } from '../services/fileService';
+import { API_KEY } from '../config/api';
+import { checkQuota, recordUsage } from '../services/quotaService';
 
 // ============== 类型定义 ==============
 type Step = 'upload' | 'beautify' | 'complete';
@@ -291,7 +294,16 @@ const Ppt2PolishPage = () => {
       setError('请输入风格提示词');
       return;
     }
-    
+
+    // Check quota before proceeding
+    const quota = await checkQuota(null);
+    if (quota.remaining <= 0) {
+      setError(quota.isAuthenticated
+        ? '今日配额已用完（50次/天），请明天再试'
+        : '今日配额已用完（10次/天），登录后可获得更多配额');
+      return;
+    }
+
     setIsUploading(true);
     setError(null);
     setProgress(0);
@@ -336,12 +348,13 @@ const Ppt2PolishPage = () => {
       }
       
       console.log('Sending request to /api/paper2ppt/pagecontent_json'); // 调试信息
-      
+
       const res = await fetch('/api/paper2ppt/pagecontent_json', {
         method: 'POST',
+        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
-      
+
       console.log('Response status:', res.status, res.statusText); // 调试信息
       
       if (!res.ok) {
@@ -627,12 +640,13 @@ const Ppt2PolishPage = () => {
         get_down: 'false',
         pagecontent_count: pagecontent.length,
       });
-      
+
       const res = await fetch('/api/paper2ppt/ppt_json', {
         method: 'POST',
+        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
-      
+
       console.log('Response status:', res.status, res.statusText);
       
       if (!res.ok) {
@@ -772,9 +786,10 @@ const Ppt2PolishPage = () => {
       });
       console.log('pagecontent to send:', pagecontent);
       formData.append('pagecontent', JSON.stringify(pagecontent));
-      
+
       const res = await fetch('/api/paper2ppt/ppt_json', {
         method: 'POST',
+        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
       
@@ -885,7 +900,7 @@ const Ppt2PolishPage = () => {
       formData.append('result_path', resultPath);
       formData.append('get_down', 'false');
       formData.append('all_edited_down', 'true');
-      
+
       // 传递最终的 pagecontent
       const pagecontent = outlineData.map(slide => ({
         title: slide.title,
@@ -894,9 +909,10 @@ const Ppt2PolishPage = () => {
         asset_ref: slide.asset_ref,
       }));
       formData.append('pagecontent', JSON.stringify(pagecontent));
-      
+
       const res = await fetch('/api/paper2ppt/ppt_json', {
         method: 'POST',
+        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
       
@@ -933,6 +949,10 @@ const Ppt2PolishPage = () => {
       if (!pptxUrl && !pdfUrl) {
         throw new Error('未找到生成的文件');
       }
+
+      // Record usage and save file record
+      await recordUsage(null, 'ppt2polish');
+      saveFileRecord('ppt2polish_result.pptx', 'ppt2polish');
     } catch (err) {
       const message = err instanceof Error ? err.message : '生成最终 PPT 失败';
       setError(message);

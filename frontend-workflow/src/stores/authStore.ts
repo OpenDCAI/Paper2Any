@@ -37,7 +37,8 @@ interface AuthState {
   refreshQuota: () => Promise<void>;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// Note: We use relative paths ("/api/...") which go through Vite proxy in dev mode
+// This allows the backend URL to be configured at proxy level, not hardcoded here
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -54,12 +55,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user: session?.user ?? null,
       loading: false,
     });
-    // Auto-refresh quota when session changes
-    if (session) {
-      get().refreshQuota();
-    } else {
-      set({ quota: null });
-    }
+    // Always refresh quota - backend returns mock data if not authenticated
+    get().refreshQuota();
   },
 
   signInWithEmail: async (email, password) => {
@@ -234,16 +231,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   refreshQuota: async () => {
     const { session } = get();
-    if (!session?.access_token) {
-      return;
-    }
 
     try {
-      const response = await fetch(`${API_BASE}/api/quota`, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
+      // Build headers - include auth token if available
+      const headers: HeadersInit = {};
+      if (session?.access_token) {
+        headers.Authorization = `Bearer ${session.access_token}`;
+      }
+
+      // Always try to fetch quota - backend returns mock data if not authenticated
+      const response = await fetch("/api/quota", { headers });
 
       if (response.ok) {
         const quota: Quota = await response.json();

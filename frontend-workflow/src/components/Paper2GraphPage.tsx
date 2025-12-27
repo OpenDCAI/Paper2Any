@@ -1,5 +1,8 @@
 import { useState, useEffect, ChangeEvent } from 'react';
 import { FileText, UploadCloud, Type, Settings2, Download, Loader2, CheckCircle2, AlertCircle, Image as ImageIcon, ChevronDown, ChevronUp, Github, Star, X } from 'lucide-react';
+import { saveFileRecord } from '../services/fileService';
+import { API_KEY } from '../config/api';
+import { checkQuota, recordUsage, QuotaInfo } from '../services/quotaService';
 
 type UploadMode = 'file' | 'text' | 'image';
 type FileKind = 'pdf' | 'image' | null;
@@ -289,13 +292,14 @@ const Paper2FigurePage = () => {
     setStageProgress(0);
     setShowOutputPanel(true);
 
-    // if (!inviteCode.trim()) {
-    //   setError('请先输入邀请码');
-    //   return;
-    // }
-
-    // 点击生成后，立刻根据邀请码加载历史文件列表（所有历史任务）
-    // await fetchHistoryFiles(inviteCode);
+    // Check quota before proceeding
+    const quota = await checkQuota(null);
+    if (quota.remaining <= 0) {
+      setError(quota.isAuthenticated
+        ? '今日配额已用完（50次/天），请明天再试'
+        : '今日配额已用完（10次/天），登录后可获得更多配额');
+      return;
+    }
 
     if (!llmApiUrl.trim() || !apiKey.trim()) {
       setError('请先配置模型 API URL 和 API Key');
@@ -352,6 +356,7 @@ const Paper2FigurePage = () => {
         // 技术路线图：调用 JSON 接口，返回 PPT + SVG
         const res = await fetch(JSON_API, {
           method: 'POST',
+          headers: { 'X-API-Key': API_KEY },
           body: formData,
         });
 
@@ -389,10 +394,15 @@ const Paper2FigurePage = () => {
         setSvgPreviewPath(data.svg_image_filename);
         setAllOutputFiles(data.all_output_files ?? []);
         setSuccessMessage('技术路线图已生成，可下载 PPT / SVG 或直接预览 PNG');
+
+        // Record usage and save file record
+        await recordUsage(null, 'paper2figure');
+        saveFileRecord(`tech_route_${Date.now()}.pptx`, 'paper2figure');
       } else {
         // 其他类型：保持原来的 PPTX blob 下载逻辑
         const res = await fetch(BACKEND_API, {
           method: 'POST',
+          headers: { 'X-API-Key': API_KEY },
           body: formData,
         });
 
@@ -423,6 +433,10 @@ const Paper2FigurePage = () => {
         setDownloadUrl(url);
         setLastFilename(filename);
         setSuccessMessage('PPTX 已生成，正在下载...');
+
+        // Record usage and save file record
+        await recordUsage(null, 'paper2figure');
+        saveFileRecord(filename, 'paper2figure', blob.size);
 
         const a = document.createElement('a');
         a.href = url;

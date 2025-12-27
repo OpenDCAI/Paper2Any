@@ -9,16 +9,15 @@ import { useAuthStore } from "../stores/authStore";
 import { Zap, AlertTriangle } from "lucide-react";
 
 export function QuotaDisplay() {
-  const { quota, refreshQuota, user } = useAuthStore();
+  const { quota, refreshQuota } = useAuthStore();
 
   useEffect(() => {
-    if (user) {
-      refreshQuota();
-      // Refresh every 60 seconds
-      const interval = setInterval(refreshQuota, 60000);
-      return () => clearInterval(interval);
-    }
-  }, [user, refreshQuota]);
+    // Always refresh quota on mount - backend returns mock data if not authenticated
+    refreshQuota();
+    // Refresh every 60 seconds
+    const interval = setInterval(refreshQuota, 60000);
+    return () => clearInterval(interval);
+  }, [refreshQuota]);
 
   if (!quota) return null;
 

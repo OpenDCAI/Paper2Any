@@ -1,8 +1,11 @@
 import { useState, useEffect, ChangeEvent } from 'react';
-import { 
-  UploadCloud, Download, Loader2, CheckCircle2, 
+import {
+  UploadCloud, Download, Loader2, CheckCircle2,
   AlertCircle, Github, Star, X, FileText, ArrowRight, Key, Globe, ToggleLeft, ToggleRight, Sparkles, Image, MessageSquare, Copy
 } from 'lucide-react';
+import { saveFileRecord } from '../services/fileService';
+import { API_KEY } from '../config/api';
+import { checkQuota, recordUsage } from '../services/quotaService';
 
 // ============== 主组件 ==============
 const Pdf2PptPage = () => {
@@ -102,11 +105,16 @@ const Pdf2PptPage = () => {
       setError('请先选择 PDF 文件');
       return;
     }
-    // if (!inviteCode.trim()) {
-    //   setError('请输入邀请码');
-    //   return;
-    // }
-    
+
+    // Check quota before proceeding
+    const quota = await checkQuota(null);
+    if (quota.remaining <= 0) {
+      setError(quota.isAuthenticated
+        ? '今日配额已用完（50次/天），请明天再试'
+        : '今日配额已用完（10次/天），登录后可获得更多配额');
+      return;
+    }
+
     if (useAiEdit) {
       if (!apiKey.trim()) {
         setError('开启 AI 增强时必须输入 API Key');
@@ -161,6 +169,7 @@ const Pdf2PptPage = () => {
       
       const res = await fetch('/api/pdf2ppt/generate', {
         method: 'POST',
+        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
       
@@ -188,6 +197,10 @@ const Pdf2PptPage = () => {
       setProgress(100);
       setStatusMessage('转换完成！');
       setIsComplete(true);
+
+      // Record usage and save file record
+      await recordUsage(null, 'pdf2ppt');
+      saveFileRecord('pdf2ppt_output.pptx', 'pdf2ppt', blob.size);
       
     } catch (err) {
       clearInterval(progressInterval);

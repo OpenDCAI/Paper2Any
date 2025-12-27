@@ -1,11 +1,14 @@
 import { useState, useEffect, ChangeEvent } from 'react';
-import { 
-  UploadCloud, Settings2, Download, Loader2, CheckCircle2, 
+import {
+  UploadCloud, Settings2, Download, Loader2, CheckCircle2,
   AlertCircle, ChevronDown, ChevronUp, Github, Star, X, Sparkles,
   ArrowRight, ArrowLeft, GripVertical, Trash2, Edit3, Check, RotateCcw,
   MessageSquare, RefreshCw, FileText, Key, Globe, Cpu, Type, Lightbulb,
   Copy, Share2
 } from 'lucide-react';
+import { saveFileRecord } from '../services/fileService';
+import { API_KEY } from '../config/api';
+import { checkQuota, recordUsage } from '../services/quotaService';
 
 // ============== 类型定义 ==============
 type Step = 'upload' | 'outline' | 'generate' | 'complete';
@@ -166,7 +169,16 @@ const Paper2PptPage = () => {
       setError('请输入 API Key');
       return;
     }
-    
+
+    // Check quota before proceeding
+    const quota = await checkQuota(null);
+    if (quota.remaining <= 0) {
+      setError(quota.isAuthenticated
+        ? '今日配额已用完（50次/天），请明天再试'
+        : '今日配额已用完（10次/天），登录后可获得更多配额');
+      return;
+    }
+
     setIsUploading(true);
     setError(null);
     setProgress(0);
@@ -215,6 +227,7 @@ const Paper2PptPage = () => {
       
       const res = await fetch('/api/paper2ppt/pagecontent_json', {
         method: 'POST',
+        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
       
@@ -377,7 +390,7 @@ const Paper2PptPage = () => {
       formData.append('invite_code', inviteCode.trim());
       formData.append('result_path', resultPath || '');
       formData.append('get_down', 'false');
-      
+
       const pagecontent = outlineData.map((slide) => ({
         title: slide.title,
         layout_description: slide.layout_description,
@@ -385,9 +398,10 @@ const Paper2PptPage = () => {
         asset_ref: slide.asset_ref,
       }));
       formData.append('pagecontent', JSON.stringify(pagecontent));
-      
+
       const res = await fetch('/api/paper2ppt/ppt_json', {
         method: 'POST',
+        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
       
@@ -487,7 +501,7 @@ const Paper2PptPage = () => {
       formData.append('get_down', 'true');
       formData.append('page_id', String(currentSlideIndex));
       formData.append('edit_prompt', slidePrompt);
-      
+
       const pagecontent = outlineData.map((slide, idx) => {
         const result = generateResults[idx];
         let generatedPath = '';
@@ -504,9 +518,10 @@ const Paper2PptPage = () => {
         };
       });
       formData.append('pagecontent', JSON.stringify(pagecontent));
-      
+
       const res = await fetch('/api/paper2ppt/ppt_json', {
         method: 'POST',
+        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
       
@@ -594,7 +609,7 @@ const Paper2PptPage = () => {
       formData.append('result_path', resultPath);
       formData.append('get_down', 'false');
       formData.append('all_edited_down', 'true');
-      
+
       const pagecontent = outlineData.map((slide) => ({
         title: slide.title,
         layout_description: slide.layout_description,
@@ -602,9 +617,10 @@ const Paper2PptPage = () => {
         asset_ref: slide.asset_ref,
       }));
       formData.append('pagecontent', JSON.stringify(pagecontent));
-      
+
       const res = await fetch('/api/paper2ppt/ppt_json', {
         method: 'POST',
+        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
       
@@ -644,7 +660,7 @@ const Paper2PptPage = () => {
           }
         }
         if (!data.ppt_pdf_path) {
-          const pdfFile = data.all_output_files.find((url: string) => 
+          const pdfFile = data.all_output_files.find((url: string) =>
             url.endsWith('.pdf') && !url.includes('input')
           );
           if (pdfFile) {
@@ -652,7 +668,11 @@ const Paper2PptPage = () => {
           }
         }
       }
-      
+
+      // Record usage and save file record
+      await recordUsage(null, 'paper2ppt');
+      saveFileRecord('paper2ppt_result.pptx', 'paper2ppt');
+
     } catch (err) {
       const message = err instanceof Error ? err.message : '生成失败';
       setError(message);
