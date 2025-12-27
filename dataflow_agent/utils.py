@@ -33,33 +33,7 @@ from PIL import Image
 import pdfplumber
 import uuid
 
-# Lazy import for heavy ML dependencies
-# These are imported on-demand to allow lightweight usage
-_mineru_funcs = None
-
-def _get_mineru_funcs():
-    """Lazy load MinerU functions."""
-    global _mineru_funcs
-    if _mineru_funcs is None:
-        from dataflow_agent.toolkits.imtool.mineru_tool import (
-            run_aio_batch_two_step_extract,
-            run_aio_two_step_extract,
-        )
-        _mineru_funcs = {
-            "run_aio_batch_two_step_extract": run_aio_batch_two_step_extract,
-            "run_aio_two_step_extract": run_aio_two_step_extract,
-        }
-    return _mineru_funcs
-
-
-def run_aio_two_step_extract(*args, **kwargs):
-    """Wrapper for lazy-loaded MinerU function."""
-    return _get_mineru_funcs()["run_aio_two_step_extract"](*args, **kwargs)
-
-
-def run_aio_batch_two_step_extract(*args, **kwargs):
-    """Wrapper for lazy-loaded MinerU function."""
-    return _get_mineru_funcs()["run_aio_batch_two_step_extract"](*args, **kwargs)
+from dataflow_agent.toolkits.imtool.mineru_tool import run_aio_batch_two_step_extract, run_aio_two_step_extract
 
 def get_project_root() -> Path:
     return Path(__file__).resolve().parent.parent
@@ -526,7 +500,7 @@ def build_output_directory(image_path: Path) -> Path:
 import asyncio
 from pathlib import Path
 from PIL import Image
-# MinerUClient is lazy-imported when needed via _get_mineru_funcs()
+from mineru_vl_utils import MinerUClient
 
 
 # -----------------------------
