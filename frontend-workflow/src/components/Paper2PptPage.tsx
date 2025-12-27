@@ -41,6 +41,7 @@ const Paper2PptPage = () => {
   const [globalPrompt, setGlobalPrompt] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [pageCount, setPageCount] = useState(6);
+  const [useLongPaper, setUseLongPaper] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState('');
   
@@ -93,7 +94,26 @@ const Paper2PptPage = () => {
 
   const handleCopyShareText = async () => {
     try {
-      await navigator.clipboard.writeText(shareText);
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareText);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = shareText;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+        } catch (err) {
+          console.error('Fallback: Oops, unable to copy', err);
+          throw err;
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
       setCopySuccess('文案已复制！快去分享吧');
       setTimeout(() => setCopySuccess(''), 2000);
     } catch (err) {
@@ -210,6 +230,7 @@ const Paper2PptPage = () => {
       formData.append('style', globalPrompt || getStyleDescription(stylePreset));
       formData.append('gen_fig_model', genFigModel);
       formData.append('page_count', String(pageCount));
+      formData.append('use_long_paper', String(useLongPaper));
       
       console.log(`Sending request to /api/paper2ppt/pagecontent_json with input_type=${uploadMode}`);
       
@@ -909,6 +930,24 @@ const Paper2PptPage = () => {
             </div>
           </div>
 
+          <div className="flex items-center gap-2 px-1 py-1">
+            <button
+              onClick={() => setUseLongPaper(!useLongPaper)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                useLongPaper ? 'bg-purple-600' : 'bg-gray-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                  useLongPaper ? 'translate-x-5' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <span className="text-xs text-gray-300 cursor-pointer" onClick={() => setUseLongPaper(!useLongPaper)}>
+              启用长文档模式，适用于生成40到100页的PPT
+            </span>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-gray-400 mb-1">选择风格</label>
@@ -1307,7 +1346,7 @@ const Paper2PptPage = () => {
 
             <div className="w-full space-y-2">
                <a href="https://dcai-paper2any.nas.cpolar.cn/" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-purple-300 truncate transition-colors border border-white/5 text-center">
-                 🌐 在线体验地址
+                 🌐 如果项目对你有帮助的话，可以点个star嘛~
                </a>
                <div className="flex gap-2">
                  <a href="https://github.com/OpenDCAI/DataFlow-Agent" target="_blank" rel="noopener noreferrer" className="flex-1 py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-gray-300 truncate transition-colors border border-white/5 flex items-center justify-center gap-1">

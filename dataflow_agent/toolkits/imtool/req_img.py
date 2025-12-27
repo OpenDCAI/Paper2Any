@@ -849,8 +849,8 @@ if __name__ == "__main__":
     import asyncio
 
     async def _demo():
-        # API_URL = "http://123.129.219.111:3000/v1"
-        API_URL = "https://api.apiyi.com/v1"
+        API_URL = "http://123.129.219.111:3000/v1"
+        # API_URL = "https://api.apiyi.com/v1"
         API_KEY = os.getenv("DF_API_KEY")
         
         # 测试Gemini模型
@@ -861,14 +861,14 @@ if __name__ == "__main__":
         # MODEL_DALLE = "dall-e-3"
 
         # 1) Gemini纯文生图
-        # await generate_or_edit_and_save_image_async(
-        #     prompt="一只霓虹风格的赛博朋克猫头像",
-        #     save_path="./gen_cat_gemini.png",
-        #     api_url=API_URL,
-        #     api_key=API_KEY,
-        #     model=MODEL_GEMINI,
-        #     use_edit=False, 
-        # )
+        await generate_or_edit_and_save_image_async(
+            prompt="一只霓虹风格的赛博朋克猫头像",
+            save_path="./gen_cat_gemini.png",
+            api_url=API_URL,
+            api_key=API_KEY,
+            model=MODEL_GEMINI,
+            use_edit=False, 
+        )
 
         # 2) DALL-E纯文生图
         # await generate_or_edit_and_save_image_async(
@@ -894,15 +894,15 @@ if __name__ == "__main__":
         # )
         
         # 3.5) Gemini Multi-Image Edit (Manual Call)
-        await gemini_multi_image_edit_async(
-            prompt="Merge these images into a sci-fi poster",
-            image_paths=["", ""],
-            save_path="./merged_gemini.png",
-            api_url=API_URL,
-            api_key=API_KEY,
-            model="gemini-2.5-flash-image",
-            resolution="2K"
-        )
+        # await gemini_multi_image_edit_async(
+        #     prompt="Merge these images into a sci-fi poster",
+        #     image_paths=["", ""],
+        #     save_path="./merged_gemini.png",
+        #     api_url=API_URL,
+        #     api_key=API_KEY,
+        #     model="gemini-2.5-flash-image",
+        #     resolution="2K"
+        # )
 
         # 4) DALL-E Edit 模式（需要mask）
         # await generate_or_edit_and_save_image_async(
