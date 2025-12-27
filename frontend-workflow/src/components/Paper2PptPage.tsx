@@ -9,6 +9,7 @@ import {
 import { saveFileRecord } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
+import { useAuthStore } from '../stores/authStore';
 
 // ============== 类型定义 ==============
 type Step = 'upload' | 'outline' | 'generate' | 'complete';
@@ -32,6 +33,7 @@ interface GenerateResult {
 
 // ============== 主组件 ==============
 const Paper2PptPage = () => {
+  const { user, refreshQuota } = useAuthStore();
   // Step 状态
   const [currentStep, setCurrentStep] = useState<Step>('upload');
   
@@ -171,11 +173,11 @@ const Paper2PptPage = () => {
     }
 
     // Check quota before proceeding
-    const quota = await checkQuota(null);
+    const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
     if (quota.remaining <= 0) {
       setError(quota.isAuthenticated
-        ? '今日配额已用完（50次/天），请明天再试'
-        : '今日配额已用完（10次/天），登录后可获得更多配额');
+        ? '今日配额已用完（10次/天），请明天再试'
+        : '今日配额已用完（5次/天），登录后可获得更多配额');
       return;
     }
 
@@ -670,7 +672,8 @@ const Paper2PptPage = () => {
       }
 
       // Record usage and save file record
-      await recordUsage(null, 'paper2ppt');
+      await recordUsage(user?.id || null, 'paper2ppt');
+      refreshQuota();
       saveFileRecord('paper2ppt_result.pptx', 'paper2ppt');
 
     } catch (err) {

@@ -8,6 +8,7 @@ import {
 import { saveFileRecord } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
+import { useAuthStore } from '../stores/authStore';
 
 // ============== 类型定义 ==============
 type Step = 'upload' | 'beautify' | 'complete';
@@ -131,6 +132,7 @@ const MOCK_AFTER_IMAGES = [
 
 // ============== 主组件 ==============
 const Ppt2PolishPage = () => {
+  const { user, refreshQuota } = useAuthStore();
   // 步骤状态
   const [currentStep, setCurrentStep] = useState<Step>('upload');
   
@@ -296,11 +298,11 @@ const Ppt2PolishPage = () => {
     }
 
     // Check quota before proceeding
-    const quota = await checkQuota(null);
+    const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
     if (quota.remaining <= 0) {
       setError(quota.isAuthenticated
-        ? '今日配额已用完（50次/天），请明天再试'
-        : '今日配额已用完（10次/天），登录后可获得更多配额');
+        ? '今日配额已用完（10次/天），请明天再试'
+        : '今日配额已用完（5次/天），登录后可获得更多配额');
       return;
     }
 
@@ -951,7 +953,8 @@ const Ppt2PolishPage = () => {
       }
 
       // Record usage and save file record
-      await recordUsage(null, 'ppt2polish');
+      await recordUsage(user?.id || null, 'ppt2polish');
+      refreshQuota();
       saveFileRecord('ppt2polish_result.pptx', 'ppt2polish');
     } catch (err) {
       const message = err instanceof Error ? err.message : '生成最终 PPT 失败';

@@ -6,9 +6,11 @@ import {
 import { saveFileRecord } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
+import { useAuthStore } from '../stores/authStore';
 
 // ============== 主组件 ==============
 const Pdf2PptPage = () => {
+  const { user, refreshQuota } = useAuthStore();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -107,11 +109,11 @@ const Pdf2PptPage = () => {
     }
 
     // Check quota before proceeding
-    const quota = await checkQuota(null);
+    const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
     if (quota.remaining <= 0) {
       setError(quota.isAuthenticated
-        ? '今日配额已用完（50次/天），请明天再试'
-        : '今日配额已用完（10次/天），登录后可获得更多配额');
+        ? '今日配额已用完（10次/天），请明天再试'
+        : '今日配额已用完（5次/天），登录后可获得更多配额');
       return;
     }
 
@@ -199,7 +201,8 @@ const Pdf2PptPage = () => {
       setIsComplete(true);
 
       // Record usage and save file record
-      await recordUsage(null, 'pdf2ppt');
+      await recordUsage(user?.id || null, 'pdf2ppt');
+      refreshQuota();
       saveFileRecord('pdf2ppt_output.pptx', 'pdf2ppt', blob.size);
       
     } catch (err) {

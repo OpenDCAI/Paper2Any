@@ -3,6 +3,7 @@ import { FileText, UploadCloud, Type, Settings2, Download, Loader2, CheckCircle2
 import { saveFileRecord } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage, QuotaInfo } from '../services/quotaService';
+import { useAuthStore } from '../stores/authStore';
 
 type UploadMode = 'file' | 'text' | 'image';
 type FileKind = 'pdf' | 'image' | null;
@@ -42,6 +43,7 @@ const GENERATION_STAGES: GenerationStage[] = [
 const STORAGE_KEY = 'paper2figure_config_v1';
 
 const Paper2FigurePage = () => {
+  const { user, refreshQuota } = useAuthStore();
   const [uploadMode, setUploadMode] = useState<UploadMode>('file');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileKind, setFileKind] = useState<FileKind>(null);
@@ -293,11 +295,11 @@ const Paper2FigurePage = () => {
     setShowOutputPanel(true);
 
     // Check quota before proceeding
-    const quota = await checkQuota(null);
+    const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
     if (quota.remaining <= 0) {
       setError(quota.isAuthenticated
-        ? '今日配额已用完（50次/天），请明天再试'
-        : '今日配额已用完（10次/天），登录后可获得更多配额');
+        ? '今日配额已用完（10次/天），请明天再试'
+        : '今日配额已用完（5次/天），登录后可获得更多配额');
       return;
     }
 
@@ -396,7 +398,8 @@ const Paper2FigurePage = () => {
         setSuccessMessage('技术路线图已生成，可下载 PPT / SVG 或直接预览 PNG');
 
         // Record usage and save file record
-        await recordUsage(null, 'paper2figure');
+        await recordUsage(user?.id || null, 'paper2figure');
+        refreshQuota();
         saveFileRecord(`tech_route_${Date.now()}.pptx`, 'paper2figure');
       } else {
         // 其他类型：保持原来的 PPTX blob 下载逻辑
@@ -435,7 +438,8 @@ const Paper2FigurePage = () => {
         setSuccessMessage('PPTX 已生成，正在下载...');
 
         // Record usage and save file record
-        await recordUsage(null, 'paper2figure');
+        await recordUsage(user?.id || null, 'paper2figure');
+        refreshQuota();
         saveFileRecord(filename, 'paper2figure', blob.size);
 
         const a = document.createElement('a');
