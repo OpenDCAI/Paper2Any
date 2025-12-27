@@ -14,9 +14,22 @@ export function QuotaDisplay() {
   useEffect(() => {
     // Always refresh quota on mount - backend returns mock data if not authenticated
     refreshQuota();
+
     // Refresh every 60 seconds
     const interval = setInterval(refreshQuota, 60000);
-    return () => clearInterval(interval);
+
+    // Refresh when page becomes visible (user returns from another tab)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshQuota();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [refreshQuota]);
 
   if (!quota) return null;

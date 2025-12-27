@@ -5,16 +5,16 @@
  * logged-in users (Supabase) and anonymous users (fingerprint).
  *
  * Quota limits:
- * - Anonymous users: 10 calls/day
- * - Logged-in users: 50 calls/day
+ * - Anonymous users: 5 calls/day
+ * - Logged-in users: 10 calls/day
  */
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { getUserIdentifier } from './fingerprintService';
 
 // Quota limits
-const ANONYMOUS_DAILY_LIMIT = 10;
-const AUTHENTICATED_DAILY_LIMIT = 50;
+const ANONYMOUS_DAILY_LIMIT = 5;
+const AUTHENTICATED_DAILY_LIMIT = 10;
 
 // Local storage key for anonymous usage tracking (fallback when Supabase not configured)
 const LOCAL_USAGE_KEY = 'df_usage';
@@ -59,10 +59,12 @@ function setLocalUsage(date: string, count: number): void {
  * Check current quota for a user.
  *
  * @param userId - Supabase user ID if logged in, null for anonymous
+ * @param isAnonymous - Whether the user is an anonymous user (optional, defaults to false if userId exists)
  * @returns QuotaInfo with used, limit, and remaining counts
  */
-export async function checkQuota(userId: string | null): Promise<QuotaInfo> {
-  const isAuthenticated = Boolean(userId);
+export async function checkQuota(userId: string | null, isAnonymous: boolean = false): Promise<QuotaInfo> {
+  // A user is authenticated (non-anonymous) only if they have a userId AND are not anonymous
+  const isAuthenticated = Boolean(userId) && !isAnonymous;
   const limit = isAuthenticated ? AUTHENTICATED_DAILY_LIMIT : ANONYMOUS_DAILY_LIMIT;
   const userIdentifier = getUserIdentifier(userId);
 

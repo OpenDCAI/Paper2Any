@@ -233,20 +233,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { session } = get();
 
     try {
-      // Build headers - include auth token if available
-      const headers: HeadersInit = {};
-      if (session?.access_token) {
-        headers.Authorization = `Bearer ${session.access_token}`;
-      }
+      // Import quota service and check quota directly
+      const { checkQuota } = await import('../services/quotaService');
+      const userId = session?.user?.id || null;
+      const isAnonymous = session?.user?.is_anonymous || false;
+      const quotaInfo = await checkQuota(userId, isAnonymous);
 
-      // Always try to fetch quota - backend returns mock data if not authenticated
-      const response = await fetch("/api/quota", { headers });
-
-      if (response.ok) {
-        const quota: Quota = await response.json();
-        set({ quota });
-      }
-    } catch {
+      set({
+        quota: {
+          used: quotaInfo.used,
+          limit: quotaInfo.limit,
+          remaining: quotaInfo.remaining,
+        }
+      });
+    } catch (err) {
+      console.error('[authStore] Failed to refresh quota:', err);
       // Silently fail - quota display will just be hidden
     }
   },

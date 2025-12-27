@@ -23,17 +23,20 @@ export interface WorkflowResult {
 }
 
 /**
- * Get the current user ID from Supabase session.
+ * Get the current user ID and anonymous status from Supabase session.
  */
-async function getCurrentUserId(): Promise<string | null> {
+async function getCurrentUserInfo(): Promise<{ userId: string | null; isAnonymous: boolean }> {
   try {
     const { supabase, isSupabaseConfigured } = await import('../lib/supabase');
-    if (!isSupabaseConfigured()) return null;
+    if (!isSupabaseConfigured()) return { userId: null, isAnonymous: true };
 
     const { data: { user } } = await supabase.auth.getUser();
-    return user?.id || null;
+    return {
+      userId: user?.id || null,
+      isAnonymous: user?.is_anonymous || false
+    };
   } catch {
-    return null;
+    return { userId: null, isAnonymous: true };
   }
 }
 
@@ -61,16 +64,16 @@ export async function callWorkflow(
     expectBlob?: boolean;
   } = {}
 ): Promise<WorkflowResult> {
-  const userId = await getCurrentUserId();
+  const { userId, isAnonymous } = await getCurrentUserInfo();
 
   // 1. Check quota
-  const quota = await checkQuota(userId);
+  const quota = await checkQuota(userId, isAnonymous);
   if (quota.remaining <= 0) {
     return {
       success: false,
       error: quota.isAuthenticated
-        ? '今日配额已用完（50次/天），请明天再试'
-        : '今日配额已用完（10次/天），登录后可获得更多配额',
+        ? '今日配额已用完（10次/天），请明天再试'
+        : '今日配额已用完（5次/天），登录后可获得更多配额',
       quota,
     };
   }
@@ -117,6 +120,14 @@ export async function callWorkflow(
         ? (await response.clone().blob()).size
         : undefined;
       await saveFileRecord(options.outputFileName, workflowType, fileSize);
+    }
+
+    // 5. Trigger quota refresh in auth store (async, don't wait)
+    try {
+      const { useAuthStore } = await import('../stores/authStore');
+      useAuthStore.getState().refreshQuota();
+    } catch {
+      // Silently fail if store import fails
     }
 
     // Return response for further processing
