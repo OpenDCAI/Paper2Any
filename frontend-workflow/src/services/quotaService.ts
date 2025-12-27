@@ -92,8 +92,8 @@ export async function checkQuota(userId: string | null, isAnonymous: boolean = f
       .from('usage_records')
       .select('id')
       .eq('user_id', userIdentifier)
-      .gte('created_at', `${today}T00:00:00`)
-      .lt('created_at', `${today}T23:59:59.999`);
+      .gte('called_at', `${today}T00:00:00`)
+      .lt('called_at', `${today}T23:59:59.999`);
 
     if (error) {
       console.error('[quotaService] Failed to check quota:', error);
