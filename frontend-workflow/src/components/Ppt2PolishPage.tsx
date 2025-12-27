@@ -198,7 +198,26 @@ const Ppt2PolishPage = () => {
 
   const handleCopyShareText = async () => {
     try {
-      await navigator.clipboard.writeText(shareText);
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareText);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = shareText;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+        } catch (err) {
+          console.error('Fallback: Oops, unable to copy', err);
+          throw err;
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
       setCopySuccess('文案已复制！快去分享吧');
       setTimeout(() => setCopySuccess(''), 2000);
     } catch (err) {
@@ -1556,7 +1575,7 @@ const Ppt2PolishPage = () => {
 
               <div className="w-full space-y-2">
                  <a href="https://dcai-paper2any.nas.cpolar.cn/" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-teal-300 truncate transition-colors border border-white/5 text-center">
-                   🌐 在线体验地址
+                   🌐 如果项目对你有帮助的话，可以点个star嘛~
                  </a>
                  <div className="flex gap-2">
                    <a href="https://github.com/OpenDCAI/DataFlow-Agent" target="_blank" rel="noopener noreferrer" className="flex-1 py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-gray-300 truncate transition-colors border border-white/5 flex items-center justify-center gap-1">

@@ -171,7 +171,7 @@ class Paper2PPTRequest(BaseModel):
     # ---------------------- 输出图像比例设置 ----------------------
     aspect_ratio: Literal["1:1", "16:9", "9:16", "4:3", "3:4", "21:9"] = "16:9"
     style: str = " "
-
+    use_long_paper: bool = False # 不使用 长文
     reference_img: str = ""
 
     invite_code: str = ""

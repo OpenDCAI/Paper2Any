@@ -101,6 +101,7 @@ async def paper2ppt_pagecontent_json(
     reference_img: Optional[UploadFile] = File(None),
     gen_fig_model: str = Form(...),
     page_count: int = Form(...),
+    use_long_paper: str = Form("false"),
 ):
     """
     只跑 paper2page_content，返回 pagecontent + result_path。
@@ -177,6 +178,7 @@ async def paper2ppt_pagecontent_json(
         reference_img=str(reference_img_path) if reference_img_path is not None else "",
         invite_code=invite_code or "",
         page_count=page_count,
+        use_long_paper=use_long_paper.lower() == "true",
     )
 
     resp = await run_paper2page_content_wf_api(p2ppt_req)
@@ -318,6 +320,7 @@ async def paper2ppt_full_json(
     aspect_ratio: str = Form("16:9"),
     style: str = Form(...),
     model: str = Form("gpt-5.1"),
+    use_long_paper: str = Form("false"),
 ):
     """
     Full pipeline：
@@ -375,6 +378,7 @@ async def paper2ppt_full_json(
         aspect_ratio=aspect_ratio,
         style=style,
         invite_code=invite_code or "",
+        use_long_paper=use_long_paper.lower() == "true",
     )
 
     resp = await run_paper2ppt_full_pipeline(p2ppt_req)
