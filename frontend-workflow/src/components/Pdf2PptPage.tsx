@@ -22,7 +22,11 @@ const Pdf2PptPage = () => {
   const [statusMessage, setStatusMessage] = useState('');
 
   // GitHub Stars
-  const [stars, setStars] = useState<{dataflow: number | null, agent: number | null}>({ dataflow: null, agent: null });
+  const [stars, setStars] = useState<{dataflow: number | null, agent: number | null, dataflex: number | null}>({
+    dataflow: null,
+    agent: null,
+    dataflex: null,
+  });
   const [copySuccess, setCopySuccess] = useState('');
 
   const shareText = `发现一个超好用的AI工具 DataFlow-Agent！🚀
@@ -68,15 +72,18 @@ const Pdf2PptPage = () => {
   useEffect(() => {
     const fetchStars = async () => {
       try {
-        const [res1, res2] = await Promise.all([
+        const [res1, res2, res3] = await Promise.all([
           fetch('https://api.github.com/repos/OpenDCAI/DataFlow'),
-          fetch('https://api.github.com/repos/OpenDCAI/DataFlow-Agent')
+          fetch('https://api.github.com/repos/OpenDCAI/DataFlow-Agent'),
+          fetch('https://api.github.com/repos/OpenDCAI/DataFlex')
         ]);
         const data1 = await res1.json();
         const data2 = await res2.json();
+        const data3 = await res3.json();
         setStars({
           dataflow: data1.stargazers_count,
-          agent: data2.stargazers_count
+          agent: data2.stargazers_count,
+          dataflex: data3.stargazers_count,
         });
       } catch (e) {
         console.error('Failed to fetch stars', e);
@@ -304,6 +311,18 @@ const Pdf2PptPage = () => {
                 <span>DataFlow-Agent</span>
                 <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.agent || 'Star'}</span>
                 <span className="bg-pink-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
+              </a>
+
+              <a
+                href="https://github.com/OpenDCAI/DataFlex"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
+              >
+                <Github size={14} />
+                <span>DataFlex</span>
+                <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.dataflex || 'Star'}</span>
+                <span className="bg-sky-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
               </a>
 
               <button
