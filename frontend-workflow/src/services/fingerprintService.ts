@@ -38,7 +38,7 @@ function getCanvasFingerprint(): string {
     ctx.fillStyle = '#f60';
     ctx.fillRect(0, 0, 100, 50);
     ctx.fillStyle = '#069';
-    ctx.fillText('DataFlow Agent', 2, 15);
+    ctx.fillText('Paper2Any', 2, 15);
     ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
     ctx.fillText('Fingerprint', 4, 30);
 

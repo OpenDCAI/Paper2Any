@@ -88,7 +88,7 @@ const Paper2FigurePage = () => {
       try {
         const [res1, res2, res3] = await Promise.all([
           fetch('https://api.github.com/repos/OpenDCAI/DataFlow'),
-          fetch('https://api.github.com/repos/OpenDCAI/DataFlow-Agent'),
+          fetch('https://api.github.com/repos/OpenDCAI/Paper2Any'),
           fetch('https://api.github.com/repos/OpenDCAI/DataFlex')
         ]);
         const data1 = await res1.json();
@@ -525,13 +525,13 @@ const Paper2FigurePage = () => {
               </a>
 
               <a
-                href="https://github.com/OpenDCAI/DataFlow-Agent"
+                href="https://github.com/OpenDCAI/Paper2Any"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
               >
                 <Github size={14} />
-                <span>DataFlow-Agent</span>
+                <span>Paper2Any</span>
                 <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.agent || 'Star'}</span>
                 <span className="bg-pink-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
               </a>

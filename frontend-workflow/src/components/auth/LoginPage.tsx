@@ -85,7 +85,7 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
         <div className="hidden lg:flex flex-col justify-center space-y-8 pr-8">
           <div>
             <h1 className="text-5xl font-bold text-white mb-4 leading-tight">
-              DataFlow <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">Agent</span>
+              Paper to <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">Any</span>
             </h1>
             <p className="text-gray-400 text-lg max-w-md">
               一站式 AI 科研与演示文稿助手，让知识流动更自由，让创作更简单。
@@ -125,7 +125,7 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
         {/* 右侧：登录表单 */}
         <div className="glass-dark p-8 md:p-10 rounded-2xl w-full border border-white/10 shadow-2xl backdrop-blur-xl bg-black/40">
           <div className="lg:hidden mb-8 text-center">
-             <h2 className="text-3xl font-bold text-white mb-2">DataFlow Agent</h2>
+             <h2 className="text-3xl font-bold text-white mb-2">Paper2Any</h2>
              <p className="text-gray-400 text-sm">AI 驱动的科研与演示助手</p>
           </div>
 

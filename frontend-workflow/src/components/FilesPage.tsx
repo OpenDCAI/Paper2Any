@@ -47,7 +47,7 @@ export function FilesPage() {
   }, []);
 
   const handleDelete = async (id: string, fileName: string) => {
-    if (!confirm(`Delete "${fileName}"?`)) return;
+    if (!confirm(`确定要删除 "${fileName}" 吗？`)) return;
 
     setDeleting(id);
     try {
@@ -55,11 +55,11 @@ export function FilesPage() {
       if (success) {
         setFiles(files.filter((f) => f.id !== id));
       } else {
-        alert("Failed to delete file");
+        alert("删除文件失败");
       }
     } catch (e) {
       console.error("Failed to delete file:", e);
-      alert("Failed to delete file");
+      alert("删除文件失败");
     } finally {
       setDeleting(null);
     }
@@ -70,7 +70,7 @@ export function FilesPage() {
       <div className="p-6 max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-bold text-white">My Files</h1>
+          <h1 className="text-xl font-bold text-white">我的历史文件</h1>
           <button
             onClick={loadFiles}
             disabled={loading}
@@ -90,14 +90,14 @@ export function FilesPage() {
               size={32}
               className="animate-spin text-primary-500 mx-auto"
             />
-            <p className="text-gray-400 mt-3">Loading files...</p>
+            <p className="text-gray-400 mt-3">正在加载文件...</p>
           </div>
         ) : files.length === 0 ? (
           <div className="text-center py-12 glass-dark rounded-xl border border-white/10">
             <FileText className="mx-auto text-gray-600 mb-4" size={48} />
-            <p className="text-gray-400">No files yet</p>
+            <p className="text-gray-400">暂无文件</p>
             <p className="text-gray-500 text-sm mt-1">
-              Files generated from workflows will appear here
+              工作流生成的文件将显示在这里
             </p>
           </div>
         ) : (
@@ -105,10 +105,10 @@ export function FilesPage() {
             <table className="w-full">
               <thead>
                 <tr className="text-left text-sm text-gray-500 border-b border-white/10">
-                  <th className="px-4 py-3 font-medium">File</th>
-                  <th className="px-4 py-3 font-medium">Size</th>
-                  <th className="px-4 py-3 font-medium">Date</th>
-                  <th className="px-4 py-3 font-medium">Type</th>
+                  <th className="px-4 py-3 font-medium">文件名</th>
+                  <th className="px-4 py-3 font-medium">大小</th>
+                  <th className="px-4 py-3 font-medium">日期</th>
+                  <th className="px-4 py-3 font-medium">类型</th>
                   <th className="px-4 py-3 font-medium w-24"></th>
                 </tr>
               </thead>
@@ -147,7 +147,7 @@ export function FilesPage() {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-1.5 hover:bg-primary-500/20 rounded text-primary-400 transition-colors"
-                            title="Download"
+                            title="下载"
                           >
                             <Download size={16} />
                           </a>
@@ -156,7 +156,7 @@ export function FilesPage() {
                           onClick={() => file.id && handleDelete(file.id, file.file_name)}
                           disabled={!file.id || deleting === file.id}
                           className="p-1.5 hover:bg-red-500/20 rounded text-red-400 transition-colors disabled:opacity-50"
-                          title="Delete"
+                          title="删除"
                         >
                           {deleting === file.id ? (
                             <Loader2 size={16} className="animate-spin" />

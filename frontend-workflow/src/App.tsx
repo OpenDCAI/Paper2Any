@@ -27,9 +27,9 @@ function App() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-white glow-text">
-                DataFlow Agent
+                Paper2Any
               </h1>
-              <p className="text-xs text-gray-400">Workflow Editor</p>
+              <p className="text-xs text-gray-400">Agent 驱动的科研创作新体验</p>
             </div>
           </div>
 
@@ -85,7 +85,7 @@ function App() {
                     : 'glass text-gray-300 hover:bg-white/10'
                 }`}
               >
-                My Files
+                我的历史文件
               </button>
             </div>
 
@@ -113,7 +113,7 @@ function App() {
       <footer className="absolute bottom-0 left-0 right-0 h-8 glass-dark border-t border-white/10 z-10">
         <div className="h-full px-4 flex items-center justify-between text-xs text-gray-500">
           <div className="flex items-center gap-4">
-            <span>DataFlow Agent v1.0.0</span>
+            <span>Paper2Any v1.0.0</span>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1">

@@ -146,7 +146,7 @@ export function RegisterPage({ onSwitchToLogin, footer }: Props) {
         {/* 右侧：注册表单 */}
         <div className="glass-dark p-8 md:p-10 rounded-2xl w-full border border-white/10 shadow-2xl backdrop-blur-xl bg-black/40">
           <div className="lg:hidden mb-8 text-center">
-             <h2 className="text-3xl font-bold text-white mb-2">DataFlow Agent</h2>
+             <h2 className="text-3xl font-bold text-white mb-2">Paper2Any</h2>
              <p className="text-gray-400 text-sm">创建您的新账号</p>
           </div>
 

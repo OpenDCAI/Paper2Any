@@ -801,7 +801,7 @@ downloaded_data/
 ## 技术支持
 
 如有问题或建议，请：
-- 提交 [GitHub Issue](https://github.com/OpenDCAI/DataFlow-Agent/issues)
+- 提交 [GitHub Issue](https://github.com/OpenDCAI/Paper2Any/issues)
 - 查看 [FAQ](faq.md)
 - 参考 [贡献指南](contributing.md)
 

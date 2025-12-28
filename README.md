@@ -1,25 +1,23 @@
 <div align="center">
 
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/new_logo_bgrm.png" alt="DataFlow-Agent Logo" width="180"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/new_logo_bgrm.png" alt="Paper2Any Logo" width="180"/>
 
-# DataFlow-Agent
-
-[![DataFlow](https://img.shields.io/badge/DataFlow-OpenDCAI%2FDataFlow-0F9D58?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/DataFlow)
+# Paper2Any
 
 <!-- **从论文与原始数据，到图表、PPT 和数据管线的一站式 AI Orchestrator** -->
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-2F80ED?style=flat-square&logo=apache&logoColor=white)](LICENSE)
-[![GitHub Repo](https://img.shields.io/badge/GitHub-OpenDCAI%2FDataFlow--Agent-24292F?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/DataFlow-Agent)
-[![Stars](https://img.shields.io/github/stars/OpenDCAI/DataFlow-Agent?style=flat-square&logo=github&label=Stars&color=F2C94C)](https://github.com/OpenDCAI/DataFlow-Agent/stargazers)
+[![GitHub Repo](https://img.shields.io/badge/GitHub-OpenDCAI%2FPaper2Any-24292F?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/Paper2Any)
+[![Stars](https://img.shields.io/github/stars/OpenDCAI/Paper2Any?style=flat-square&logo=github&label=Stars&color=F2C94C)](https://github.com/OpenDCAI/Paper2Any/stargazers)
 
 中文 | [English](README_EN.md)
 
-<a href="https://github.com/OpenDCAI/DataFlow-Agent#-快速开始" target="_blank">
+<a href="#-快速开始" target="_self">
   <img alt="Quickstart" src="https://img.shields.io/badge/🚀-快速开始-2F80ED?style=for-the-badge" />
 </a>
 <a href="http://dcai-paper2any.nas.cpolar.cn/" target="_blank">
-  <img alt="Online Demo" src="https://img.shields.io/badge/🌐-在线体验_Paper2Any-56CCF2?style=for-the-badge" />
+  <img alt="Online Demo" src="https://img.shields.io/badge/🌐-在线体验-56CCF2?style=for-the-badge" />
 </a>
 <a href="docs/" target="_blank">
   <img alt="Docs" src="https://img.shields.io/badge/📚-文档-2D9CDB?style=for-the-badge" />
@@ -28,7 +26,7 @@
   <img alt="Contributing" src="https://img.shields.io/badge/🤝-参与贡献-27AE60?style=for-the-badge" />
 </a>
 
-*基于 LangGraph 的多智能体工作流平台：专注论文多模态工作流，并结合 DataFlow 能力扩展到数据治理场景*
+*专注论文多模态工作流：从论文 PDF/截图/文本，一键生成模型示意图、技术路线图、实验图和演示文稿*
 
 </div>
 
@@ -40,14 +38,29 @@
 
 ---
 
+## 📢 Roadmap & 拆分公告
+
+> [!IMPORTANT]
+> **本项目正在进行架构拆分，以提供更专注的功能体验。**
+
+- **[Paper2Any](https://github.com/OpenDCAI/Paper2Any)** (本仓库)：
+  - 专注于论文多模态工作流（Paper2Figure, Paper2PPT, Paper2Video 等）。
+  - 为科研人员提供一键式绘图、PPT 生成和视频脚本辅助工具。
+
+- **[DataFlow-Agent](https://github.com/OpenDCAI/DataFlow-Agent)** (新仓库)：
+  - 专注于 DataFlow 算子编排和编写。
+  - 提供通用的多智能体数据流处理框架和算子开发工具。
+
+---
+
 ## 📑 目录
 
 - [🔥 News](#-news)
-- [🧠 平台概览](#-平台概览)
-- [✨ 核心应用](#-核心应用)
+- [✨ 核心功能](#-核心功能)
+- [📸 功能展示](#-功能展示)
 - [🚀 快速开始](#-快速开始)
 - [📂 项目结构](#-项目结构)
-- [🗺️ Roadmap](#️-roadmap)
+- [🗺️ 开发计划](#️-开发计划)
 - [🤝 贡献](#-贡献)
 
 ---
@@ -59,36 +72,13 @@
 > 支持一键生成多种<strong>可编辑</strong>科研绘图（模型架构图 / 技术路线图 / 实验数据图）<br>
 > 🌐 在线体验：<a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
 
-- 2024-09-01 · 发布 <code>0.1.0</code> 首个版本（详见 <a href="docs/changelog.md">changelog</a>）
-
-<div align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend_1.png" alt="Paper2Figure Web UI" width="49%"/>
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/p2f_frontend_2.png" alt="Paper2Figure Web UI (2)" width="49%"/>
-</div>
+- 2024-09-01 · 发布 <code>0.1.0</code> 首个版本
 
 ---
 
-## 🧠 平台概览
-
-DataFlow-Agent 基于 LangGraph 搭建多智能体工作流，当前主要聚焦以下典型场景：
-
-- 🎓 <strong>科研工作流（Paper2Any）</strong>：从论文 PDF / 截图 / 文本，一键生成模型示意图、技术路线图、实验图和演示文稿
-- 📊 <strong>数据治理（Easy-DataFlow）</strong>：结合 <a href="https://github.com/OpenDCAI/DataFlow">OpenDCAI/DataFlow</a> 平台，从自然语言任务描述，到可执行的数据处理管线与可视化编排界面
-
-当前主要提供两大核心应用：
-
-- <strong>Paper2Any</strong>：论文多模态工作流（图表 / PPT / 视频脚本 / 海报）
-- <strong>Easy-DataFlow</strong>：数据治理工作流与可视化管线
-
----
-
-## ✨ 核心应用
-
-### 1️⃣ Paper2Any - 论文多模态工作流
+## ✨ 核心功能
 
 > 从论文 PDF / 图片 / 文本出发，一键生成**可编辑**的科研绘图、演示文稿、视频脚本、学术海报等多模态内容。
-
-#### 🎯 核心功能
 
 Paper2Any 当前包含以下几个子能力：
 
@@ -99,7 +89,7 @@ Paper2Any 当前包含以下几个子能力：
 **📊 Paper2Figure - 可编辑科研绘图**
 - ✅ 模型架构图生成
 - ✅ 技术路线图生成（PPT + SVG）
-- ✅实验数据图生成 (优化中)
+- ✅ 实验数据图生成 (优化中)
 - ✅ 支持 PDF / 图片 / 文本输入
 - ✅ 输出可编辑 PPTX 格式
 
@@ -136,9 +126,11 @@ Paper2Any 当前包含以下几个子能力：
 
 ---
 
-#### 📸 ShowCase - Paper2PPT
+## 📸 功能展示
 
-##### 论文 PDF 转 PPT
+### 1. Paper2PPT - 论文转演示文稿
+
+#### 论文 PDF 转 PPT
 
 <table>
 <tr>
@@ -166,66 +158,13 @@ Paper2Any 当前包含以下几个子能力：
 </td>
 </tr>
 <tr>
-<td colspan="2" align="center">
-<strong>PPT 生成</strong> - 上传论文 PDF，自动提取关键信息，生成结构化的学术汇报 PPT。
-</td>
-<td colspan="2" align="center">
-<strong>PPT 生成</strong> - 智能分析论文内容，可以自动插入论文内部表格和插图到PPT。
-</td>
-</tr>
-<tr>
-<td align="center">
-<img src="static/paper2ppt/input_2-1.png" alt="输入：文本 1" width="100%"/>
-<br><sub>📄 输入文本 1</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/input_2-2.png" alt="输入：文本 2" width="100%"/>
-<br><sub>📄 输入文本 2</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/input_2-3.png" alt="输入：文本 3" width="100%"/>
-<br><sub>📄 输入文本 3</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/output_2.png" alt="输出：生成 PPT" width="100%"/>
-<br><sub>📊 生成的 PPT</sub>
-</td>
-</tr>
-<tr>
 <td colspan="4" align="center">
-<strong>Text2PPT</strong> - 输入长文本/大纲，自动生成结构化的 PPT。
-</td>
-</tr>
-<tr>
-<td align="center">
-<img src="static/paper2ppt/input_4-1.png" alt="输入：主题 1" width="100%"/>
-<br><sub>📄 输入主题 1</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/input_4-2.png" alt="输入：主题 2" width="100%"/>
-<br><sub>📄 输入主题 2</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/input_4-3.png" alt="输入：主题 3" width="100%"/>
-<br><sub>📄 输入主题 3</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/output_4.png" alt="输出：生成 PPT" width="100%"/>
-<br><sub>📊 生成的 PPT</sub>
-</td>
-</tr>
-<tr>
-<td colspan="4" align="center">
-<strong>Topic2PPT</strong> - 输入简短主题，自动扩充内容并生成 PPT。
+<strong>PPT 生成</strong> - 上传论文 PDF，自动提取关键信息，生成结构化的学术汇报 PPT；智能分析内容，自动插入图表。
 </td>
 </tr>
 </table>
 
----
-
-#### 📸 ShowCase - PDF2PPT
-
-<!-- 占位：PDF2PPT 示例，后续可补充具体图片路径与说明 -->
+#### PDF2PPT - PDF 转可编辑 PPT
 
 <table>
 <tr>
@@ -240,32 +179,28 @@ Paper2Any 当前包含以下几个子能力：
 <br><sub>📄 PDF 页面</sub>
 </td>
 <td align="center">
-<img src="static/pdf2ppt/output_1.png" alt="输出：生成 PPT 页面（白色背景）" width="100%"/>
-<br><sub>📊 生成的 PPT 页面</sub>
+<img src="static/pdf2ppt/output_1.png" alt="输出：生成 PPT 页面" width="100%"/>
+<br><sub>📊 生成的 PPT (白底)</sub>
 </td>
 <td align="center">
 <img src="static/pdf2ppt/input_2.png" alt="输入：PDF 页面" width="100%"/>
 <br><sub>📄 PDF 页面</sub>
 </td>
 <td align="center">
-<img src="static/pdf2ppt/output_2.png" alt="输出：生成 PPT 页面（AI重绘）" width="100%"/>
-<br><sub>📊 生成的 PPT 页面</sub>
+<img src="static/pdf2ppt/output_2.png" alt="输出：生成 PPT 页面" width="100%"/>
+<br><sub>📊 生成的 PPT (AI重绘)</sub>
 </td>
 </tr>
 </table>
 
----
-
-#### 📸 ShowCase - PPT Polish（PPT 智能美化）
-
-<p><sub>🎨 <b>PPT 增色美化</b> — 基于原有 PPT 内容，智能调整风格、配色与视觉层次</sub></p>
+#### PPT Polish - 智能美化
 
 <table>
 <tr>
 <th width="25%">原始 PPT</th>
 <th width="25%">增色后</th>
 <th width="25%">原始 PPT</th>
-<th width="25%">增色后</th>
+<th width="25%">润色后</th>
 </tr>
 <tr>
 <td align="center">
@@ -275,44 +210,19 @@ Paper2Any 当前包含以下几个子能力：
 <img src="frontend-workflow/public/ppt2polish/paper2ppt_polish_1.png" alt="增色后PPT" width="100%"/>
 </td>
 <td align="center">
-<img src="frontend-workflow/public/ppt2polish/paper2ppt_orgin_2.png" alt="原始PPT" width="100%"/>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/paper2ppt_polish_2.png" alt="增色后PPT" width="100%"/>
-</td>
-</tr>
-</table>
-
-<p><sub>✍️ <b>PPT 润色拓展</b> — 将纯文字或简易空白 PPT 智能润色，自动生成精美排版与视觉元素</sub></p>
-
-<table>
-<tr>
-<th width="25%">原始 PPT</th>
-<th width="25%">润色后</th>
-<th width="25%">原始 PPT</th>
-<th width="25%">润色后</th>
-</tr>
-<tr>
-<td align="center">
 <img src="frontend-workflow/public/ppt2polish/orgin_3.png" alt="原始PPT" width="100%"/>
 </td>
 <td align="center">
 <img src="frontend-workflow/public/ppt2polish/polish_3.png" alt="润色后PPT" width="100%"/>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/orgin_4.png" alt="原始PPT" width="100%"/>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/polish_4.png" alt="润色后PPT" width="100%"/>
 </td>
 </tr>
 </table>
 
 ---
 
-#### 📸 ShowCase - Paper2Figure
+### 2. Paper2Figure - 科研绘图生成
 
-##### 模型架构图生成
+#### 模型架构图生成
 
 <table>
 <tr>
@@ -322,72 +232,25 @@ Paper2Any 当前包含以下几个子能力：
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img.png" alt="输入：论文 PDF" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img.png" alt="输入：论文 PDF" width="100%"/>
 <br><sub>📄 论文 PDF</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img_2.png" alt="生成的模型图" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img_2.png" alt="生成的模型图" width="100%"/>
 <br><sub>🎨 生成的模型架构图</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img_3.png" alt="PPTX 截图" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img_3.png" alt="PPTX 截图" width="100%"/>
 <br><sub>📊 可编辑 PPTX</sub>
-</td>
-</tr>
-<tr>
-<td colspan="3" align="center">
-<strong>绘图难度：简单</strong> - 基础模型结构，清晰的模块划分
-</td>
-</tr>
-<tr>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_1.png" alt="输入：论文 PDF" width="100%"/>
-<br><sub>📄 论文PDF</sub>
-</td>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_2.png" alt="生成的模型图" width="100%"/>
-<br><sub>🎨 生成的模型架构图</sub>
-</td>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_3.png" alt="PPTX 截图" width="100%"/>
-<br><sub>📊 可编辑 PPTX</sub>
-</td>
-</tr>
-<tr>
-<td colspan="3" align="center">
-<strong>绘图难度：中等</strong> - 包含多层次结构和数据流
-</td>
-</tr>
-<tr>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_1.png" alt="输入：论文 PDF" width="100%"/>
-<br><sub>📄 输入核心段落</sub>
-</td>
-<td align="center">
-<img src="static/paper2any_imgs/p2f/p2f_paper_hard_img_2.png" alt="生成的模型图" width="100%"/>
-<br><sub>🎨 生成的模型架构图</sub>
-</td>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_3.png" alt="PPTX 截图" width="100%"/>
-<br><sub>📊 可编辑 PPTX</sub>
-</td>
-</tr>
-<tr>
-<td colspan="3" align="center">
-<strong>绘图难度：困难</strong> - 复杂的多模块交互和详细注释
 </td>
 </tr>
 </table>
 
 <div align="center">
-
-上传论文 PDF 文件，根据选择的**绘图难度**（简单/中等/困难），自动提取模型架构信息，生成对应复杂度的**可编辑 PPTX 格式**模型架构图。
-
+上传论文 PDF，根据选择的难度（简单/中等/困难），自动生成<strong>可编辑 PPTX 格式</strong>模型架构图。
 </div>
 
----
-
-##### 技术路线图生成
+#### 技术路线图生成
 
 <table>
 <tr>
@@ -397,214 +260,45 @@ Paper2Any 当前包含以下几个子能力：
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/paper1.png" alt="输入：论文文本（中文）" width="100%"/>
-<br><sub>📝 论文方法部分（中文）</sub>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/paper1.png" alt="输入：论文文本" width="100%"/>
+<br><sub>📝 论文方法部分</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/cn_img_1.png" alt="技术路线图 SVG" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/cn_img_1.png" alt="技术路线图 SVG" width="100%"/>
 <br><sub>🗺️ 技术路线图 SVG</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/cn_img_2.png" alt="PPTX 截图" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/cn_img_2.png" alt="PPTX 截图" width="100%"/>
 <br><sub>📊 可编辑 PPTX</sub>
-</td>
-</tr>
-<tr>
-<td colspan="3" align="center">
-<strong>语言：中文</strong> - 中文技术路线图，适合国内学术交流
-</td>
-</tr>
-<tr>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/paper2.png" alt="输入：论文文本（英文）" width="100%"/>
-<br><sub>📝 论文方法部分（英文）</sub>
-</td>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/en_img_1.png" alt="技术路线图 SVG" width="100%"/>
-<br><sub>🗺️ 技术路线图 SVG</sub>
-</td>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/en_img_2.png" alt="PPTX 截图" width="100%"/>
-<br><sub>📊 可编辑 PPTX</sub>
-</td>
-</tr>
-<tr>
-<td colspan="3" align="center">
-<strong>语言：英文</strong> - 英文技术路线图，适合国际学术发表
 </td>
 </tr>
 </table>
 
-<div align="center">
-
-粘贴论文方法部分文本，选择**语言**（中文/英文），自动梳理技术路线与模块依赖关系，生成**清晰的技术路线图 PPTX 与可编辑 SVG**。
-
-</div>
-
----
-
-##### 实验数据图生成
+#### 实验数据图生成
 
 <table>
 <tr>
 <th width="33%">输入</th>
-<th width="33%">常规实验图</th>
-<th width="33%">精美实验图（可选不同风格）</th>
+<th width="33%">常规风格</th>
+<th width="33%">手绘风格</th>
 </tr>
 <tr>
 <td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2e/paper_1.png" alt="输入：实验结果截图" width="100%"/>
-  <br><sub>📄 输入：论文 PDF / 实验结果截图</sub>
+  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2e/paper_1.png" alt="输入：实验结果" width="100%"/>
+  <br><sub>📄 实验结果截图</sub>
 </td>
 <td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2e/paper_1_2.png" alt="输出：实验数据图（基础样式）" width="100%"/>
-  <br><sub>📈 输出：常规 Python 风格实验数据图</sub>
+  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2e/paper_1_2.png" alt="输出：标准样式" width="100%"/>
+  <br><sub>📈 常规 Python 风格</sub>
 </td>
 <td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@lz/dev/static/paper2any_imgs/p2e/paper_1_3.png" alt="输出：实验数据图（手绘风格）" width="100%"/>
-  <br><sub>🎨 输出：手绘风格的实验数据图</sub>
+  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@lz/dev/static/paper2any_imgs/p2e/paper_1_3.png" alt="输出：手绘风格" width="100%"/>
+  <br><sub>🎨 手绘风格</sub>
 </td>
 </tr>
-
-<tr>
-<td align="center">
-  <img src="static/paper2any_imgs/p2e/paper_2.png" alt="输入：实验结果截图" width="100%"/>
-  <br><sub>📄 输入：论文 PDF / 实验结果截图</sub>
-</td>
-<td align="center">
-  <img src="static/paper2any_imgs/p2e/paper_2_2.png" alt="输出：实验数据图（基础样式）" width="100%"/>
-  <br><sub>📈 输出：常规 Python 风格实验数据图</sub>
-</td>
-<td align="center">
-  <img src="static/paper2any_imgs/p2e/paper_2_3.png" alt="输出：实验数据图（卡通风格）" width="100%"/>
-  <br><sub>🎨 输出：卡通风格的实验数据图</sub>
-</td>
-</tr>
-
-<tr>
-<td align="center">
-  <img src="static/paper2any_imgs/p2e/paper_3.png" alt="输入：实验结果截图" width="100%"/>
-  <br><sub>📄 输入：论文 PDF / 实验结果截图</sub>
-</td>
-<td align="center">
-  <img src="static/paper2any_imgs/p2e/paper_3_2.png" alt="输出：实验数据图（基础样式）" width="100%"/>
-  <br><sub>📈 输出：常规 Python 风格实验数据图</sub>
-</td>
-<td align="center">
-  <img src="static/paper2any_imgs/p2e/paper_3_3.png" alt="输出：实验数据图（多边形风格）" width="100%"/>
-  <br><sub>🎨 输出：多边形风格的实验数据图</sub>
-</td>
-</tr>
-
 </table>
 
-<div align="center">
-
-上传实验结果截图或表格，自动抽取关键数据并生成**可编辑的实验数据图 PPTX**，同时提供常规和精美两种风格，便于论文和汇报复用。
-
-</div>
-
 ---
-
-#### 🖥️ 使用方式
-
-**方式一：Web 前端（推荐）**
-
-(目前在线版只支持邀请用户体验)访问在线体验地址：[http://dcai-paper2any.nas.cpolar.cn/](http://dcai-paper2any.nas.cpolar.cn/)
-
-<div align="center">
-  <img src="static/frontend_pages/paper2figure-1.png" alt="Web UI - Paper2Figure" width="48%"/>
-  <span>&nbsp;|&nbsp;</span>
-  <img src="static/frontend_pages/paper2ppt-1.png" alt="Web UI - Paper2PPT" width="48%"/>
-</div>
-
-**特点**：
-- 🎨 现代化 UI 设计
-- 📤 支持拖拽上传
-- ⚙️ 可视化参数配置
-- 📊 实时进度展示
-- 📥 一键下载结果
-
-<!-- 
-**方式二：Gradio 界面**
-
-```bash
-python gradio_app/app.py
-```
-
-访问 `http://127.0.0.1:7860`
-
-**特点**：
-- 🚀 快速部署
-- 🔧 灵活配置
-- 📝 支持批量处理
--->
-
----
-
-### 2️⃣ Easy-DataFlow - 数据治理管线
-
-> 从任务描述到可执行数据处理管线，AI 驱动的数据治理全流程
-
-#### 🎯 核心功能
-
-| 功能模块 | 说明 | 状态 |
-|---------|------|------|
-| 📊 **管线推荐** | 从任务描述自动生成可执行 Python 管线代码 | ✅ |
-| ✍️ **算子编写** | AI 辅助编写自定义数据处理算子 | ✅ |
-| 🎨 **可视化编排** | 拖拽式构建数据处理流程 | ✅ |
-| 🔄 **Prompt 优化** | 自动优化算子提示词，提升效果 | ✅ |
-| 🌐 **Web 采集** | 自动化网页数据采集与结构化 | ✅ |
-
----
-
-#### 📸 功能展示
-
-**管线推荐：从任务到代码**
-
-<div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/imag_piperec.png" alt="管线推荐" width="50%"/>
-<br><sub>💻 智能分析任务需求，自动推荐最优算子组合，生成可执行的 Python 管线代码</sub>
-</div>
-
----
-
-**算子编写：AI 辅助开发**
-
-<div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/image_opwrite.png" alt="算子编写" width="50%"/>
-<br><sub>⚙️ 使用 LLM 辅助从功能描述自动生成算子代码，并在同一界面内完成测试与调试</sub>
-</div>
-
----
-
-**可视化编排：拖拽式构建**
-
-<div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/image.png" alt="可视化编排" width="50%"/>
-<br><sub>🎨 通过可视化界面拖拽组合算子，自由搭建数据处理流程，所见即所得</sub>
-</div>
-
----
-
-**Prompt 优化：自动调优**
-
-<div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/promptagent.png" alt="Prompt 优化" width="50%"/>
-<br><sub>✨ 复用现有算子，自动书写 DataFlow 的算子 Prompt Template，智能优化提示词</sub>
-</div>
-
----
-
-**Web 采集：网页到数据**
-
-<div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/web_collection.png" alt="Web 采集" width="50%"/>
-<br><sub>📊 自动化网页数据采集与结构化转换，直接输出 DataFlow-ready 数据</sub>
-</div>
-
----
-
 
 ## 🚀 快速开始
 
@@ -617,19 +311,16 @@ python gradio_app/app.py
 
 ### 🐧 Linux 安装
 
-> 建议使用 Conda 创建隔离环境（推荐 Python 3.11）。  
-> 下述命令以 Ubuntu 为例，其他发行版请参考对应包管理器命令。
-
-#### 1. 创建环境并安装基础依赖
+> 建议使用 Conda 创建隔离环境（推荐 Python 3.11）。
 
 ```bash
 # 0. 创建并激活 conda 环境
-conda create -n dataflow-agent python=3.11 -y
-conda activate dataflow-agent
+conda create -n paper2any python=3.11 -y
+conda activate paper2any
 
 # 1. 克隆仓库
-git clone https://github.com/OpenDCAI/DataFlow-Agent.git
-cd DataFlow-Agent
+git clone https://github.com/OpenDCAI/Paper2Any.git
+cd Paper2Any
 
 # 2. 安装基础依赖
 pip install -r requirements-base.txt
@@ -638,275 +329,80 @@ pip install -r requirements-base.txt
 pip install -e .
 ```
 
-#### 2. 安装 Paper2Any 相关依赖（可选但推荐）
+#### 安装 Paper2Any 额外依赖（必须）
 
 Paper2Any 涉及 LaTeX 渲染、矢量图处理以及 PPT/PDF 转换，需要额外依赖：
 
 ```bash
 # 1. Python 依赖
-# (如果 requirements-paper.txt 安装失败，可尝试 requirements-paper-backup.txt)
 pip install -r requirements-paper.txt || pip install -r requirements-paper-backup.txt
 
 # 2. LaTeX 引擎 (tectonic) - 推荐用 conda 安装
 conda install -c conda-forge tectonic -y
 
 # 3. 解决 doclayout_yolo 依赖冲突（重要）
-# 由于 doclayout_yolo 可能与 paddleocr 存在依赖冲突（albumentations 版本不一致），建议忽略依赖检查单独安装：
 pip install doclayout_yolo --no-deps
 
 # 4. 系统依赖 (Ubuntu 示例)
-# 包含：
-# - inkscape: SVG / 矢量图处理
-# - libreoffice: PPT 打开 / 转换
-# - poppler-utils: PDF 工具 (pdftoppm / pdftocairo)
-# - wkhtmltopdf: HTML 转 PDF
 sudo apt-get update
 sudo apt-get install -y inkscape libreoffice poppler-utils wkhtmltopdf
 ```
 
-#### 3. 配置环境变量
+#### 配置环境变量
 
 ```bash
 export DF_API_KEY=your_api_key_here
 export DF_API_URL=xxx  # 可选：如需使用第三方 API 中转站
 
-# [可选] 配置 MinerU PDF 解析任务的 GPU 资源池（负载均衡）
-# 指定一组可用 GPU ID（逗号分隔），PDF 解析任务会自动随机选择一张卡运行，避免拥堵。
-# 默认值：5,6,7
-# 这个主要用于 paper2ppt场景下，mineru的解析服务
+# [可选] 配置 MinerU PDF 解析任务的 GPU 资源池
 export MINERU_DEVICES="0,1,2,3"
 ```
 
-第三方 API 中转示例：
-
-- https://api.apiyi.com/
-- http://123.119.219.111:3000/
-
-<details>
-<summary><b>🔧 高级配置：本地模型服务负载均衡</b></summary>
-
-<br>
-
-如果是本地部署高并发环境，可以使用 `script/start_model_servers.sh` 启动本地模型服务集群（MinerU / SAM / OCR）。
-
-**脚本位置**：`/DataFlow-Agent/script/start_model_servers.sh`
-
-**主要配置项说明**：
-
-*   **MinerU (PDF 解析)**
-    *   `MINERU_MODEL_PATH`: 模型路径 (默认 `models/MinerU2.5-2509-1.2B`)
-    *   `MINERU_GPU_UTIL`: 显存占用比例 (默认 `0.2`)
-    *   **实例配置**: 脚本默认在 GPU 0 和 GPU 4 上各启动 4 个实例 (共 8 个)，端口范围 8011-8018。
-    *   **Load Balancer**: 端口 8010，自动分发请求。
-
-*   **SAM (Segment Anything Model)**
-    *   **实例配置**: 默认在 GPU 2 和 GPU 3 上各启动 1 个实例，端口 8021-8022。
-    *   **Load Balancer**: 端口 8020。
-
-*   **OCR (PaddleOCR)**
-    *   **配置**: 运行在 CPU 上，使用 uvicorn 的 worker 机制 (默认 4 workers)。
-    *   **端口**: 8003。
-
-使用前请根据实际 GPU 数量和显存情况修改脚本中的 `gpu_id` 和实例数量。
-
-</details>
-
 ---
 
-### 🪟 Windows 安装
-
-> [!NOTE]  
-> 目前推荐优先在 Linux / WSL 环境下体验 DataFlow-Agent。
-> 若你需要在 原生 Windows 上部署，请按以下步骤操作。
-
-#### 1. 创建环境并安装基础依赖
+### 启动 Web 前端（推荐）
 
 ```bash
-# 0. 创建并激活 conda 环境
-conda create -n dataflow-agent python=3.12 -y
-conda activate dataflow-agent
-
-# 1. 克隆仓库
-git clone https://github.com/OpenDCAI/DataFlow-Agent.git
-cd DataFlow-Agent
-
-# 2. 安装基础依赖
-pip install -r requirements-win-base.txt
-
-# 3. 开发模式安装
-pip install -e .
-```
-
-#### 2. 安装 Paper2Any 相关依赖（推荐）
-
-Paper2Any 涉及 LaTeX 渲染与矢量图处理，需要额外依赖（见 `requirements-paper.txt`）：
-
-```bash
-# Python 依赖
-pip install -r requirements-paper.txt
-
-# tectonic：LaTeX 引擎（推荐用 conda 安装）
-conda install -c conda-forge tectonic -y
-```
-
-🎨 安装 Inkscape（SVG/矢量图处理｜推荐/必装）
-
-- 下载并安装（Windows 64-bit MSI）：  
-  https://inkscape.org/release/inkscape-1.4.2/windows/64-bit/msi/?redirected=1  
-  选择 **Windows Installer Package（msi）**
-
-- 将 Inkscape 可执行文件目录加入系统环境变量 `Path`（示例）：
-  - `C:\Program Files\Inkscape\bin\`
-
-> [!TIP]  
-> 配置 `Path` 后建议重新打开终端（或重启 VS Code / PowerShell），确保环境变量生效。
-
-⚡ 安装 Windows 编译版 vLLM（可选｜用于本地推理加速）
-
-- 发布页参考：https://github.com/SystemPanic/vllm-windows/releases  
-- 推荐版本：**0.11.0**（示例 whl 文件名如下）
-
-```bash
-pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
-```
-
-> [!IMPORTANT]  
-> 请确保 `.whl` 与当前环境匹配：  
-> - Python：`cp312`（Python 3.12）  
-> - 平台：`win_amd64`  
-> - CUDA：`cu124`（需与你本机 CUDA/驱动适配）
-
----
-
-### 启动应用
-
-> [!NOTE]
-> **Paper2Any**：从论文 PDF / 图片 / 文本一键生成可编辑的科研绘图、技术路线图、实验数据图和演示文稿。
-
-#### 🎨 Paper2Any - 论文工作流
-
-**Web 前端（推荐）**
-
-```bash
-# 启动后端 API
+# 1. 启动后端 API
 cd fastapi_app
 uvicorn main:app --host 0.0.0.0 --port 8000
 
-# 启动前端（新终端）
+# 2. 启动前端（新终端）
 cd frontend-workflow
 npm install
 npm run dev
-
-# 配置dev/DataFlow-Agent/frontend-workflow/vite.config.ts
-# 修改 server.proxy 为：
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 3000,
-    open: true,
-    allowedHosts: true,
-    proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:8000',  // FastAPI 后端地址
-        changeOrigin: true,
-      },
-    },
-  },
-})
 ```
 
-访问 `http://localhost:3000`
-
-**Windows 加载MinerU预训练模型**
-```bash
-# 加载MinerU预训练模型
-# PowerShell环境下启动
-vllm serve opendatalab/MinerU2.5-2509-1.2B `
-  --host 127.0.0.1 `
-  --port 8010 `
-  --logits-processors mineru_vl_utils:MinerULogitsProcessor `
-  --gpu-memory-utilization 0.6 `
-  --trust-remote-code `
-  --enforce-eager
-```
+访问 `http://localhost:3000` 即可使用。
 
 > [!TIP]
-> **Paper2Figure 网页端内测说明**
-> - 当你部署了前端，还需要**手动新建**一个 `invite_codes.txt` 文件，并写入你的邀请码（例如：`ABCDEFG123456`）。
-> - 然后再启动后端；
-> - 如果暂时不想部署前后端，可以先通过本地脚本体验 Paper2Any 的核心能力：
->   - `python script/run_paper2figure.py`：模型架构图生成
->   - `python script/run_paper2expfigure.py`：实验数据图生成
->   - `python script/run_paper2technical.py`：技术路线图生成
->   - `python script/run_paper2ppt.py`：论文内容生成可编辑 PPT
->   - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`：PDF2PPT（保留版式 + 可编辑内容）
-
-**特点**：
-- ✨ 现代化 UI 设计
-- 🎯 可视化参数配置
-- 📊 实时进度展示
-- 📥 一键下载结果
+> 如果暂时不想部署前后端，可以通过本地脚本体验核心功能：
+> - `python script/run_paper2figure.py`：模型架构图生成
+> - `python script/run_paper2ppt.py`：论文生成 PPT
+> - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`：PDF 转 PPT
 
 ---
 
-> [!NOTE]
-> **Easy-DataFlow**：从自然语言任务描述出发，自动推荐算子与管线结构，生成可执行的数据处理管线。
-
-#### 📊 Easy-DataFlow - 数据治理
-
-**Gradio Web 界面**
-
-```bash
-python gradio_app/app.py
-```
-
-访问 `http://127.0.0.1:7860`
-
-**特点**：
-- 🚀 快速部署
-- 🔧 灵活配置
-- 📝 支持批量处理
-
-##  项目结构
+## 📂 项目结构
 
 ```
-DataFlow-Agent/
-├── dataflow_agent/          # 核心框架代码
-│   ├── agentroles/         # Agent 定义（@register 自动注册）
-│   ├── workflow/           # Workflow 定义（wf_*.py）
-│   ├── promptstemplates/   # Prompt 模板库
-│   ├── toolkits/           # 工具集（LLM/Docker/Image 等）
-│   ├── graphbuilder/       # StateGraph 构建器
-│   └── states/             # 状态管理
-├── gradio_app/             # Gradio Web 界面
-│   ├── app.py             # 主程序
-│   └── pages/             # 页面模块（自动发现）
-├── fastapi_app/            # FastAPI 后端服务
-│   ├── main.py            # API 入口
-│   └── routers/           # 路由模块
-├── frontend-workflow/      # 前端工作流编辑器
-│   ├── src/               # 源代码
-│   └── public/            # 静态资源
-├── docs/                   # 文档
-├── static/                 # 静态资源（图片等）
+Paper2Any/
+├── dataflow_agent/          # 核心代码库
+│   ├── agentroles/         # Agent 定义
+│   │   └── paper2any_agents/ # Paper2Any 专用 Agent
+│   ├── workflow/           # Workflow 定义
+│   ├── promptstemplates/   # Prompt 模板
+│   └── toolkits/           # 工具集（绘图、PPT生成等）
+├── fastapi_app/            # 后端 API 服务
+├── frontend-workflow/      # 前端 Web 界面
+├── static/                 # 静态资源
 ├── script/                 # 脚本工具
 └── tests/                  # 测试用例
 ```
 
 ---
 
-## 📐 项目架构
-
-<div align="center">
-<img src="static/projs_dist.png" alt="项目架构图" width="800"/>
-<br><sub>DataFlow-Agent 延伸的核心应用：Paper2Any（论文多模态工作流）、Easy-DataFlow（数据治理管线）</sub>
-</div>
-
----
-
-## 🗺️ Roadmap
-
-### 🎓 Paper 系列
+## 🗺️ 开发计划
 
 <table>
 <tr>
@@ -930,7 +426,6 @@ DataFlow-Agent/
 <td>
 <img src="https://img.shields.io/badge/✓-视频脚本生成-success?style=flat-square" alt="完成"/><br>
 <img src="https://img.shields.io/badge/○-分镜描述-lightgrey?style=flat-square" alt="开发中"/><br>
-<img src="https://img.shields.io/badge/○-配图素材-lightgrey?style=flat-square" alt="开发中"/><br>
 <img src="https://img.shields.io/badge/○-视频合成-lightgrey?style=flat-square" alt="开发中"/>
 </td>
 </tr>
@@ -942,91 +437,7 @@ DataFlow-Agent/
 <img src="https://img.shields.io/badge/⚠-可编辑_PPTX-yellow?style=flat-square" alt="进行中"/>
 </td>
 </tr>
-<tr>
-<td><strong>📌 Paper2Poster</strong><br><sub>可编辑学术海报</sub></td>
-<td><img src="https://img.shields.io/badge/状态-开发中-lightgrey?style=flat-square" alt="开发中"/></td>
-<td>
-<img src="https://img.shields.io/badge/○-版式设计-lightgrey?style=flat-square" alt="开发中"/><br>
-<img src="https://img.shields.io/badge/○-要点提炼-lightgrey?style=flat-square" alt="开发中"/><br>
-<img src="https://img.shields.io/badge/○-视觉优化-lightgrey?style=flat-square" alt="开发中"/>
-</td>
-</tr>
-<tr>
-<td><strong>🧪 Paper2Exp</strong><br><sub>自动实验运行器</sub></td>
-<td><img src="https://img.shields.io/badge/状态-开发中-lightgrey?style=flat-square" alt="开发中"/></td>
-<td>
-<img src="https://img.shields.io/badge/○-代码生成-lightgrey?style=flat-square" alt="开发中"/><br>
-<img src="https://img.shields.io/badge/○-环境部署-lightgrey?style=flat-square" alt="开发中"/><br>
-<img src="https://img.shields.io/badge/○-自动执行-lightgrey?style=flat-square" alt="开发中"/>
-</td>
-</tr>
-<tr>
-<td><strong>📚 PaperCiter</strong><br><sub>智能文献引用</sub></td>
-<td><img src="https://img.shields.io/badge/状态-开发中-lightgrey?style=flat-square" alt="开发中"/></td>
-<td>
-<img src="https://img.shields.io/badge/○-文献检索-lightgrey?style=flat-square" alt="开发中"/><br>
-<img src="https://img.shields.io/badge/○-自动格式化-lightgrey?style=flat-square" alt="开发中"/>
-</td>
-</tr>
 </table>
-
----
-
-### 📊 Data 系列
-
-<table>
-<tr>
-<th width="35%">功能</th>
-<th width="15%">状态</th>
-<th width="50%">子功能</th>
-</tr>
-<tr>
-<td><strong>🔄 Easy-DataFlow</strong><br><sub>数据治理管线</sub></td>
-<td><img src="https://img.shields.io/badge/进度-100%25-success?style=flat-square&logo=progress" alt="100%"/></td>
-<td>
-<img src="https://img.shields.io/badge/✓-管线推荐-success?style=flat-square" alt="完成"/><br>
-<img src="https://img.shields.io/badge/✓-算子编写-success?style=flat-square" alt="完成"/><br>
-<img src="https://img.shields.io/badge/✓-可视化编排-success?style=flat-square" alt="完成"/><br>
-<img src="https://img.shields.io/badge/✓-Prompt_优化-success?style=flat-square" alt="完成"/><br>
-<img src="https://img.shields.io/badge/✓-Web_采集-success?style=flat-square" alt="完成"/>
-</td>
-</tr>
-</table>
-
----
-
-### 🛠️ 工具增强
-
-<table>
-<tr>
-<th width="35%">功能</th>
-<th width="15%">状态</th>
-<th width="50%">子功能</th>
-</tr>
-<tr>
-<td><strong>🎨 Workflow 可视化编辑器</strong><br><sub>拖拽式工作流构建器</sub></td>
-<td><img src="https://img.shields.io/badge/状态-开发中-lightgrey?style=flat-square" alt="开发中"/></td>
-<td>
-<img src="https://img.shields.io/badge/○-拖拽界面-lightgrey?style=flat-square" alt="开发中"/><br>
-<img src="https://img.shields.io/badge/○-5_种_Agent_模式-lightgrey?style=flat-square" alt="开发中"/><br>
-<img src="https://img.shields.io/badge/○-20+_预设节点-lightgrey?style=flat-square" alt="开发中"/>
-</td>
-</tr>
-<tr>
-<td><strong>💾 轨迹数据导出</strong><br><sub>训练数据导出</sub></td>
-<td><img src="https://img.shields.io/badge/状态-开发中-lightgrey?style=flat-square" alt="开发中"/></td>
-<td>
-<img src="https://img.shields.io/badge/○-JSON/JSONL_格式-lightgrey?style=flat-square" alt="开发中"/><br>
-<img src="https://img.shields.io/badge/○-SFT_格式-lightgrey?style=flat-square" alt="开发中"/><br>
-<img src="https://img.shields.io/badge/○-DPO_格式-lightgrey?style=flat-square" alt="开发中"/>
-</td>
-</tr>
-</table>
-
-<div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/dfa_fronted.png" width="800" alt="Workflow Editor"/>
-<br><sub>🎨 Workflow 可视化编辑器预览</sub>
-</div>
 
 ---
 
@@ -1034,11 +445,9 @@ DataFlow-Agent/
 
 我们欢迎所有形式的贡献！
 
-[![Issues](https://img.shields.io/badge/Issues-提交_Bug-red?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/DataFlow-Agent/issues)
-[![Discussions](https://img.shields.io/badge/Discussions-功能建议-blue?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/DataFlow-Agent/discussions)
-[![PR](https://img.shields.io/badge/PR-提交代码-green?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/DataFlow-Agent/pulls)
-
-详细贡献指南：[docs/contributing.md](docs/contributing.md)
+[![Issues](https://img.shields.io/badge/Issues-提交_Bug-red?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/issues)
+[![Discussions](https://img.shields.io/badge/Discussions-功能建议-blue?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/discussions)
+[![PR](https://img.shields.io/badge/PR-提交代码-green?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/pulls)
 
 ---
 
@@ -1050,20 +459,14 @@ DataFlow-Agent/
 
 ---
 
-## 🙏 致谢
-
-感谢所有贡献者！特别感谢 [OpenDCAI/DataFlow](https://github.com/OpenDCAI/DataFlow) 上游项目
-
----
-
 <div align="center">
 
 **如果这个项目对你有帮助，请给我们一个 ⭐️ Star！**
 
-[![GitHub stars](https://img.shields.io/github/stars/OpenDCAI/DataFlow-Agent?style=social)](https://github.com/OpenDCAI/DataFlow-Agent/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/OpenDCAI/DataFlow-Agent?style=social)](https://github.com/OpenDCAI/DataFlow-Agent/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/OpenDCAI/Paper2Any?style=social)](https://github.com/OpenDCAI/Paper2Any/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/OpenDCAI/Paper2Any?style=social)](https://github.com/OpenDCAI/Paper2Any/network/members)
 
-[提交 Issue](https://github.com/OpenDCAI/DataFlow-Agent/issues) • [查看文档](docs/) • [加入讨论](https://github.com/OpenDCAI/DataFlow-Agent/discussions)
+[提交 Issue](https://github.com/OpenDCAI/Paper2Any/issues) • [加入讨论](https://github.com/OpenDCAI/Paper2Any/discussions)
 
 Made with ❤️ by OpenDCAI Team
 
@@ -1073,16 +476,12 @@ Made with ❤️ by OpenDCAI Team
 
 ## 🌐 加入社区
 
-加入 DataFlow 开源社区，一起交流想法、反馈问题、共建生态！
-
 - 📮 **GitHub Issues**：用于反馈 Bug 或提交功能建议  
-  👉 https://github.com/OpenDCAI/DataFlow-Agent/issues
-- 🔧 **GitHub Pull Requests**：提交代码改进与文档优化  
-  👉 https://github.com/OpenDCAI/DataFlow-Agent/pulls
+  👉 https://github.com/OpenDCAI/Paper2Any/issues
 - 💬 **社区交流群**：与开发者和贡献者实时交流
 
 <div align="center">
   <img src="static/team_wechat.png" alt="DataFlow-Agent 社区微信群" width="560"/>
   <br>
-  <sub>扫码加入 DataFlow-Agent 社区微信群</sub>
+  <sub>扫码加入社区微信群</sub>
 </div>

@@ -68,8 +68,8 @@
 #### 1. 克隆仓库
 
 ```bash
-git clone https://github.com/OpenDCAI/DataFlow-Agent
-cd DataFlow-Agent
+git clone https://github.com/OpenDCAI/Paper2Any
+cd Paper2Any
 ```
 
 #### 2. 创建虚拟环境（推荐）
@@ -242,8 +242,8 @@ DataFlow-Agent/
 
 ## 📞 联系我们
 
-- **问题反馈**: [GitHub Issues](https://github.com/OpenDCAI/DataFlow-Agent/issues)
-- **讨论交流**: [GitHub Discussions](https://github.com/OpenDCAI/DataFlow-Agent/discussions)
+- **问题反馈**: [GitHub Issues](https://github.com/OpenDCAI/Paper2Any/issues)
+- **讨论交流**: [GitHub Discussions](https://github.com/OpenDCAI/Paper2Any/discussions)
 <!-- - **邮件联系**: contact@dataflow-agent.com -->
 
 ---

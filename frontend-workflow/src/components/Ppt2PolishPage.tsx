@@ -194,7 +194,7 @@ const Ppt2PolishPage = () => {
 支持论文转PPT、PDF转PPT、PPT美化等功能，科研打工人的福音！
 
 🔗 在线体验：https://dcai-paper2any.nas.cpolar.cn/
-⭐ GitHub Agent：https://github.com/OpenDCAI/DataFlow-Agent
+⭐ GitHub Agent：https://github.com/OpenDCAI/Paper2Any
 🌟 GitHub Core：https://github.com/OpenDCAI/DataFlow
 
 转发本文案+截图，联系微信群管理员即可获取免费Key！🎁
@@ -235,7 +235,7 @@ const Ppt2PolishPage = () => {
       try {
         const [res1, res2, res3] = await Promise.all([
           fetch('https://api.github.com/repos/OpenDCAI/DataFlow'),
-          fetch('https://api.github.com/repos/OpenDCAI/DataFlow-Agent'),
+          fetch('https://api.github.com/repos/OpenDCAI/Paper2Any'),
           fetch('https://api.github.com/repos/OpenDCAI/DataFlex')
         ]);
         const data1 = await res1.json();
@@ -1493,7 +1493,21 @@ const Ppt2PolishPage = () => {
         </div>
         <div className="flex justify-between">
           <button onClick={() => setCurrentStep('upload')} className="px-6 py-2.5 rounded-lg border border-white/20 text-gray-300 hover:bg-white/10 flex items-center gap-2 transition-all"><ArrowLeft size={18} /> 返回上传</button>
-          <div className="flex gap-3"><button onClick={handleConfirmSlide} disabled={isBeautifying || !currentResult?.afterImage} className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white font-semibold flex items-center gap-2 transition-all disabled:opacity-50"><CheckCircle2 size={18} /> 确认并继续</button></div>
+          <div className="flex gap-3">
+            <button 
+              onClick={() => {
+                if (currentSlideIndex > 0) {
+                  setCurrentSlideIndex(currentSlideIndex - 1);
+                  setSlidePrompt('');
+                }
+              }}
+              disabled={currentSlideIndex === 0 || isBeautifying}
+              className="px-6 py-2.5 rounded-lg border border-white/20 text-gray-300 hover:bg-white/10 flex items-center gap-2 transition-all disabled:opacity-30"
+            >
+              <ArrowLeft size={18} /> 上一页
+            </button>
+            <button onClick={handleConfirmSlide} disabled={isBeautifying || !currentResult?.afterImage} className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white font-semibold flex items-center gap-2 transition-all disabled:opacity-50"><CheckCircle2 size={18} /> 确认并继续</button>
+          </div>
         </div>
       </div>
     );
@@ -1581,11 +1595,11 @@ const Ppt2PolishPage = () => {
               )}
 
             <div className="w-full space-y-2">
-               <a href="https://github.com/OpenDCAI/DataFlow-Agent" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-teal-300 truncate transition-colors border border-white/5 text-center">
+               <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-teal-300 truncate transition-colors border border-white/5 text-center">
                  ✨如果本项目对你有帮助，可以点个star嘛～
                </a>
                <div className="flex gap-2">
-                 <a href="https://github.com/OpenDCAI/DataFlow-Agent" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
+                 <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
                    <Github size={10} />
                    <span>Agent</span>
                    <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.agent || 'Star'}</span>
@@ -1660,13 +1674,13 @@ const Ppt2PolishPage = () => {
               </a>
 
               <a
-                href="https://github.com/OpenDCAI/DataFlow-Agent"
+                href="https://github.com/OpenDCAI/Paper2Any"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
               >
                 <Github size={14} />
-                <span>DataFlow-Agent</span>
+                <span>Paper2Any</span>
                 <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.agent || 'Star'}</span>
                 <span className="bg-pink-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
               </a>
