@@ -5,17 +5,18 @@
  */
 
 import { useState, useEffect } from "react";
-import { getFiles, deleteFile, UserFile } from "../lib/api";
+import { getFileRecords, deleteFileRecord, FileRecord } from "../services/fileService";
 import { FileText, Download, Trash2, RefreshCw, Loader2 } from "lucide-react";
 
-function formatSize(bytes: number | null): string {
+function formatSize(bytes: number | null | undefined): string {
   if (!bytes) return "-";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string | undefined): string {
+  if (!dateStr) return "-";
   return new Date(dateStr).toLocaleDateString("zh-CN", {
     month: "2-digit",
     day: "2-digit",
@@ -25,14 +26,14 @@ function formatDate(dateStr: string): string {
 }
 
 export function FilesPage() {
-  const [files, setFiles] = useState<UserFile[]>([]);
+  const [files, setFiles] = useState<FileRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const loadFiles = async () => {
     setLoading(true);
     try {
-      const data = await getFiles();
+      const data = await getFileRecords();
       setFiles(data);
     } catch (e) {
       console.error("Failed to load files:", e);
@@ -50,8 +51,12 @@ export function FilesPage() {
 
     setDeleting(id);
     try {
-      await deleteFile(id);
-      setFiles(files.filter((f) => f.id !== id));
+      const success = await deleteFileRecord(id);
+      if (success) {
+        setFiles(files.filter((f) => f.id !== id));
+      } else {
+        alert("Failed to delete file");
+      }
     } catch (e) {
       console.error("Failed to delete file:", e);
       alert("Failed to delete file");
@@ -148,8 +153,8 @@ export function FilesPage() {
                           </a>
                         )}
                         <button
-                          onClick={() => handleDelete(file.id, file.file_name)}
-                          disabled={deleting === file.id}
+                          onClick={() => file.id && handleDelete(file.id, file.file_name)}
+                          disabled={!file.id || deleting === file.id}
                           className="p-1.5 hover:bg-red-500/20 rounded text-red-400 transition-colors disabled:opacity-50"
                           title="Delete"
                         >

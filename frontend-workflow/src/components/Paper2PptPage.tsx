@@ -6,7 +6,7 @@ import {
   MessageSquare, RefreshCw, FileText, Key, Globe, Cpu, Type, Lightbulb,
   Copy, Share2
 } from 'lucide-react';
-import { saveFileRecord } from '../services/fileService';
+import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
 import { useAuthStore } from '../stores/authStore';
@@ -692,10 +692,26 @@ const Paper2PptPage = () => {
         }
       }
 
-      // Record usage and save file record
+      // Record usage
       await recordUsage(user?.id || null, 'paper2ppt');
       refreshQuota();
-      saveFileRecord('paper2ppt_result.pptx', 'paper2ppt');
+
+      // Fetch PPT file and upload to Supabase Storage
+      const pptPath = data.ppt_pptx_path || (data.all_output_files?.find((url: string) =>
+        url.endsWith('.pptx') || url.includes('editable.pptx')
+      ));
+      if (pptPath) {
+        try {
+          const pptRes = await fetch(pptPath);
+          if (pptRes.ok) {
+            const pptBlob = await pptRes.blob();
+            const pptName = pptPath.split('/').pop() || 'paper2ppt_result.pptx';
+            uploadAndSaveFile(pptBlob, pptName, 'paper2ppt');
+          }
+        } catch (e) {
+          console.warn('[Paper2PptPage] Failed to upload file:', e);
+        }
+      }
 
     } catch (err) {
       const message = err instanceof Error ? err.message : '生成失败';
