@@ -279,4 +279,4 @@ dev-debug.log
 # Taskmaster AI (local task management)
 .taskmaster/
 
-DataFlow-Agent/frontend-workflow/vite.config.ts
+frontend-workflow/vite.config.ts
