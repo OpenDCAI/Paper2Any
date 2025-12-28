@@ -30,6 +30,12 @@ English | [中文](README.md)
 
 </div>
 
+<div align="center">
+  <img src="static/frontend_pages/paper2figure-1.png" alt="Web UI - Paper2Figure" width="48%"/>
+  <span>&nbsp;|&nbsp;</span>
+  <img src="static/frontend_pages/paper2ppt-1.png" alt="Web UI - Paper2PPT" width="48%"/>
+</div>
+
 ---
 
 ## 📢 Roadmap & Announcement
@@ -61,28 +67,12 @@ English | [中文](README.md)
 
 ## 🔥 News
 
-<table>
-<tr>
-<td width="120"><strong>2025.12.12</strong></td>
-<td>
-🎉 <strong>Paper2Figure Web public beta is live</strong><br>
-One-click generation of multiple <strong>editable</strong> scientific figures, including model architecture diagrams, technical roadmap diagrams, and experimental plots.<br>
-👉 URL: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
-</td>
-</tr>
-<tr>
-<td><strong>2024.09.01</strong></td>
-<td>
-🚀 Released <code>0.1.0</code> first version
-</td>
-</tr>
-</table>
+> [!TIP]
+> 🆕 <strong>2025-12-12 · Paper2Figure Web public beta is live</strong><br>
+> One-click generation of multiple <strong>editable</strong> scientific figures (Model Architecture / Technical Roadmap / Experimental Plots)<br>
+> 🌐 Online Demo: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
 
-<div align="center">
-  <img src="static/frontend_pages/paper2figure-1.png" alt="Web UI - Paper2Figure" width="48%"/>
-  <span>&nbsp;|&nbsp;</span>
-  <img src="static/frontend_pages/paper2ppt-1.png" alt="Web UI - Paper2PPT" width="48%"/>
-</div>
+- 2024-09-01 · Released <code>0.1.0</code> first version
 
 ---
 
@@ -140,7 +130,7 @@ Paper2Any currently includes the following sub-capabilities:
 
 ### 1. Paper2PPT - Paper to Presentation
 
-#### Paper PDF to PPT
+#### Basic Generation (Paper / Text / Topic → PPT)
 
 <table>
 <tr>
@@ -168,11 +158,90 @@ Paper2Any currently includes the following sub-capabilities:
 </td>
 </tr>
 <tr>
+<td colspan="2" align="center">
+<strong>PPT Generation</strong> - Upload a paper PDF, automatically extract key information and generate a structured academic presentation.
+</td>
+<td colspan="2" align="center">
+<strong>PPT Generation</strong> - Intelligently analyze paper content and automatically insert internal tables and figures into the slides.
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="static/paper2ppt/input_2-1.png" alt="Input: text 1" width="100%"/>
+<br><sub>📄 Input text 1</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_2-2.png" alt="Input: text 2" width="100%"/>
+<br><sub>📄 Input text 2</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_2-3.png" alt="Input: text 3" width="100%"/>
+<br><sub>📄 Input text 3</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/output_2.png" alt="Output: generated PPT" width="100%"/>
+<br><sub>📊 Generated PPT</sub>
+</td>
+</tr>
+<tr>
 <td colspan="4" align="center">
-<strong>PPT Generation</strong> - Upload a paper PDF, automatically extract key information and generate a structured academic presentation; intelligently analyze content and auto-insert charts.
+<strong>Text2PPT</strong> - Input long text/outline, automatically generate structured PPT.
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="static/paper2ppt/input_4-1.png" alt="Input: topic 1" width="100%"/>
+<br><sub>📄 Input topic 1</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_4-2.png" alt="Input: topic 2" width="100%"/>
+<br><sub>📄 Input topic 2</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_4-3.png" alt="Input: topic 3" width="100%"/>
+<br><sub>📄 Input topic 3</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/output_4.png" alt="Output: generated PPT" width="100%"/>
+<br><sub>📊 Generated PPT</sub>
+</td>
+</tr>
+<tr>
+<td colspan="4" align="center">
+<strong>Topic2PPT</strong> - Input brief topic, automatically expand content and generate PPT.
 </td>
 </tr>
 </table>
+
+#### 🚀 Long Document Generation (40+ Slides)
+
+> Supports entire books, long reviews, or lengthy technical documents. Automatically processes by chapter to generate comprehensive 40-100 slide presentations.
+
+<table>
+<tr>
+<th width="25%">Input: Long Paper/Book</th>
+<th width="25%">Outline Generation</th>
+<th width="25%">Content Filling</th>
+<!-- <th width="25%">Final PPT (40+ Slides)</th> -->
+</tr>
+<tr>
+<td align="center">
+<img src="static/paper2ppt/long_paper/input_0.png" alt="Input: Long Doc" width="100%"/>
+<br><sub>📚 Input: Full Book / Long Review</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/long_paper/output_1.png" alt="Outline Generation" width="100%"/>
+<br><sub>📝 Auto Multi-level Outline</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/long_paper/output_2.png" alt="Content Filling" width="100%"/>
+<br><sub>🔄 Parallel Chapter Generation</sub>
+</td>
+</tr>
+</table>
+
+
+---
 
 #### PDF2PPT - PDF to Editable PPT
 
@@ -190,7 +259,7 @@ Paper2Any currently includes the following sub-capabilities:
 </td>
 <td align="center">
 <img src="static/pdf2ppt/output_1.png" alt="Output: generated PPT page" width="100%"/>
-<br><sub>📊 Generated PPT (White BG)</sub>
+<br><sub>📊 Generated PPT page (White BG)</sub>
 </td>
 <td align="center">
 <img src="static/pdf2ppt/input_2.png" alt="Input: PDF page" width="100%"/>
@@ -198,7 +267,7 @@ Paper2Any currently includes the following sub-capabilities:
 </td>
 <td align="center">
 <img src="static/pdf2ppt/output_2.png" alt="Output: generated PPT page" width="100%"/>
-<br><sub>📊 Generated PPT (AI Redraw)</sub>
+<br><sub>📊 Generated PPT page (AI Redraw)</sub>
 </td>
 </tr>
 </table>
@@ -254,10 +323,55 @@ Paper2Any currently includes the following sub-capabilities:
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
+<tr>
+<td colspan="3" align="center">
+<strong>Difficulty: Easy</strong> - Clean modular structure
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_1.png" alt="Input: paper PDF" width="100%"/>
+<br><sub>📄 Paper PDF</sub>
+</td>
+<td align="center">
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_2.png" alt="Generated model diagram" width="100%"/>
+<br><sub>🎨 Generated model architecture</sub>
+</td>
+<td align="center">
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_3.png" alt="PPTX screenshot" width="100%"/>
+<br><sub>📊 Editable PPTX</sub>
+</td>
+</tr>
+<tr>
+<td colspan="3" align="center">
+<strong>Difficulty: Medium</strong> - Multi-level structure and data flows
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_1.png" alt="Input: key paragraphs" width="100%"/>
+<br><sub>📄 Input key paragraphs</sub>
+</td>
+<td align="center">
+<img src="static/paper2any_imgs/p2f/p2f_paper_hard_img_2.png" alt="Generated model diagram" width="100%"/>
+<br><sub>🎨 Generated model architecture</sub>
+</td>
+<td align="center">
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_3.png" alt="PPTX screenshot" width="100%"/>
+<br><sub>📊 Editable PPTX</sub>
+</td>
+</tr>
+<tr>
+<td colspan="3" align="center">
+<strong>Difficulty: Hard</strong> - Complex interactions and detailed annotations
+</td>
+</tr>
 </table>
 
 <div align="center">
-Upload a paper PDF and choose the difficulty (Easy/Medium/Hard). The system automatically generates an **editable PPTX** diagram.
+
+Upload a paper PDF and choose the diagram difficulty (Easy/Medium/Hard). The system extracts architecture information and generates an **editable PPTX** diagram at the selected complexity.
+
 </div>
 
 #### Technical Roadmap Diagram Generation
@@ -270,8 +384,8 @@ Upload a paper PDF and choose the difficulty (Easy/Medium/Hard). The system auto
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/paper1.png" alt="Input: paper text" width="100%"/>
-<br><sub>📝 Method section</sub>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/paper1.png" alt="Input: paper text (Chinese)" width="100%"/>
+<br><sub>📝 Method section (Chinese)</sub>
 </td>
 <td align="center">
 <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/cn_img_1.png" alt="Roadmap diagram SVG" width="100%"/>
@@ -282,6 +396,30 @@ Upload a paper PDF and choose the difficulty (Easy/Medium/Hard). The system auto
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
+<tr>
+<td colspan="3" align="center">
+<strong>Language: Chinese</strong> - Ideal for Chinese academic communications
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/paper2.png" alt="Input: paper text (English)" width="100%"/>
+<br><sub>📝 Method section (English)</sub>
+</td>
+<td align="center">
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/en_img_1.png" alt="Roadmap diagram SVG" width="100%"/>
+<br><sub>🗺️ Roadmap diagram SVG</sub>
+</td>
+<td align="center">
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/en_img_2.png" alt="PPTX screenshot" width="100%"/>
+<br><sub>📊 Editable PPTX</sub>
+</td>
+</tr>
+<tr>
+<td colspan="3" align="center">
+<strong>Language: English</strong> - Ideal for international publications
+</td>
+</tr>
 </table>
 
 #### Experimental Plot Generation
@@ -290,20 +428,48 @@ Upload a paper PDF and choose the difficulty (Easy/Medium/Hard). The system auto
 <tr>
 <th width="33%">Input</th>
 <th width="33%">Standard Style</th>
-<th width="33%">Polished Style</th>
+<th width="33%">Hand-drawn Style</th>
 </tr>
 <tr>
 <td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2e/paper_1.png" alt="Input: experimental results screenshot" width="100%"/>
+  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2e/paper_1.png" alt="Input: experimental results" width="100%"/>
+  <br><sub>📄 Experimental results screenshot</sub>
+</td>
+<td align="center">
+  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2e/paper_1_2.png" alt="Output: standard style" width="100%"/>
+  <br><sub>📈 Standard Python style</sub>
+</td>
+<td align="center">
+  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@lz/dev/static/paper2any_imgs/p2e/paper_1_3.png" alt="Output: hand-drawn style" width="100%"/>
+  <br><sub>🎨 Hand-drawn style</sub>
+</td>
+</tr>
+<tr>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_2.png" alt="Input: experimental results screenshot" width="100%"/>
   <br><sub>📄 Input: paper PDF / results screenshot</sub>
 </td>
 <td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2e/paper_1_2.png" alt="Output: standard plot" width="100%"/>
-  <br><sub>📈 Output: standard Python-style plot</sub>
+  <img src="static/paper2any_imgs/p2e/paper_2_2.png" alt="Output: plot (standard)" width="100%"/>
+  <br><sub>📈 Output: standard Python style plot</sub>
 </td>
 <td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2e/paper_1_3.png" alt="Output: polished plot" width="100%"/>
-  <br><sub>🎨 Output: publication-ready styled plot</sub>
+  <img src="static/paper2any_imgs/p2e/paper_2_3.png" alt="Output: plot (cartoon style)" width="100%"/>
+  <br><sub>🎨 Output: cartoon style experimental plot</sub>
+</td>
+</tr>
+<tr>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_3.png" alt="Input: experimental results screenshot" width="100%"/>
+  <br><sub>📄 Input: paper PDF / results screenshot</sub>
+</td>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_3_2.png" alt="Output: plot (standard)" width="100%"/>
+  <br><sub>📈 Output: standard Python style plot</sub>
+</td>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_3_3.png" alt="Output: plot (polygon style)" width="100%"/>
+  <br><sub>🎨 Output: polygon style experimental plot</sub>
 </td>
 </tr>
 </table>

@@ -130,7 +130,7 @@ Paper2Any 当前包含以下几个子能力：
 
 ### 1. Paper2PPT - 论文转演示文稿
 
-#### 论文 PDF 转 PPT
+#### 基础生成 (Paper / Text / Topic → PPT)
 
 <table>
 <tr>
@@ -158,11 +158,89 @@ Paper2Any 当前包含以下几个子能力：
 </td>
 </tr>
 <tr>
+<td colspan="2" align="center">
+<strong>PPT 生成</strong> - 上传论文 PDF，自动提取关键信息，生成结构化的学术汇报 PPT。
+</td>
+<td colspan="2" align="center">
+<strong>PPT 生成</strong> - 智能分析论文内容，可以自动插入论文内部表格和插图到PPT。
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="static/paper2ppt/input_2-1.png" alt="输入：文本 1" width="100%"/>
+<br><sub>📄 输入文本 1</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_2-2.png" alt="输入：文本 2" width="100%"/>
+<br><sub>📄 逐页面编辑</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_2-3.png" alt="输入：文本 3" width="100%"/>
+<br><sub>📄 生成PPT页面</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/output_2.png" alt="输出：生成 PPT" width="100%"/>
+<br><sub>📊 生成的 PPT</sub>
+</td>
+</tr>
+<tr>
 <td colspan="4" align="center">
-<strong>PPT 生成</strong> - 上传论文 PDF，自动提取关键信息，生成结构化的学术汇报 PPT；智能分析内容，自动插入图表。
+<strong>Text2PPT</strong> - 输入长文本/大纲，自动生成结构化的 PPT。
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="static/paper2ppt/input_4-1.png" alt="输入：主题 1" width="100%"/>
+<br><sub>📄 输入主题 1</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_4-2.png" alt="输入：主题 2" width="100%"/>
+<br><sub>📄 逐页面编辑</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/input_4-3.png" alt="输入：主题 3" width="100%"/>
+<br><sub>📄 生成PPT页面</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/output_4.png" alt="输出：生成 PPT" width="100%"/>
+<br><sub>📊 生成的 PPT</sub>
+</td>
+</tr>
+<tr>
+<td colspan="4" align="center">
+<strong>Topic2PPT</strong> - 输入简短主题，自动扩充内容并生成 PPT。
 </td>
 </tr>
 </table>
+
+#### 🚀 超长文档生成 (40+ 页 PPT)
+
+> 针对整本书籍、长篇综述或超长技术文档，支持自动分章节处理，生成 40~100 页的完整演示文稿。
+
+<table>
+<tr>
+<th width="25%">输入：长篇论文/书籍</th>
+<th width="25%">PPT生成（红色风格）</th>
+<th width="25%">PPT生成（紫色风格）</th>
+<!-- <th width="25%">最终 PPT (40+页)</th> -->
+</tr>
+<tr>
+<td align="center">
+<img src="static/paper2ppt/long_paper/input_0.png" alt="输入：长文档" width="100%"/>
+<br><sub>📚 输入：研究主题，选择长文模式</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/long_paper/output_1.png" alt="PPT生成（红色风格）" width="100%"/>
+<br><sub>📝 PPT生成（红色风格）</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/long_paper/output_2.png" alt="PPT生成（紫色风格）" width="100%"/>
+<br><sub>🔄 PPT生成（紫色风格）</sub>
+</td>
+</tr>
+</table>
+
+---
 
 #### PDF2PPT - PDF 转可编辑 PPT
 
@@ -244,6 +322,49 @@ Paper2Any 当前包含以下几个子能力：
 <br><sub>📊 可编辑 PPTX</sub>
 </td>
 </tr>
+<tr>
+<td colspan="3" align="center">
+<strong>绘图难度：简单</strong> - 基础模型结构，清晰的模块划分
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_1.png" alt="输入：论文 PDF" width="100%"/>
+<br><sub>📄 论文PDF</sub>
+</td>
+<td align="center">
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_2.png" alt="生成的模型图" width="100%"/>
+<br><sub>🎨 生成的模型架构图</sub>
+</td>
+<td align="center">
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_3.png" alt="PPTX 截图" width="100%"/>
+<br><sub>📊 可编辑 PPTX</sub>
+</td>
+</tr>
+<tr>
+<td colspan="3" align="center">
+<strong>绘图难度：中等</strong> - 包含多层次结构和数据流
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_1.png" alt="输入：论文 PDF" width="100%"/>
+<br><sub>📄 输入核心段落</sub>
+</td>
+<td align="center">
+<img src="static/paper2any_imgs/p2f/p2f_paper_hard_img_2.png" alt="生成的模型图" width="100%"/>
+<br><sub>🎨 生成的模型架构图</sub>
+</td>
+<td align="center">
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_3.png" alt="PPTX 截图" width="100%"/>
+<br><sub>📊 可编辑 PPTX</sub>
+</td>
+</tr>
+<tr>
+<td colspan="3" align="center">
+<strong>绘图难度：困难</strong> - 复杂的多模块交互和详细注释
+</td>
+</tr>
 </table>
 
 <div align="center">
@@ -261,7 +382,7 @@ Paper2Any 当前包含以下几个子能力：
 <tr>
 <td align="center">
 <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/paper1.png" alt="输入：论文文本" width="100%"/>
-<br><sub>📝 论文方法部分</sub>
+<br><sub>📝 方法部分（中文）</sub>
 </td>
 <td align="center">
 <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/cn_img_1.png" alt="技术路线图 SVG" width="100%"/>
@@ -270,6 +391,30 @@ Paper2Any 当前包含以下几个子能力：
 <td align="center">
 <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/cn_img_2.png" alt="PPTX 截图" width="100%"/>
 <br><sub>📊 可编辑 PPTX</sub>
+</td>
+</tr>
+<tr>
+<td colspan="3" align="center">
+<strong>语言：中文</strong> - 适合国内学术交流
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/paper2.png" alt="输入：论文文本（英文）" width="100%"/>
+<br><sub>📝 方法部分（英文）</sub>
+</td>
+<td align="center">
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/en_img_1.png" alt="技术路线图 SVG" width="100%"/>
+<br><sub>🗺️ 技术路线图 SVG</sub>
+</td>
+<td align="center">
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/en_img_2.png" alt="PPTX 截图" width="100%"/>
+<br><sub>📊 可编辑 PPTX</sub>
+</td>
+</tr>
+<tr>
+<td colspan="3" align="center">
+<strong>语言：英文</strong> - 适合国际学术发表
 </td>
 </tr>
 </table>
@@ -294,6 +439,34 @@ Paper2Any 当前包含以下几个子能力：
 <td align="center">
   <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@lz/dev/static/paper2any_imgs/p2e/paper_1_3.png" alt="输出：手绘风格" width="100%"/>
   <br><sub>🎨 手绘风格</sub>
+</td>
+</tr>
+<tr>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_2.png" alt="输入：实验结果截图" width="100%"/>
+  <br><sub>📄 输入：论文 PDF / 实验结果截图</sub>
+</td>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_2_2.png" alt="输出：实验数据图（基础样式）" width="100%"/>
+  <br><sub>📈 输出：常规 Python 风格实验数据图</sub>
+</td>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_2_3.png" alt="输出：实验数据图（卡通风格）" width="100%"/>
+  <br><sub>🎨 输出：卡通风格的实验数据图</sub>
+</td>
+</tr>
+<tr>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_3.png" alt="输入：实验结果截图" width="100%"/>
+  <br><sub>📄 输入：论文 PDF / 实验结果截图</sub>
+</td>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_3_2.png" alt="输出：实验数据图（基础样式）" width="100%"/>
+  <br><sub>📈 输出：常规 Python 风格实验数据图</sub>
+</td>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_3_3.png" alt="输出：实验数据图（多边形风格）" width="100%"/>
+  <br><sub>🎨 输出：多边形风格的实验数据图</sub>
 </td>
 </tr>
 </table>
@@ -426,6 +599,7 @@ Paper2Any/
 <td>
 <img src="https://img.shields.io/badge/✓-视频脚本生成-success?style=flat-square" alt="完成"/><br>
 <img src="https://img.shields.io/badge/○-分镜描述-lightgrey?style=flat-square" alt="开发中"/><br>
+<img src="https://img.shields.io/badge/○-配图素材-lightgrey?style=flat-square" alt="开发中"/><br>
 <img src="https://img.shields.io/badge/○-视频合成-lightgrey?style=flat-square" alt="开发中"/>
 </td>
 </tr>
