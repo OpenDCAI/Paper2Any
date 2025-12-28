@@ -1573,19 +1573,23 @@ const Ppt2PolishPage = () => {
                 </div>
               )}
 
-              <div className="w-full space-y-2">
-                 <a href="https://dcai-paper2any.nas.cpolar.cn/" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-teal-300 truncate transition-colors border border-white/5 text-center">
-                   🌐 如果项目对你有帮助的话，可以点个star嘛~
+            <div className="w-full space-y-2">
+               <a href="https://github.com/OpenDCAI/DataFlow-Agent" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-teal-300 truncate transition-colors border border-white/5 text-center">
+                 ✨如果本项目对你有帮助，可以点个star嘛～
+               </a>
+               <div className="flex gap-2">
+                 <a href="https://github.com/OpenDCAI/DataFlow-Agent" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
+                   <Github size={10} />
+                   <span>Agent</span>
+                   <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.agent || 'Star'}</span>
                  </a>
-                 <div className="flex gap-2">
-                   <a href="https://github.com/OpenDCAI/DataFlow-Agent" target="_blank" rel="noopener noreferrer" className="flex-1 py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-gray-300 truncate transition-colors border border-white/5 flex items-center justify-center gap-1">
-                     <Github size={12} /> Agent
-                   </a>
-                   <a href="https://github.com/OpenDCAI/DataFlow" target="_blank" rel="noopener noreferrer" className="flex-1 py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-gray-300 truncate transition-colors border border-white/5 flex items-center justify-center gap-1">
-                     <Github size={12} /> Core
-                   </a>
-                 </div>
-              </div>
+                 <a href="https://github.com/OpenDCAI/DataFlow" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
+                   <Github size={10} />
+                   <span>Core</span>
+                   <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
+                 </a>
+               </div>
+            </div>
               <p className="text-[10px] text-gray-500">点亮 Star ⭐ 支持开源开发</p>
             </div>
 
