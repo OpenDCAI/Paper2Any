@@ -1,8 +1,54 @@
-# DataFlow Agent 工作流编辑器
+# DataFlow Agent Frontend
 
-一个基于 React + ReactFlow 的可视化工作流编辑器，用于配置和管理 DataFlow Agent 工作流。
+Paper2Any 系列工作流的 Web 前端，支持论文转图表、论文转 PPT、PDF 转 PPT、PPT 美化等功能。
 
-## 功能特性
+## 快速开始
+
+```bash
+cd frontend-workflow
+cp .env.example .env
+npm install
+npm run dev
+```
+
+访问 http://localhost:3000
+
+## Paper2Any 功能
+
+| 功能 | 描述 |
+|------|------|
+| **Paper2Figure** | 上传论文 PDF，自动生成技术路线图、模型架构图等 |
+| **Paper2PPT** | 上传论文，AI 自动生成演示文稿 |
+| **Pdf2PPT** | PDF 文档转换为可编辑 PPT |
+| **PptPolish** | PPT 美化和润色 |
+| **My Files** | 查看和管理生成的文件（需配置 Supabase） |
+
+## Supabase 配置（可选）
+
+默认无需配置 Supabase，核心功能可正常使用。如需用户管理、配额限制和云存储功能：
+
+1. 在 [Supabase](https://supabase.com) 创建项目
+2. 编辑 `.env`，取消注释并填入配置：
+   ```env
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-anon-key
+   ```
+3. 详细配置参见 [部署指南](../docs/guides/frontend_deployment.md)
+
+| 功能 | 无 Supabase | 有 Supabase |
+|------|-------------|-------------|
+| 核心工作流 | ✓ | ✓ |
+| 用户登录 | ✗ | ✓ |
+| 配额限制 | ✗ | ✓ |
+| My Files 云存储 | ✗ | ✓ |
+
+---
+
+# 工作流编辑器
+
+基于 React + ReactFlow 的可视化工作流编辑器，用于配置和管理 DataFlow Agent 工作流。
+
+## 编辑器功能
 
 ### ✨ 核心功能
 

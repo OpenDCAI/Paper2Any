@@ -1,11 +1,16 @@
 import { useState, useEffect, ChangeEvent } from 'react';
-import { 
-  UploadCloud, Download, Loader2, CheckCircle2, 
+import {
+  UploadCloud, Download, Loader2, CheckCircle2,
   AlertCircle, Github, Star, X, FileText, ArrowRight, Key, Globe, ToggleLeft, ToggleRight, Sparkles, Image, MessageSquare, Copy
 } from 'lucide-react';
+import { uploadAndSaveFile } from '../services/fileService';
+import { API_KEY } from '../config/api';
+import { checkQuota, recordUsage } from '../services/quotaService';
+import { useAuthStore } from '../stores/authStore';
 
 // ============== 主组件 ==============
 const Pdf2PptPage = () => {
+  const { user, refreshQuota } = useAuthStore();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -121,11 +126,16 @@ const Pdf2PptPage = () => {
       setError('请先选择 PDF 文件');
       return;
     }
-    // if (!inviteCode.trim()) {
-    //   setError('请输入邀请码');
-    //   return;
-    // }
-    
+
+    // Check quota before proceeding
+    const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
+    if (quota.remaining <= 0) {
+      setError(quota.isAuthenticated
+        ? '今日配额已用完（10次/天），请明天再试'
+        : '今日配额已用完（5次/天），登录后可获得更多配额');
+      return;
+    }
+
     if (useAiEdit) {
       if (!apiKey.trim()) {
         setError('开启 AI 增强时必须输入 API Key');
@@ -180,6 +190,7 @@ const Pdf2PptPage = () => {
       
       const res = await fetch('/api/pdf2ppt/generate', {
         method: 'POST',
+        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
       
@@ -207,6 +218,12 @@ const Pdf2PptPage = () => {
       setProgress(100);
       setStatusMessage('转换完成！');
       setIsComplete(true);
+
+      // Record usage and upload file to Supabase Storage
+      await recordUsage(user?.id || null, 'pdf2ppt');
+      refreshQuota();
+      const outputName = selectedFile?.name.replace('.pdf', '.pptx') || 'pdf2ppt_output.pptx';
+      uploadAndSaveFile(blob, outputName, 'pdf2ppt');
       
     } catch (err) {
       clearInterval(progressInterval);
