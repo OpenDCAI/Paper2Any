@@ -84,14 +84,18 @@ const Paper2PptPage = () => {
   const [resultPath, setResultPath] = useState<string | null>(null);
 
   // GitHub Stars
-  const [stars, setStars] = useState<{dataflow: number | null, agent: number | null}>({ dataflow: null, agent: null });
+  const [stars, setStars] = useState<{dataflow: number | null, agent: number | null, dataflex: number | null}>({
+    dataflow: null,
+    agent: null,
+    dataflex: null,
+  });
   const [copySuccess, setCopySuccess] = useState('');
 
   const shareText = `发现一个超好用的AI工具 DataFlow-Agent！🚀
 支持论文转PPT、PDF转PPT、PPT美化等功能，科研打工人的福音！
 
 🔗 在线体验：https://dcai-paper2any.nas.cpolar.cn/
-⭐ GitHub Agent：https://github.com/OpenDCAI/DataFlow-Agent
+⭐ GitHub Agent：https://github.com/OpenDCAI/Paper2Any
 🌟 GitHub Core：https://github.com/OpenDCAI/DataFlow
 
 转发本文案+截图，联系微信群管理员即可获取免费Key！🎁
@@ -130,15 +134,18 @@ const Paper2PptPage = () => {
   useEffect(() => {
     const fetchStars = async () => {
       try {
-        const [res1, res2] = await Promise.all([
+        const [res1, res2, res3] = await Promise.all([
           fetch('https://api.github.com/repos/OpenDCAI/DataFlow'),
-          fetch('https://api.github.com/repos/OpenDCAI/DataFlow-Agent')
+          fetch('https://api.github.com/repos/OpenDCAI/Paper2Any'),
+          fetch('https://api.github.com/repos/OpenDCAI/DataFlex')
         ]);
         const data1 = await res1.json();
         const data2 = await res2.json();
+        const data3 = await res3.json();
         setStars({
           dataflow: data1.stargazers_count,
-          agent: data2.stargazers_count
+          agent: data2.stargazers_count,
+          dataflex: data3.stargazers_count,
         });
       } catch (e) {
         console.error('Failed to fetch stars', e);
@@ -1260,9 +1267,23 @@ const Paper2PptPage = () => {
           <button onClick={() => setCurrentStep('outline')} className="px-6 py-2.5 rounded-lg border border-white/20 text-gray-300 hover:bg-white/10 flex items-center gap-2">
             <ArrowLeft size={18} /> 返回大纲
           </button>
-          <button onClick={handleConfirmSlide} disabled={isGenerating || currentResult?.status !== 'done'} className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold flex items-center gap-2 disabled:opacity-50">
-            <CheckCircle2 size={18} /> {currentSlideIndex < outlineData.length - 1 ? '确认并继续' : '完成生成'}
-          </button>
+          <div className="flex gap-3">
+            <button 
+              onClick={() => {
+                if (currentSlideIndex > 0) {
+                  setCurrentSlideIndex(currentSlideIndex - 1);
+                  setSlidePrompt('');
+                }
+              }}
+              disabled={currentSlideIndex === 0 || isGenerating}
+              className="px-6 py-2.5 rounded-lg border border-white/20 text-gray-300 hover:bg-white/10 flex items-center gap-2 disabled:opacity-30"
+            >
+              <ArrowLeft size={18} /> 上一页
+            </button>
+            <button onClick={handleConfirmSlide} disabled={isGenerating || currentResult?.status !== 'done'} className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold flex items-center gap-2 disabled:opacity-50">
+              <CheckCircle2 size={18} /> {currentSlideIndex < outlineData.length - 1 ? '确认并继续' : '完成生成'}
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -1384,15 +1405,19 @@ const Paper2PptPage = () => {
             )}
 
             <div className="w-full space-y-2">
-               <a href="https://dcai-paper2any.nas.cpolar.cn/" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-purple-300 truncate transition-colors border border-white/5 text-center">
-                 🌐 如果项目对你有帮助的话，可以点个star嘛~
+               <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-purple-300 truncate transition-colors border border-white/5 text-center">
+                 ✨如果本项目对你有帮助，可以点个star嘛～
                </a>
                <div className="flex gap-2">
-                 <a href="https://github.com/OpenDCAI/DataFlow-Agent" target="_blank" rel="noopener noreferrer" className="flex-1 py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-gray-300 truncate transition-colors border border-white/5 flex items-center justify-center gap-1">
-                   <Github size={12} /> Agent
+                 <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
+                   <Github size={10} />
+                   <span>Agent</span>
+                   <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.agent || 'Star'}</span>
                  </a>
-                 <a href="https://github.com/OpenDCAI/DataFlow" target="_blank" rel="noopener noreferrer" className="flex-1 py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-gray-300 truncate transition-colors border border-white/5 flex items-center justify-center gap-1">
-                   <Github size={12} /> Core
+                 <a href="https://github.com/OpenDCAI/DataFlow" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
+                   <Github size={10} />
+                   <span>Core</span>
+                   <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
                  </a>
                </div>
             </div>
@@ -1457,15 +1482,27 @@ const Paper2PptPage = () => {
               </a>
 
               <a
-                href="https://github.com/OpenDCAI/DataFlow-Agent"
+                href="https://github.com/OpenDCAI/Paper2Any"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
               >
                 <Github size={14} />
-                <span>DataFlow-Agent</span>
+                <span>Paper2Any</span>
                 <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.agent || 'Star'}</span>
                 <span className="bg-pink-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
+              </a>
+
+              <a
+                href="https://github.com/OpenDCAI/DataFlex"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-xs font-semibold transition-all hover:scale-105 shadow-lg"
+              >
+                <Github size={14} />
+                <span>DataFlex</span>
+                <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.dataflex || 'Star'}</span>
+                <span className="bg-sky-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
               </a>
 
               <button

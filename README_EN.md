@@ -1,23 +1,21 @@
 <div align="center">
 
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/new_logo_bgrm.png" alt="DataFlow-Agent Logo" width="180"/><br>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/new_logo_bgrm.png" alt="Paper2Any Logo" width="180"/><br>
 
-# DataFlow-Agent
-
-[![DataFlow](https://img.shields.io/badge/DataFlow-OpenDCAI%2FDataFlow-0F9D58?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/DataFlow)
+# Paper2Any
 
 <!-- **From Papers & Raw Data to Charts, PPTs and Data Pipelines — an All-in-One AI Orchestrator** -->
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-2F80ED?style=flat-square&logo=apache&logoColor=white)](LICENSE)
-[![GitHub Repo](https://img.shields.io/badge/GitHub-OpenDCAI%2FDataFlow--Agent-24292F?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/DataFlow-Agent)
-[![Stars](https://img.shields.io/github/stars/OpenDCAI/DataFlow-Agent?style=flat-square&logo=github&label=Stars&color=F2C94C)](https://github.com/OpenDCAI/DataFlow-Agent/stargazers)
+[![GitHub Repo](https://img.shields.io/badge/GitHub-OpenDCAI%2FPaper2Any-24292F?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/Paper2Any)
+[![Stars](https://img.shields.io/github/stars/OpenDCAI/Paper2Any?style=flat-square&logo=github&label=Stars&color=F2C94C)](https://github.com/OpenDCAI/Paper2Any/stargazers)
 
-<a href="https://github.com/OpenDCAI/DataFlow-Agent#-quick-start" target="_blank">
+<a href="#-quick-start" target="_self">
   <img alt="Quickstart" src="https://img.shields.io/badge/🚀-Quick_Start-2F80ED?style=for-the-badge" />
 </a>
 <a href="http://dcai-paper2any.nas.cpolar.cn/" target="_blank">
-  <img alt="Online Demo" src="https://img.shields.io/badge/🌐-Online_Demo_Paper2Any-56CCF2?style=for-the-badge" />
+  <img alt="Online Demo" src="https://img.shields.io/badge/🌐-Online_Demo-56CCF2?style=for-the-badge" />
 </a>
 <a href="docs/" target="_blank">
   <img alt="Docs" src="https://img.shields.io/badge/📚-Docs-2D9CDB?style=for-the-badge" />
@@ -26,44 +24,11 @@
   <img alt="Contributing" src="https://img.shields.io/badge/🤝-Contributing-27AE60?style=for-the-badge" />
 </a>
 
-*A multi-agent workflow platform based on LangGraph, focusing on paper-centric multimodal workflows and extensible to data governance scenarios via DataFlow.*
+*Focus on Paper Multimodal Workflow: One-click generation of model diagrams, technical roadmaps, experimental plots, and presentations from paper PDFs/screenshots/text.*
 
 English | [中文](README.md)
 
 </div>
-
----
-
-## 📑 Table of Contents
-
-- [🔥 News](#-news)
-- [🧠 Platform Overview](#-platform-overview)
-- [✨ Core Applications](#-core-applications)
-- [🚀 Quick Start](#-quick-start)
-- [📂 Project Structure](#-project-structure)
-- [🗺️ Roadmap](#%EF%B8%8F-roadmap)
-- [🤝 Contributing](#-contributing)
-
----
-
-## 🔥 News
-
-<table>
-<tr>
-<td width="120"><strong>2025.12.12</strong></td>
-<td>
-🎉 <strong>Paper2Figure Web public beta is live</strong><br>
-One-click generation of multiple <strong>editable</strong> scientific figures, including model architecture diagrams, technical roadmap diagrams, and experimental plots.<br>
-👉 URL: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
-</td>
-</tr>
-<tr>
-<td><strong>2024.09.01</strong></td>
-<td>
-🚀 Released <code>0.1.0</code> (see <a href="docs/changelog.md">changelog</a>)
-</td>
-</tr>
-</table>
 
 <div align="center">
   <img src="static/frontend_pages/paper2figure-1.png" alt="Web UI - Paper2Figure" width="48%"/>
@@ -73,27 +38,47 @@ One-click generation of multiple <strong>editable</strong> scientific figures, i
 
 ---
 
-## 🧠 Platform Overview
+## 📢 Roadmap & Announcement
 
-DataFlow-Agent is built on LangGraph and currently focuses on the following typical scenarios:
+> [!IMPORTANT]
+> **This project is undergoing an architectural split to provide a more focused experience.**
 
-- 🎓 <strong>Research Workflows (Paper2Any)</strong>: From paper PDFs / screenshots / text to model diagrams, technical roadmaps, experimental plots and slide decks.
-- 📊 <strong>Data Governance (Easy-DataFlow)</strong>: Together with <a href="https://github.com/OpenDCAI/DataFlow">OpenDCAI/DataFlow</a>, go from natural language task descriptions to executable data processing pipelines and visual orchestration.
+- **[Paper2Any](https://github.com/OpenDCAI/Paper2Any)** (Current Repository):
+  - Focuses on paper multimodal workflows (Paper2Figure, Paper2PPT, Paper2Video, etc.).
+  - Provides researchers with one-click tools for plotting, PPT generation, and video scripting.
 
-The platform currently provides two main application lines:
-
-- <strong>Paper2Any</strong>: Paper-centric multimodal workflows (figures / PPT / video scripts / posters)
-- <strong>Easy-DataFlow</strong>: Data governance workflows and visual pipelines
+- **[DataFlow-Agent](https://github.com/OpenDCAI/DataFlow-Agent)** (New Repository):
+  - Focuses on DataFlow operator orchestration and authoring.
+  - Provides a general-purpose multi-agent dataflow processing framework and operator development tools.
 
 ---
 
-## ✨ Core Applications
+## 📑 Table of Contents
 
-### 1️⃣ Paper2Any - Paper Multimodal Workflow
+- [🔥 News](#-news)
+- [✨ Core Features](#-core-features)
+- [📸 Showcase](#-showcase)
+- [🚀 Quick Start](#-quick-start)
+- [📂 Project Structure](#-project-structure)
+- [🗺️ Roadmap](#️-roadmap)
+- [🤝 Contributing](#-contributing)
+
+---
+
+## 🔥 News
+
+> [!TIP]
+> 🆕 <strong>2025-12-12 · Paper2Figure Web public beta is live</strong><br>
+> One-click generation of multiple <strong>editable</strong> scientific figures (Model Architecture / Technical Roadmap / Experimental Plots)<br>
+> 🌐 Online Demo: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
+
+- 2024-09-01 · Released <code>0.1.0</code> first version
+
+---
+
+## ✨ Core Features
 
 > From paper PDFs / images / text to **editable** scientific figures, slide decks, video scripts, posters and more in one click.
-
-#### 🎯 Key Capabilities
 
 Paper2Any currently includes the following sub-capabilities:
 
@@ -141,9 +126,11 @@ Paper2Any currently includes the following sub-capabilities:
 
 ---
 
-#### 📸 Showcase - Paper2PPT
+## 📸 Showcase
 
-##### Paper PDF to PPT
+### 1. Paper2PPT - Paper to Presentation
+
+#### Basic Generation (Paper / Text / Topic → PPT)
 
 <table>
 <tr>
@@ -226,9 +213,37 @@ Paper2Any currently includes the following sub-capabilities:
 </tr>
 </table>
 
+#### 🚀 Long Document Generation (40+ Slides)
+
+> Supports entire books, long reviews, or lengthy technical documents. Automatically processes by chapter to generate comprehensive 40-100 slide presentations.
+
+<table>
+<tr>
+<th width="25%">Input: Long Paper/Book</th>
+<th width="25%">Outline Generation</th>
+<th width="25%">Content Filling</th>
+<!-- <th width="25%">Final PPT (40+ Slides)</th> -->
+</tr>
+<tr>
+<td align="center">
+<img src="static/paper2ppt/long_paper/input_0.png" alt="Input: Long Doc" width="100%"/>
+<br><sub>📚 Input: Full Book / Long Review</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/long_paper/output_1.png" alt="Outline Generation" width="100%"/>
+<br><sub>📝 Auto Multi-level Outline</sub>
+</td>
+<td align="center">
+<img src="static/paper2ppt/long_paper/output_2.png" alt="Content Filling" width="100%"/>
+<br><sub>🔄 Parallel Chapter Generation</sub>
+</td>
+</tr>
+</table>
+
+
 ---
 
-#### 📸 Showcase - PDF2PPT
+#### PDF2PPT - PDF to Editable PPT
 
 <table>
 <tr>
@@ -244,7 +259,7 @@ Paper2Any currently includes the following sub-capabilities:
 </td>
 <td align="center">
 <img src="static/pdf2ppt/output_1.png" alt="Output: generated PPT page" width="100%"/>
-<br><sub>📊 Generated PPT page</sub>
+<br><sub>📊 Generated PPT page (White BG)</sub>
 </td>
 <td align="center">
 <img src="static/pdf2ppt/input_2.png" alt="Input: PDF page" width="100%"/>
@@ -252,23 +267,19 @@ Paper2Any currently includes the following sub-capabilities:
 </td>
 <td align="center">
 <img src="static/pdf2ppt/output_2.png" alt="Output: generated PPT page" width="100%"/>
-<br><sub>📊 Generated PPT page</sub>
+<br><sub>📊 Generated PPT page (AI Redraw)</sub>
 </td>
 </tr>
 </table>
 
----
-
-#### 📸 Showcase - PPT Polish (Smart PPT Enhancement)
-
-<p><sub>🎨 <b>PPT Color Enhancement</b> — Intelligently adjust style, color schemes and visual hierarchy based on existing PPT content.</sub></p>
+#### PPT Polish - Smart Enhancement
 
 <table>
 <tr>
 <th width="25%">Original PPT</th>
 <th width="25%">Enhanced</th>
 <th width="25%">Original PPT</th>
-<th width="25%">Enhanced</th>
+<th width="25%">Polished</th>
 </tr>
 <tr>
 <td align="center">
@@ -278,44 +289,19 @@ Paper2Any currently includes the following sub-capabilities:
 <img src="frontend-workflow/public/ppt2polish/paper2ppt_polish_1.png" alt="Enhanced PPT" width="100%"/>
 </td>
 <td align="center">
-<img src="frontend-workflow/public/ppt2polish/paper2ppt_orgin_2.png" alt="Original PPT" width="100%"/>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/paper2ppt_polish_2.png" alt="Enhanced PPT" width="100%"/>
-</td>
-</tr>
-</table>
-
-<p><sub>✍️ <b>PPT Polish & Expansion</b> — Turn plain text or simple blank PPT into polished decks with auto-generated layouts and visual elements.</sub></p>
-
-<table>
-<tr>
-<th width="25%">Original PPT</th>
-<th width="25%">Polished</th>
-<th width="25%">Original PPT</th>
-<th width="25%">Polished</th>
-</tr>
-<tr>
-<td align="center">
 <img src="frontend-workflow/public/ppt2polish/orgin_3.png" alt="Original PPT" width="100%"/>
 </td>
 <td align="center">
 <img src="frontend-workflow/public/ppt2polish/polish_3.png" alt="Polished PPT" width="100%"/>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/orgin_4.png" alt="Original PPT" width="100%"/>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/polish_4.png" alt="Polished PPT" width="100%"/>
 </td>
 </tr>
 </table>
 
 ---
 
-#### 📸 Showcase - Paper2Figure
+### 2. Paper2Figure - Scientific Figure Generation
 
-##### Model Architecture Diagram Generation
+#### Model Architecture Diagram Generation
 
 <table>
 <tr>
@@ -325,15 +311,15 @@ Paper2Any currently includes the following sub-capabilities:
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img.png" alt="Input: paper PDF" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img.png" alt="Input: paper PDF" width="100%"/>
 <br><sub>📄 Paper PDF</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img_2.png" alt="Generated model diagram" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img_2.png" alt="Generated model diagram" width="100%"/>
 <br><sub>🎨 Generated model architecture</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img_3.png" alt="PPTX screenshot" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img_3.png" alt="PPTX screenshot" width="100%"/>
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
@@ -344,15 +330,15 @@ Paper2Any currently includes the following sub-capabilities:
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_1.png" alt="Input: paper PDF" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_1.png" alt="Input: paper PDF" width="100%"/>
 <br><sub>📄 Paper PDF</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_2.png" alt="Generated model diagram" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_2.png" alt="Generated model diagram" width="100%"/>
 <br><sub>🎨 Generated model architecture</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_3.png" alt="PPTX screenshot" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_3.png" alt="PPTX screenshot" width="100%"/>
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
@@ -363,7 +349,7 @@ Paper2Any currently includes the following sub-capabilities:
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_1.png" alt="Input: key paragraphs" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_1.png" alt="Input: key paragraphs" width="100%"/>
 <br><sub>📄 Input key paragraphs</sub>
 </td>
 <td align="center">
@@ -371,7 +357,7 @@ Paper2Any currently includes the following sub-capabilities:
 <br><sub>🎨 Generated model architecture</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_3.png" alt="PPTX screenshot" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_3.png" alt="PPTX screenshot" width="100%"/>
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
@@ -388,9 +374,7 @@ Upload a paper PDF and choose the diagram difficulty (Easy/Medium/Hard). The sys
 
 </div>
 
----
-
-##### Technical Roadmap Diagram Generation
+#### Technical Roadmap Diagram Generation
 
 <table>
 <tr>
@@ -400,15 +384,15 @@ Upload a paper PDF and choose the diagram difficulty (Easy/Medium/Hard). The sys
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/paper1.png" alt="Input: paper text (Chinese)" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/paper1.png" alt="Input: paper text (Chinese)" width="100%"/>
 <br><sub>📝 Method section (Chinese)</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/cn_img_1.png" alt="Roadmap diagram SVG" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/cn_img_1.png" alt="Roadmap diagram SVG" width="100%"/>
 <br><sub>🗺️ Roadmap diagram SVG</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/cn_img_2.png" alt="PPTX screenshot" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/cn_img_2.png" alt="PPTX screenshot" width="100%"/>
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
@@ -419,15 +403,15 @@ Upload a paper PDF and choose the diagram difficulty (Easy/Medium/Hard). The sys
 </tr>
 <tr>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/paper2.png" alt="Input: paper text (English)" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/paper2.png" alt="Input: paper text (English)" width="100%"/>
 <br><sub>📝 Method section (English)</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/en_img_1.png" alt="Roadmap diagram SVG" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/en_img_1.png" alt="Roadmap diagram SVG" width="100%"/>
 <br><sub>🗺️ Roadmap diagram SVG</sub>
 </td>
 <td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2t/en_img_2.png" alt="PPTX screenshot" width="100%"/>
+<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/en_img_2.png" alt="PPTX screenshot" width="100%"/>
 <br><sub>📊 Editable PPTX</sub>
 </td>
 </tr>
@@ -438,207 +422,57 @@ Upload a paper PDF and choose the diagram difficulty (Easy/Medium/Hard). The sys
 </tr>
 </table>
 
-<div align="center">
-
-Paste the method section and select the language (Chinese/English). The system organizes modules and dependencies and generates a clean **PPTX roadmap** plus an **editable SVG**.
-
-</div>
-
----
-
-##### Experimental Plot Generation
+#### Experimental Plot Generation
 
 <table>
 <tr>
 <th width="33%">Input</th>
 <th width="33%">Standard Style</th>
-<th width="33%">Polished Style</th>
+<th width="33%">Hand-drawn Style</th>
 </tr>
 <tr>
 <td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2e/paper_1.png" alt="Input: experimental results screenshot" width="100%"/>
+  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2e/paper_1.png" alt="Input: experimental results" width="100%"/>
+  <br><sub>📄 Experimental results screenshot</sub>
+</td>
+<td align="center">
+  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2e/paper_1_2.png" alt="Output: standard style" width="100%"/>
+  <br><sub>📈 Standard Python style</sub>
+</td>
+<td align="center">
+  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@lz/dev/static/paper2any_imgs/p2e/paper_1_3.png" alt="Output: hand-drawn style" width="100%"/>
+  <br><sub>🎨 Hand-drawn style</sub>
+</td>
+</tr>
+<tr>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_2.png" alt="Input: experimental results screenshot" width="100%"/>
   <br><sub>📄 Input: paper PDF / results screenshot</sub>
 </td>
 <td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2e/paper_1_2.png" alt="Output: standard plot" width="100%"/>
-  <br><sub>📈 Output: standard Python-style plot</sub>
+  <img src="static/paper2any_imgs/p2e/paper_2_2.png" alt="Output: plot (standard)" width="100%"/>
+  <br><sub>📈 Output: standard Python style plot</sub>
 </td>
 <td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/paper2any_imgs/p2e/paper_1_3.png" alt="Output: polished plot" width="100%"/>
-  <br><sub>🎨 Output: publication-ready styled plot</sub>
+  <img src="static/paper2any_imgs/p2e/paper_2_3.png" alt="Output: plot (cartoon style)" width="100%"/>
+  <br><sub>🎨 Output: cartoon style experimental plot</sub>
+</td>
+</tr>
+<tr>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_3.png" alt="Input: experimental results screenshot" width="100%"/>
+  <br><sub>📄 Input: paper PDF / results screenshot</sub>
+</td>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_3_2.png" alt="Output: plot (standard)" width="100%"/>
+  <br><sub>📈 Output: standard Python style plot</sub>
+</td>
+<td align="center">
+  <img src="static/paper2any_imgs/p2e/paper_3_3.png" alt="Output: plot (polygon style)" width="100%"/>
+  <br><sub>🎨 Output: polygon style experimental plot</sub>
 </td>
 </tr>
 </table>
-
-<div align="center">
-
-Upload experimental result screenshots or tables, automatically extract key data and generate **editable experimental plots in PPTX**, with both standard and stylized options for papers and presentations.
-
-</div>
-
-<p><sub>🎨 <b>PPT Color Enhancement</b> — Intelligently adjust style, color scheme and visual hierarchy based on existing PPT content</sub></p>
-
-<table>
-<tr>
-<th width="25%">Original PPT</th>
-<th width="25%">Enhanced</th>
-<th width="25%">Original PPT</th>
-<th width="25%">Enhanced</th>
-</tr>
-<tr>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/paper2ppt_orgin_1.png" alt="Original PPT" width="100%"/>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/paper2ppt_polish_1.png" alt="Enhanced PPT" width="100%"/>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/paper2ppt_orgin_2.png" alt="Original PPT" width="100%"/>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/paper2ppt_polish_2.png" alt="Enhanced PPT" width="100%"/>
-</td>
-</tr>
-</table>
-
-<p><sub>✍️ <b>PPT Polish & Expand</b> — Transform plain text or simple blank PPT into polished presentations with auto-generated layouts and visual elements</sub></p>
-
-<table>
-<tr>
-<th width="25%">Original PPT</th>
-<th width="25%">Polished</th>
-<th width="25%">Original PPT</th>
-<th width="25%">Polished</th>
-</tr>
-<tr>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/orgin_3.png" alt="Original PPT" width="100%"/>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/polish_3.png" alt="Polished PPT" width="100%"/>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/orgin_4.png" alt="Original PPT" width="100%"/>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/polish_4.png" alt="Polished PPT" width="100%"/>
-</td>
-</tr>
-</table>
-
----
-
-#### 🖥️ How to Use
-
-**Option 1: Web Frontend (Recommended)**
-
-(Online version currently requires invitation code) Visit: [http://dcai-paper2any.nas.cpolar.cn/](http://dcai-paper2any.nas.cpolar.cn/)
-
-<div align="center">
-<img src="static/frontend_pages/paper2figure-1.png" alt="Web UI" width="80%"/>
-</div>
-
-**Highlights**:
-- 🎨 Modern UI
-- 📤 Drag & drop upload
-- ⚙️ Visual parameter configuration
-- 📊 Real-time progress
-- 📥 One-click download
-
-<!--
-**Option 2: Gradio UI**
-
-```bash
-python gradio_app/app.py
-```
-
-Open `http://127.0.0.1:7860`
-
-**Highlights**:
-- 🚀 Fast deployment
-- 🔧 Flexible configuration
-- 📝 Batch processing
--->
-
----
-
-### 2️⃣ Easy-DataFlow - Data Governance Pipeline
-
-> From task description to executable pipelines: an AI-powered end-to-end data governance workflow.
-
-#### 🎯 Key Features
-
-| Module | Description | Status |
-|-------|-------------|--------|
-| 📊 **Pipeline Recommendation** | Generate executable Python pipeline code from task description | ✅ |
-| ✍️ **Operator Authoring** | AI-assisted development of custom data operators | ✅ |
-| 🎨 **Visual Orchestration** | Drag-and-drop pipeline composition | ✅ |
-| 🔄 **Prompt Optimization** | Automatically refine prompts to improve operator performance | ✅ |
-| 🌐 **Web Collection** | Automated web data collection and structuring | ✅ |
-
----
-
-#### 📸 Feature Demos
-
-**Pipeline Recommendation: From task to code**
-
-<div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/imag_piperec.png" alt="Pipeline recommendation" width="50%"/>
-<br><sub>💻 Analyze requirements and generate an optimal operator chain with runnable Python pipeline code</sub>
-</div>
-
----
-
-**Operator Authoring: AI-assisted development**
-
-<div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/image_opwrite.png" alt="Operator authoring" width="50%"/>
-<br><sub>⚙️ Generate operator code from functional descriptions and test/debug in the same UI</sub>
-</div>
-
----
-
-**Visual Orchestration: Drag-and-drop**
-
-<div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/image.png" alt="Visual orchestration" width="50%"/>
-<br><sub>🎨 Build pipelines visually by composing operators with a WYSIWYG interface</sub>
-</div>
-
----
-
-**Prompt Optimization: Automatic tuning**
-
-<div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/promptagent.png" alt="Prompt optimization" width="50%"/>
-<br><sub>✨ Reuse existing operators to auto-generate DataFlow prompt templates and optimize prompts</sub>
-</div>
-
----
-
-**Web Collection: Web to data**
-
-<div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/web_collection.png" alt="Web collection" width="50%"/>
-<br><sub>📊 Automate web collection & structuring into DataFlow-ready datasets</sub>
-</div>
-
----
-
-### 3️⃣ DataFlow-Table - Multi-source Data Analysis
-
-> Connect to multiple data sources and generate automated analysis and insights.
-
-#### 🚧 Work in Progress
-
-DataFlow-Table is under active development. Stay tuned!
-
-**Working features**:
-- 📥 Multi-source ingestion (DB / files / web / API)
-- 🧹 Intelligent cleaning & normalization
-- 📊 AI-driven automated analysis
-- 📝 Natural-language reports
-- 📈 Interactive charts & dashboards
 
 ---
 
@@ -655,21 +489,21 @@ DataFlow-Table is under active development. Stay tuned!
 
 ```bash
 # 0. Create and activate a conda environment
-conda create -n dataflow-agent python=3.11 -y
-conda activate dataflow-agent
+conda create -n paper2any python=3.11 -y
+conda activate paper2any
 
 # 1. Clone repository
-git clone https://github.com/OpenDCAI/DataFlow-Agent.git
-cd DataFlow-Agent
+git clone https://github.com/OpenDCAI/Paper2Any.git
+cd Paper2Any
 
 # 2. Install dependencies (base)
-pip install -r requirements.txt
+pip install -r requirements-base.txt
 
 # 3. Install package (editable / dev mode)
 pip install -e .
 ```
 
-#### Paper2Any Extra Dependencies (Optional but Recommended)
+#### Paper2Any Extra Dependencies (Required)
 
 Paper2Any involves LaTeX rendering, vector graphics processing, and PPT/PDF conversion, which require additional dependencies:
 
@@ -682,92 +516,17 @@ pip install -r requirements-paper.txt || pip install -r requirements-paper-backu
 conda install -c conda-forge tectonic -y
 
 # 3. Resolve doclayout_yolo dependency conflict (Important)
-# Due to a conflict between doclayout_yolo and paddleocr (albumentations version mismatch), install it separately ignoring dependencies:
+# Due to a conflict between doclayout_yolo and paddleocr, install it separately:
 pip install doclayout_yolo --no-deps
 
 # 4. System Dependencies (Ubuntu example)
 # Includes:
 # - inkscape: SVG / Vector graphics processing
 # - libreoffice: PPT operations / conversion
-# - poppler-utils: PDF utilities (pdftoppm / pdftocairo)
+# - poppler-utils: PDF utilities
 # - wkhtmltopdf: HTML to PDF
 sudo apt-get update
 sudo apt-get install -y inkscape libreoffice poppler-utils wkhtmltopdf
-
-```
-
-### 🪟 Windows Installation
-
-> [!NOTE]  
-> Currently, it is recommended to experience DataFlow-Agent in a Linux / WSL environment first.
-> If you need to deploy it on native Windows, please follow the steps below.
-
-#### 1. Create Environment and Install Basic Dependencies
-
-```bash
-# 0. Create and activate the conda environment
-conda create -n dataflow-agent python=3.12 -y
-conda activate dataflow-agent
-
-# 1. Clone the repository
-git clone https://github.com/OpenDCAI/DataFlow-Agent.git
-cd DataFlow-Agent
-
-# 2. Install basic dependencies
-pip install -r requirements-win-base.txt
-
-# 3. Install in development mode
-pip install -e .
-```
-
-#### 2. Install Paper2Any-related Dependencies (Recommended)
-
-Paper2Any involves LaTeX rendering and vector graphics processing, which requires additional dependencies (see `requirements-paper.txt`):
-
-```bash
-# Python dependencies
-pip install -r requirements-paper.txt
-
-# tectonic: LaTeX engine (conda installation recommended)
-conda install -c conda-forge tectonic -y
-```
-
-🎨 Install Inkscape (SVG/Vector Graphics Processing | Recommended/Mandatory)
-
-- Download and install (Windows 64-bit MSI):  
-  https://inkscape.org/release/inkscape-1.4.2/windows/64-bit/msi/?redirected=1  
-  Select the **Windows Installer Package (msi)**
-
-- Add the Inkscape executable directory to the system environment variable `Path` (example):
-  - `C:\Program Files\Inkscape\bin\`
-
-> [!TIP]  
-> After configuring `Path`, it is recommended to reopen the terminal (or restart VS Code / PowerShell) to ensure the environment variable takes effect.
-
-⚡ Install Windows-compiled vLLM (Optional | For Local Inference Acceleration)
-
-- Release page reference: https://github.com/SystemPanic/vllm-windows/releases  
-- Recommended version: **0.11.0** (example .whl filename is as follows)
-
-```bash
-pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
-```
-
-> [!IMPORTANT]  
-> Please ensure the `.whl` file matches your current environment:  
-> - Python: `cp312` (Python 3.12)  
-> - Platform: `win_amd64`  
-> - CUDA: `cu124` (must be compatible with your local CUDA/driver version)
-
-#### PPT / PDF related system dependencies (recommended for Paper2PPT & PPT polishing)
-
-If you plan to use **Paper2PPT / PPT polishing / PDF2PPT** features, we recommend installing the following packages on Linux (Ubuntu example):
-
-```bash
-sudo apt-get update
-sudo apt-get install -y libreoffice       # Office / PPT operations
-sudo apt-get install -y poppler-utils     # PDF utilities (pdftoppm, pdftocairo, etc.)
-sudo apt-get install -y wkhtmltopdf       # HTML to PDF, used in some layout conversion workflows
 ```
 
 ### Environment Configuration
@@ -777,171 +536,50 @@ export DF_API_KEY=your_api_key_here
 export DF_API_URL=xxx 
 # If using third-party API gateway
 
-# [Optional] Configure GPU resource pool for MinerU PDF parsing (Load Balancing)
-# Specify a list of available GPU IDs (comma-separated). The PDF parsing task will automatically and randomly select one GPU to run on, avoiding congestion.
-# Default: 5,6,7
+# [Optional] Configure GPU resource pool for MinerU PDF parsing
 export MINERU_DEVICES="0,1,2,3"
 ```
-
-Third-party API gateways:
-
-[https://api.apiyi.com/](https://api.apiyi.com/)
-
-[http://123.119.219.111:3000/](http://123.119.219.111:3000/)
-
-<details>
-<summary><b>🔧 Advanced Config: Local Model Service Load Balancing</b></summary>
-
-<br>
-
-For high-concurrency local deployments, use `script/start_model_servers.sh` to start a cluster of local model services (MinerU / SAM / OCR).
-
-**Script Location**: `dev/DataFlow-Agent/script/start_model_servers.sh`
-
-**Key Configuration Items**:
-
-*   **MinerU (PDF Parsing)**
-    *   `MINERU_MODEL_PATH`: Model path (default `models/MinerU2.5-2509-1.2B`)
-    *   `MINERU_GPU_UTIL`: GPU memory utilization (default `0.2`)
-    *   **Instance Config**: Defaults to 4 instances each on GPU 0 and GPU 4 (8 total), port range 8011-8018.
-    *   **Load Balancer**: Port 8010, automatically distributes requests.
-
-*   **SAM (Segment Anything Model)**
-    *   **Instance Config**: Defaults to 1 instance each on GPU 2 and GPU 3, ports 8021-8022.
-    *   **Load Balancer**: Port 8020.
-
-*   **OCR (PaddleOCR)**
-    *   **Config**: Runs on CPU, uses uvicorn worker mechanism (default 4 workers).
-    *   **Port**: 8003.
-
-Before use, please modify `gpu_id` and instance counts in the script according to your actual GPU quantity and memory availability.
-
-</details>
 
 ---
 
 ### Launch Applications
 
-> [!NOTE]
-> **Paper2Any**: Generate editable scientific figures, technical roadmaps, experimental plots, and presentations from paper PDFs / images / text.
-
-#### 🎨 Paper2Any - Paper Workflow
-
 **Web Frontend (Recommended)**
 
 ```bash
-# Start backend API
+# 1. Start backend API
 cd fastapi_app
 uvicorn main:app --host 0.0.0.0 --port 8000
 
-# Start frontend (new terminal)
+# 2. Start frontend (new terminal)
 cd frontend-workflow
 npm install
 npm run dev
-
-# Configure dev/DataFlow-Agent/frontend-workflow/vite.config.ts
-# Modify server.proxy to:
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 3000,
-    open: true,
-    allowedHosts: true,
-    proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:8000',  // FastAPI backend address
-        changeOrigin: true,
-      },
-    },
-  },
-})
 ```
 
 Visit `http://localhost:3000`
 
-**Loading MinerU Pre-trained Model on Windows**
-```bash
-# Load MinerU pre-trained model
-# PowerShell环境下启动
-vllm serve opendatalab/MinerU2.5-2509-1.2B `
-  --host 127.0.0.1 `
-  --port 8010 `
-  --logits-processors mineru_vl_utils:MinerULogitsProcessor `
-  --gpu-memory-utilization 0.6 `
-  --trust-remote-code `
-  --enforce-eager
-```
-
 > [!TIP]
-> **Paper2Figure Web Beta Access**
-> - After you have deployed the frontend, you also need to **manually create** an `invite_codes.txt` file at the project root and write your invitation code inside (e.g. `ABCDEFG123456`).
-> - Then start the backend.
-> - If you don’t want to deploy the frontend/backend for now, you can still try the core Paper2Any features locally via:
->   - `python script/run_paper2figure.py`: model architecture diagram generation
->   - `python script/run_paper2expfigure.py`: experimental figure generation
->   - `python script/run_paper2technical.py`: technical roadmap generation
->   - `python script/run_paper2ppt.py`: content-based PPT generation
->   - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`: PDF2PPT (layout-preserving & editable)
-
-**Features**:
-- ✨ Modern UI design
-- 🎯 Visual parameter configuration
-- 📊 Real-time progress tracking
-- 📥 One-click download
-
----
-
-> [!NOTE]
-> **Easy-DataFlow**: From natural language task descriptions, automatically recommend operators and pipeline structures, generating executable data processing pipelines.
-
-#### 📊 Easy-DataFlow - Data Governance
-
-**Gradio Web Interface**
-
-```bash
-python gradio_app/app.py
-```
-
-Visit `http://127.0.0.1:7860`
-
-**Features**:
-- 🚀 Fast deployment
-- 🔧 Flexible configuration
-- 📝 Batch processing support
-
----
-
-> [!NOTE]
-> **DataFlow-Table**: For multi-source data ingestion and exploratory analysis, currently under development.
-
-#### 🔍 DataFlow-Table - Data Analysis
-
-🚧 **Under development, stay tuned!**
+> If you don't want to deploy the frontend/backend for now, you can try core features locally via scripts:
+> - `python script/run_paper2figure.py`: model architecture diagram generation
+> - `python script/run_paper2ppt.py`: content-based PPT generation
+> - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`: PDF2PPT
 
 ---
 
 ## 📂 Project Structure
 
 ```
-DataFlow-Agent/
+Paper2Any/
 ├── dataflow_agent/          # Core framework code
-│   ├── agentroles/         # Agent definitions (@register auto-registration)
-│   ├── workflow/           # Workflow definitions (wf_*.py)
+│   ├── agentroles/         # Agent definitions
+│   │   └── paper2any_agents/ # Agents specific to Paper2Any
+│   ├── workflow/           # Workflow definitions
 │   ├── promptstemplates/   # Prompt template library
-│   ├── toolkits/           # Toolkits (LLM/Docker/Image, etc.)
-│   ├── graphbuilder/       # StateGraph builder
-│   └── states/             # State management
-├── gradio_app/             # Gradio Web interface
-│   ├── app.py             # Main program
-│   └── pages/             # Page modules (auto-discovery)
+│   └── toolkits/           # Toolkits (Figure gen, PPT gen, etc.)
 ├── fastapi_app/            # FastAPI backend service
-│   ├── main.py            # API entry point
-│   └── routers/           # Router modules
 ├── frontend-workflow/      # Frontend workflow editor
-│   ├── src/               # Source code
-│   └── public/            # Static assets
-├── docs/                   # Documentation
-├── static/                 # Static resources (images, etc.)
+├── static/                 # Static resources
 ├── script/                 # Script tools
 └── tests/                  # Test cases
 ```
@@ -986,101 +624,7 @@ DataFlow-Agent/
 <img src="https://img.shields.io/badge/⚠-Editable_PPTX-yellow?style=flat-square" alt="WIP"/>
 </td>
 </tr>
-<tr>
-<td><strong>📌 Paper2Poster</strong><br><sub>Editable Academic Posters</sub></td>
-<td><img src="https://img.shields.io/badge/Status-Working-lightgrey?style=flat-square" alt="Working"/></td>
-<td>
-<img src="https://img.shields.io/badge/○-Layout_Design-lightgrey?style=flat-square" alt="Working"/><br>
-<img src="https://img.shields.io/badge/○-Key_Points-lightgrey?style=flat-square" alt="Working"/><br>
-<img src="https://img.shields.io/badge/○-Visual_Refinement-lightgrey?style=flat-square" alt="Working"/>
-</td>
-</tr>
-<tr>
-<td><strong>🧪 Paper2Exp</strong><br><sub>Auto Experiment Runner</sub></td>
-<td><img src="https://img.shields.io/badge/Status-Working-lightgrey?style=flat-square" alt="Working"/></td>
-<td>
-<img src="https://img.shields.io/badge/○-Code_Generation-lightgrey?style=flat-square" alt="Working"/><br>
-<img src="https://img.shields.io/badge/○-Environment_Setup-lightgrey?style=flat-square" alt="Working"/><br>
-<img src="https://img.shields.io/badge/○-Auto_Execution-lightgrey?style=flat-square" alt="Working"/>
-</td>
-</tr>
-<tr>
-<td><strong>📚 PaperCiter</strong><br><sub>Smart Citation Assistant</sub></td>
-<td><img src="https://img.shields.io/badge/Status-Working-lightgrey?style=flat-square" alt="Working"/></td>
-<td>
-<img src="https://img.shields.io/badge/○-Citation_Search-lightgrey?style=flat-square" alt="Working"/><br>
-<img src="https://img.shields.io/badge/○-Auto_Formatting-lightgrey?style=flat-square" alt="Working"/>
-</td>
-</tr>
 </table>
-
----
-
-### 📊 Data Series
-
-<table>
-<tr>
-<th width="35%">Feature</th>
-<th width="15%">Status</th>
-<th width="50%">Sub-features</th>
-</tr>
-<tr>
-<td><strong>🔄 Easy-DataFlow</strong><br><sub>Data Governance Pipeline</sub></td>
-<td><img src="https://img.shields.io/badge/Progress-100%25-success?style=flat-square&logo=progress" alt="100%"/></td>
-<td>
-<img src="https://img.shields.io/badge/✓-Pipeline_Recommendation-success?style=flat-square" alt="Done"/><br>
-<img src="https://img.shields.io/badge/✓-Operator_Authoring-success?style=flat-square" alt="Done"/><br>
-<img src="https://img.shields.io/badge/✓-Visual_Orchestration-success?style=flat-square" alt="Done"/><br>
-<img src="https://img.shields.io/badge/✓-Prompt_Optimization-success?style=flat-square" alt="Done"/><br>
-<img src="https://img.shields.io/badge/✓-Web_Collection-success?style=flat-square" alt="Done"/>
-</td>
-</tr>
-<tr>
-<td><strong>📊 DataFlow-Table</strong><br><sub>Multi-source Data Analysis</sub></td>
-<td><img src="https://img.shields.io/badge/Status-Working-lightgrey?style=flat-square" alt="Working"/></td>
-<td>
-<img src="https://img.shields.io/badge/○-Multi--source_Ingestion-lightgrey?style=flat-square" alt="Working"/><br>
-<img src="https://img.shields.io/badge/○-Smart_Retrieval-lightgrey?style=flat-square" alt="Working"/><br>
-<img src="https://img.shields.io/badge/○-Lineage_Tracking-lightgrey?style=flat-square" alt="Working"/><br>
-<img src="https://img.shields.io/badge/○-Advanced_Visualization-lightgrey?style=flat-square" alt="Working"/>
-</td>
-</tr>
-</table>
-
----
-
-### 🛠️ Tool Enhancements
-
-<table>
-<tr>
-<th width="35%">Feature</th>
-<th width="15%">Status</th>
-<th width="50%">Sub-features</th>
-</tr>
-<tr>
-<td><strong>🎨 Workflow Visual Editor</strong><br><sub>Drag-and-drop Workflow Builder</sub></td>
-<td><img src="https://img.shields.io/badge/Status-Working-lightgrey?style=flat-square" alt="Working"/></td>
-<td>
-<img src="https://img.shields.io/badge/○-Drag_&_Drop_Interface-lightgrey?style=flat-square" alt="Working"/><br>
-<img src="https://img.shields.io/badge/○-5_Agent_Modes-lightgrey?style=flat-square" alt="Working"/><br>
-<img src="https://img.shields.io/badge/○-20+_Preset_Nodes-lightgrey?style=flat-square" alt="Working"/>
-</td>
-</tr>
-<tr>
-<td><strong>💾 Trajectory Export</strong><br><sub>Training Data Export</sub></td>
-<td><img src="https://img.shields.io/badge/Status-Working-lightgrey?style=flat-square" alt="Working"/></td>
-<td>
-<img src="https://img.shields.io/badge/○-JSON/JSONL_Format-lightgrey?style=flat-square" alt="Working"/><br>
-<img src="https://img.shields.io/badge/○-SFT_Format-lightgrey?style=flat-square" alt="Working"/><br>
-<img src="https://img.shields.io/badge/○-DPO_Format-lightgrey?style=flat-square" alt="Working"/>
-</td>
-</tr>
-</table>
-
-<div align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/DataFlow-Agent@main/static/dfa_fronted.png" width="800" alt="Workflow Editor"/>
-<br><sub>🎨 Workflow Visual Editor Preview</sub>
-</div>
 
 ---
 
@@ -1088,11 +632,9 @@ DataFlow-Agent/
 
 We welcome all forms of contributions!
 
-[![Issues](https://img.shields.io/badge/Issues-Submit_Bug-red?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/DataFlow-Agent/issues)
-[![Discussions](https://img.shields.io/badge/Discussions-Feature_Request-blue?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/DataFlow-Agent/discussions)
-[![PR](https://img.shields.io/badge/PR-Submit_Code-green?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/DataFlow-Agent/pulls)
-
-Detailed contribution guide: [docs/contributing.md](docs/contributing.md)
+[![Issues](https://img.shields.io/badge/Issues-Submit_Bug-red?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/issues)
+[![Discussions](https://img.shields.io/badge/Discussions-Feature_Request-blue?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/discussions)
+[![PR](https://img.shields.io/badge/PR-Submit_Code-green?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/pulls)
 
 ---
 
@@ -1104,20 +646,14 @@ This project is licensed under [Apache License 2.0](LICENSE)
 
 ---
 
-## 🙏 Acknowledgments
-
-Thanks to all contributors! Special thanks to the upstream project [OpenDCAI/DataFlow](https://github.com/OpenDCAI/DataFlow)
-
----
-
 <div align="center">
 
 **If this project helps you, please give us a ⭐️ Star!**
 
-[![GitHub stars](https://img.shields.io/github/stars/OpenDCAI/DataFlow-Agent?style=social)](https://github.com/OpenDCAI/DataFlow-Agent/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/OpenDCAI/DataFlow-Agent?style=social)](https://github.com/OpenDCAI/DataFlow-Agent/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/OpenDCAI/Paper2Any?style=social)](https://github.com/OpenDCAI/Paper2Any/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/OpenDCAI/Paper2Any?style=social)](https://github.com/OpenDCAI/Paper2Any/network/members)
 
-[Submit Issue](https://github.com/OpenDCAI/DataFlow-Agent/issues) • [View Docs](docs/) • [Join Discussion](https://github.com/OpenDCAI/DataFlow-Agent/discussions)
+[Submit Issue](https://github.com/OpenDCAI/Paper2Any/issues) • [Join Discussion](https://github.com/OpenDCAI/Paper2Any/discussions)
 
 Made with ❤️ by OpenDCAI Team
 
@@ -1127,16 +663,12 @@ Made with ❤️ by OpenDCAI Team
 
 ## 🌐 Join the Community
 
-Join the DataFlow open-source community to ask questions, share ideas, and collaborate with other developers!
-
 - 📮 **GitHub Issues**: Report bugs or suggest new features  
-  👉 https://github.com/OpenDCAI/DataFlow-Agent/issues
-- 🔧 **GitHub Pull Requests**: Contribute code improvements and documentation updates  
-  👉 https://github.com/OpenDCAI/DataFlow-Agent/pulls
+  👉 https://github.com/OpenDCAI/Paper2Any/issues
 - 💬 **Community Group**: Connect with maintainers and other contributors
 
 <div align="center">
   <img src="static/team_wechat.png" alt="DataFlow-Agent WeChat Community" width="560"/>
   <br>
-  <sub>Scan to join the DataFlow-Agent WeChat community group</sub>
+  <sub>Scan to join the community group</sub>
 </div>

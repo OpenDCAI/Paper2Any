@@ -233,7 +233,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-dataflow-agent.log*
+dataflow_agent.log*
+dataflow_agent.log.*
 
 # Editor directories and files
 .DS_Store
@@ -277,3 +278,5 @@ dev-debug.log
 
 # Taskmaster AI (local task management)
 .taskmaster/
+
+frontend-workflow/vite.config.ts

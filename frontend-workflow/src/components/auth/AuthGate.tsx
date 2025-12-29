@@ -82,7 +82,7 @@ export function AuthGate({ children }: Props) {
           ) : (
             <User size={16} />
           )}
-          Continue as guest (limited features)
+          访客登录 （使用次数限制）
         </button>
       </div>
     );
