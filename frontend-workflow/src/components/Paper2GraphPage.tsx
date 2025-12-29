@@ -768,29 +768,36 @@ const Paper2FigurePage = () => {
 
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">模型 API URL</label>
-                    <input
-                      type="text"
-                      value={llmApiUrl}
-                      onChange={e => setLlmApiUrl(e.target.value)}
-                      placeholder="例如：https://api.apiyi.com/v1"
-                      className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs text-gray-400">
-                        API Key
-                      </label>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={llmApiUrl}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setLlmApiUrl(val);
+                          if (val === 'http://123.129.219.111:3000/v1') {
+                            setModel('gemini-3-pro-image-preview');
+                          }
+                        }}
+                        className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      >
+                        <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
+                        <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
+                      </select>
                       <a
-                        href="https://api.apiyi.com/"
+                        href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com"}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[10px] text-primary-300 hover:text-primary-200 hover:underline"
+                        className="whitespace-nowrap text-[10px] text-primary-300 hover:text-primary-200 hover:underline px-2"
                       >
                         点击购买
                       </a>
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">
+                      API Key
+                    </label>
                     <input
                       type="password"
                       value={apiKey}
@@ -805,11 +812,15 @@ const Paper2FigurePage = () => {
                     <select
                       value={model}
                       onChange={e => setModel(e.target.value)}
-                      className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
+                      className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <option value="gemini-2.5-flash-image-preview">gemini-2.5-flash-image-preview</option>
                       <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
                     </select>
+                    {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
+                       <p className="text-[10px] text-gray-500 mt-1">此源仅支持 gemini-3-pro</p>
+                    )}
                   </div>
 
                   {graphType === 'model_arch' ? (
