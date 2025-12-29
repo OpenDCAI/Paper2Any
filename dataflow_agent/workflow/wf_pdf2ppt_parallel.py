@@ -596,18 +596,6 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
         # ==========================================================
         # 辅助函数：字体和几何计算
         # ==========================================================
-        def _get_dominant_font_size(lines, img_h):
-            """计算正文文本的“众数”字号 (pt)"""
-            sizes = []
-            for bbox, _, _ in lines:
-                pt = ppt_tool.estimate_font_pt(bbox, img_h_px=img_h, body_h_px=None).pt
-                if pt:
-                    sizes.append(round(pt)) 
-            if not sizes: return 12.0
-            counts = Counter(sizes)
-            dominant = counts.most_common(1)[0][0]
-            return float(dominant)
-
         def _bbox_area(bbox):
             return max(0, bbox[2] - bbox[0]) * max(0, bbox[3] - bbox[1])
 
@@ -759,8 +747,7 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
             # -----------------------------------------------------------
             # Step 2: 过滤 OCR 文字
             # -----------------------------------------------------------
-            final_ocr_lines = [] # (bbox, text, conf, type)
-            body_lines_for_stats = []
+            final_ocr_lines = [] # (bbox, text, conf, type, raw_pt)
             
             for line in lines:
                 l_bbox, l_text, l_conf = line
@@ -785,13 +772,11 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                             l_type = "title"
                             break
                     
-                    final_ocr_lines.append((l_bbox, l_text, l_conf, l_type))
-                    if l_type == "body":
-                        body_lines_for_stats.append((l_bbox, l_text, l_conf))
+                    # 预先计算原始字号，方便后续聚类
+                    raw_pt_obj = ppt_tool.estimate_font_pt(l_bbox, img_h_px=h0, body_h_px=None)
+                    raw_pt = raw_pt_obj.pt if hasattr(raw_pt_obj, "pt") else raw_pt_obj
 
-            std_body_pt = _get_dominant_font_size(body_lines_for_stats, h0)
-            std_title_pt = std_body_pt * 1.5
-            log.info(f"[pdf2ppt_with_sam][page#{page_idx+1}] Standard Body Font: {std_body_pt}pt, Title: {std_title_pt}pt")
+                    final_ocr_lines.append((l_bbox, l_text, l_conf, l_type, raw_pt))
 
             # -----------------------------------------------------------
             # Step 3: 过滤 SAM 图块
@@ -903,14 +888,31 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                 "image_zones": image_zones,
                 "final_sam_items": final_sam_items,
                 "final_ocr_lines": final_ocr_lines,
-                "std_title_pt": std_title_pt,
-                "std_body_pt": std_body_pt,
                 "ai_task": ai_task  # 用于追踪哪个页面发起了 AI 请求
             })
 
         # ==========================================================
-        # Phase 2: 并发执行 AI 任务
+        # Phase 2: 并发执行 AI 任务 & 字号聚类
         # ==========================================================
+        
+        # 2.1 字号聚类逻辑
+        use_global_clustering = getattr(state, "use_global_font_clustering", False)
+        global_clusterer = None
+        
+        if use_global_clustering:
+            log.info("[pdf2ppt_with_sam] Performing GLOBAL font size clustering...")
+            all_sizes = []
+            for p_data in pages_render_data:
+                for line in p_data["final_ocr_lines"]:
+                    # line: (bbox, text, conf, type, raw_pt)
+                    raw_pt = line[4]
+                    if raw_pt and raw_pt > 0:
+                        all_sizes.append(raw_pt)
+            
+            global_clusterer = ppt_tool.FontSizeClustering(n_clusters=3)
+            global_clusterer.fit(all_sizes)
+        
+        # 2.2 执行 AI 任务
         if ai_coroutines:
             log.info(f"[pdf2ppt_with_sam] Executing {len(ai_coroutines)} AI background tasks in parallel...")
             start_t = __import__("time").time()
@@ -930,8 +932,15 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
             image_zones = p_data["image_zones"]
             final_sam_items = p_data["final_sam_items"]
             final_ocr_lines = p_data["final_ocr_lines"]
-            std_title_pt = p_data["std_title_pt"]
-            std_body_pt = p_data["std_body_pt"]
+            
+            # 准备当页的字号聚类器
+            if use_global_clustering:
+                clusterer = global_clusterer
+            else:
+                # 单页聚类模式
+                page_sizes = [l[4] for l in final_ocr_lines if l[4] > 0]
+                clusterer = ppt_tool.FontSizeClustering(n_clusters=3)
+                clusterer.fit(page_sizes)
 
             slide = prs.slides.add_slide(prs.slide_layouts[6])
 
@@ -992,7 +1001,7 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
 
             # 3.4 渲染 OCR Text
             for line in final_ocr_lines:
-                bbox, text, conf, l_type = line
+                bbox, text, conf, l_type, raw_pt = line
                 x1, y1, x2, y2 = bbox
                 if (x2 - x1) < 5 or (y2 - y1) < 5: continue
 
@@ -1011,11 +1020,13 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
                 p = tf.paragraphs[0]
                 p.text = text
                 
+                # 应用字号映射
+                final_pt = clusterer.map(raw_pt)
+                p.font.size = Pt(final_pt)
+                
+                # MinerU 的 Title 标签只用于加粗，不再强制改变字号
                 if l_type == "title":
-                    p.font.size = Pt(std_title_pt)
                     p.font.bold = True
-                else:
-                    p.font.size = Pt(std_body_pt)
                 
                 p.font.color.rgb = RGBColor(0, 0, 0)
 
