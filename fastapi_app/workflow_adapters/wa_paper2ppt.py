@@ -16,6 +16,7 @@ from typing import Any, List
 
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureState
+from dataflow_agent.toolkits.imtool.mineru_tool import _shrink_markdown
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.workflow import run_workflow
 
@@ -196,6 +197,24 @@ async def run_paper2ppt_wf_api(
          
     #  mineru_root 写死
     state.mineru_root = f"{base_dir}/input/auto"
+
+    # 尝试回填 mineru_output (markdown)，供 table_extractor 等使用
+    try:
+        md_dir = Path(state.mineru_root)
+        if md_dir.exists():
+            md_files = list(md_dir.glob("*.md"))
+            if md_files:
+                # 默认取第一个 md
+                md_path = md_files[0]
+                raw_md = md_path.read_text(encoding="utf-8")
+                state.mineru_output = _shrink_markdown(raw_md, max_h1=8, max_chars=30_000)
+                log.info(f"[paper2ppt_wf_api] Loaded mineru_output from {md_path}, len={len(state.mineru_output)}")
+            else:
+                log.warning(f"[paper2ppt_wf_api] No .md file found in {md_dir}")
+        else:
+            log.warning(f"[paper2ppt_wf_api] mineru_root dir not found: {md_dir}")
+    except Exception as e:
+        log.warning(f"[paper2ppt_wf_api] Failed to load mineru_output: {e}")
 
     log.info(
         f"[paper2ppt_wf_api] start, result_path={getattr(state, 'result_path', None)}, "
