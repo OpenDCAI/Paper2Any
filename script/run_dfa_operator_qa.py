@@ -43,16 +43,16 @@ def parse_args():
         epilog="""
 示例:
     # 单次查询
-    python run_dfa_operator_qa.py --query "我想过滤掉缺失值用哪个算子？"
+    python script/run_dfa_operator_qa.py --query "我想过滤掉缺失值用哪个算子？"
     
     # 交互模式（多轮对话）
-    python run_dfa_operator_qa.py --interactive
+    python script/run_dfa_operator_qa.py --interactive
     
     # 查看算子源码
-    python run_dfa_operator_qa.py --query "给我看看 PromptedFilter 的源码"
+    python script/run_dfa_operator_qa.py --query "给我看看 PromptedFilter 的源码"
     
     # 查询参数含义
-    python run_dfa_operator_qa.py --query "PromptedGenerator 的 run 方法参数是什么意思？"
+    python script/run_dfa_operator_qa.py --query "PromptedGenerator 的 run 方法参数是什么意思？"
         """
     )
     
