@@ -484,7 +484,10 @@ Paper2Any 当前包含以下几个子能力：
 
 ### 🐧 Linux 安装
 
-> 建议使用 Conda 创建隔离环境（推荐 Python 3.11）。
+> 建议使用 Conda 创建隔离环境（推荐 Python 3.11）。  
+> 下述命令以 Ubuntu 为例，其他发行版请参考对应包管理器命令。
+
+#### 1. 创建环境并安装基础依赖
 
 ```bash
 # 0. 创建并激活 conda 环境
@@ -502,51 +505,212 @@ pip install -r requirements-base.txt
 pip install -e .
 ```
 
-#### 安装 Paper2Any 额外依赖（必须）
+#### 2. 安装 Paper2Any 相关依赖（必须）
 
 Paper2Any 涉及 LaTeX 渲染、矢量图处理以及 PPT/PDF 转换，需要额外依赖：
 
 ```bash
 # 1. Python 依赖
+# (如果 requirements-paper.txt 安装失败，可尝试 requirements-paper-backup.txt)
 pip install -r requirements-paper.txt || pip install -r requirements-paper-backup.txt
 
 # 2. LaTeX 引擎 (tectonic) - 推荐用 conda 安装
 conda install -c conda-forge tectonic -y
 
 # 3. 解决 doclayout_yolo 依赖冲突（重要）
+# 由于 doclayout_yolo 可能与 paddleocr 存在依赖冲突（albumentations 版本不一致），建议忽略依赖检查单独安装：
 pip install doclayout_yolo --no-deps
 
 # 4. 系统依赖 (Ubuntu 示例)
+# 包含：
+# - inkscape: SVG / 矢量图处理
+# - libreoffice: PPT 打开 / 转换
+# - poppler-utils: PDF 工具 (pdftoppm / pdftocairo)
+# - wkhtmltopdf: HTML 转 PDF
 sudo apt-get update
 sudo apt-get install -y inkscape libreoffice poppler-utils wkhtmltopdf
 ```
 
-#### 配置环境变量
+#### 3. 配置环境变量
 
 ```bash
 export DF_API_KEY=your_api_key_here
 export DF_API_URL=xxx  # 可选：如需使用第三方 API 中转站
 
-# [可选] 配置 MinerU PDF 解析任务的 GPU 资源池
+# [可选] 配置 MinerU PDF 解析任务的 GPU 资源池（负载均衡）
+# 指定一组可用 GPU ID（逗号分隔），PDF 解析任务会自动随机选择一张卡运行，避免拥堵。
+# 默认值：5,6,7
+# 这个主要用于 paper2ppt 场景下，MinerU 的解析服务
 export MINERU_DEVICES="0,1,2,3"
 ```
 
+第三方 API 中转示例：
+
+- https://api.apiyi.com/
+- http://123.119.219.111:3000/
+
+<details>
+<summary><b>🔧 高级配置：本地模型服务负载均衡（可选）</b></summary>
+
+<br>
+
+如果是本地部署高并发环境，可以使用 `script/start_model_servers.sh` 启动本地模型服务集群（MinerU / SAM / OCR），以提升 Paper2Any 在 PDF 解析和图像处理场景下的吞吐能力。
+
+**脚本位置**：`script/start_model_servers.sh`
+
+**主要配置项说明**（与 Paper2Any 强相关的部分）：
+
+*   **MinerU (PDF 解析)**
+    *   `MINERU_MODEL_PATH`: 模型路径 (默认 `models/MinerU2.5-2509-1.2B`)
+    *   `MINERU_GPU_UTIL`: 显存占用比例 (默认 `0.2`)
+    *   **实例配置**: 脚本默认在多张 GPU 上启动若干实例，端口范围通常为 `8011-8018`。
+    *   **Load Balancer**: 端口 `8010`，自动分发请求。
+
+*   **SAM (Segment Anything Model，用于图像分割)**
+    *   **实例配置**: 默认在多张 GPU 上各启动 1 个实例，端口范围 `8021-8022`。
+    *   **Load Balancer**: 端口 `8020`。
+
+*   **OCR (PaddleOCR)**
+    *   **配置**: 通常运行在 CPU 上，使用 uvicorn 的 worker 机制 (默认 4 workers)。
+    *   **端口**: `8003`。
+
+使用前请根据实际 GPU 数量和显存情况修改脚本中的 `gpu_id` 和实例数量。
+
+</details>
+
 ---
 
-### 启动 Web 前端（推荐）
+### 🪟 Windows 安装
+
+> [!NOTE]  
+> 目前推荐优先在 Linux / WSL 环境下体验 Paper2Any。  
+> 若你需要在原生 Windows 上部署，请按以下步骤操作。
+
+#### 1. 创建环境并安装基础依赖
 
 ```bash
-# 1. 启动后端 API
+# 0. 创建并激活 conda 环境
+conda create -n paper2any python=3.12 -y
+conda activate paper2any
+
+# 1. 克隆仓库
+git clone https://github.com/OpenDCAI/Paper2Any.git
+cd Paper2Any
+
+# 2. 安装基础依赖
+pip install -r requirements-win-base.txt
+
+# 3. 开发模式安装
+pip install -e .
+```
+
+#### 2. 安装 Paper2Any 相关依赖（必须）
+
+Paper2Any 涉及 LaTeX 渲染与矢量图处理，需要额外依赖（见 `requirements-paper.txt`）：
+
+```bash
+# Python 依赖
+pip install -r requirements-paper.txt
+
+# tectonic：LaTeX 引擎（推荐用 conda 安装）
+conda install -c conda-forge tectonic -y
+```
+
+🎨 安装 Inkscape（SVG/矢量图处理｜推荐/必装）
+
+- 下载并安装（Windows 64-bit MSI）：  
+  https://inkscape.org/release/inkscape-1.4.2/windows/64-bit/msi/?redirected=1  
+  选择 **Windows Installer Package（msi）**
+
+- 将 Inkscape 可执行文件目录加入系统环境变量 `Path`（示例）：
+  - `C:\Program Files\Inkscape\bin\`
+
+> [!TIP]  
+> 配置 `Path` 后建议重新打开终端（或重启 VS Code / PowerShell），确保环境变量生效。
+
+⚡ 安装 Windows 编译版 vLLM（可选｜用于本地 MinerU 推理加速）
+
+- 发布页参考：https://github.com/SystemPanic/vllm-windows/releases  
+- 示例版本：**0.11.0**（whl 文件名示例）
+
+```bash
+pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
+```
+
+> [!IMPORTANT]  
+> 请确保 `.whl` 与当前环境匹配：  
+> - Python：`cp312`（Python 3.12）  
+> - 平台：`win_amd64`  
+> - CUDA：`cu124`（需与你本机 CUDA/驱动适配）
+
+---
+
+### 启动应用
+
+> [!NOTE]
+> **Paper2Any**：从论文 PDF / 图片 / 文本一键生成可编辑的科研绘图、技术路线图、实验数据图和演示文稿。
+
+#### 🎨 Web 前端（推荐）
+
+```bash
+# 启动后端 API
 cd fastapi_app
 uvicorn main:app --host 0.0.0.0 --port 8000
 
-# 2. 启动前端（新终端）
+# 启动前端（新终端）
 cd frontend-workflow
 npm install
 npm run dev
+
+# 如需要自定义前端端口或反向代理，可在 vite.config.ts 中配置 server.proxy：
+# 示例：
+# export default defineConfig({
+#   plugins: [react()],
+#   server: {
+#     port: 3000,
+#     open: true,
+#     allowedHosts: true,
+#     proxy: {
+#       '/api': {
+#         target: 'http://127.0.0.1:8000',  // FastAPI 后端地址
+#         changeOrigin: true,
+#       },
+#     },
+#   },
+# })
 ```
 
-访问 `http://localhost:3000` 即可使用。
+访问 `http://localhost:3000`。
+
+> [!TIP]
+> **Paper2Figure 网页端内测说明**
+> - 部署了前端之后，需要**手动新建**一个 `invite_codes.txt` 文件，并写入你的邀请码（例如：`ABCDEFG123456`）。
+> - 然后再启动后端；
+> - 如果暂时不想部署前后端，可以通过本地脚本直接体验 Paper2Any 的核心能力：
+>   - `python script/run_paper2figure.py`：模型架构图生成
+>   - `python script/run_paper2expfigure.py`：实验数据图生成
+>   - `python script/run_paper2technical.py`：技术路线图生成
+>   - `python script/run_paper2ppt.py`：论文内容生成可编辑 PPT
+>   - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`：PDF2PPT（保留版式 + 可编辑内容）
+
+#### 🪟 Windows 下加载 MinerU 预训练模型（可选）
+
+如果你在 Windows + GPU 环境中使用 vLLM 部署 MinerU 模型，可以参考下述命令（PowerShell 环境）：
+
+```bash
+# 加载 MinerU 预训练模型
+vllm serve opendatalab/MinerU2.5-2509-1.2B `
+  --host 127.0.0.1 `
+  --port 8010 `
+  --logits-processors mineru_vl_utils:MinerULogitsProcessor `
+  --gpu-memory-utilization 0.6 `
+  --trust-remote-code `
+  --enforce-eager
+```
+
+> [!TIP]
+> - 启动成功后，将 MinerU 推理服务地址配置到对应的环境变量或配置文件中即可被 Paper2Any 使用。
+> - 端口号和 GPU 占用比例可根据实际资源进行调整。
 
 > [!TIP]
 > 如果暂时不想部署前后端，可以通过本地脚本体验核心功能：

@@ -579,132 +579,159 @@ const Paper2FigurePage = () => {
           {/* 上半区：上传区 + 高级配置 */}
           <div className="grid grid-cols-1 lg:grid-cols-[2fr,minmax(260px,1fr)] gap-6 mb-10">
             {/* 上传卡片 */}
-            <div className="gradient-border">
-              <div className="relative rounded-xl bg-white/95 text-gray-900 p-6 lg:p-8 overflow-hidden">
-                <div className="absolute -right-10 -top-10 w-40 h-40 bg-primary-100 rounded-full opacity-60 blur-3xl pointer-events-none" />
-                <div className="relative">
-                  <p className="text-xs font-medium text-primary-600 mb-2">选择你的输入方式</p>
-                  <h2 className="text-xl font-semibold mb-1">从 Paper 出发，生成 PPTX</h2>
-                  <p className="text-xs text-gray-500 mb-4">
-                    支持上传 PDF / 图片，或直接粘贴文字内容，我们会帮你生成结构清晰、可编辑的 PPTX。
-                  </p>
+            <div className="glass rounded-xl border border-white/10 p-6 lg:p-8 relative overflow-hidden">
+              {/* 装饰背景光 */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50 blur-sm"></div>
 
-                  {/* 绘图类型选择 */}
-                  <div className="mb-4">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">绘图类型</label>
-                    <select
-                      value={graphType}
-                      onChange={e => setGraphType(e.target.value as GraphType)}
-                      className="w-full rounded-lg border border-gray-300 bg-white/80 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400"
-                    >
-                      <option value="model_arch">模型架构图</option>
-                      <option value="tech_route">技术路线图</option>
-                      <option value="exp_data">实验数据图</option>
-                    </select>
-                  </div>
+              <div className="relative">
+                <div className="mb-3 flex items-center gap-2 px-1">
+                  <span className="w-1 h-4 rounded-full bg-blue-500"></span>
+                  <h3 className="text-white font-medium text-sm">选择你的输入方式</h3>
+                </div>
 
-                  {/* 上传模式 Tab */}
-                  <div className="inline-flex items-center rounded-full bg-gray-100 p-1 text-xs mb-5">
-                    <button
-                      type="button"
-                      onClick={() => setUploadMode('file')}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full ${
-                        uploadMode === 'file'
-                          ? 'bg-white shadow text-gray-900'
-                          : 'text-gray-500 hover:text-gray-800'
-                      }`}
-                    >
-                      <UploadCloud size={14} />
-                      文件（PDF）
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setUploadMode('text')}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full ${
-                        uploadMode === 'text'
-                          ? 'bg-white shadow text-gray-900'
-                          : 'text-gray-500 hover:text-gray-800'
-                      }`}
-                    >
-                      <Type size={14} />
-                      文本
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (graphType === 'tech_route' || graphType === 'exp_data') {
-                          // 不允许切换为 image，给出友好提示
-                          setError('技术路线图和实验数据图仅支持 PDF 或文本输入，不支持图片');
-                          return;
-                        }
-                        setUploadMode('image');
-                      }}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full ${
-                        uploadMode === 'image'
-                          ? 'bg-white shadow text-gray-900'
-                          : 'text-gray-500 hover:text-gray-800'
-                      } ${graphType === 'tech_route' || graphType === 'exp_data' ? 'opacity-40 cursor-not-allowed' : ''}`}
-                    >
-                      <ImageIcon size={14} />
-                      图片
-                    </button>
-                  </div>
+                <div className="mb-6">
+                   <p className="text-2xl font-semibold mb-1 text-white">从 Paper 出发，生成 PPTX</p>
+                   <p className="text-xs text-gray-400">
+                     支持上传 PDF / 图片，或直接粘贴文字内容，我们会帮你生成结构清晰、可编辑的 PPTX。
+                   </p>
+                </div>
 
-                  {/* 不同模式内容区域 */}
-                  {(uploadMode === 'file' || uploadMode === 'image') && (
-                    <div
-                      className={`border border-dashed rounded-xl p-5 flex flex-col items-center justify-center text-center gap-3 bg-white/60 transition-colors ${
-                        isDragOver ? 'border-primary-500 bg-primary-50' : 'border-gray-300'
-                      }`}
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                    >
-                      <div className="flex items-center justify-center gap-2 text-gray-600 text-sm">
-                        <FileText size={20} />
-                        <span className="font-medium">
-                          拖拽 {uploadMode === 'file' ? 'PDF' : '图片'} 到此处，或点击选择文件
-                        </span>
-                      </div>
-                      <label className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-500 text-white text-xs font-medium cursor-pointer hover:bg-primary-600 transition-colors">
-                        选择文件
-                        <input
-                          type="file"
-                          accept={
-                            uploadMode === 'file'
-                              ? graphType === 'model_arch'
-                                ? '.pdf,image/*'
-                                : '.pdf'
-                              : 'image/*'
-                          }
-                          className="hidden"
-                          onChange={handleFileChange}
-                        />
-                      </label>
-                      <p className="text-[11px] text-gray-500">
+                {/* 绘图类型选择 */}
+                <div className="mb-6">
+                  <label className="block text-xs font-medium text-gray-400 mb-2">绘图类型</label>
+                  <select
+                    value={graphType}
+                    onChange={e => setGraphType(e.target.value as GraphType)}
+                    className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-gray-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  >
+                    <option value="model_arch">模型架构图</option>
+                    <option value="tech_route">技术路线图</option>
+                    <option value="exp_data">实验数据图</option>
+                  </select>
+                </div>
+
+                {/* 上传模式 Tab (炫酷卡片式 - 蓝色系) */}
+                <div className="grid grid-cols-3 gap-3 mb-6 p-1.5 bg-black/40 rounded-2xl border border-white/5">
+                  <button
+                    type="button"
+                    onClick={() => setUploadMode('file')}
+                    className={`relative group flex flex-col items-center justify-center py-3 rounded-xl transition-all duration-300 overflow-hidden ${
+                      uploadMode === 'file'
+                        ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-[1.02] ring-1 ring-white/20'
+                        : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200 hover:scale-[1.02]'
+                    }`}
+                  >
+                     {uploadMode === 'file' && (
+                        <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-shimmer-fast"></div>
+                     )}
+                     <FileText size={22} className={`mb-1.5 transition-colors ${uploadMode === 'file' ? 'text-white' : 'text-gray-500 group-hover:text-blue-400'}`} />
+                     <span className={`text-sm font-bold tracking-wide ${uploadMode === 'file' ? 'text-white' : 'text-gray-300'}`}>文件</span>
+                     <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === 'file' ? 'text-blue-100' : 'text-gray-600'}`}>PDF</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setUploadMode('text')}
+                    className={`relative group flex flex-col items-center justify-center py-3 rounded-xl transition-all duration-300 overflow-hidden ${
+                      uploadMode === 'text'
+                         ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-[1.02] ring-1 ring-white/20'
+                         : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200 hover:scale-[1.02]'
+                    }`}
+                  >
+                     {uploadMode === 'text' && (
+                        <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-shimmer-fast"></div>
+                     )}
+                     <Type size={22} className={`mb-1.5 transition-colors ${uploadMode === 'text' ? 'text-white' : 'text-gray-500 group-hover:text-blue-400'}`} />
+                     <span className={`text-sm font-bold tracking-wide ${uploadMode === 'text' ? 'text-white' : 'text-gray-300'}`}>文本</span>
+                     <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === 'text' ? 'text-blue-100' : 'text-gray-600'}`}>Text Content</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (graphType === 'tech_route' || graphType === 'exp_data') {
+                        setError('技术路线图和实验数据图仅支持 PDF 或文本输入，不支持图片');
+                        return;
+                      }
+                      setUploadMode('image');
+                    }}
+                    className={`relative group flex flex-col items-center justify-center py-3 rounded-xl transition-all duration-300 overflow-hidden ${
+                      graphType === 'tech_route' || graphType === 'exp_data'
+                        ? 'opacity-40 cursor-not-allowed bg-white/5 text-gray-600'
+                        : uploadMode === 'image'
+                           ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-[1.02] ring-1 ring-white/20'
+                           : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200 hover:scale-[1.02]'
+                    }`}
+                  >
+                     {uploadMode === 'image' && (
+                        <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-shimmer-fast"></div>
+                     )}
+                     <ImageIcon size={22} className={`mb-1.5 transition-colors ${uploadMode === 'image' ? 'text-white' : 'text-gray-500 group-hover:text-blue-400'}`} />
+                     <span className={`text-sm font-bold tracking-wide ${uploadMode === 'image' ? 'text-white' : 'text-gray-300'}`}>图片</span>
+                     <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === 'image' ? 'text-blue-100' : 'text-gray-600'}`}>Image</span>
+                  </button>
+                </div>
+
+                {/* 不同模式内容区域 */}
+                {(uploadMode === 'file' || uploadMode === 'image') && (
+                  <div
+                    className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center gap-4 transition-all h-[300px] ${
+                      isDragOver ? 'border-blue-500 bg-blue-500/10' : 'border-white/20 hover:border-blue-400 bg-black/20'
+                    }`}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                  >
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center">
+                      <UploadCloud size={32} className="text-blue-400" />
+                    </div>
+                    <div>
+                      <p className="text-white font-medium mb-1">
+                        拖拽 {uploadMode === 'file' ? 'PDF' : '图片'} 到此处，或点击选择文件
+                      </p>
+                      <p className="text-sm text-gray-400">
                         {showFileHint()}，单个文件建议小于 20MB。
                       </p>
                     </div>
-                  )}
-
-                  {uploadMode === 'text' && (
-                    <div className="space-y-3">
-                      <label className="block text-xs font-medium text-gray-600">
-                        粘贴论文摘要、章节内容或任意需要做成 PPT 的文字
-                      </label>
-                      <textarea
-                        value={textContent}
-                        onChange={e => setTextContent(e.target.value)}
-                        rows={8}
-                        placeholder="在这里粘贴论文的摘要、章节内容，或任意需要转换为 PPTX 的文本（支持中英文）..."
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 bg-white/80 resize-none"
+                    <label className="px-6 py-2.5 rounded-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-sm font-medium cursor-pointer hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg shadow-blue-500/20">
+                      选择文件
+                      <input
+                        type="file"
+                        accept={
+                          uploadMode === 'file'
+                            ? graphType === 'model_arch'
+                              ? '.pdf,image/*'
+                              : '.pdf'
+                            : 'image/*'
+                        }
+                        className="hidden"
+                        onChange={handleFileChange}
                       />
-                      <p className="text-[11px] text-gray-500">
-                        建议控制在 5,000 字以内，过长内容可以分段多次生成 PPTX。
-                      </p>
-                    </div>
-                  )}
-                </div>
+                    </label>
+                    {selectedFile && (
+                        <div className="px-4 py-2 bg-blue-500/20 border border-blue-500/40 rounded-lg animate-fade-in">
+                          <p className="text-sm text-blue-300 font-medium">✓ {selectedFile.name}</p>
+                        </div>
+                    )}
+                  </div>
+                )}
+
+                {uploadMode === 'text' && (
+                  <div className="space-y-3 h-[300px] flex flex-col">
+                    <label className="block text-xs font-medium text-gray-400">
+                      粘贴论文摘要、章节内容或任意需要做成 PPT 的文字
+                    </label>
+                    <textarea
+                      value={textContent}
+                      onChange={e => setTextContent(e.target.value)}
+                      placeholder="在这里粘贴论文的摘要、章节内容，或任意需要转换为 PPTX 的文本（支持中英文）..."
+                      className="flex-1 w-full rounded-xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-blue-500 resize-none placeholder:text-gray-600"
+                    />
+                    <p className="text-[11px] text-gray-500 text-right">
+                      建议控制在 5,000 字以内，过长内容可以分段多次生成 PPTX。
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -741,29 +768,36 @@ const Paper2FigurePage = () => {
 
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">模型 API URL</label>
-                    <input
-                      type="text"
-                      value={llmApiUrl}
-                      onChange={e => setLlmApiUrl(e.target.value)}
-                      placeholder="例如：https://api.apiyi.com/v1"
-                      className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs text-gray-400">
-                        API Key
-                      </label>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={llmApiUrl}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setLlmApiUrl(val);
+                          if (val === 'http://123.129.219.111:3000/v1') {
+                            setModel('gemini-3-pro-image-preview');
+                          }
+                        }}
+                        className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      >
+                        <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
+                        <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
+                      </select>
                       <a
-                        href="https://api.apiyi.com/"
+                        href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com"}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[10px] text-primary-300 hover:text-primary-200 hover:underline"
+                        className="whitespace-nowrap text-[10px] text-primary-300 hover:text-primary-200 hover:underline px-2"
                       >
                         点击购买
                       </a>
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">
+                      API Key
+                    </label>
                     <input
                       type="password"
                       value={apiKey}
@@ -778,11 +812,15 @@ const Paper2FigurePage = () => {
                     <select
                       value={model}
                       onChange={e => setModel(e.target.value)}
-                      className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
+                      className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <option value="gemini-2.5-flash-image-preview">gemini-2.5-flash-image-preview</option>
                       <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
                     </select>
+                    {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
+                       <p className="text-[10px] text-gray-500 mt-1">此源仅支持 gemini-3-pro</p>
+                    )}
                   </div>
 
                   {graphType === 'model_arch' ? (
@@ -1108,6 +1146,9 @@ const Paper2FigurePage = () => {
         }
         .animate-shimmer {
           animation: shimmer 3s infinite;
+        }
+        .animate-shimmer-fast {
+          animation: shimmer 1.5s infinite;
         }
         @keyframes fade-in {
           from { opacity: 0; transform: translateY(10px); }

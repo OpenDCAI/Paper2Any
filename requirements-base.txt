@@ -87,3 +87,4 @@ opencv-python
 librosa
 soundfile
 python-pptx
+scikit-learn

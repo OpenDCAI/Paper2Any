@@ -25,6 +25,10 @@ from dataflow_agent.agentroles.data_agents.operator_qa_agent import (
     OperatorRAGService,
     create_operator_qa_agent,
 )
+from dataflow_agent.toolkits.filetool.filetools import (
+    read_file_content,
+    list_directory_content,
+)
 
 from dataflow_agent.logger import get_logger
 
@@ -129,6 +133,59 @@ def create_operator_qa_graph() -> GenericGraphBuilder:
         """
         params = rag_service.get_operator_params(operator_name)
         return json.dumps(params, ensure_ascii=False, indent=2)
+    
+    # ==========================================================================
+    # 文件操作工具 (File Tools) - LLM 自主决定是否调用
+    # ==========================================================================
+    
+    class ReadFileInput(BaseModel):
+        """读取文件内容的输入参数"""
+        file_path: str = Field(description="文件路径，可以是相对路径（相对于项目根目录）或绝对路径")
+        start_line: int = Field(default=None, description="起始行号（从1开始，可选）。不指定则从第1行开始")
+        end_line: int = Field(default=None, description="结束行号（包含，可选）。不指定则读取到文件末尾")
+    
+    @builder.post_tool("operator_qa")
+    @tool(args_schema=ReadFileInput)
+    def read_text_file(file_path: str, start_line: int = None, end_line: int = None) -> str:
+        """
+        读取文本文件内容。
+        
+        支持读取项目内的任意文本文件，可指定读取的行范围。
+        出于安全考虑，只能读取项目根目录内的文件。
+        
+        当用户需要查看某个文件的内容、或需要了解项目中某个文件的具体实现时使用此工具。
+        
+        Examples:
+            >>> read_text_file("README.md")  # 读取整个文件
+            >>> read_text_file("src/main.py", start_line=10, end_line=20)  # 读取第10-20行
+        """
+        result = read_file_content(file_path, start_line, end_line)
+        return json.dumps(result, ensure_ascii=False, indent=2)
+    
+    class ListDirectoryInput(BaseModel):
+        """查看目录内容的输入参数"""
+        dir_path: str = Field(description="目录路径，可以是相对路径（相对于项目根目录）或绝对路径")
+        show_hidden: bool = Field(default=False, description="是否显示隐藏文件（以.开头的文件），默认 False")
+        recursive: bool = Field(default=False, description="是否递归显示子目录内容，默认 False")
+    
+    @builder.post_tool("operator_qa")
+    @tool(args_schema=ListDirectoryInput)
+    def list_directory(dir_path: str, show_hidden: bool = False, recursive: bool = False) -> str:
+        """
+        查看目录内容。
+        
+        列出指定目录下的文件和子目录，支持 Windows 和 Linux 系统。
+        出于安全考虑，只能查看项目根目录内的目录。
+        
+        当用户需要了解项目结构、查看某个目录下有哪些文件时使用此工具。
+        
+        Examples:
+            >>> list_directory(".")  # 列出项目根目录
+            >>> list_directory("src", show_hidden=True)  # 列出 src 目录，包含隐藏文件
+            >>> list_directory("dataflow_agent", recursive=True)  # 递归列出目录
+        """
+        result = list_directory_content(dir_path, show_hidden, recursive)
+        return json.dumps(result, ensure_ascii=False, indent=2)
         
     # ==========================================================================
     # 节点定义 (Nodes)

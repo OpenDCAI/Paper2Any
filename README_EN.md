@@ -483,9 +483,14 @@ Upload a paper PDF and choose the diagram difficulty (Easy/Medium/Hard). The sys
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![pip](https://img.shields.io/badge/pip-latest-3776AB?style=flat-square&logo=pypi&logoColor=white)
 
-### Installation
+---
 
-> We recommend using Conda to create an isolated environment (Python 3.11+).
+### 🐧 Linux Installation
+
+> We recommend using Conda to create an isolated environment (Python 3.11+).  
+> The following commands assume Ubuntu; for other distros, please adapt the package manager commands accordingly.
+
+#### 1. Create Environment & Install Base Dependencies
 
 ```bash
 # 0. Create and activate a conda environment
@@ -496,73 +501,226 @@ conda activate paper2any
 git clone https://github.com/OpenDCAI/Paper2Any.git
 cd Paper2Any
 
-# 2. Install dependencies (base)
+# 2. Install base dependencies
 pip install -r requirements-base.txt
 
-# 3. Install package (editable / dev mode)
+# 3. Install package in editable (dev) mode
 pip install -e .
 ```
 
-#### Paper2Any Extra Dependencies (Required)
+#### 2. Install Paper2Any-specific Dependencies (Required)
 
-Paper2Any involves LaTeX rendering, vector graphics processing, and PPT/PDF conversion, which require additional dependencies:
+Paper2Any involves LaTeX rendering, vector graphics processing and PPT/PDF conversion, which require extra dependencies:
 
 ```bash
-# 1. Python Dependencies
+# 1. Python dependencies
 # (If requirements-paper.txt fails, try requirements-paper-backup.txt)
 pip install -r requirements-paper.txt || pip install -r requirements-paper-backup.txt
 
-# 2. LaTeX Engine (tectonic) - Recommended via conda
+# 2. LaTeX engine (tectonic) - recommended via conda
 conda install -c conda-forge tectonic -y
 
-# 3. Resolve doclayout_yolo dependency conflict (Important)
-# Due to a conflict between doclayout_yolo and paddleocr, install it separately:
+# 3. Resolve doclayout_yolo dependency conflicts (Important)
+# doclayout_yolo may conflict with paddleocr (e.g. albumentations version).
+# It is recommended to install it separately without dependency checks:
 pip install doclayout_yolo --no-deps
 
-# 4. System Dependencies (Ubuntu example)
+# 4. System dependencies (Ubuntu example)
 # Includes:
-# - inkscape: SVG / Vector graphics processing
-# - libreoffice: PPT operations / conversion
-# - poppler-utils: PDF utilities
+# - inkscape: SVG / vector graphics processing
+# - libreoffice: PPT opening / conversion
+# - poppler-utils: PDF tools (pdftoppm / pdftocairo)
 # - wkhtmltopdf: HTML to PDF
 sudo apt-get update
 sudo apt-get install -y inkscape libreoffice poppler-utils wkhtmltopdf
 ```
 
-### Environment Configuration
+#### 3. Environment Configuration
 
 ```bash
 export DF_API_KEY=your_api_key_here
-export DF_API_URL=xxx 
-# If using third-party API gateway
+export DF_API_URL=xxx  # Optional: if using a third-party API gateway
 
-# [Optional] Configure GPU resource pool for MinerU PDF parsing
+# [Optional] Configure GPU resource pool for MinerU PDF parsing (load balancing)
+# Specify a set of GPU IDs (comma-separated). PDF parsing jobs will randomly
+# pick one GPU to avoid congestion.
+# Default example: 5,6,7
+# Mainly used in paper2ppt scenarios for MinerU parsing service
 export MINERU_DEVICES="0,1,2,3"
 ```
+
+Example third-party API gateways:
+
+- https://api.apiyi.com/
+- http://123.119.219.111:3000/
+
+<details>
+<summary><b>🔧 Advanced: Local Model Service Load Balancing (Optional)</b></summary>
+
+<br>
+
+For high-concurrency on-prem deployments, you can use `script/start_model_servers.sh` to launch a local model service cluster (MinerU / SAM / OCR) to boost Paper2Any throughput in PDF parsing and image processing.
+
+**Script location**: `script/start_model_servers.sh`
+
+**Key components (related to Paper2Any):**
+
+*   **MinerU (PDF Parsing)**
+    *   `MINERU_MODEL_PATH`: model path (default `models/MinerU2.5-2509-1.2B`)
+    *   `MINERU_GPU_UTIL`: GPU memory utilization (default `0.2`)
+    *   **Instances**: by default, multiple instances on several GPUs, typical ports `8011-8018`
+    *   **Load Balancer**: port `8010`, automatically dispatches requests
+
+*   **SAM (Segment Anything Model for image segmentation)**
+    *   **Instances**: usually one instance per GPU, example ports `8021-8022`
+    *   **Load Balancer**: port `8020`
+
+*   **OCR (PaddleOCR)**
+    *   **Config**: usually runs on CPU with uvicorn workers (default 4)
+    *   **Port**: `8003`
+
+You should adapt the GPU IDs and instance counts in the script based on your actual hardware.
+
+</details>
+
+---
+
+### 🪟 Windows Installation
+
+> [!NOTE]  
+> We recommend Linux / WSL for best experience.  
+> If you need to deploy on native Windows, follow the steps below.
+
+#### 1. Create Environment & Install Base Dependencies
+
+```bash
+# 0. Create and activate a conda environment
+conda create -n paper2any python=3.12 -y
+conda activate paper2any
+
+# 1. Clone repository
+git clone https://github.com/OpenDCAI/Paper2Any.git
+cd Paper2Any
+
+# 2. Install base dependencies
+pip install -r requirements-win-base.txt
+
+# 3. Install in editable (dev) mode
+pip install -e .
+```
+
+#### 2. Install Paper2Any-specific Dependencies (Required)
+
+Paper2Any requires LaTeX rendering and vector graphics processing (see `requirements-paper.txt`):
+
+```bash
+# Python dependencies
+pip install -r requirements-paper.txt
+
+# tectonic: LaTeX engine (recommended via conda)
+conda install -c conda-forge tectonic -y
+```
+
+🎨 Install Inkscape (SVG / Vector Graphics | Recommended / Required)
+
+- Download & install (Windows 64-bit MSI):  
+  https://inkscape.org/release/inkscape-1.4.2/windows/64-bit/msi/?redirected=1  
+  Choose **Windows Installer Package (msi)**.
+
+- Add Inkscape binary directory to your `Path` environment variable, e.g.:
+  - `C:\Program Files\Inkscape\bin\`
+
+> [!TIP]  
+> After editing `Path`, restart your terminal (or VS Code / PowerShell) so the change takes effect.
+
+⚡ Install Windows vLLM Build (Optional | For Local MinerU Inference Acceleration)
+
+- See releases: https://github.com/SystemPanic/vllm-windows/releases  
+- Example version: **0.11.0** (example wheel filename):
+
+```bash
+pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
+```
+
+> [!IMPORTANT]  
+> Make sure the wheel matches your environment:  
+> - Python: `cp312` (Python 3.12)  
+> - Platform: `win_amd64`  
+> - CUDA: `cu124` (must match your local CUDA/driver stack)
 
 ---
 
 ### Launch Applications
 
-**Web Frontend (Recommended)**
+> [!NOTE]
+> **Paper2Any**: From PDFs / images / text to editable scientific figures, technical roadmaps, experimental plots and slide decks.
+
+#### 🎨 Web Frontend (Recommended)
 
 ```bash
-# 1. Start backend API
+# Start backend API
 cd fastapi_app
 uvicorn main:app --host 0.0.0.0 --port 8000
 
-# 2. Start frontend (new terminal)
+# Start frontend (new terminal)
 cd frontend-workflow
 npm install
 npm run dev
+
+# If you need to customize port or reverse proxy, configure server.proxy in vite.config.ts.
+# Example:
+# export default defineConfig({
+#   plugins: [react()],
+#   server: {
+#     port: 3000,
+#     open: true,
+#     allowedHosts: true,
+#     proxy: {
+#       '/api': {
+#         target: 'http://127.0.0.1:8000',  // FastAPI backend
+#         changeOrigin: true,
+#       },
+#     },
+#   },
+# })
 ```
 
-Visit `http://localhost:3000`
+Visit `http://localhost:3000`.
 
 > [!TIP]
-> If you don't want to deploy the frontend/backend for now, you can try core features locally via scripts:
+> **Paper2Figure Web Beta Access**
+> - After deploying the frontend, **create** a file named `invite_codes.txt` and add your invite code, e.g. `ABCDEFG123456`.
+> - Then start the backend;
+> - If you don't want to deploy frontend/backend, you can still try core Paper2Any features via local scripts:
+>   - `python script/run_paper2figure.py`: model architecture diagram generation
+>   - `python script/run_paper2expfigure.py`: experimental plot generation
+>   - `python script/run_paper2technical.py`: technical roadmap generation
+>   - `python script/run_paper2ppt.py`: paper-to-PPT generation
+>   - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`: PDF2PPT (layout preserved + editable content)
+
+#### 🪟 Load MinerU Pretrained Model on Windows (Optional)
+
+If you are on Windows + GPU and using vLLM to host MinerU locally, you can use a command like this (PowerShell):
+
+```bash
+# Serve MinerU pretrained model
+vllm serve opendatalab/MinerU2.5-2509-1.2B `
+  --host 127.0.0.1 `
+  --port 8010 `
+  --logits-processors mineru_vl_utils:MinerULogitsProcessor `
+  --gpu-memory-utilization 0.6 `
+  --trust-remote-code `
+  --enforce-eager
+```
+
+> [!TIP]
+> - After the service is up, configure the MinerU endpoint in your environment or config for Paper2Any to use.
+> - Adjust port and GPU memory utilization according to your hardware.
+
+> [!TIP]
+> If you don't want to deploy frontend/backend for now, you can try core features via local scripts:
 > - `python script/run_paper2figure.py`: model architecture diagram generation
-> - `python script/run_paper2ppt.py`: content-based PPT generation
+> - `python script/run_paper2ppt.py`: PPT generation from content
 > - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`: PDF2PPT
 
 ---

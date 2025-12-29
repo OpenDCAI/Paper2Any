@@ -58,6 +58,7 @@ import re
 from typing import Sequence, Optional, Dict, Any, List, Tuple
 import requests
 import random
+from collections import Counter
 
 import fitz  # PyMuPDF
 from pathlib import Path
@@ -121,6 +122,94 @@ PADDLE_OCR = PaddleOCR(
     use_angle_cls=True,  # 角度分类，处理横竖混排
     lang="ch",  # 中文 + 英文
 )
+
+# ----------------------------
+# Font Size Clustering
+# ----------------------------
+
+class FontSizeClustering:
+    """
+    自适应字号聚类器：将连续的、有噪声的字号估算值，映射到 K 个离散的"标准字号"。
+    支持全局聚类（全文档统一）或单页聚类。
+    依赖 sklearn.cluster.KMeans，如果缺失则回退到简单的众数/分位数策略。
+    """
+    def __init__(self, n_clusters: int = 4, merge_tol: float = 2.0):
+        self.n_clusters = n_clusters
+        self.merge_tol = merge_tol
+        self.centroids = []
+        self.has_sklearn = False
+        try:
+            from sklearn.cluster import KMeans
+            self._KMeans = KMeans
+            self.has_sklearn = True
+        except ImportError:
+            pass
+
+    def fit(self, font_sizes: List[float]) -> "FontSizeClustering":
+        """
+        输入原始字号列表（pt），计算聚类中心。
+        """
+        # 过滤无效值
+        data = [x for x in font_sizes if x > 0]
+        if not data:
+            self.centroids = [12.0] # 默认回退
+            return self
+
+        # 1. 如果数据量太少，直接用原始值（去重排序）
+        if len(data) < self.n_clusters:
+            self.centroids = sorted(list(set(data)))
+            return self
+
+        # 2. 如果没有 sklearn，回退到简单的直方图统计（取前K个高频值）
+        if not self.has_sklearn:
+            # 简单统计：取出现频率最高的 K 个，或者简单的分位数
+            # 这里用频率统计更符合"标准字号"的直觉
+            counts = Counter([round(x) for x in data])
+            top_k = counts.most_common(self.n_clusters)
+            self.centroids = sorted([float(x[0]) for x in top_k])
+            return self
+
+        # 3. K-Means 聚类
+        import numpy as np
+        X = np.array(data).reshape(-1, 1)
+        
+        # 动态调整 K：不能超过样本唯一值的数量
+        n_unique = len(set([round(x, 1) for x in data]))
+        real_k = min(self.n_clusters, n_unique)
+        
+        kmeans = self._KMeans(n_clusters=real_k, n_init=10, random_state=42)
+        kmeans.fit(X)
+        centers = sorted(kmeans.cluster_centers_.flatten())
+
+        # 4. 后处理：合并过近的中心 (Merge close centers)
+        merged_centers = []
+        if centers:
+            curr = centers[0]
+            for next_c in centers[1:]:
+                if (next_c - curr) < self.merge_tol:
+                    # 距离太近，合并（取平均）
+                    curr = (curr + next_c) / 2.0
+                else:
+                    merged_centers.append(curr)
+                    curr = next_c
+            merged_centers.append(curr)
+        
+        # 圆整到 0.5 pt
+        self.centroids = [round(c * 2) / 2.0 for c in merged_centers]
+        log.info(f"[FontSizeClustering] Fitted centroids: {self.centroids}")
+        return self
+
+    def map(self, pt: float) -> float:
+        """
+        将原始字号映射到最近的中心。
+        """
+        if not self.centroids:
+            return pt
+        
+        # 找最近邻
+        closest = min(self.centroids, key=lambda c: abs(c - pt))
+        return closest
+
 
 # ----------------------------
 # IO helpers
