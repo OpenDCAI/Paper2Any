@@ -2302,3 +2302,4 @@ class ChartCodeGeneratorPrompts:
 
 **关键**：代码必须实际执行并保存图表。不要只定义函数而不调用它们！
 """
+

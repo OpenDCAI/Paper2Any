@@ -482,3 +482,4 @@ class Paper2FigureState(MainState):
     mineru_pages: List[Dict[str, Any]] = field(default_factory=list)
     # pdf2ppt是否使用AI编辑
     use_ai_edit: bool = False
+    use_global_font_clustering: bool = False # 是否使用单页聚类器
