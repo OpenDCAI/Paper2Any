@@ -1,6 +1,0 @@
-# 默认基础依赖（原 requirements.txt 已迁移到 requirements-base.txt）
--r requirements-base.txt
-
-# 如需按业务系列安装，请使用：
-#   pip install -r requirements-paper.txt   # paper 系
-#   pip install -r requirements-data.txt    # data 系
