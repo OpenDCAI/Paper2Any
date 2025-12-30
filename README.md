@@ -546,8 +546,8 @@ export MINERU_DEVICES="0,1,2,3"
 
 第三方 API 中转示例：
 
-- https://api.apiyi.com/
-- http://123.119.219.111:3000/
+- <a href="https://api.apiyi.com/register/?aff_code=TbrD" target="_blank" rel="noopener">https://api.apiyi.com</a> **(API 友情赞助: API易)**
+<!-- - http://123.119.219.111:3000/ -->
 
 <details>
 <summary><b>🔧 高级配置：本地模型服务负载均衡（可选）</b></summary>
