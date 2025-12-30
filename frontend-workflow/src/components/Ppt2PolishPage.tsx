@@ -982,15 +982,24 @@ const Ppt2PolishPage = () => {
       await recordUsage(user?.id || null, 'ppt2polish');
       refreshQuota();
 
-      // Fetch PPT file and upload to Supabase Storage
-      if (pptxUrl) {
+      // Upload generated file to Supabase Storage (either PPTX or PDF)
+      // Prefer PPTX, fallback to PDF
+      let fileUrl = pptxUrl;
+      let defaultName = 'ppt2polish_result.pptx';
+
+      if (!fileUrl && pdfUrl) {
+        fileUrl = pdfUrl;
+        defaultName = 'ppt2polish_result.pdf';
+      }
+
+      if (fileUrl) {
         try {
-          const pptRes = await fetch(pptxUrl);
-          if (pptRes.ok) {
-            const pptBlob = await pptRes.blob();
-            const pptName = pptxUrl.split('/').pop() || 'ppt2polish_result.pptx';
-            console.log('[Ppt2PolishPage] Uploading file to storage:', pptName);
-            await uploadAndSaveFile(pptBlob, pptName, 'ppt2polish');
+          const fileRes = await fetch(fileUrl);
+          if (fileRes.ok) {
+            const fileBlob = await fileRes.blob();
+            const fileName = fileUrl.split('/').pop() || defaultName;
+            console.log('[Ppt2PolishPage] Uploading file to storage:', fileName);
+            await uploadAndSaveFile(fileBlob, fileName, 'ppt2polish');
             console.log('[Ppt2PolishPage] File uploaded successfully');
           }
         } catch (e) {
