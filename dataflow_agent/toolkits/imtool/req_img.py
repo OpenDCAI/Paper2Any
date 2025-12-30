@@ -23,7 +23,7 @@ def detect_provider(api_url: str) -> Provider:
     """
     根据 api_url 粗略识别服务商
     """
-    if "api.apiyi.com" in api_url:
+    if "apiyi" in api_url:
         return Provider.APIYI
     if "123.129.219.111" in api_url:
         return Provider.LOCAL_123
@@ -346,7 +346,7 @@ def build_gemini_generation_request(
 
     # 1) apiyi + gemini-2.5-flash-image-preview => generateContent + aspectRatio
     if provider is Provider.APIYI and is_gemini_25(model):
-        url = "https://api.apiyi.com/v1beta/models/gemini-2.5-flash-image:generateContent"
+        url = "http://b.apiyi.com:16888/v1beta/models/gemini-2.5-flash-image:generateContent"
         payload = {
             "contents": [
                 {
@@ -366,7 +366,7 @@ def build_gemini_generation_request(
 
     # 2) apiyi + gemini-3-pro-image-preview => generateContent + aspectRatio + imageSize
     if provider is Provider.APIYI and is_gemini_3_pro(model):
-        url = "https://api.apiyi.com/v1beta/models/gemini-3-pro-image-preview:generateContent"
+        url = "http://b.apiyi.com:16888/v1beta/models/gemini-3-pro-image-preview:generateContent"
         payload = {
             "contents": [
                 {
@@ -467,7 +467,7 @@ def build_gemini_edit_request(
 
     # 1) apiyi + 2.5 => generateContent + inlineData + aspectRatio
     if provider is Provider.APIYI and is_gemini_25(model) and aspect_ratio != "1:1":
-        url = "https://api.apiyi.com/v1beta/models/gemini-2.5-flash-image:generateContent"
+        url = "http://b.apiyi.com:16888/v1beta/models/gemini-2.5-flash-image:generateContent"
         payload = {
             "contents": [
                 {
@@ -493,7 +493,7 @@ def build_gemini_edit_request(
 
     # 2) apiyi + 3 Pro => generateContent + inline_data + aspectRatio + imageSize
     if provider is Provider.APIYI and is_gemini_3_pro(model):
-        url = "https://api.apiyi.com/v1beta/models/gemini-3-pro-image-preview:generateContent"
+        url = "http://b.apiyi.com:16888/v1beta/models/gemini-3-pro-image-preview:generateContent"
         payload = {
             "contents": [
                 {
@@ -637,8 +637,8 @@ async def gemini_multi_image_edit_async(
         })
         
     # 2. 构造 URL (强制使用 Google 原生格式端点)
-    # 假设 api_url 可能是 "https://api.apiyi.com/v1" 或 "https://api.apiyi.com"
-    # 我们需要构造类似 "https://api.apiyi.com/v1beta/models/{model}:generateContent"
+    # 假设 api_url 可能是 "http://b.apiyi.com:16888/v1" 或 "http://b.apiyi.com:16888"
+    # 我们需要构造类似 "http://b.apiyi.com:16888/v1beta/models/{model}:generateContent"
     
     base_url = api_url.rstrip("/")
     # 如果用户传的是 v1 结尾，尝试去掉它以回到根域名，或者直接替换
@@ -916,7 +916,7 @@ if __name__ == "__main__":
 
     async def _demo():
         # API_URL = "http://123.129.219.111:3000/v1"
-        API_URL = "https://api.apiyi.com/v1"
+        API_URL = "http://b.apiyi.com:16888/v1"
         API_KEY = os.getenv("DF_API_KEY", "sk-xxx")
         
         print("--- Testing Gemini 2.5 Flash Image ---")
@@ -999,38 +999,38 @@ if __name__ == "__main__":
         #     use_edit=True,
         # )
 
-    async def _test_123_edit():
-        # 准备一张测试图片
-        img_path = "/data/users/liuzhou/dev/DataFlow-Agent/tests/test_02.png"
-        if not os.path.exists(img_path):
-            try:
-                from PIL import Image
-                img = Image.new('RGB', (512, 512), color='red')
-                img.save(img_path)
-                print(f"Created dummy image at {img_path}")
-            except ImportError:
-                print("PIL not installed, skipping image creation. Please ensure test_input.png exists.")
-                return
+    # async def _test_123_edit():
+    #     # 准备一张测试图片
+    #     img_path = "/data/users/liuzhou/dev/DataFlow-Agent/tests/test_02.png"
+    #     if not os.path.exists(img_path):
+    #         try:
+    #             from PIL import Image
+    #             img = Image.new('RGB', (512, 512), color='red')
+    #             img.save(img_path)
+    #             print(f"Created dummy image at {img_path}")
+    #         except ImportError:
+    #             print("PIL not installed, skipping image creation. Please ensure test_input.png exists.")
+    #             return
 
-        API_URL = "http://123.129.219.111:3000/v1"
-        API_KEY = os.getenv("DF_API_KEY", "sk-123456") 
+    #     API_URL = "http://123.129.219.111:3000/v1"
+    #     API_KEY = os.getenv("DF_API_KEY", "sk-123456") 
         
-        print("\n--- Testing 123 Gemini 3 Pro Edit ---")
-        try:
-            await generate_or_edit_and_save_image_async(
-                prompt="",
-                save_path="./test_output_123.png",
-                api_url=API_URL,
-                api_key=API_KEY,
-                model="gemini-3-pro-image-preview",
-                use_edit=True,
-                image_path=img_path,
-                aspect_ratio="16:9",
-                resolution="2K"
-            )
-            print("Success!")
-        except Exception as e:
-            print(f"Failed: {e}")
+    #     print("\n--- Testing 123 Gemini 3 Pro Edit ---")
+    #     try:
+    #         await generate_or_edit_and_save_image_async(
+    #             prompt="",
+    #             save_path="./test_output_123.png",
+    #             api_url=API_URL,
+    #             api_key=API_KEY,
+    #             model="gemini-3-pro-image-preview",
+    #             use_edit=True,
+    #             image_path=img_path,
+    #             aspect_ratio="16:9",
+    #             resolution="2K"
+    #         )
+    #         print("Success!")
+    #     except Exception as e:
+    #         print(f"Failed: {e}")
 
-    # asyncio.run(_demo())
-    asyncio.run(_test_123_edit())
+    asyncio.run(_demo())
+    # asyncio.run(_test_123_edit())

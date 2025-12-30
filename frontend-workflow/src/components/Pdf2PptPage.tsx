@@ -230,7 +230,9 @@ const Pdf2PptPage = () => {
       await recordUsage(user?.id || null, 'pdf2ppt');
       refreshQuota();
       const outputName = selectedFile?.name.replace('.pdf', '.pptx') || 'pdf2ppt_output.pptx';
-      uploadAndSaveFile(blob, outputName, 'pdf2ppt');
+      console.log('[Pdf2PptPage] Uploading file to storage:', outputName);
+      await uploadAndSaveFile(blob, outputName, 'pdf2ppt');
+      console.log('[Pdf2PptPage] File uploaded successfully');
       
     } catch (err) {
       clearInterval(progressInterval);
@@ -417,7 +419,7 @@ const Pdf2PptPage = () => {
                       <Sparkles size={16} className="text-purple-400" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-white">AI 背景增强</p>
+                      <p className="text-sm font-medium text-white">AI 背景增强 （ 5分钟 ）</p>
                       <p className="text-xs text-gray-400">使用 Gemini 模型清除文字并修复背景</p>
                     </div>
                   </div>

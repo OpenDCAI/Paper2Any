@@ -713,10 +713,12 @@ const Paper2PptPage = () => {
           if (pptRes.ok) {
             const pptBlob = await pptRes.blob();
             const pptName = pptPath.split('/').pop() || 'paper2ppt_result.pptx';
-            uploadAndSaveFile(pptBlob, pptName, 'paper2ppt');
+            console.log('[Paper2PptPage] Uploading file to storage:', pptName);
+            await uploadAndSaveFile(pptBlob, pptName, 'paper2ppt');
+            console.log('[Paper2PptPage] File uploaded successfully');
           }
         } catch (e) {
-          console.warn('[Paper2PptPage] Failed to upload file:', e);
+          console.error('[Paper2PptPage] Failed to upload file:', e);
         }
       }
 

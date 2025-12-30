@@ -989,10 +989,12 @@ const Ppt2PolishPage = () => {
           if (pptRes.ok) {
             const pptBlob = await pptRes.blob();
             const pptName = pptxUrl.split('/').pop() || 'ppt2polish_result.pptx';
-            uploadAndSaveFile(pptBlob, pptName, 'ppt2polish');
+            console.log('[Ppt2PolishPage] Uploading file to storage:', pptName);
+            await uploadAndSaveFile(pptBlob, pptName, 'ppt2polish');
+            console.log('[Ppt2PolishPage] File uploaded successfully');
           }
         } catch (e) {
-          console.warn('[Ppt2PolishPage] Failed to upload file:', e);
+          console.error('[Ppt2PolishPage] Failed to upload file:', e);
         }
       }
     } catch (err) {
