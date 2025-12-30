@@ -84,7 +84,7 @@
 Paper2Any 当前包含以下几个子能力：
 
 - **📊 Paper2Figure - 可编辑科研绘图**：一键生成模型架构图、技术路线图（PPT + SVG）、实验数据图，支持多种输入源，输出可编辑 PPTX。
-- **🎬 Paper2PPT - 可编辑演示文稿**：生成 Beamer 风格或开放式可编辑 PPT，支持超长文档处理，内置表格提取与图表解析功能。
+- **🎬 Paper2PPT - 可编辑演示文稿**：生成任意风格PPT，支持超长文档处理，内置表格提取与图表解析功能。
 - **🖼️ PDF2PPT - 版式保留转换**：智能抠图与版式分析，将 PDF 精准转换为可编辑 PPTX。
 - **🎨 PPT 智能美化**：基于 AI 的 PPT 排版优化与风格迁移。
 
@@ -95,6 +95,10 @@ Paper2Any 当前包含以下几个子能力：
 ### 📊 Paper2Figure: 科研绘图生成
 
 <div align="center">
+
+<br>
+<img src="static/new_readme/2figure.gif" width="90%"/>
+<br><sub>✨ 模型架构图生成</sub>
 
 <br>
 <img src="static/new_readme/科研绘图-01.png" width="90%"/>
@@ -136,6 +140,22 @@ Paper2Any 当前包含以下几个子能力：
 
 ---
 
+### 🎨 PPT 智能美化
+
+<div align="center">
+
+<br>
+<img src="static/new_readme/polish.gif" width="90%"/>
+<br><sub>✨ 基于 AI 的排版优化</sub>
+
+<br>
+<img src="static/new_readme/ppt美化-1.png" width="90%"/>
+<br><sub>✨ 基于 AI 的排版优化与风格迁移</sub>
+
+</div>
+
+---
+
 ### 🖼️ PDF2PPT: 版式保留转换
 
 <div align="center">
@@ -143,18 +163,6 @@ Paper2Any 当前包含以下几个子能力：
 <br>
 <img src="static/new_readme/pdf2ppt抠图.png" width="90%"/>
 <br><sub>✨ 智能抠图 & 版式保留</sub>
-
-</div>
-
----
-
-### 🎨 PPT 智能美化
-
-<div align="center">
-
-<br>
-<img src="static/new_readme/ppt美化-1.png" width="90%"/>
-<br><sub>✨ 基于 AI 的排版优化与风格迁移</sub>
 
 </div>
 
