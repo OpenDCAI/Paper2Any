@@ -411,14 +411,22 @@ const Paper2FigurePage = () => {
         // Fetch PPT file and upload to Supabase Storage
         if (data.ppt_filename) {
           try {
+            console.log('[Paper2GraphPage] Fetching tech_route file from:', data.ppt_filename);
             const pptRes = await fetch(data.ppt_filename);
-            if (pptRes.ok) {
-              const pptBlob = await pptRes.blob();
-              const pptName = data.ppt_filename.split('/').pop() || 'tech_route.pptx';
-              uploadAndSaveFile(pptBlob, pptName, 'paper2figure');
+            if (!pptRes.ok) {
+              throw new Error(`HTTP ${pptRes.status}: ${pptRes.statusText}`);
+            }
+            const pptBlob = await pptRes.blob();
+            const pptName = data.ppt_filename.split('/').pop() || 'tech_route.pptx';
+            console.log('[Paper2GraphPage] Uploading tech_route file to storage:', pptName);
+            const uploadResult = await uploadAndSaveFile(pptBlob, pptName, 'paper2figure');
+            if (uploadResult) {
+              console.log('[Paper2GraphPage] Tech_route file uploaded successfully:', uploadResult.file_name);
+            } else {
+              console.warn('[Paper2GraphPage] Tech_route file upload skipped or failed');
             }
           } catch (e) {
-            console.warn('[Paper2GraphPage] Failed to upload tech_route file:', e);
+            console.error('[Paper2GraphPage] Failed to upload tech_route file:', e);
           }
         }
       } else {
@@ -460,7 +468,14 @@ const Paper2FigurePage = () => {
         // Record usage and save file to Supabase Storage
         await recordUsage(user?.id || null, 'paper2figure');
         refreshQuota();
-        uploadAndSaveFile(blob, filename, 'paper2figure');
+
+        console.log('[Paper2GraphPage] Uploading file to storage:', filename);
+        const uploadResult = await uploadAndSaveFile(blob, filename, 'paper2figure');
+        if (uploadResult) {
+          console.log('[Paper2GraphPage] File uploaded successfully:', uploadResult.file_name);
+        } else {
+          console.warn('[Paper2GraphPage] File upload skipped or failed');
+        }
 
         const a = document.createElement('a');
         a.href = url;
