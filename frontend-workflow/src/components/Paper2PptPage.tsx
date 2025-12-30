@@ -703,18 +703,29 @@ const Paper2PptPage = () => {
       await recordUsage(user?.id || null, 'paper2ppt');
       refreshQuota();
 
-      // Fetch PPT file and upload to Supabase Storage
-      const pptPath = data.ppt_pptx_path || (data.all_output_files?.find((url: string) =>
+      // Upload generated file to Supabase Storage (either PPTX or PDF)
+      // Find PPTX file first (preferred)
+      let filePath = data.ppt_pptx_path || (data.all_output_files?.find((url: string) =>
         url.endsWith('.pptx') || url.includes('editable.pptx')
       ));
-      if (pptPath) {
+      let defaultName = 'paper2ppt_result.pptx';
+
+      // If no PPTX, try PDF (exclude input PDFs)
+      if (!filePath) {
+        filePath = data.ppt_pdf_path || (data.all_output_files?.find((url: string) =>
+          url.endsWith('.pdf') && !url.includes('input')
+        ));
+        defaultName = 'paper2ppt_result.pdf';
+      }
+
+      if (filePath) {
         try {
-          const pptRes = await fetch(pptPath);
-          if (pptRes.ok) {
-            const pptBlob = await pptRes.blob();
-            const pptName = pptPath.split('/').pop() || 'paper2ppt_result.pptx';
-            console.log('[Paper2PptPage] Uploading file to storage:', pptName);
-            await uploadAndSaveFile(pptBlob, pptName, 'paper2ppt');
+          const fileRes = await fetch(filePath);
+          if (fileRes.ok) {
+            const fileBlob = await fileRes.blob();
+            const fileName = filePath.split('/').pop() || defaultName;
+            console.log('[Paper2PptPage] Uploading file to storage:', fileName);
+            await uploadAndSaveFile(fileBlob, fileName, 'paper2ppt');
             console.log('[Paper2PptPage] File uploaded successfully');
           }
         } catch (e) {
