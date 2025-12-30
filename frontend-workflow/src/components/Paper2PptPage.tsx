@@ -4,7 +4,7 @@ import {
   AlertCircle, ChevronDown, ChevronUp, Github, Star, X, Sparkles,
   ArrowRight, ArrowLeft, GripVertical, Trash2, Edit3, Check, RotateCcw,
   MessageSquare, RefreshCw, FileText, Key, Globe, Cpu, Type, Lightbulb,
-  Copy, Share2
+  Copy, Share2, Info
 } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
@@ -713,10 +713,12 @@ const Paper2PptPage = () => {
           if (pptRes.ok) {
             const pptBlob = await pptRes.blob();
             const pptName = pptPath.split('/').pop() || 'paper2ppt_result.pptx';
-            uploadAndSaveFile(pptBlob, pptName, 'paper2ppt');
+            console.log('[Paper2PptPage] Uploading file to storage:', pptName);
+            await uploadAndSaveFile(pptBlob, pptName, 'paper2ppt');
+            console.log('[Paper2PptPage] File uploaded successfully');
           }
         } catch (e) {
-          console.warn('[Paper2PptPage] Failed to upload file:', e);
+          console.error('[Paper2PptPage] Failed to upload file:', e);
         }
       }
 
@@ -939,6 +941,7 @@ const Paper2PptPage = () => {
                 className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
               >
                 <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
+                <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
                 <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
               </select>
             </div>
@@ -1055,6 +1058,11 @@ const Paper2PptPage = () => {
               <><ArrowRight size={18} /> {uploadMode === 'topic' ? '开始 Research' : '开始解析'}</>
             )}
           </button>
+
+          <div className="flex items-start gap-2 text-xs text-gray-500 mt-3 px-1">
+            <Info size={14} className="mt-0.5 text-gray-400 flex-shrink-0" />
+            <p>提示：如果长时间无响应或生成失败，可能是 API 服务商不稳定。建议稍后再试，或尝试更换模型/服务商。</p>
+          </div>
 
           {isUploading && (
             <div className="mt-4 animate-in fade-in slide-in-from-top-2">

@@ -72,7 +72,7 @@
 > 支持一键生成多种<strong>可编辑</strong>科研绘图（模型架构图 / 技术路线图 / 实验数据图）<br>
 > 🌐 在线体验：<a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
 
-- 2024-09-01 · 发布 <code>0.1.0</code> 首个版本
+- 2025-10-01 · 发布 <code>0.1.0</code> 首个版本
 
 ---
 
