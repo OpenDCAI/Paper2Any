@@ -343,10 +343,15 @@ def build_gemini_generation_request(
     """
     provider = detect_provider(api_url)
     base = api_url.rstrip("/")
+    
+    # 构造 Gemini base URL (去掉 /v1 尾缀)
+    gemini_base = base
+    if gemini_base.endswith("/v1"):
+        gemini_base = gemini_base[:-3]
 
     # 1) apiyi + gemini-2.5-flash-image-preview => generateContent + aspectRatio
     if provider is Provider.APIYI and is_gemini_25(model):
-        url = "http://b.apiyi.com:16888/v1beta/models/gemini-2.5-flash-image:generateContent"
+        url = f"{gemini_base}/v1beta/models/gemini-2.5-flash-image:generateContent"
         payload = {
             "contents": [
                 {
@@ -366,7 +371,7 @@ def build_gemini_generation_request(
 
     # 2) apiyi + gemini-3-pro-image-preview => generateContent + aspectRatio + imageSize
     if provider is Provider.APIYI and is_gemini_3_pro(model):
-        url = "http://b.apiyi.com:16888/v1beta/models/gemini-3-pro-image-preview:generateContent"
+        url = f"{gemini_base}/v1beta/models/gemini-3-pro-image-preview:generateContent"
         payload = {
             "contents": [
                 {
@@ -464,10 +469,15 @@ def build_gemini_edit_request(
     """
     provider = detect_provider(api_url)
     base = api_url.rstrip("/")
+    
+    # 构造 Gemini base URL (去掉 /v1 尾缀)
+    gemini_base = base
+    if gemini_base.endswith("/v1"):
+        gemini_base = gemini_base[:-3]
 
     # 1) apiyi + 2.5 => generateContent + inlineData + aspectRatio
     if provider is Provider.APIYI and is_gemini_25(model) and aspect_ratio != "1:1":
-        url = "http://b.apiyi.com:16888/v1beta/models/gemini-2.5-flash-image:generateContent"
+        url = f"{gemini_base}/v1beta/models/gemini-2.5-flash-image:generateContent"
         payload = {
             "contents": [
                 {
@@ -493,7 +503,7 @@ def build_gemini_edit_request(
 
     # 2) apiyi + 3 Pro => generateContent + inline_data + aspectRatio + imageSize
     if provider is Provider.APIYI and is_gemini_3_pro(model):
-        url = "http://b.apiyi.com:16888/v1beta/models/gemini-3-pro-image-preview:generateContent"
+        url = f"{gemini_base}/v1beta/models/gemini-3-pro-image-preview:generateContent"
         payload = {
             "contents": [
                 {

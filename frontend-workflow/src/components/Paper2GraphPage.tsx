@@ -1,5 +1,5 @@
 import { useState, useEffect, ChangeEvent } from 'react';
-import { FileText, UploadCloud, Type, Settings2, Download, Loader2, CheckCircle2, AlertCircle, Image as ImageIcon, ChevronDown, ChevronUp, Github, Star, X } from 'lucide-react';
+import { FileText, UploadCloud, Type, Settings2, Download, Loader2, CheckCircle2, AlertCircle, Image as ImageIcon, ChevronDown, ChevronUp, Github, Star, X, Info } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage, QuotaInfo } from '../services/quotaService';
@@ -781,6 +781,7 @@ const Paper2FigurePage = () => {
                         className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       >
                         <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
+                        <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
                         <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
                       </select>
                       <a
@@ -876,6 +877,11 @@ const Paper2FigurePage = () => {
                   {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
                   <span>{isLoading ? '生成中...' : '生成可编辑 PPTX'}</span>
                 </button>
+
+                <div className="flex items-start gap-2 text-xs text-gray-400 bg-white/5 border border-white/10 rounded-lg px-3 py-2">
+                  <Info size={14} className="mt-0.5 text-gray-500 flex-shrink-0" />
+                  <p>提示：如果长时间无响应或生成失败，可能是 API 服务商不稳定。建议稍后再试，或尝试更换模型/服务商。</p>
+                </div>
 
                 {/* 改进的生成进度显示 */}
                 {isLoading && !error && !successMessage && (

@@ -1,7 +1,7 @@
 import { useState, useEffect, ChangeEvent } from 'react';
 import {
   UploadCloud, Download, Loader2, CheckCircle2,
-  AlertCircle, Github, Star, X, FileText, ArrowRight, Key, Globe, ToggleLeft, ToggleRight, Sparkles, Image, MessageSquare, Copy
+  AlertCircle, Github, Star, X, FileText, ArrowRight, Key, Globe, ToggleLeft, ToggleRight, Sparkles, Image, MessageSquare, Copy, Info
 } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
@@ -455,6 +455,7 @@ const Pdf2PptPage = () => {
                           className="flex-1 rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
                         >
                           <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
+                          <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
                           <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
                         </select>
                         <a
@@ -537,6 +538,11 @@ const Pdf2PptPage = () => {
                     <><ArrowRight size={20} /> 开始转换</>
                   )}
                 </button>
+
+                <div className="flex items-start gap-2 text-xs text-gray-500 mt-3 px-1">
+                  <Info size={14} className="mt-0.5 text-gray-400 flex-shrink-0" />
+                  <p>提示：如果长时间无响应或生成失败，可能是 API 服务商不稳定。建议稍后再试，或尝试更换模型/服务商。</p>
+                </div>
               </>
             ) : (
               /* 完成状态 */
