@@ -392,6 +392,9 @@ def build_gemini_generation_request(
 
     # 3) 123.129.219.111 + (gemini-3-pro | gemini-2.5) => chat/completions + generationConfig
     if provider is Provider.LOCAL_123 and (is_gemini_3_pro(model) or is_gemini_25(model)):
+        if aspect_ratio:
+            prompt = f"{prompt} 生成比例：{aspect_ratio}"
+
         url = f"{base}/chat/completions"
         payload = {
             "model": model,
