@@ -72,7 +72,7 @@ English | [中文](README.md)
 > One-click generation of multiple <strong>editable</strong> scientific figures (Model Architecture / Technical Roadmap / Experimental Plots)<br>
 > 🌐 Online Demo: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
 
-- 2024-09-01 · Released <code>0.1.0</code> first version
+- 2025-10-01 · Released <code>0.1.0</code> first version
 
 ---
 

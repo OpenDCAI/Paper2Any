@@ -1009,38 +1009,39 @@ if __name__ == "__main__":
         #     use_edit=True,
         # )
 
-    # async def _test_123_edit():
-    #     # 准备一张测试图片
-    #     img_path = "/data/users/liuzhou/dev/DataFlow-Agent/tests/test_02.png"
-    #     if not os.path.exists(img_path):
-    #         try:
-    #             from PIL import Image
-    #             img = Image.new('RGB', (512, 512), color='red')
-    #             img.save(img_path)
-    #             print(f"Created dummy image at {img_path}")
-    #         except ImportError:
-    #             print("PIL not installed, skipping image creation. Please ensure test_input.png exists.")
-    #             return
+    async def _test_123_edit():
+        # 准备一张测试图片
+        img_path = "/data/users/liuzhou/dev/DataFlow-Agent/tests/test_01.png"
+        if not os.path.exists(img_path):
+            try:
+                from PIL import Image
+                img = Image.new('RGB', (512, 512), color='red')
+                img.save(img_path)
+                print(f"Created dummy image at {img_path}")
+            except ImportError:
+                print("PIL not installed, skipping image creation. Please ensure test_input.png exists.")
+                return
 
-    #     API_URL = "http://123.129.219.111:3000/v1"
-    #     API_KEY = os.getenv("DF_API_KEY", "sk-123456") 
+        # API_URL = "http://123.129.219.111:3000/v1"
+        API_URL= "http://b.apiyi.com:16888/v1"
+        API_KEY = os.getenv("DF_API_KEY", "sk-123456") 
         
-    #     print("\n--- Testing 123 Gemini 3 Pro Edit ---")
-    #     try:
-    #         await generate_or_edit_and_save_image_async(
-    #             prompt="",
-    #             save_path="./test_output_123.png",
-    #             api_url=API_URL,
-    #             api_key=API_KEY,
-    #             model="gemini-3-pro-image-preview",
-    #             use_edit=True,
-    #             image_path=img_path,
-    #             aspect_ratio="16:9",
-    #             resolution="2K"
-    #         )
-    #         print("Success!")
-    #     except Exception as e:
-    #         print(f"Failed: {e}")
+        print("\n--- Testing 123 Gemini 3 Pro Edit ---")
+        try:
+            await generate_or_edit_and_save_image_async(
+                prompt="",
+                save_path="./test_output_123.png",
+                api_url=API_URL,
+                api_key=API_KEY,
+                model="gemini-3-pro-image-preview",
+                use_edit=True,
+                image_path=img_path,
+                aspect_ratio="16:9",
+                resolution="2K"
+            )
+            print("Success!")
+        except Exception as e:
+            print(f"Failed: {e}")
 
-    asyncio.run(_demo())
-    # asyncio.run(_test_123_edit())
+    # asyncio.run(_demo())
+    asyncio.run(_test_123_edit())
