@@ -117,11 +117,15 @@ Paper2Any 当前包含以下几个子能力：
 <div align="center">
 
 <br>
+<img src="static/new_readme/paper2ppt操作.gif" width="85%"/>
+<br><sub>✨ PPT生成案例</sub>
+
+<br>
 <img src="static/new_readme/paper2ppt案例-1.png" width="90%"/>
 <br><sub>✨ Paper / Text / Topic → PPT</sub>
 
 <br><br>
-<img src="static/new_readme/paper2ppt-长文长ppt.png" width="90%"/>
+<img src="static/new_readme/paper2ppt-长文长ppt.png" width="85%"/>
 <br><sub>✨ 超长文档支持 (40+ 页 PPT)</sub>
 
 <br><br>
