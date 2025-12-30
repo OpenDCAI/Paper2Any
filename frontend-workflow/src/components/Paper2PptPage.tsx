@@ -921,7 +921,7 @@ const Paper2PptPage = () => {
                   <Globe size={12} /> API URL
                 </label>
                 <a
-                  href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com"}
+                  href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com/register/?aff_code=TbrD"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[10px] text-purple-300 hover:text-purple-200 hover:underline"

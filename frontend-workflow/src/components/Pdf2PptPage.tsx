@@ -459,7 +459,7 @@ const Pdf2PptPage = () => {
                           <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
                         </select>
                         <a
-                          href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com"}
+                          href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com/register/?aff_code=TbrD"}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="whitespace-nowrap text-[10px] text-purple-300 hover:text-purple-200 hover:underline px-1"
