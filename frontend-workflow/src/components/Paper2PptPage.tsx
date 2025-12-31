@@ -720,13 +720,21 @@ const Paper2PptPage = () => {
 
       if (filePath) {
         try {
-          const fileRes = await fetch(filePath);
+          // Fix Mixed Content issue: upgrade http to https if current page is https
+          let fetchUrl = filePath;
+          if (window.location.protocol === 'https:' && filePath.startsWith('http:')) {
+            fetchUrl = filePath.replace('http:', 'https:');
+          }
+
+          const fileRes = await fetch(fetchUrl);
           if (fileRes.ok) {
             const fileBlob = await fileRes.blob();
             const fileName = filePath.split('/').pop() || defaultName;
             console.log('[Paper2PptPage] Uploading file to storage:', fileName);
             await uploadAndSaveFile(fileBlob, fileName, 'paper2ppt');
             console.log('[Paper2PptPage] File uploaded successfully');
+          } else {
+             console.error('[Paper2PptPage] Failed to fetch file for upload:', fileRes.status, fileRes.statusText);
           }
         } catch (e) {
           console.error('[Paper2PptPage] Failed to upload file:', e);

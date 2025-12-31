@@ -994,7 +994,13 @@ const Ppt2PolishPage = () => {
 
       if (fileUrl) {
         try {
-          const fileRes = await fetch(fileUrl);
+          // Fix Mixed Content issue: upgrade http to https if current page is https
+          let fetchUrl = fileUrl;
+          if (window.location.protocol === 'https:' && fileUrl.startsWith('http:')) {
+            fetchUrl = fileUrl.replace('http:', 'https:');
+          }
+
+          const fileRes = await fetch(fetchUrl);
           if (fileRes.ok) {
             const fileBlob = await fileRes.blob();
             const fileName = fileUrl.split('/').pop() || defaultName;
