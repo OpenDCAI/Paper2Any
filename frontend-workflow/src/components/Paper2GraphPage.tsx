@@ -4,6 +4,7 @@ import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage, QuotaInfo } from '../services/quotaService';
 import { useAuthStore } from '../stores/authStore';
+import QRCodeTooltip from './QRCodeTooltip';
 
 type UploadMode = 'file' | 'text' | 'image';
 type FileKind = 'pdf' | 'image' | null;
@@ -799,14 +800,16 @@ const Paper2FigurePage = () => {
                         <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
                         <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
                       </select>
-                      <a
-                        href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com/register/?aff_code=TbrD"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="whitespace-nowrap text-[10px] text-primary-300 hover:text-primary-200 hover:underline px-2"
-                      >
-                        点击购买
-                      </a>
+                      <QRCodeTooltip>
+                        <a
+                          href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com/register/?aff_code=TbrD"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="whitespace-nowrap text-[10px] text-primary-300 hover:text-primary-200 hover:underline px-2"
+                        >
+                          点击购买
+                        </a>
+                      </QRCodeTooltip>
                     </div>
                   </div>
 

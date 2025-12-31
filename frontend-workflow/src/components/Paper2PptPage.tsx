@@ -10,6 +10,7 @@ import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
 import { useAuthStore } from '../stores/authStore';
+import QRCodeTooltip from './QRCodeTooltip';
 
 // ============== 类型定义 ==============
 type Step = 'upload' | 'outline' | 'generate' | 'complete';
@@ -939,6 +940,7 @@ const Paper2PptPage = () => {
                 <label className="block text-xs text-gray-400 flex items-center gap-1">
                   <Globe size={12} /> API URL
                 </label>
+                <QRCodeTooltip>
                 <a
                   href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com/register/?aff_code=TbrD"}
                   target="_blank"
@@ -947,6 +949,7 @@ const Paper2PptPage = () => {
                 >
                   点击购买
                 </a>
+                </QRCodeTooltip>
               </div>
               <select 
                 value={llmApiUrl} 
