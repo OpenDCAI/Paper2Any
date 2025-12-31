@@ -392,6 +392,9 @@ def build_gemini_generation_request(
 
     # 3) 123.129.219.111 + (gemini-3-pro | gemini-2.5) => chat/completions + generationConfig
     if provider is Provider.LOCAL_123 and (is_gemini_3_pro(model) or is_gemini_25(model)):
+        if aspect_ratio:
+            prompt = f"{prompt} 生成比例：{aspect_ratio}, 4K 分辨率"
+
         url = f"{base}/chat/completions"
         payload = {
             "model": model,
@@ -925,8 +928,8 @@ if __name__ == "__main__":
     import asyncio
 
     async def _demo():
-        # API_URL = "http://123.129.219.111:3000/v1"
-        API_URL = "http://b.apiyi.com:16888/v1"
+        API_URL = "http://123.129.219.111:3000/v1"
+        # API_URL = "http://b.apiyi.com:16888/v1"
         API_KEY = os.getenv("DF_API_KEY", "sk-xxx")
         
         print("--- Testing Gemini 2.5 Flash Image ---")
@@ -1022,14 +1025,14 @@ if __name__ == "__main__":
                 print("PIL not installed, skipping image creation. Please ensure test_input.png exists.")
                 return
 
-        # API_URL = "http://123.129.219.111:3000/v1"
-        API_URL= "http://b.apiyi.com:16888/v1"
+        API_URL = "http://123.129.219.111:3000/v1"
+        # API_URL= "http://b.apiyi.com:16888/v1"
         API_KEY = os.getenv("DF_API_KEY", "sk-123456") 
         
         print("\n--- Testing 123 Gemini 3 Pro Edit ---")
         try:
             await generate_or_edit_and_save_image_async(
-                prompt="",
+                prompt="多啦a梦",
                 save_path="./test_output_123.png",
                 api_url=API_URL,
                 api_key=API_KEY,
@@ -1037,7 +1040,7 @@ if __name__ == "__main__":
                 use_edit=True,
                 image_path=img_path,
                 aspect_ratio="16:9",
-                resolution="2K"
+                resolution="4K"
             )
             print("Success!")
         except Exception as e:
