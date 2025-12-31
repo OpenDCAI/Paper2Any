@@ -97,6 +97,10 @@ Paper2Any currently includes the following sub-capabilities:
 <div align="center">
 
 <br>
+<img src="static/new_readme/2figure.gif" width="90%"/>
+<br><sub>✨ Model Architecture Diagram Generation</sub>
+
+<br>
 <img src="static/new_readme/科研绘图-01.png" width="90%"/>
 <br><sub>✨ Model Architecture Diagram Generation</sub>
 
@@ -115,6 +119,10 @@ Paper2Any currently includes the following sub-capabilities:
 ### 🎬 Paper2PPT: Paper to Presentation
 
 <div align="center">
+
+<br>
+<img src="static/new_readme/paper2ppt操作.gif" width="85%"/>
+<br><sub>✨ PPT Generation Demo</sub>
 
 <br>
 <img src="static/new_readme/paper2ppt案例-1.png" width="90%"/>
@@ -147,6 +155,10 @@ Paper2Any currently includes the following sub-capabilities:
 ### 🎨 PPT Smart Beautification
 
 <div align="center">
+
+<br>
+<img src="static/new_readme/polish.gif" width="90%"/>
+<br><sub>✨ AI-based Layout Optimization</sub>
 
 <br>
 <img src="static/new_readme/ppt美化-1.png" width="90%"/>
@@ -212,11 +224,173 @@ export DF_API_URL=xxx  # Optional: if using a third-party API gateway
 export MINERU_DEVICES="0,1,2,3" # Optional: MinerU task GPU resource pool
 ```
 
+#### 4. Configure Supabase (Required for Frontend/Backend)
+
+Create a `.env` file in the `frontend-workflow` directory and fill in the following configuration:
+
+```bash
+# frontend-workflow/.env
+
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Backend
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SUPABASE_JWT_SECRET=your_jwt_secret
+
+# Application Settings
+DAILY_WORKFLOW_LIMIT=10
+```
+
+<details>
+<summary><strong>Advanced Configuration: Local Model Service Load Balancing</strong></summary>
+
+If deploying in a high-concurrency environment locally, you can use `script/start_model_servers.sh` to start a local model service cluster (MinerU / SAM / OCR).
+
+Script location: `/DataFlow-Agent/script/start_model_servers.sh`
+
+**Main Configuration Items:**
+
+- **MinerU (PDF Parsing)**
+  - `MINERU_MODEL_PATH`: Model path (default `models/MinerU2.5-2509-1.2B`)
+  - `MINERU_GPU_UTIL`: GPU memory utilization (default 0.2)
+  - **Instance Config**: Default starts 4 instances each on GPU 0 and GPU 4 (total 8), ports 8011-8018.
+  - **Load Balancer**: Port 8010, automatically distributes requests.
+
+- **SAM (Segment Anything Model)**
+  - **Instance Config**: Default starts 1 instance each on GPU 2 and GPU 3, ports 8021-8022.
+  - **Load Balancer**: Port 8020.
+
+- **OCR (PaddleOCR)**
+  - **Config**: Runs on CPU, uses uvicorn worker mechanism (default 4 workers).
+  - **Port**: 8003.
+
+> Please modify `gpu_id` and instance count in the script according to your actual GPU quantity and memory before use.
+
+</details>
+
 ### 🪟 Windows Installation
 
-> [!NOTE]  
-> We recommend Linux / WSL for best experience.  
-> If you need to deploy on native Windows, please refer to the [Windows Installation](#-windows-installation) section or `README_EN.md`.
+> [!NOTE]
+> Currently, we recommend experiencing Paper2Any in a Linux / WSL environment. If you need to deploy on native Windows, please follow the steps below.
+
+#### 1. Create Environment & Install Base Dependencies
+
+```bash
+# 0. Create and activate a conda environment
+conda create -n paper2any python=3.12 -y
+conda activate paper2any
+
+# 1. Clone repository
+git clone https://github.com/OpenDCAI/Paper2Any.git
+cd Paper2Any
+
+# 2. Install base dependencies
+pip install -r requirements-win-base.txt
+
+# 3. Install in editable (dev) mode
+pip install -e .
+```
+
+#### 2. Install Paper2Any-specific Dependencies (Recommended)
+
+Paper2Any involves LaTeX rendering and vector graphics processing, requiring extra dependencies (see requirements-paper.txt):
+
+```bash
+# Python dependencies
+pip install -r requirements-paper.txt
+
+# tectonic: LaTeX engine (recommended via conda)
+conda install -c conda-forge tectonic -y
+```
+
+**🎨 Install Inkscape (SVG/Vector Graphics Processing | Recommended/Required)**
+
+1. Download and install (Windows 64-bit MSI): [Inkscape Download](https://inkscape.org/release/inkscape-1.4.2/windows/64-bit/msi/?redirected=1)
+2. Add the Inkscape executable directory to the system environment variable Path (Example): `C:\Program Files\Inkscape\bin\`
+
+> [!TIP]
+> After configuring Path, it is recommended to reopen the terminal (or restart VS Code / PowerShell) to ensure the environment variables take effect.
+
+#### ⚡ Install Windows Compiled vLLM (Optional | For Local Inference Acceleration)
+
+Release page reference: [vllm-windows releases](https://github.com/SystemPanic/vllm-windows/releases)
+Recommended version: 0.11.0
+
+```bash
+pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
+```
+
+> [!IMPORTANT]
+> Please ensure `.whl` matches your current environment:
+> - Python: cp312 (Python 3.12)
+> - Platform: win_amd64
+> - CUDA: cu124 (Must match your local CUDA/driver)
+
+#### Launch Applications
+
+**Paper2Any - Paper Workflow Web Frontend (Recommended)**
+
+```bash
+# Start backend API
+cd fastapi_app
+uvicorn main:app --host 0.0.0.0 --port 8000
+
+# Start frontend (new terminal)
+cd frontend-workflow
+npm install
+npm run dev
+```
+
+**Configure Frontend Proxy**
+
+Modify `server.proxy` in `frontend-workflow/vite.config.ts`:
+
+```typescript
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 3000,
+    open: true,
+    allowedHosts: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',  // FastAPI Backend Address
+        changeOrigin: true,
+      },
+    },
+  },
+})
+```
+Visit `http://localhost:3000`
+
+**Windows Load MinerU Pre-trained Model**
+
+```powershell
+# Start in PowerShell environment
+vllm serve opendatalab/MinerU2.5-2509-1.2B `
+  --host 127.0.0.1 `
+  --port 8010 `
+  --logits-processors mineru_vl_utils:MinerULogitsProcessor `
+  --gpu-memory-utilization 0.6 `
+  --trust-remote-code `
+  --enforce-eager
+```
+
+> [!TIP]
+> **Paper2Figure Web Beta Instructions**
+> 
+> When you deploy the frontend, you also need to manually create a `invite_codes.txt` file and write your invitation code (e.g., `ABCDEFG123456`).
+> Then start the backend.
+> 
+> If you don't want to deploy frontend/backend for now, you can try core features via local scripts first:
+> - `python script/run_paper2figure.py`: Model architecture diagram generation
+> - `python script/run_paper2expfigure.py`: Experimental plot generation
+> - `python script/run_paper2technical.py`: Technical roadmap generation
+> - `python script/run_paper2ppt.py`: Paper content to editable PPT
+> - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`: PDF2PPT (Layout preservation + Editable content)
 
 ---
 
