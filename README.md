@@ -33,7 +33,7 @@
 <br>
 <br>
 
-<img src="static/new_readme/前端页面-01.png" alt="Paper2Any Web Interface" width="100%"/>
+<img src="static/new_readme/first.png" alt="Paper2Any Web Interface" width="80%"/>
 
 </div>
 
@@ -502,6 +502,12 @@ Paper2Any/
 ## 📄 License
 
 本项目采用 [Apache License 2.0](LICENSE) 开源协议。
+
+<!-- --- -->
+
+<!-- ## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=OpenDCAI/Paper2Any&type=Date)](https://star-history.com/#OpenDCAI/Paper2Any&Date) -->
 
 ---
 

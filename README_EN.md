@@ -501,6 +501,12 @@ We welcome all forms of contributions!
 
 This project is licensed under [Apache License 2.0](LICENSE).
 
+<!-- ---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=OpenDCAI/Paper2Any&type=Date)](https://star-history.com/#OpenDCAI/Paper2Any&Date) -->
+
 ---
 
 <div align="center">
