@@ -7,6 +7,7 @@ import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
 import { useAuthStore } from '../stores/authStore';
+import QRCodeTooltip from './QRCodeTooltip';
 
 // ============== 主组件 ==============
 const Pdf2PptPage = () => {
@@ -458,6 +459,7 @@ const Pdf2PptPage = () => {
                           <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
                           <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
                         </select>
+                        <QRCodeTooltip>
                         <a
                           href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com/register/?aff_code=TbrD"}
                           target="_blank"
@@ -466,6 +468,7 @@ const Pdf2PptPage = () => {
                         >
                           点击购买
                         </a>
+                        </QRCodeTooltip>
                       </div>
                     </div>
                     
