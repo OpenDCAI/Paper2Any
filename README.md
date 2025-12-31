@@ -224,10 +224,175 @@ export DF_API_URL=xxx  # 可选：如需使用第三方 API 中转站
 export MINERU_DEVICES="0,1,2,3" # 可选：MinerU 任务 GPU 资源池
 ```
 
+#### 4. 配置 Supabase (前后端必需)
+
+在 `frontend-workflow` 目录下创建 `.env` 文件并填入以下配置：
+
+```bash
+# frontend-workflow/.env
+
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Backend
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SUPABASE_JWT_SECRET=your_jwt_secret
+
+# Application Settings
+DAILY_WORKFLOW_LIMIT=10
+```
+
+<details>
+<summary><strong>高级配置：本地模型服务负载均衡</strong></summary>
+
+如果是本地部署高并发环境，可以使用 `script/start_model_servers.sh` 启动本地模型服务集群（MinerU / SAM / OCR）。
+
+脚本位置：`/DataFlow-Agent/script/start_model_servers.sh`
+
+**主要配置项说明：**
+
+- **MinerU (PDF 解析)**
+  - `MINERU_MODEL_PATH`: 模型路径 (默认 `models/MinerU2.5-2509-1.2B`)
+  - `MINERU_GPU_UTIL`: 显存占用比例 (默认 0.2)
+  - **实例配置**: 脚本默认在 GPU 0 和 GPU 4 上各启动 4 个实例 (共 8 个)，端口范围 8011-8018。
+  - **Load Balancer**: 端口 8010，自动分发请求。
+
+- **SAM (Segment Anything Model)**
+  - **实例配置**: 默认在 GPU 2 和 GPU 3 上各启动 1 个实例，端口 8021-8022。
+  - **Load Balancer**: 端口 8020。
+
+- **OCR (PaddleOCR)**
+  - **配置**: 运行在 CPU 上，使用 uvicorn 的 worker 机制 (默认 4 workers)。
+  - **端口**: 8003。
+
+> 使用前请根据实际 GPU 数量和显存情况修改脚本中的 `gpu_id` 和实例数量。
+
+</details>
+
+---
+
 ### 🪟 Windows 安装
 
-> [!NOTE]  
-> 目前推荐优先在 Linux / WSL 环境下体验 Paper2Any。若你需要在原生 Windows 上部署，请参考 [Windows 安装指南](#-windows-安装) 或查看 `README_EN.md`。
+> [!NOTE]
+> 目前推荐优先在 Linux / WSL 环境下体验 Paper2Any。 若你需要在 原生 Windows 上部署，请按以下步骤操作。
+
+#### 1. 创建环境并安装基础依赖
+
+```bash
+# 0. 创建并激活 conda 环境
+conda create -n paper2any python=3.12 -y
+conda activate paper2any
+
+# 1. 克隆仓库
+git clone https://github.com/OpenDCAI/Paper2Any.git
+cd Paper2Any
+
+# 2. 安装基础依赖
+pip install -r requirements-win-base.txt
+
+# 3. 开发模式安装
+pip install -e .
+```
+
+#### 2. 安装 Paper2Any 相关依赖（推荐）
+
+Paper2Any 涉及 LaTeX 渲染与矢量图处理，需要额外依赖（见 requirements-paper.txt）：
+
+```bash
+# Python 依赖
+pip install -r requirements-paper.txt
+
+# tectonic：LaTeX 引擎（推荐用 conda 安装）
+conda install -c conda-forge tectonic -y
+```
+
+**🎨 安装 Inkscape（SVG/矢量图处理｜推荐/必装）**
+
+1. 下载并安装（Windows 64-bit MSI）：[Inkscape Download](https://inkscape.org/release/inkscape-1.4.2/windows/64-bit/msi/?redirected=1)
+2. 将 Inkscape 可执行文件目录加入系统环境变量 Path（示例）：`C:\Program Files\Inkscape\bin\`
+
+> [!TIP]
+> 配置 Path 后建议重新打开终端（或重启 VS Code / PowerShell），确保环境变量生效。
+
+#### ⚡ 安装 Windows 编译版 vLLM（可选｜用于本地推理加速）
+
+发布页参考：[vllm-windows releases](https://github.com/SystemPanic/vllm-windows/releases)
+推荐版本：0.11.0
+
+```bash
+pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
+```
+
+> [!IMPORTANT]
+> 请确保 `.whl` 与当前环境匹配：
+> - Python：cp312（Python 3.12）
+> - 平台：win_amd64
+> - CUDA：cu124（需与你本机 CUDA/驱动适配）
+
+#### 启动应用
+
+**Paper2Any - 论文工作流 Web 前端（推荐）**
+
+```bash
+# 启动后端 API
+cd fastapi_app
+uvicorn main:app --host 0.0.0.0 --port 8000
+
+# 启动前端（新终端）
+cd frontend-workflow
+npm install
+npm run dev
+```
+
+**配置前端代理**
+
+修改 `frontend-workflow/vite.config.ts` 中的 `server.proxy`：
+
+```typescript
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 3000,
+    open: true,
+    allowedHosts: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',  // FastAPI 后端地址
+        changeOrigin: true,
+      },
+    },
+  },
+})
+```
+访问 `http://localhost:3000`
+
+**Windows 加载 MinerU 预训练模型**
+
+```powershell
+# PowerShell环境下启动
+vllm serve opendatalab/MinerU2.5-2509-1.2B `
+  --host 127.0.0.1 `
+  --port 8010 `
+  --logits-processors mineru_vl_utils:MinerULogitsProcessor `
+  --gpu-memory-utilization 0.6 `
+  --trust-remote-code `
+  --enforce-eager
+```
+
+> [!TIP]
+> **Paper2Figure 网页端内测说明**
+> 
+> 当你部署了前端，还需要手动新建一个 `invite_codes.txt` 文件，并写入你的邀请码（例如：`ABCDEFG123456`）。
+> 然后再启动后端。
+> 
+> 如果暂时不想部署前后端，可以先通过本地脚本体验 Paper2Any 的核心能力：
+> - `python script/run_paper2figure.py`：模型架构图生成
+> - `python script/run_paper2expfigure.py`：实验数据图生成
+> - `python script/run_paper2technical.py`：技术路线图生成
+> - `python script/run_paper2ppt.py`：论文内容生成可编辑 PPT
+> - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`：PDF2PPT（保留版式 + 可编辑内容）
 
 ---
 
