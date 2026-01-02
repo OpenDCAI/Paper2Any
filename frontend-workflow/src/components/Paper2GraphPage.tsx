@@ -318,7 +318,13 @@ const Paper2FigurePage = () => {
 
     // 技术路线图 / 实验数据图 不支持 image 作为输入
     if ((graphType === 'tech_route' || graphType === 'exp_data') && uploadMode === 'image') {
-      setError('技术路线图和实验数据图仅支持 PDF 或文本输入，不支持图片');
+      setError('技术路线图和实验数据图不支持图片输入');
+      return;
+    }
+
+    // 实验数据图 仅支持 file (PDF)
+    if (graphType === 'exp_data' && uploadMode !== 'file') {
+      setError('实验数据图仅支持 PDF 文件输入');
       return;
     }
 
@@ -617,7 +623,14 @@ const Paper2FigurePage = () => {
                   <label className="block text-xs font-medium text-gray-400 mb-2">绘图类型</label>
                   <select
                     value={graphType}
-                    onChange={e => setGraphType(e.target.value as GraphType)}
+                    onChange={e => {
+                      const newType = e.target.value as GraphType;
+                      setGraphType(newType);
+                      // 实验数据图强制使用 file 模式
+                      if (newType === 'exp_data') {
+                        setUploadMode('file');
+                      }
+                    }}
                     className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-gray-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                   >
                     <option value="model_arch">模型架构图</option>
@@ -647,11 +660,19 @@ const Paper2FigurePage = () => {
 
                   <button
                     type="button"
-                    onClick={() => setUploadMode('text')}
+                    onClick={() => {
+                      if (graphType === 'exp_data') {
+                        setError('实验数据图仅支持 PDF 输入，不支持文本');
+                        return;
+                      }
+                      setUploadMode('text');
+                    }}
                     className={`relative group flex flex-col items-center justify-center py-3 rounded-xl transition-all duration-300 overflow-hidden ${
-                      uploadMode === 'text'
-                         ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-[1.02] ring-1 ring-white/20'
-                         : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200 hover:scale-[1.02]'
+                      graphType === 'exp_data'
+                        ? 'opacity-40 cursor-not-allowed bg-white/5 text-gray-600'
+                        : uploadMode === 'text'
+                           ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-[1.02] ring-1 ring-white/20'
+                           : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200 hover:scale-[1.02]'
                     }`}
                   >
                      {uploadMode === 'text' && (
@@ -665,8 +686,12 @@ const Paper2FigurePage = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      if (graphType === 'tech_route' || graphType === 'exp_data') {
-                        setError('技术路线图和实验数据图仅支持 PDF 或文本输入，不支持图片');
+                      if (graphType === 'tech_route') {
+                        setError('技术路线图仅支持 PDF 或文本输入，不支持图片');
+                        return;
+                      }
+                      if (graphType === 'exp_data') {
+                        setError('实验数据图仅支持 PDF 输入，不支持图片');
                         return;
                       }
                       setUploadMode('image');
