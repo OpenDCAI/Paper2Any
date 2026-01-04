@@ -520,7 +520,7 @@ Paper2Any/
 
 <br>
 
-<img src="static/team_wechat.png" alt="DataFlow-Agent 社区微信群" width="800"/>
+<img src="frontend-workflow/public/wechat.png" alt="DataFlow-Agent 社区微信群" width="800"/>
 <br>
 <sub>扫码加入社区微信群</sub>
 
