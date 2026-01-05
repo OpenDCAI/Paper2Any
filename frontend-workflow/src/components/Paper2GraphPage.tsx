@@ -1,5 +1,5 @@
 import { useState, useEffect, ChangeEvent } from 'react';
-import { FileText, UploadCloud, Type, Settings2, Download, Loader2, CheckCircle2, AlertCircle, Image as ImageIcon, ChevronDown, ChevronUp, Github, Star, X, Info } from 'lucide-react';
+import { FileText, UploadCloud, Type, Settings2, Download, Loader2, CheckCircle2, AlertCircle, Image as ImageIcon, ChevronDown, ChevronUp, Github, Star, X, Info, Sparkles } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage, QuotaInfo } from '../services/quotaService';
@@ -41,6 +41,7 @@ const GENERATION_STAGES: GenerationStage[] = [
   { id: 4, message: '正在合成 PPT...', duration: 30 },
 ];
 
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const STORAGE_KEY = 'paper2figure_config_v1';
 
 const Paper2FigurePage = () => {
@@ -252,6 +253,10 @@ const Paper2FigurePage = () => {
       setFileKind(null);
       return;
     }
+    if (file.size > MAX_FILE_SIZE) {
+      setError('文件大小超过 20MB 限制');
+      return;
+    }
     const kind = detectFileKind(file);
     setSelectedFile(file);
     setFileKind(kind);
@@ -267,6 +272,10 @@ const Paper2FigurePage = () => {
     if (!file) {
       setSelectedFile(null);
       setFileKind(null);
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setError('文件大小超过 20MB 限制');
       return;
     }
 
@@ -377,16 +386,11 @@ const Paper2FigurePage = () => {
         });
 
         if (!res.ok) {
-          let msg = '生成技术路线图失败';
+          let msg = '服务器繁忙，请稍后再试';
           if (res.status === 403) {
             msg = '邀请码不正确或已失效';
-          } else {
-            try {
-              const text = await res.text();
-              if (text) msg = text;
-            } catch {
-              // ignore
-            }
+          } else if (res.status === 429) {
+            msg = '请求过于频繁，请稍后再试';
           }
           throw new Error(msg);
         }
@@ -402,7 +406,7 @@ const Paper2FigurePage = () => {
         const data: Paper2FigureJsonResp = await res.json();
 
         if (!data.success) {
-          throw new Error('生成技术路线图失败');
+          throw new Error('服务器繁忙，请稍后再试');
         }
 
         setPptPath(data.ppt_filename);
@@ -445,16 +449,11 @@ const Paper2FigurePage = () => {
         });
 
         if (!res.ok) {
-          let msg = '生成 PPTX 失败';
+          let msg = '服务器繁忙，请稍后再试';
           if (res.status === 403) {
             msg = '邀请码不正确或已失效';
-          } else {
-            try {
-              const text = await res.text();
-              if (text) msg = text;
-            } catch {
-              // ignore
-            }
+          } else if (res.status === 429) {
+            msg = '请求过于频繁，请稍后再试';
           }
           throw new Error(msg);
         }
@@ -492,7 +491,7 @@ const Paper2FigurePage = () => {
         a.remove();
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : '生成 PPTX 失败';
+      const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
     } finally {
       setIsLoading(false);
@@ -1131,10 +1130,24 @@ const Paper2FigurePage = () => {
             </div>
           </div>
 
-          {/* 示例区：留出图片占位位 */}
-          <div className="space-y-4 mb-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-gray-200">示例：从 Paper 到 PPTX</h3>
+            {/* 示例区：留出图片占位位 */}
+            <div className="space-y-4 mb-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-3">
+                <h3 className="text-sm font-medium text-gray-200">示例：从 Paper 到 PPTX</h3>
+                <a
+                  href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group relative inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/50 border border-white/10 text-xs font-medium text-white overflow-hidden transition-all hover:border-white/30 hover:shadow-[0_0_15px_rgba(168,85,247,0.5)]"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <Sparkles size={12} className="text-yellow-300 animate-pulse" />
+                  <span className="bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300 bg-clip-text text-transparent group-hover:from-blue-200 group-hover:via-purple-200 group-hover:to-pink-200">
+                    更多案例点击：飞书文档
+                  </span>
+                </a>
+              </div>
               <span className="text-[11px] text-gray-500">
                 下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果。
               </span>

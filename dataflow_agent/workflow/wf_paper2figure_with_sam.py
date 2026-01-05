@@ -238,122 +238,128 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         - 这里显式转换一份像素坐标 bbox_px，后面插入 PPT 时统一按像素 → 英寸 → Emu 的规则处理，
           和 add_image_element / add_text_element 的坐标系保持一致，避免 EMF 位置/尺寸错乱导致“看不到”的问题。
         """
-        if not state.fig_layout_path and state.request.input_type == "FIGURE":
-            result_root = Path(_ensure_result_path(state))
-            result_root.mkdir(parents=True, exist_ok=True)
-            log.critical(f"[figure_layout_sam] fig_layout_path 为空， 需要更新Layout图")
-            layout_name = f"layout_{int(time.time())}.png"
-            layout_save_path = str(result_root / layout_name)
-            await generate_or_edit_and_save_image_async(
-                prompt="1.Remove all text content; keep only the outermost rectangular frames and arrows (if any).\n"
-                       "2.Keep the layout unchanged.\n"
-                       "3.Change the background color to white.",
-                save_path=layout_save_path,
-                aspect_ratio=state.aspect_ratio,
-                api_url=state.request.chat_api_url,
-                api_key=state.request.chat_api_key or os.getenv("DF_API_KEY") ,
-                model=state.request.gen_fig_model,
-                image_path=f"{get_project_root()}/{state.fig_draft_path}",
-                use_edit=True,
-            )
-            state.fig_layout_path = layout_save_path
-            state.agent_results["gen_img_template"] = {"path": layout_save_path}
-
-        img_path = Path(state.fig_layout_path)
-        if not img_path.exists():
-            log.error(f"[figure_layout_sam] fig_layout_path 不存在: {img_path}")
-            return state
-
-        base_dir = Path(_ensure_result_path(state))
-        out_dir = base_dir / "layout_items"
-        out_dir.mkdir(parents=True, exist_ok=True)
-
-        sam_ckpt = f'{get_project_root()}/sam_b.pt'
-        # SAM LB Port 8020
-        sam_server_urls = ["http://localhost:8020"]
-
-        # 1. SAM 分割 + 过滤 + 裁剪子图 (优先使用远程服务)
         try:
-            layout_items = segment_layout_boxes_server(
-                image_path      = str(img_path),
-                output_dir      = str(out_dir),
-                server_urls     = sam_server_urls,
-                checkpoint      = sam_ckpt,
-                min_area        = 200,
-                min_score       = 0.0,
-                iou_threshold   = 0.2,
-                top_k           = 15,
-                nms_by          = "mask",
-            )
-        except Exception as e:
-            log.error(f"[figure_layout_sam] Remote SAM failed: {e}. Fallback to local.")
-            # Fallback to local if server fails
-            layout_items = segment_layout_boxes(
-                image_path      = str(img_path),
-                output_dir      = str(out_dir),
-                checkpoint      = sam_ckpt,
-                # 这里的参数可以根据 mask_detail_level 调整
-                min_area        = 200,
-                min_score       = 0.0,
-                iou_threshold   = 0.2,
-                top_k           = 15,
-                nms_by          = "mask",
-            )
-            # 只有本地运行时才需要手动释放模型
-            free_sam_model(checkpoint= sam_ckpt)
+            if not state.fig_layout_path and state.request.input_type == "FIGURE":
+                result_root = Path(_ensure_result_path(state))
+                result_root.mkdir(parents=True, exist_ok=True)
+                log.critical(f"[figure_layout_sam] fig_layout_path 为空， 需要更新Layout图")
+                layout_name = f"layout_{int(time.time())}.png"
+                layout_save_path = str(result_root / layout_name)
+                await generate_or_edit_and_save_image_async(
+                    prompt="1.Remove all text content; keep only the outermost rectangular frames and arrows (if any).\n"
+                        "2.Keep the layout unchanged.\n"
+                        "3.Change the background color to white.",
+                    save_path=layout_save_path,
+                    aspect_ratio=state.aspect_ratio,
+                    api_url=state.request.chat_api_url,
+                    api_key=state.request.chat_api_key or os.getenv("DF_API_KEY") ,
+                    model=state.request.gen_fig_model,
+                    image_path=f"{get_project_root()}/{state.fig_draft_path}",
+                    use_edit=True,
+                )
+                state.fig_layout_path = layout_save_path
+                state.agent_results["gen_img_template"] = {"path": layout_save_path}
 
-        log.info(f"[figure_layout_sam] SAM 分割结果: {len(layout_items)} 个布局元素")
+            img_path = Path(state.fig_layout_path)
+            if not img_path.exists():
+                log.error(f"[figure_layout_sam] fig_layout_path 不存在: {img_path}")
+                return state
 
-        # layout 图实际像素尺寸，用于把归一化 bbox 转为像素 bbox
-        try:
-            layout_img = Image.open(str(img_path))
-            layout_w, layout_h = layout_img.size
-        except Exception as e:
-            log.error(f"[figure_layout_sam] 打开 layout 图失败: {e}")
-            layout_w, layout_h = 1024, 1024  # 兜底，和默认 slide 尺寸一致
+            base_dir = Path(_ensure_result_path(state))
+            out_dir = base_dir / "layout_items"
+            out_dir.mkdir(parents=True, exist_ok=True)
 
-        # 2. 每个 layout PNG 转 SVG -> EMF，并补充像素坐标 bbox_px
-        for idx, it in enumerate(layout_items):
-            png_path = it.get("png_path")
-            if not png_path:
-                continue
+            sam_ckpt = f'{get_project_root()}/sam_b.pt'
+            # SAM LB Port 8020
+            sam_server_urls = ["http://localhost:8020"]
 
-            # 将归一化 bbox 映射到像素坐标，和 fig_mask 的像素 bbox 保持一致
-            bbox = it.get("bbox")
-            if bbox and len(bbox) == 4:
-                x1n, y1n, x2n, y2n = bbox
-                x1 = int(round(x1n * layout_w))
-                y1 = int(round(y1n * layout_h))
-                x2 = int(round(x2n * layout_w))
-                y2 = int(round(y2n * layout_h))
-                if x2 > x1 and y2 > y1:
-                    it["bbox_px"] = [x1, y1, x2, y2]
-                else:
-                    log.warning(f"[figure_layout_sam] 无效 bbox: {bbox} -> 像素 [{x1},{y1},{x2},{y2}]")
-
-            svg_path = out_dir / f"layout_{idx}.svg"
-            svg_abs = local_tool_for_raster_to_svg(
-                {
-                    "image_path": png_path,
-                    "output_svg": str(svg_path),
-                    "colormode": "color",
-                    "hierarchical": "stacked",
-                    "mode": "spline",
-                }
-            )
-            it["svg_path"] = svg_abs
-
-            emf_path = out_dir / f"layout_{idx}.emf"
+            # 1. SAM 分割 + 过滤 + 裁剪子图 (优先使用远程服务)
             try:
-                emf_abs = svg_to_emf(svg_abs, str(emf_path))
-                it["emf_path"] = emf_abs
+                layout_items = segment_layout_boxes_server(
+                    image_path      = str(img_path),
+                    output_dir      = str(out_dir),
+                    server_urls     = sam_server_urls,
+                    checkpoint      = sam_ckpt,
+                    min_area        = 200,
+                    min_score       = 0.0,
+                    iou_threshold   = 0.2,
+                    top_k           = 15,
+                    nms_by          = "mask",
+                )
             except Exception as e:
-                log.error(f"[figure_layout_sam] svg_to_emf failed for {svg_abs}: {e}")
-                it["emf_path"] = None
+                log.error(f"[figure_layout_sam] Remote SAM failed: {e}. Fallback to local.")
+                # Fallback to local if server fails
+                layout_items = segment_layout_boxes(
+                    image_path      = str(img_path),
+                    output_dir      = str(out_dir),
+                    checkpoint      = sam_ckpt,
+                    # 这里的参数可以根据 mask_detail_level 调整
+                    min_area        = 200,
+                    min_score       = 0.0,
+                    iou_threshold   = 0.2,
+                    top_k           = 15,
+                    nms_by          = "mask",
+                )
+                # 只有本地运行时才需要手动释放模型
+                free_sam_model(checkpoint= sam_ckpt)
 
-        state.layout_items = layout_items
-        log.info(f"[figure_layout_sam] 共生成 {len(layout_items)} 个布局元素")
-        # log.info(f'state.layout_items : {state.layout_items}')
+            log.info(f"[figure_layout_sam] SAM 分割结果: {len(layout_items)} 个布局元素")
+
+            # layout 图实际像素尺寸，用于把归一化 bbox 转为像素 bbox
+            try:
+                layout_img = Image.open(str(img_path))
+                layout_w, layout_h = layout_img.size
+            except Exception as e:
+                log.error(f"[figure_layout_sam] 打开 layout 图失败: {e}")
+                layout_w, layout_h = 1024, 1024  # 兜底，和默认 slide 尺寸一致
+
+            # 2. 每个 layout PNG 转 SVG -> EMF，并补充像素坐标 bbox_px
+            for idx, it in enumerate(layout_items):
+                png_path = it.get("png_path")
+                if not png_path:
+                    continue
+
+                # 将归一化 bbox 映射到像素坐标，和 fig_mask 的像素 bbox 保持一致
+                bbox = it.get("bbox")
+                if bbox and len(bbox) == 4:
+                    x1n, y1n, x2n, y2n = bbox
+                    x1 = int(round(x1n * layout_w))
+                    y1 = int(round(y1n * layout_h))
+                    x2 = int(round(x2n * layout_w))
+                    y2 = int(round(y2n * layout_h))
+                    if x2 > x1 and y2 > y1:
+                        it["bbox_px"] = [x1, y1, x2, y2]
+                    else:
+                        log.warning(f"[figure_layout_sam] 无效 bbox: {bbox} -> 像素 [{x1},{y1},{x2},{y2}]")
+
+                svg_path = out_dir / f"layout_{idx}.svg"
+                svg_abs = local_tool_for_raster_to_svg(
+                    {
+                        "image_path": png_path,
+                        "output_svg": str(svg_path),
+                        "colormode": "color",
+                        "hierarchical": "stacked",
+                        "mode": "spline",
+                    }
+                )
+                it["svg_path"] = svg_abs
+
+                emf_path = out_dir / f"layout_{idx}.emf"
+                try:
+                    emf_abs = svg_to_emf(svg_abs, str(emf_path))
+                    it["emf_path"] = emf_abs
+                except Exception as e:
+                    log.error(f"[figure_layout_sam] svg_to_emf failed for {svg_abs}: {e}")
+                    it["emf_path"] = None
+
+            state.layout_items = layout_items
+            log.info(f"[figure_layout_sam] 共生成 {len(layout_items)} 个布局元素")
+            # log.info(f'state.layout_items : {state.layout_items}')
+
+        except Exception as e:
+            log.error(f"[figure_layout_sam] Critical Failure, fallback to empty layout_items: {e}")
+            state.layout_items = []
+
         return state
 
     async def figure_mask_generator_node(state: Paper2FigureState) -> Paper2FigureState:
@@ -364,274 +370,278 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         - 标题块(type == 'title') 保留为 text；
         - 其它所有块一律从顶层图裁剪出子图，当作 image，用于 icon / 局部视觉元素。
         """
+        try:
+            img_path = Path(state.fig_draft_path)
+            if not img_path.exists():
+                log.error(f"[figure_mask] fig_draft_path 不存在: {img_path}")
+                return state
 
-        img_path = Path(state.fig_draft_path)
-        if not img_path.exists():
-            log.error(f"[figure_mask] fig_draft_path 不存在: {img_path}")
-            return state
+            # MinerU 所有中间结果统一放在本次 outputs 下
+            base_dir = Path(_ensure_result_path(state))
+            out_dir = base_dir / "mineru_recursive"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            log.info(f"[figure_mask] MinerU 输出目录: {out_dir}")
 
-        # MinerU 所有中间结果统一放在本次 outputs 下
-        base_dir = Path(_ensure_result_path(state))
-        out_dir = base_dir / "mineru_recursive"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        log.info(f"[figure_mask] MinerU 输出目录: {out_dir}")
+            # MinerU 端口：优先从 state.request.mineru_port 读取，默认 8010
+            port = getattr(state.request, "mineru_port", 8010)
+            max_depth = getattr(state, "mask_detail_level", 3)
 
-        # MinerU 端口：优先从 state.request.mineru_port 读取，默认 8010
-        port = getattr(state.request, "mineru_port", 8010)
-        max_depth = getattr(state, "mask_detail_level", 3)
+            log.critical(f"mask detail level : {max_depth} ")
+            log.critical(f'[img_path]: {img_path}')
+            log.critical(f'[mineru_port]: {port}')
 
-        log.critical(f"mask detail level : {max_depth} ")
-        log.critical(f'[img_path]: {img_path}')
-        log.critical(f'[mineru_port]: {port}')
+            # 1. 调用新的 HTTP MinerU 递归处理，获取元素列表（归一化坐标）
+            mineru_items = await recursive_mineru_layout(
+                image_path=str(img_path),
+                port=port,
+                max_depth=max_depth,
+                output_dir=out_dir,
+            )
+            log.info(f"mineru_items : {mineru_items}")
 
-        # 1. 调用新的 HTTP MinerU 递归处理，获取元素列表（归一化坐标）
-        mineru_items = await recursive_mineru_layout(
-            image_path=str(img_path),
-            port=port,
-            max_depth=max_depth,
-            output_dir=out_dir,
-        )
-        log.info(f"mineru_items : {mineru_items}")
+            # 顶层图像尺寸，用于 norm->pixel 映射与裁剪
+            top_img = Image.open(state.fig_draft_path)
+            top_w, top_h = top_img.size
 
-        # 顶层图像尺寸，用于 norm->pixel 映射与裁剪
-        top_img = Image.open(state.fig_draft_path)
-        top_w, top_h = top_img.size
+            # 图标原图输出目录
+            icons_raw_dir = base_dir / "icons_raw"
+            icons_raw_dir.mkdir(parents=True, exist_ok=True)
 
-        # 图标原图输出目录
-        icons_raw_dir = base_dir / "icons_raw"
-        icons_raw_dir.mkdir(parents=True, exist_ok=True)
+            fig_mask = []
+            icon_count = 0
+            text_count = 0
 
-        fig_mask = []
-        icon_count = 0
-        text_count = 0
-
-        details = 1
-        if state.request.figure_complex == "easy":
             details = 1
-        elif state.request.figure_complex == "hard":
-            details = 10
-        else:
-            details = 5
+            if state.request.figure_complex == "easy":
+                details = 1
+            elif state.request.figure_complex == "hard":
+                details = 10
+            else:
+                details = 5
 
-        # 如果 MinerU 只返回了 小于等于 6 个整体元素：按 SAM 布局切子图，再对每个子图单独跑 MinerU，
-        # 以便获取该布局块内部的文字和更细粒度元素。底图始终使用 fig_draft_path。
-        if len(mineru_items) <= details:
-            from dataflow_agent.toolkits.imtool.mineru_tool import run_aio_two_step_extract
+            # 如果 MinerU 只返回了 小于等于 6 个整体元素：按 SAM 布局切子图，再对每个子图单独跑 MinerU，
+            # 以便获取该布局块内部的文字和更细粒度元素。底图始终使用 fig_draft_path。
+            if len(mineru_items) <= details:
+                from dataflow_agent.toolkits.imtool.mineru_tool import run_aio_two_step_extract
 
-            layout_items = getattr(state, "layout_items", None) or []
-            log.info(f"[figure_mask] mineru_items size = {len(mineru_items)}, 使用 SAM 布局({len(layout_items)} 个)进行二次 MinerU 拆分")
+                layout_items = getattr(state, "layout_items", None) or []
+                log.info(f"[figure_mask] mineru_items size = {len(mineru_items)}, 使用 SAM 布局({len(layout_items)} 个)进行二次 MinerU 拆分")
 
-            # 子图保存目录
-            sub_root_dir = base_dir / "mineru_sub_images"
-            sub_root_dir.mkdir(parents=True, exist_ok=True)
+                # 子图保存目录
+                sub_root_dir = base_dir / "mineru_sub_images"
+                sub_root_dir.mkdir(parents=True, exist_ok=True)
 
-            for layout_idx, layout_it in enumerate(layout_items):
-                # 优先使用在 figure_layout_sam_node 中写入的像素 bbox_px；否则退回 bbox 视为像素坐标
-                bbox_px = layout_it.get("bbox_px") or layout_it.get("bbox")
-                if not bbox_px or len(bbox_px) != 4:
-                    continue
-                lx1, ly1, lx2, ly2 = bbox_px
-                # 粗筛 bbox
-                if lx2 <= lx1 or ly2 <= ly1:
-                    continue
-
-                # 边界裁剪到顶层图尺寸
-                lx1 = max(0, min(top_w, int(round(lx1))))
-                ly1 = max(0, min(top_h, int(round(ly1))))
-                lx2 = max(0, min(top_w, int(round(lx2))))
-                ly2 = max(0, min(top_h, int(round(ly2))))
-                if lx2 <= lx1 or ly2 <= ly1:
-                    continue
-
-                # 1) 从原始 fig_draft_path 裁出当前布局块子图
-                try:
-                    sub_img = top_img.crop((lx1, ly1, lx2, ly2))
-                except Exception as e:
-                    log.error(f"[figure_mask] 裁剪 SAM 子图失败 layout_idx={layout_idx}, bbox=({lx1},{ly1},{lx2},{ly2}): {e}")
-                    continue
-
-                sub_dir = sub_root_dir / f"layout_{layout_idx}"
-                sub_dir.mkdir(parents=True, exist_ok=True)
-                sub_path = sub_dir / f"sam_sub_{layout_idx}.png"
-                try:
-                    sub_img.save(sub_path)
-                except Exception as e:
-                    log.error(f"[figure_mask] 保存 SAM 子图失败 layout_idx={layout_idx}, path={sub_path}: {e}")
-                    continue
-
-                # 2) 对子图再次调用 MinerU（只做一层 two_step_extract，不再递归）
-                try:
-                    sub_blocks = await run_aio_two_step_extract(str(sub_path), port=port)
-                except Exception as e:
-                    log.error(f"[figure_mask] 子图 MinerU 解析失败 layout_idx={layout_idx}, path={sub_path}: {e}")
-                    continue
-
-                sub_w, sub_h = sub_img.size
-
-                # 3) 遍历子图内的 MinerU block，映射到整图像素坐标系
-                for blk_idx, blk in enumerate(sub_blocks):
-                    blk_type_raw = blk.get("type") or ""
-                    blk_type = blk_type_raw.lower()
-                    bbox_norm = blk.get("bbox")
-                    text = blk.get("text") or blk.get("content") or ""
-                    if not bbox_norm or len(bbox_norm) != 4:
+                for layout_idx, layout_it in enumerate(layout_items):
+                    # 优先使用在 figure_layout_sam_node 中写入的像素 bbox_px；否则退回 bbox 视为像素坐标
+                    bbox_px = layout_it.get("bbox_px") or layout_it.get("bbox")
+                    if not bbox_px or len(bbox_px) != 4:
+                        continue
+                    lx1, ly1, lx2, ly2 = bbox_px
+                    # 粗筛 bbox
+                    if lx2 <= lx1 or ly2 <= ly1:
                         continue
 
-                    sx1n, sy1n, sx2n, sy2n = bbox_norm
-                    # 规整到 [0,1]，避免越界
-                    sx1n = max(0.0, min(1.0, float(sx1n)))
-                    sy1n = max(0.0, min(1.0, float(sy1n)))
-                    sx2n = max(0.0, min(1.0, float(sx2n)))
-                    sy2n = max(0.0, min(1.0, float(sy2n)))
-                    if sx2n <= sx1n or sy2n <= sy1n:
+                    # 边界裁剪到顶层图尺寸
+                    lx1 = max(0, min(top_w, int(round(lx1))))
+                    ly1 = max(0, min(top_h, int(round(ly1))))
+                    lx2 = max(0, min(top_w, int(round(lx2))))
+                    ly2 = max(0, min(top_h, int(round(ly2))))
+                    if lx2 <= lx1 or ly2 <= ly1:
                         continue
 
-                    # 子图归一化 -> 子图像素
-                    sx1 = int(round(sx1n * sub_w))
-                    sy1 = int(round(sy1n * sub_h))
-                    sx2 = int(round(sx2n * sub_w))
-                    sy2 = int(round(sy2n * sub_h))
-                    if sx2 <= sx1 or sy2 <= sy1:
+                    # 1) 从原始 fig_draft_path 裁出当前布局块子图
+                    try:
+                        sub_img = top_img.crop((lx1, ly1, lx2, ly2))
+                    except Exception as e:
+                        log.error(f"[figure_mask] 裁剪 SAM 子图失败 layout_idx={layout_idx}, bbox=({lx1},{ly1},{lx2},{ly2}): {e}")
                         continue
 
-                    # 子图像素 -> 整图像素（加上布局块的偏移）
-                    gx1 = lx1 + sx1
-                    gy1 = ly1 + sy1
-                    gx2 = lx1 + sx2
-                    gy2 = ly1 + sy2
-
-                    # 再次 clamp 到整图范围
-                    gx1 = max(0, min(top_w, gx1))
-                    gy1 = max(0, min(top_h, gy1))
-                    gx2 = max(0, min(top_w, gx2))
-                    gy2 = max(0, min(top_h, gy2))
-                    if gx2 <= gx1 or gy2 <= gy1:
+                    sub_dir = sub_root_dir / f"layout_{layout_idx}"
+                    sub_dir.mkdir(parents=True, exist_ok=True)
+                    sub_path = sub_dir / f"sam_sub_{layout_idx}.png"
+                    try:
+                        sub_img.save(sub_path)
+                    except Exception as e:
+                        log.error(f"[figure_mask] 保存 SAM 子图失败 layout_idx={layout_idx}, path={sub_path}: {e}")
                         continue
 
-                    px_bbox = [gx1, gy1, gx2, gy2]
+                    # 2) 对子图再次调用 MinerU（只做一层 two_step_extract，不再递归）
+                    try:
+                        sub_blocks = await run_aio_two_step_extract(str(sub_path), port=port)
+                    except Exception as e:
+                        log.error(f"[figure_mask] 子图 MinerU 解析失败 layout_idx={layout_idx}, path={sub_path}: {e}")
+                        continue
 
-                    # 文本块：直接作为 text 元素
-                    if blk_type in ["title", "text"]:
-                        fig_mask.append(
-                            {
-                                "type": "text",
-                                "bbox": px_bbox,
-                                "text": text,
-                                "text_level": 1 if blk_type == "title" else None,
-                                "page_idx": 0,
-                            }
-                        )
-                        text_count += 1
-                    else:
-                        # 非文本块：从顶层图再次裁剪成小图，作为 image 元素
-                        try:
-                            crop = top_img.crop((gx1, gy1, gx2, gy2))
-                            icon_path = icons_raw_dir / f"blk_sub_{layout_idx}_{blk_idx}.png"
-                            crop.save(icon_path)
-                            fig_mask.append(
-                                {
-                                    "type": "image",
-                                    "bbox": px_bbox,
-                                    "img_path": str(icon_path),
-                                    "page_idx": 0,
-                                }
-                            )
-                            icon_count += 1
-                        except Exception as e:
-                            log.error(
-                                f"[figure_mask] 子块裁剪失败 layout_idx={layout_idx}, blk_idx={blk_idx}, bbox={px_bbox}: {e}"
-                            )
-                            # 兜底：退化为文本元素，保持兼容
+                    sub_w, sub_h = sub_img.size
+
+                    # 3) 遍历子图内的 MinerU block，映射到整图像素坐标系
+                    for blk_idx, blk in enumerate(sub_blocks):
+                        blk_type_raw = blk.get("type") or ""
+                        blk_type = blk_type_raw.lower()
+                        bbox_norm = blk.get("bbox")
+                        text = blk.get("text") or blk.get("content") or ""
+                        if not bbox_norm or len(bbox_norm) != 4:
+                            continue
+
+                        sx1n, sy1n, sx2n, sy2n = bbox_norm
+                        # 规整到 [0,1]，避免越界
+                        sx1n = max(0.0, min(1.0, float(sx1n)))
+                        sy1n = max(0.0, min(1.0, float(sy1n)))
+                        sx2n = max(0.0, min(1.0, float(sx2n)))
+                        sy2n = max(0.0, min(1.0, float(sy2n)))
+                        if sx2n <= sx1n or sy2n <= sy1n:
+                            continue
+
+                        # 子图归一化 -> 子图像素
+                        sx1 = int(round(sx1n * sub_w))
+                        sy1 = int(round(sy1n * sub_h))
+                        sx2 = int(round(sx2n * sub_w))
+                        sy2 = int(round(sy2n * sub_h))
+                        if sx2 <= sx1 or sy2 <= sy1:
+                            continue
+
+                        # 子图像素 -> 整图像素（加上布局块的偏移）
+                        gx1 = lx1 + sx1
+                        gy1 = ly1 + sy1
+                        gx2 = lx1 + sx2
+                        gy2 = ly1 + sy2
+
+                        # 再次 clamp 到整图范围
+                        gx1 = max(0, min(top_w, gx1))
+                        gy1 = max(0, min(top_h, gy1))
+                        gx2 = max(0, min(top_w, gx2))
+                        gy2 = max(0, min(top_h, gy2))
+                        if gx2 <= gx1 or gy2 <= gy1:
+                            continue
+
+                        px_bbox = [gx1, gy1, gx2, gy2]
+
+                        # 文本块：直接作为 text 元素
+                        if blk_type in ["title", "text"]:
                             fig_mask.append(
                                 {
                                     "type": "text",
                                     "bbox": px_bbox,
                                     "text": text,
-                                    "text_level": None,
+                                    "text_level": 1 if blk_type == "title" else None,
                                     "page_idx": 0,
                                 }
                             )
                             text_count += 1
-        else:
-            # 正常路径：MinerU 输出多个元素，仍按原逻辑基于 fig_draft_path 裁剪
-            for idx, it in enumerate(mineru_items):
-                elem_type_raw = it.get("type") or ""
-                elem_type = elem_type_raw.lower()
-                bbox = it.get("bbox")
-                text = (it.get("text") or it.get("content") or "").strip()
+                        else:
+                            # 非文本块：从顶层图再次裁剪成小图，作为 image 元素
+                            try:
+                                crop = top_img.crop((gx1, gy1, gx2, gy2))
+                                icon_path = icons_raw_dir / f"blk_sub_{layout_idx}_{blk_idx}.png"
+                                crop.save(icon_path)
+                                fig_mask.append(
+                                    {
+                                        "type": "image",
+                                        "bbox": px_bbox,
+                                        "img_path": str(icon_path),
+                                        "page_idx": 0,
+                                    }
+                                )
+                                icon_count += 1
+                            except Exception as e:
+                                log.error(
+                                    f"[figure_mask] 子块裁剪失败 layout_idx={layout_idx}, blk_idx={blk_idx}, bbox={px_bbox}: {e}"
+                                )
+                                # 兜底：退化为文本元素，保持兼容
+                                fig_mask.append(
+                                    {
+                                        "type": "text",
+                                        "bbox": px_bbox,
+                                        "text": text,
+                                        "text_level": None,
+                                        "page_idx": 0,
+                                    }
+                                )
+                                text_count += 1
+            else:
+                # 正常路径：MinerU 输出多个元素，仍按原逻辑基于 fig_draft_path 裁剪
+                for idx, it in enumerate(mineru_items):
+                    elem_type_raw = it.get("type") or ""
+                    elem_type = elem_type_raw.lower()
+                    bbox = it.get("bbox")
+                    text = (it.get("text") or it.get("content") or "").strip()
 
-                if not bbox or len(bbox) != 4:
-                    continue
+                    if not bbox or len(bbox) != 4:
+                        continue
 
-                # 归一化 -> 像素坐标（基于原始 fig_ 图尺寸）
-                x1n, y1n, x2n, y2n = bbox
-                x1 = int(round(x1n * top_w))
-                y1 = int(round(y1n * top_h))
-                x2 = int(round(x2n * top_w))
-                y2 = int(round(y2n * top_h))
+                    # 归一化 -> 像素坐标（基于原始 fig_ 图尺寸）
+                    x1n, y1n, x2n, y2n = bbox
+                    x1 = int(round(x1n * top_w))
+                    y1 = int(round(y1n * top_h))
+                    x2 = int(round(x2n * top_w))
+                    y2 = int(round(y2n * top_h))
 
-                if x2 <= x1 or y2 <= y1:
-                    continue
+                    if x2 <= x1 or y2 <= y1:
+                        continue
 
-                px_bbox = [x1, y1, x2, y2]
+                    px_bbox = [x1, y1, x2, y2]
 
-                # 1) 只要有文字内容，一律作为文本元素
-                if text:
-                    fig_mask.append(
-                        {
-                            "type": "text",
-                            "bbox": px_bbox,
-                            "text": text,
-                            "text_level": 1 if elem_type == "title" else None,
-                            "page_idx": 0,
-                        }
-                    )
-                    text_count += 1
-                    continue
+                    # 1) 只要有文字内容，一律作为文本元素
+                    if text:
+                        fig_mask.append(
+                            {
+                                "type": "text",
+                                "bbox": px_bbox,
+                                "text": text,
+                                "text_level": 1 if elem_type == "title" else None,
+                                "page_idx": 0,
+                            }
+                        )
+                        text_count += 1
+                        continue
 
-                # 2) 没有任何文字内容的块：一律裁图，当作 image，用于 icon / 元素图层
-                try:
-                    crop = top_img.crop((x1, y1, x2, y2))
-                    icon_path = icons_raw_dir / f"blk_{idx}.png"
-                    crop.save(icon_path)
-                    icon_abs = str(icon_path)
-                    fig_mask.append(
-                        {
-                            "type": "image",
-                            "bbox": px_bbox,
-                            "img_path": icon_abs,
-                            "page_idx": 0,
-                        }
-                    )
-                    icon_count += 1
-                except Exception as e:
-                    log.error(f"[figure_mask] 裁剪子图失败 idx={idx}, bbox={px_bbox}: {e}")
-                    # 兜底：作为普通文本
-                    fig_mask.append(
-                        {
-                            "type": "text",
-                            "bbox": px_bbox,
-                            "text": text,
-                            "text_level": None,
-                            "page_idx": 0,
-                        }
-                    )
-                    text_count += 1
+                    # 2) 没有任何文字内容的块：一律裁图，当作 image，用于 icon / 元素图层
+                    try:
+                        crop = top_img.crop((x1, y1, x2, y2))
+                        icon_path = icons_raw_dir / f"blk_{idx}.png"
+                        crop.save(icon_path)
+                        icon_abs = str(icon_path)
+                        fig_mask.append(
+                            {
+                                "type": "image",
+                                "bbox": px_bbox,
+                                "img_path": icon_abs,
+                                "page_idx": 0,
+                            }
+                        )
+                        icon_count += 1
+                    except Exception as e:
+                        log.error(f"[figure_mask] 裁剪子图失败 idx={idx}, bbox={px_bbox}: {e}")
+                        # 兜底：作为普通文本
+                        fig_mask.append(
+                            {
+                                "type": "text",
+                                "bbox": px_bbox,
+                                "text": text,
+                                "text_level": None,
+                                "page_idx": 0,
+                            }
+                        )
+                        text_count += 1
 
-        type_counter = {}
-        for e in fig_mask:
-            t = e.get("type")
-            type_counter[t] = type_counter.get(t, 0) + 1
+            type_counter = {}
+            for e in fig_mask:
+                t = e.get("type")
+                type_counter[t] = type_counter.get(t, 0) + 1
 
-        log.info(
-            f"[figure_mask] fig_mask size = {len(fig_mask)}, "
-            f"type distribution = {type_counter}, "
-            f"title_text={text_count}, icons(raw)={icon_count}"
-        )
+            log.info(
+                f"[figure_mask] fig_mask size = {len(fig_mask)}, "
+                f"type distribution = {type_counter}, "
+                f"title_text={text_count}, icons(raw)={icon_count}"
+            )
 
-        # 更新 state 的 fig_mask 信息
-        state.fig_mask = fig_mask
-        log.info(f"[figure_mask] 共解析出 {len(fig_mask)} 个元素 (via MinerU HTTP + SAM fallback, pixel bbox + raw icons)")
+            # 更新 state 的 fig_mask 信息
+            state.fig_mask = fig_mask
+            log.info(f"[figure_mask] 共解析出 {len(fig_mask)} 个元素 (via MinerU HTTP + SAM fallback, pixel bbox + raw icons)")
+
+        except Exception as e:
+            log.error(f"[figure_mask] Critical Failure, fallback to empty fig_mask: {e}")
+            state.fig_mask = []
 
         return state
     
@@ -639,32 +649,40 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         """
         把Mask里面的图标去除背景
         """
-        base_dir = Path(_ensure_result_path(state))
-        icons_dir = base_dir / "icons"
-        icons_dir.mkdir(parents=True, exist_ok=True)
-
-        img_cnt = 0
-        for item in state.fig_mask:
-            if item.get('type') in ['image', 'table']:
-                img_cnt += 1
-                output_path = local_tool_for_bg_remove({
-                    "image_path": item.get('img_path'),
-                    "model_path": state.request.bg_rm_model,
-                    "output_dir": str(icons_dir)
-                })
-                if output_path:
-                    item['img_path'] = output_path
-                    log.info(f"[figure_icon_bg_remover] background removed: {output_path}")
-                else:
-                    log.warning(f"[figure_icon_bg_remover] bg remove failed for {item.get('img_path')}")
-        log.info(f"[figure_icon_bg_remover] processed image/table elements: {img_cnt}")
-
-        # 抠图完成后，显式释放 RGB2.0 模型占用的显存
         try:
-            free_bg_rm_model(model_path=state.request.bg_rm_model)
-            log.info("[figure_icon_bg_remover] freed RMBG-2.0 model from GPU")
+            base_dir = Path(_ensure_result_path(state))
+            icons_dir = base_dir / "icons"
+            icons_dir.mkdir(parents=True, exist_ok=True)
+
+            img_cnt = 0
+            for item in state.fig_mask:
+                if item.get('type') in ['image', 'table']:
+                    img_cnt += 1
+                    try:
+                        output_path = local_tool_for_bg_remove({
+                            "image_path": item.get('img_path'),
+                            "model_path": state.request.bg_rm_model,
+                            "output_dir": str(icons_dir)
+                        })
+                        if output_path:
+                            item['img_path'] = output_path
+                            log.info(f"[figure_icon_bg_remover] background removed: {output_path}")
+                        else:
+                            log.warning(f"[figure_icon_bg_remover] bg remove failed for {item.get('img_path')}")
+                    except Exception as e:
+                        log.warning(f"[figure_icon_bg_remover] Single item bg remove failed: {e}")
+
+            log.info(f"[figure_icon_bg_remover] processed image/table elements: {img_cnt}")
+
+            # 抠图完成后，显式释放 RGB2.0 模型占用的显存
+            try:
+                free_bg_rm_model(model_path=state.request.bg_rm_model)
+                log.info("[figure_icon_bg_remover] freed RMBG-2.0 model from GPU")
+            except Exception as e:
+                log.error(f"[figure_icon_bg_remover] free_bg_rm_model failed: {e}")
+
         except Exception as e:
-            log.error(f"[figure_icon_bg_remover] free_bg_rm_model failed: {e}")
+            log.error(f"[figure_icon_bg_remover] Critical Failure, skipping bg removal: {e}")
 
         return state
 
