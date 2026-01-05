@@ -1,10 +1,8 @@
 <div align="center">
 
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/new_logo_bgrm.png" alt="Paper2Any Logo" width="180"/>
+<img src="static/new_readme/logo图.png" alt="Paper2Any Logo" width="200"/>
 
 # Paper2Any
-
-<!-- **从论文与原始数据，到图表、PPT 和数据管线的一站式 AI Orchestrator** -->
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-2F80ED?style=flat-square&logo=apache&logoColor=white)](LICENSE)
@@ -12,6 +10,12 @@
 [![Stars](https://img.shields.io/github/stars/OpenDCAI/Paper2Any?style=flat-square&logo=github&label=Stars&color=F2C94C)](https://github.com/OpenDCAI/Paper2Any/stargazers)
 
 中文 | [English](README_EN.md)
+
+✨ **专注论文多模态工作流：从论文 PDF/截图/文本，一键生成模型示意图、技术路线图、实验图和演示文稿** ✨
+
+| 📄 **Universal File Support** &nbsp;|&nbsp; 🎯 **AI-Powered Generation** &nbsp;|&nbsp; 🎨 **Custom Styling** &nbsp;|&nbsp; ⚡ **Lightning Speed** |
+
+<br>
 
 <a href="#-快速开始" target="_self">
   <img alt="Quickstart" src="https://img.shields.io/badge/🚀-快速开始-2F80ED?style=for-the-badge" />
@@ -26,14 +30,11 @@
   <img alt="Contributing" src="https://img.shields.io/badge/🤝-参与贡献-27AE60?style=for-the-badge" />
 </a>
 
-*专注论文多模态工作流：从论文 PDF/截图/文本，一键生成模型示意图、技术路线图、实验图和演示文稿*
+<br>
+<br>
 
-</div>
+<img src="static/new_readme/first.png" alt="Paper2Any Web Interface" width="80%"/>
 
-<div align="center">
-  <img src="static/frontend_pages/paper2figure-1.png" alt="Paper2Figure" width="45%"/>
-  <span>&nbsp;|&nbsp;</span>
-  <img src="static/frontend_pages/paper2ppt-1.png" alt="Paper2PPT" width="45%"/>
 </div>
 
 ---
@@ -72,7 +73,7 @@
 > 支持一键生成多种<strong>可编辑</strong>科研绘图（模型架构图 / 技术路线图 / 实验数据图）<br>
 > 🌐 在线体验：<a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
 
-- 2024-09-01 · 发布 <code>0.1.0</code> 首个版本
+- 2025-10-01 · 发布 <code>0.1.0</code> 首个版本
 
 ---
 
@@ -82,394 +83,88 @@
 
 Paper2Any 当前包含以下几个子能力：
 
-<table>
-<tr>
-<td width="50%" valign="top">
-
-**📊 Paper2Figure - 可编辑科研绘图**
-- ✅ 模型架构图生成
-- ✅ 技术路线图生成（PPT + SVG）
-- ✅ 实验数据图生成 (优化中)
-- ✅ 支持 PDF / 图片 / 文本输入
-- ✅ 输出可编辑 PPTX 格式
-
-</td>
-<td width="50%" valign="top">
-
-**🎬 Paper2PPT - 可编辑演示文稿**
-- ✅ Beamer 版本 PPT 生成
-- ✅ 开放式可编辑 PPT 生成
-- ✅ PDF2PPT 转换，背景保留+可编辑
-
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-**🎬 Paper2Video - 论文讲解视频**
-- 🚧 自动生成视频脚本
-- 🚧 分镜描述与时间轴
-- 🚧 配图素材推荐
-- 🚧 视频自动合成（开发中）
-
-</td>
-<td valign="top">
-
-**📌 Paper2Poster - 可编辑学术海报**
-- 🚧 版式自动设计
-- 🚧 要点提炼
-- 🚧 视觉优化
-
-</td>
-</tr>
-</table>
+- **📊 Paper2Figure - 可编辑科研绘图**：一键生成模型架构图、技术路线图（PPT + SVG）、实验数据图，支持多种输入源，输出可编辑 PPTX。
+- **🎬 Paper2PPT - 可编辑演示文稿**：生成任意风格PPT，支持超长文档处理，内置表格提取与图表解析功能。
+- **🖼️ PDF2PPT - 版式保留转换**：智能抠图与版式分析，将 PDF 精准转换为可编辑 PPTX。
+- **🎨 PPT 智能美化**：基于 AI 的 PPT 排版优化与风格迁移。
 
 ---
 
 ## 📸 功能展示
 
-### 1. Paper2PPT - 论文转演示文稿
-
-#### 基础生成 (Paper / Text / Topic → PPT)
-
-<table>
-<tr>
-<th width="25%">输入</th>
-<th width="25%">输出</th>
-<th width="25%">输入</th>
-<th width="25%">输出</th>
-</tr>
-<tr>
-<td align="center">
-<img src="static/paper2ppt/input_1.png" alt="输入：论文 PDF" width="100%"/>
-<br><sub>📄 论文 PDF</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/output_1.png" alt="输出：生成 PPT" width="100%"/>
-<br><sub>📊 生成的 PPT</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/input_3.png" alt="输入：论文内容" width="100%"/>
-<br><sub>📝 论文内容</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/output_3.png" alt="输出：生成 PPT" width="100%"/>
-<br><sub>📊 生成的 PPT</sub>
-</td>
-</tr>
-<tr>
-<td colspan="2" align="center">
-<strong>PPT 生成</strong> - 上传论文 PDF，自动提取关键信息，生成结构化的学术汇报 PPT。
-</td>
-<td colspan="2" align="center">
-<strong>PPT 生成</strong> - 智能分析论文内容，可以自动插入论文内部表格和插图到PPT。
-</td>
-</tr>
-<tr>
-<td align="center">
-<img src="static/paper2ppt/input_2-1.png" alt="输入：文本 1" width="100%"/>
-<br><sub>📄 输入文本 1</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/input_2-2.png" alt="输入：文本 2" width="100%"/>
-<br><sub>📄 逐页面编辑</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/input_2-3.png" alt="输入：文本 3" width="100%"/>
-<br><sub>📄 生成PPT页面</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/output_2.png" alt="输出：生成 PPT" width="100%"/>
-<br><sub>📊 生成的 PPT</sub>
-</td>
-</tr>
-<tr>
-<td colspan="4" align="center">
-<strong>Text2PPT</strong> - 输入长文本/大纲，自动生成结构化的 PPT。
-</td>
-</tr>
-<tr>
-<td align="center">
-<img src="static/paper2ppt/input_4-1.png" alt="输入：主题 1" width="100%"/>
-<br><sub>📄 输入主题 1</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/input_4-2.png" alt="输入：主题 2" width="100%"/>
-<br><sub>📄 逐页面编辑</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/input_4-3.png" alt="输入：主题 3" width="100%"/>
-<br><sub>📄 生成PPT页面</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/output_4.png" alt="输出：生成 PPT" width="100%"/>
-<br><sub>📊 生成的 PPT</sub>
-</td>
-</tr>
-<tr>
-<td colspan="4" align="center">
-<strong>Topic2PPT</strong> - 输入简短主题，自动扩充内容并生成 PPT。
-</td>
-</tr>
-</table>
-
-#### 🚀 超长文档生成 (40+ 页 PPT)
-
-> 针对整本书籍、长篇综述或超长技术文档，支持自动分章节处理，生成 40~100 页的完整演示文稿。
-
-<table>
-<tr>
-<th width="25%">输入：长篇论文/书籍</th>
-<th width="25%">PPT生成（红色风格）</th>
-<th width="25%">PPT生成（紫色风格）</th>
-<!-- <th width="25%">最终 PPT (40+页)</th> -->
-</tr>
-<tr>
-<td align="center">
-<img src="static/paper2ppt/long_paper/input_0.png" alt="输入：长文档" width="100%"/>
-<br><sub>📚 输入：研究主题，选择长文模式</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/long_paper/output_1.png" alt="PPT生成（红色风格）" width="100%"/>
-<br><sub>📝 PPT生成（红色风格）</sub>
-</td>
-<td align="center">
-<img src="static/paper2ppt/long_paper/output_2.png" alt="PPT生成（紫色风格）" width="100%"/>
-<br><sub>🔄 PPT生成（紫色风格）</sub>
-</td>
-</tr>
-</table>
-
----
-
-#### PDF2PPT - PDF 转可编辑 PPT
-
-<table>
-<tr>
-<th width="25%">输入</th>
-<th width="25%">输出</th>
-<th width="25%">输入</th>
-<th width="25%">输出</th>
-</tr>
-<tr>
-<td align="center">
-<img src="static/pdf2ppt/input_1.png" alt="输入：PDF 页面" width="100%"/>
-<br><sub>📄 PDF 页面</sub>
-</td>
-<td align="center">
-<img src="static/pdf2ppt/output_1.png" alt="输出：生成 PPT 页面" width="100%"/>
-<br><sub>📊 生成的 PPT (白底)</sub>
-</td>
-<td align="center">
-<img src="static/pdf2ppt/input_2.png" alt="输入：PDF 页面" width="100%"/>
-<br><sub>📄 PDF 页面</sub>
-</td>
-<td align="center">
-<img src="static/pdf2ppt/output_2.png" alt="输出：生成 PPT 页面" width="100%"/>
-<br><sub>📊 生成的 PPT (AI重绘)</sub>
-</td>
-</tr>
-</table>
-
-#### PPT Polish - 智能美化
-
-<table>
-<tr>
-<th width="25%">原始 PPT</th>
-<th width="25%">增色后</th>
-<th width="25%">原始 PPT</th>
-<th width="25%">润色后</th>
-</tr>
-<tr>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/paper2ppt_orgin_1.png" alt="原始PPT" width="100%"/>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/paper2ppt_polish_1.png" alt="增色后PPT" width="100%"/>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/orgin_3.png" alt="原始PPT" width="100%"/>
-</td>
-<td align="center">
-<img src="frontend-workflow/public/ppt2polish/polish_3.png" alt="润色后PPT" width="100%"/>
-</td>
-</tr>
-</table>
-
----
-
-### 2. Paper2Figure - 科研绘图生成
-
-#### 模型架构图生成
-
-<table>
-<tr>
-<th width="33%">输入</th>
-<th width="33%">生成图</th>
-<th width="33%">PPTX 截图</th>
-</tr>
-<tr>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img.png" alt="输入：论文 PDF" width="100%"/>
-<br><sub>📄 论文 PDF</sub>
-</td>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img_2.png" alt="生成的模型图" width="100%"/>
-<br><sub>🎨 生成的模型架构图</sub>
-</td>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_pdf_img_3.png" alt="PPTX 截图" width="100%"/>
-<br><sub>📊 可编辑 PPTX</sub>
-</td>
-</tr>
-<tr>
-<td colspan="3" align="center">
-<strong>绘图难度：简单</strong> - 基础模型结构，清晰的模块划分
-</td>
-</tr>
-<tr>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_1.png" alt="输入：论文 PDF" width="100%"/>
-<br><sub>📄 论文PDF</sub>
-</td>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_2.png" alt="生成的模型图" width="100%"/>
-<br><sub>🎨 生成的模型架构图</sub>
-</td>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_mid_img_3.png" alt="PPTX 截图" width="100%"/>
-<br><sub>📊 可编辑 PPTX</sub>
-</td>
-</tr>
-<tr>
-<td colspan="3" align="center">
-<strong>绘图难度：中等</strong> - 包含多层次结构和数据流
-</td>
-</tr>
-<tr>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_1.png" alt="输入：论文 PDF" width="100%"/>
-<br><sub>📄 输入核心段落</sub>
-</td>
-<td align="center">
-<img src="static/paper2any_imgs/p2f/p2f_paper_hard_img_2.png" alt="生成的模型图" width="100%"/>
-<br><sub>🎨 生成的模型架构图</sub>
-</td>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2f/p2f_paper_hard_img_3.png" alt="PPTX 截图" width="100%"/>
-<br><sub>📊 可编辑 PPTX</sub>
-</td>
-</tr>
-<tr>
-<td colspan="3" align="center">
-<strong>绘图难度：困难</strong> - 复杂的多模块交互和详细注释
-</td>
-</tr>
-</table>
+### 📊 Paper2Figure: 科研绘图生成
 
 <div align="center">
-上传论文 PDF，根据选择的难度（简单/中等/困难），自动生成<strong>可编辑 PPTX 格式</strong>模型架构图。
+
+<br>
+<img src="static/new_readme/2figure.gif" width="90%"/>
+<br><sub>✨ 模型架构图生成</sub>
+
+<br>
+<img src="static/new_readme/科研绘图-01.png" width="90%"/>
+<br><sub>✨ 模型架构图生成</sub>
+
+<br><br>
+<img src="static/new_readme/技术路线图.png" width="90%"/>
+<br><sub>✨ 技术路线图生成</sub>
+
+<br><br>
+<img src="static/new_readme/实验数据图.png" width="90%"/>
+<br><sub>✨ 实验数据图生成 (多种风格)</sub>
+
 </div>
 
-#### 技术路线图生成
+---
 
-<table>
-<tr>
-<th width="33%">输入</th>
-<th width="33%">生成图（SVG）</th>
-<th width="33%">PPTX 截图</th>
-</tr>
-<tr>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/paper1.png" alt="输入：论文文本" width="100%"/>
-<br><sub>📝 方法部分（中文）</sub>
-</td>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/cn_img_1.png" alt="技术路线图 SVG" width="100%"/>
-<br><sub>🗺️ 技术路线图 SVG</sub>
-</td>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/cn_img_2.png" alt="PPTX 截图" width="100%"/>
-<br><sub>📊 可编辑 PPTX</sub>
-</td>
-</tr>
-<tr>
-<td colspan="3" align="center">
-<strong>语言：中文</strong> - 适合国内学术交流
-</td>
-</tr>
-<tr>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/paper2.png" alt="输入：论文文本（英文）" width="100%"/>
-<br><sub>📝 方法部分（英文）</sub>
-</td>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/en_img_1.png" alt="技术路线图 SVG" width="100%"/>
-<br><sub>🗺️ 技术路线图 SVG</sub>
-</td>
-<td align="center">
-<img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2t/en_img_2.png" alt="PPTX 截图" width="100%"/>
-<br><sub>📊 可编辑 PPTX</sub>
-</td>
-</tr>
-<tr>
-<td colspan="3" align="center">
-<strong>语言：英文</strong> - 适合国际学术发表
-</td>
-</tr>
-</table>
+### 🎬 Paper2PPT: 论文转演示文稿
 
-#### 实验数据图生成
+<div align="center">
 
-<table>
-<tr>
-<th width="33%">输入</th>
-<th width="33%">常规风格</th>
-<th width="33%">手绘风格</th>
-</tr>
-<tr>
-<td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2e/paper_1.png" alt="输入：实验结果" width="100%"/>
-  <br><sub>📄 实验结果截图</sub>
-</td>
-<td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@main/static/paper2any_imgs/p2e/paper_1_2.png" alt="输出：标准样式" width="100%"/>
-  <br><sub>📈 常规 Python 风格</sub>
-</td>
-<td align="center">
-  <img src="https://cdn.jsdelivr.net/gh/OpenDCAI/Paper2Any@lz/dev/static/paper2any_imgs/p2e/paper_1_3.png" alt="输出：手绘风格" width="100%"/>
-  <br><sub>🎨 手绘风格</sub>
-</td>
-</tr>
-<tr>
-<td align="center">
-  <img src="static/paper2any_imgs/p2e/paper_2.png" alt="输入：实验结果截图" width="100%"/>
-  <br><sub>📄 输入：论文 PDF / 实验结果截图</sub>
-</td>
-<td align="center">
-  <img src="static/paper2any_imgs/p2e/paper_2_2.png" alt="输出：实验数据图（基础样式）" width="100%"/>
-  <br><sub>📈 输出：常规 Python 风格实验数据图</sub>
-</td>
-<td align="center">
-  <img src="static/paper2any_imgs/p2e/paper_2_3.png" alt="输出：实验数据图（卡通风格）" width="100%"/>
-  <br><sub>🎨 输出：卡通风格的实验数据图</sub>
-</td>
-</tr>
-<tr>
-<td align="center">
-  <img src="static/paper2any_imgs/p2e/paper_3.png" alt="输入：实验结果截图" width="100%"/>
-  <br><sub>📄 输入：论文 PDF / 实验结果截图</sub>
-</td>
-<td align="center">
-  <img src="static/paper2any_imgs/p2e/paper_3_2.png" alt="输出：实验数据图（基础样式）" width="100%"/>
-  <br><sub>📈 输出：常规 Python 风格实验数据图</sub>
-</td>
-<td align="center">
-  <img src="static/paper2any_imgs/p2e/paper_3_3.png" alt="输出：实验数据图（多边形风格）" width="100%"/>
-  <br><sub>🎨 输出：多边形风格的实验数据图</sub>
-</td>
-</tr>
-</table>
+<br>
+<img src="static/new_readme/paper2ppt操作.gif" width="85%"/>
+<br><sub>✨ PPT生成案例</sub>
+
+<br>
+<img src="static/new_readme/paper2ppt案例-1.png" width="90%"/>
+<br><sub>✨ Paper / Text / Topic → PPT</sub>
+
+<br><br>
+<img src="static/new_readme/paper2ppt-长文长ppt.png" width="85%"/>
+<br><sub>✨ 超长文档支持 (40+ 页 PPT)</sub>
+
+<br><br>
+<img src="static/new_readme/paper2ppt-表格提取功能.png" width="90%"/>
+<br><sub>✨ 智能表格提取与插入</sub>
+
+</div>
+
+---
+
+### 🎨 PPT 智能美化
+
+<div align="center">
+
+<br>
+<img src="static/new_readme/polish.gif" width="90%"/>
+<br><sub>✨ 基于 AI 的排版优化</sub>
+
+<br>
+<img src="static/new_readme/ppt美化-1.png" width="90%"/>
+<br><sub>✨ 基于 AI 的排版优化与风格迁移</sub>
+
+</div>
+
+---
+
+### 🖼️ PDF2PPT: 版式保留转换
+
+<div align="center">
+
+<br>
+<img src="static/new_readme/pdf2ppt抠图.png" width="90%"/>
+<br><sub>✨ 智能抠图 & 版式保留</sub>
+
+</div>
 
 ---
 
@@ -480,12 +175,9 @@ Paper2Any 当前包含以下几个子能力：
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![pip](https://img.shields.io/badge/pip-latest-3776AB?style=flat-square&logo=pypi&logoColor=white)
 
----
-
 ### 🐧 Linux 安装
 
 > 建议使用 Conda 创建隔离环境（推荐 Python 3.11）。  
-> 下述命令以 Ubuntu 为例，其他发行版请参考对应包管理器命令。
 
 #### 1. 创建环境并安装基础依赖
 
@@ -511,22 +203,15 @@ Paper2Any 涉及 LaTeX 渲染、矢量图处理以及 PPT/PDF 转换，需要额
 
 ```bash
 # 1. Python 依赖
-# (如果 requirements-paper.txt 安装失败，可尝试 requirements-paper-backup.txt)
 pip install -r requirements-paper.txt || pip install -r requirements-paper-backup.txt
 
 # 2. LaTeX 引擎 (tectonic) - 推荐用 conda 安装
 conda install -c conda-forge tectonic -y
 
 # 3. 解决 doclayout_yolo 依赖冲突（重要）
-# 由于 doclayout_yolo 可能与 paddleocr 存在依赖冲突（albumentations 版本不一致），建议忽略依赖检查单独安装：
 pip install doclayout_yolo --no-deps
 
 # 4. 系统依赖 (Ubuntu 示例)
-# 包含：
-# - inkscape: SVG / 矢量图处理
-# - libreoffice: PPT 打开 / 转换
-# - poppler-utils: PDF 工具 (pdftoppm / pdftocairo)
-# - wkhtmltopdf: HTML 转 PDF
 sudo apt-get update
 sudo apt-get install -y inkscape libreoffice poppler-utils wkhtmltopdf
 ```
@@ -536,45 +221,53 @@ sudo apt-get install -y inkscape libreoffice poppler-utils wkhtmltopdf
 ```bash
 export DF_API_KEY=your_api_key_here
 export DF_API_URL=xxx  # 可选：如需使用第三方 API 中转站
-
-# [可选] 配置 MinerU PDF 解析任务的 GPU 资源池（负载均衡）
-# 指定一组可用 GPU ID（逗号分隔），PDF 解析任务会自动随机选择一张卡运行，避免拥堵。
-# 默认值：5,6,7
-# 这个主要用于 paper2ppt 场景下，MinerU 的解析服务
-export MINERU_DEVICES="0,1,2,3"
+export MINERU_DEVICES="0,1,2,3" # 可选：MinerU 任务 GPU 资源池
 ```
 
-第三方 API 中转示例：
+#### 4. 配置 Supabase (前后端必需)
 
-- https://api.apiyi.com/
-- http://123.119.219.111:3000/
+在 `frontend-workflow` 目录下创建 `.env` 文件并填入以下配置：
+
+```bash
+# frontend-workflow/.env
+
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Backend
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SUPABASE_JWT_SECRET=your_jwt_secret
+
+# Application Settings
+DAILY_WORKFLOW_LIMIT=10
+```
 
 <details>
-<summary><b>🔧 高级配置：本地模型服务负载均衡（可选）</b></summary>
+<summary><strong>高级配置：本地模型服务负载均衡</strong></summary>
 
-<br>
+如果是本地部署高并发环境，可以使用 `script/start_model_servers.sh` 启动本地模型服务集群（MinerU / SAM / OCR）。
 
-如果是本地部署高并发环境，可以使用 `script/start_model_servers.sh` 启动本地模型服务集群（MinerU / SAM / OCR），以提升 Paper2Any 在 PDF 解析和图像处理场景下的吞吐能力。
+脚本位置：`/DataFlow-Agent/script/start_model_servers.sh`
 
-**脚本位置**：`script/start_model_servers.sh`
+**主要配置项说明：**
 
-**主要配置项说明**（与 Paper2Any 强相关的部分）：
+- **MinerU (PDF 解析)**
+  - `MINERU_MODEL_PATH`: 模型路径 (默认 `models/MinerU2.5-2509-1.2B`)
+  - `MINERU_GPU_UTIL`: 显存占用比例 (默认 0.2)
+  - **实例配置**: 脚本默认在 GPU 0 和 GPU 4 上各启动 4 个实例 (共 8 个)，端口范围 8011-8018。
+  - **Load Balancer**: 端口 8010，自动分发请求。
 
-*   **MinerU (PDF 解析)**
-    *   `MINERU_MODEL_PATH`: 模型路径 (默认 `models/MinerU2.5-2509-1.2B`)
-    *   `MINERU_GPU_UTIL`: 显存占用比例 (默认 `0.2`)
-    *   **实例配置**: 脚本默认在多张 GPU 上启动若干实例，端口范围通常为 `8011-8018`。
-    *   **Load Balancer**: 端口 `8010`，自动分发请求。
+- **SAM (Segment Anything Model)**
+  - **实例配置**: 默认在 GPU 2 和 GPU 3 上各启动 1 个实例，端口 8021-8022。
+  - **Load Balancer**: 端口 8020。
 
-*   **SAM (Segment Anything Model，用于图像分割)**
-    *   **实例配置**: 默认在多张 GPU 上各启动 1 个实例，端口范围 `8021-8022`。
-    *   **Load Balancer**: 端口 `8020`。
+- **OCR (PaddleOCR)**
+  - **配置**: 运行在 CPU 上，使用 uvicorn 的 worker 机制 (默认 4 workers)。
+  - **端口**: 8003。
 
-*   **OCR (PaddleOCR)**
-    *   **配置**: 通常运行在 CPU 上，使用 uvicorn 的 worker 机制 (默认 4 workers)。
-    *   **端口**: `8003`。
-
-使用前请根据实际 GPU 数量和显存情况修改脚本中的 `gpu_id` 和实例数量。
+> 使用前请根据实际 GPU 数量和显存情况修改脚本中的 `gpu_id` 和实例数量。
 
 </details>
 
@@ -582,9 +275,8 @@ export MINERU_DEVICES="0,1,2,3"
 
 ### 🪟 Windows 安装
 
-> [!NOTE]  
-> 目前推荐优先在 Linux / WSL 环境下体验 Paper2Any。  
-> 若你需要在原生 Windows 上部署，请按以下步骤操作。
+> [!NOTE]
+> 目前推荐优先在 Linux / WSL 环境下体验 Paper2Any。 若你需要在 原生 Windows 上部署，请按以下步骤操作。
 
 #### 1. 创建环境并安装基础依赖
 
@@ -604,9 +296,9 @@ pip install -r requirements-win-base.txt
 pip install -e .
 ```
 
-#### 2. 安装 Paper2Any 相关依赖（必须）
+#### 2. 安装 Paper2Any 相关依赖（推荐）
 
-Paper2Any 涉及 LaTeX 渲染与矢量图处理，需要额外依赖（见 `requirements-paper.txt`）：
+Paper2Any 涉及 LaTeX 渲染与矢量图处理，需要额外依赖（见 requirements-paper.txt）：
 
 ```bash
 # Python 依赖
@@ -616,39 +308,95 @@ pip install -r requirements-paper.txt
 conda install -c conda-forge tectonic -y
 ```
 
-🎨 安装 Inkscape（SVG/矢量图处理｜推荐/必装）
+**🎨 安装 Inkscape（SVG/矢量图处理｜推荐/必装）**
 
-- 下载并安装（Windows 64-bit MSI）：  
-  https://inkscape.org/release/inkscape-1.4.2/windows/64-bit/msi/?redirected=1  
-  选择 **Windows Installer Package（msi）**
+1. 下载并安装（Windows 64-bit MSI）：[Inkscape Download](https://inkscape.org/release/inkscape-1.4.2/windows/64-bit/msi/?redirected=1)
+2. 将 Inkscape 可执行文件目录加入系统环境变量 Path（示例）：`C:\Program Files\Inkscape\bin\`
 
-- 将 Inkscape 可执行文件目录加入系统环境变量 `Path`（示例）：
-  - `C:\Program Files\Inkscape\bin\`
+> [!TIP]
+> 配置 Path 后建议重新打开终端（或重启 VS Code / PowerShell），确保环境变量生效。
 
-> [!TIP]  
-> 配置 `Path` 后建议重新打开终端（或重启 VS Code / PowerShell），确保环境变量生效。
+#### ⚡ 安装 Windows 编译版 vLLM（可选｜用于本地推理加速）
 
-⚡ 安装 Windows 编译版 vLLM（可选｜用于本地 MinerU 推理加速）
-
-- 发布页参考：https://github.com/SystemPanic/vllm-windows/releases  
-- 示例版本：**0.11.0**（whl 文件名示例）
+发布页参考：[vllm-windows releases](https://github.com/SystemPanic/vllm-windows/releases)
+推荐版本：0.11.0
 
 ```bash
 pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
 ```
 
-> [!IMPORTANT]  
-> 请确保 `.whl` 与当前环境匹配：  
-> - Python：`cp312`（Python 3.12）  
-> - 平台：`win_amd64`  
-> - CUDA：`cu124`（需与你本机 CUDA/驱动适配）
+> [!IMPORTANT]
+> 请确保 `.whl` 与当前环境匹配：
+> - Python：cp312（Python 3.12）
+> - 平台：win_amd64
+> - CUDA：cu124（需与你本机 CUDA/驱动适配）
+
+#### 启动应用
+
+**Paper2Any - 论文工作流 Web 前端（推荐）**
+
+```bash
+# 启动后端 API
+cd fastapi_app
+uvicorn main:app --host 0.0.0.0 --port 8000
+
+# 启动前端（新终端）
+cd frontend-workflow
+npm install
+npm run dev
+```
+
+**配置前端代理**
+
+修改 `frontend-workflow/vite.config.ts` 中的 `server.proxy`：
+
+```typescript
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 3000,
+    open: true,
+    allowedHosts: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',  // FastAPI 后端地址
+        changeOrigin: true,
+      },
+    },
+  },
+})
+```
+访问 `http://localhost:3000`
+
+**Windows 加载 MinerU 预训练模型**
+
+```powershell
+# PowerShell环境下启动
+vllm serve opendatalab/MinerU2.5-2509-1.2B `
+  --host 127.0.0.1 `
+  --port 8010 `
+  --logits-processors mineru_vl_utils:MinerULogitsProcessor `
+  --gpu-memory-utilization 0.6 `
+  --trust-remote-code `
+  --enforce-eager
+```
+
+> [!TIP]
+> **Paper2Figure 网页端内测说明**
+> 
+> 当你部署了前端，还需要手动新建一个 `invite_codes.txt` 文件，并写入你的邀请码（例如：`ABCDEFG123456`）。
+> 然后再启动后端。
+> 
+> 如果暂时不想部署前后端，可以先通过本地脚本体验 Paper2Any 的核心能力：
+> - `python script/run_paper2figure.py`：模型架构图生成
+> - `python script/run_paper2expfigure.py`：实验数据图生成
+> - `python script/run_paper2technical.py`：技术路线图生成
+> - `python script/run_paper2ppt.py`：论文内容生成可编辑 PPT
+> - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`：PDF2PPT（保留版式 + 可编辑内容）
 
 ---
 
 ### 启动应用
-
-> [!NOTE]
-> **Paper2Any**：从论文 PDF / 图片 / 文本一键生成可编辑的科研绘图、技术路线图、实验数据图和演示文稿。
 
 #### 🎨 Web 前端（推荐）
 
@@ -661,56 +409,9 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 cd frontend-workflow
 npm install
 npm run dev
-
-# 如需要自定义前端端口或反向代理，可在 vite.config.ts 中配置 server.proxy：
-# 示例：
-# export default defineConfig({
-#   plugins: [react()],
-#   server: {
-#     port: 3000,
-#     open: true,
-#     allowedHosts: true,
-#     proxy: {
-#       '/api': {
-#         target: 'http://127.0.0.1:8000',  // FastAPI 后端地址
-#         changeOrigin: true,
-#       },
-#     },
-#   },
-# })
 ```
 
 访问 `http://localhost:3000`。
-
-> [!TIP]
-> **Paper2Figure 网页端内测说明**
-> - 部署了前端之后，需要**手动新建**一个 `invite_codes.txt` 文件，并写入你的邀请码（例如：`ABCDEFG123456`）。
-> - 然后再启动后端；
-> - 如果暂时不想部署前后端，可以通过本地脚本直接体验 Paper2Any 的核心能力：
->   - `python script/run_paper2figure.py`：模型架构图生成
->   - `python script/run_paper2expfigure.py`：实验数据图生成
->   - `python script/run_paper2technical.py`：技术路线图生成
->   - `python script/run_paper2ppt.py`：论文内容生成可编辑 PPT
->   - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`：PDF2PPT（保留版式 + 可编辑内容）
-
-#### 🪟 Windows 下加载 MinerU 预训练模型（可选）
-
-如果你在 Windows + GPU 环境中使用 vLLM 部署 MinerU 模型，可以参考下述命令（PowerShell 环境）：
-
-```bash
-# 加载 MinerU 预训练模型
-vllm serve opendatalab/MinerU2.5-2509-1.2B `
-  --host 127.0.0.1 `
-  --port 8010 `
-  --logits-processors mineru_vl_utils:MinerULogitsProcessor `
-  --gpu-memory-utilization 0.6 `
-  --trust-remote-code `
-  --enforce-eager
-```
-
-> [!TIP]
-> - 启动成功后，将 MinerU 推理服务地址配置到对应的环境变量或配置文件中即可被 Paper2Any 使用。
-> - 端口号和 GPU 占用比例可根据实际资源进行调整。
 
 > [!TIP]
 > 如果暂时不想部署前后端，可以通过本地脚本体验核心功能：
@@ -749,7 +450,7 @@ Paper2Any/
 </tr>
 <tr>
 <td><strong>📊 Paper2Figure</strong><br><sub>可编辑科研绘图</sub></td>
-<td><img src="https://img.shields.io/badge/进度-75%25-blue?style=flat-square&logo=progress" alt="75%"/></td>
+<td><img src="https://img.shields.io/badge/进度-80%25-blue?style=flat-square&logo=progress" alt="80%"/></td>
 <td>
 <img src="https://img.shields.io/badge/✓-模型架构图-success?style=flat-square" alt="完成"/><br>
 <img src="https://img.shields.io/badge/✓-技术路线图-success?style=flat-square" alt="完成"/><br>
@@ -758,21 +459,30 @@ Paper2Any/
 </td>
 </tr>
 <tr>
-<td><strong>🎬 Paper2Video</strong><br><sub>论文讲解视频</sub></td>
-<td><img src="https://img.shields.io/badge/进度-25%25-orange?style=flat-square&logo=progress" alt="25%"/></td>
+<td><strong>🎬 Paper2PPT</strong><br><sub>可编辑演示文稿</sub></td>
+<td><img src="https://img.shields.io/badge/进度-60%25-yellow?style=flat-square&logo=progress" alt="60%"/></td>
 <td>
-<img src="https://img.shields.io/badge/✓-视频脚本生成-success?style=flat-square" alt="完成"/><br>
-<img src="https://img.shields.io/badge/○-分镜描述-lightgrey?style=flat-square" alt="开发中"/><br>
-<img src="https://img.shields.io/badge/○-配图素材-lightgrey?style=flat-square" alt="开发中"/><br>
-<img src="https://img.shields.io/badge/○-视频合成-lightgrey?style=flat-square" alt="开发中"/>
+<img src="https://img.shields.io/badge/✓-Beamer_样式-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-长文_PPT-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-表格提取-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-配图提取-success?style=flat-square" alt="完成"/>
 </td>
 </tr>
 <tr>
-<td><strong>🎬 Paper2PPT</strong><br><sub>可编辑演示文稿</sub></td>
+<td><strong>🖼️ PDF2PPT</strong><br><sub>版式保留转换</sub></td>
+<td><img src="https://img.shields.io/badge/进度-90%25-green?style=flat-square&logo=progress" alt="90%"/></td>
+<td>
+<img src="https://img.shields.io/badge/✓-智能抠图-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-版式保留-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-可编辑_PPTX-success?style=flat-square" alt="完成"/>
+</td>
+</tr>
+<tr>
+<td><strong>🎨 PPT 美化</strong><br><sub>智能排版优化</sub></td>
 <td><img src="https://img.shields.io/badge/进度-50%25-yellow?style=flat-square&logo=progress" alt="50%"/></td>
 <td>
-<img src="https://img.shields.io/badge/✓-Beamer_样式-success?style=flat-square" alt="完成"/><br>
-<img src="https://img.shields.io/badge/⚠-可编辑_PPTX-yellow?style=flat-square" alt="进行中"/>
+<img src="https://img.shields.io/badge/✓-样式迁移-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/⚠-布局优化-yellow?style=flat-square" alt="进行中"/>
 </td>
 </tr>
 </table>
@@ -791,9 +501,13 @@ Paper2Any/
 
 ## 📄 License
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=for-the-badge&logo=apache&logoColor=white)](LICENSE)
+本项目采用 [Apache License 2.0](LICENSE) 开源协议。
 
-本项目采用 [Apache License 2.0](LICENSE) 开源协议
+<!-- --- -->
+
+<!-- ## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=OpenDCAI/Paper2Any&type=Date)](https://star-history.com/#OpenDCAI/Paper2Any&Date) -->
 
 ---
 
@@ -804,22 +518,14 @@ Paper2Any/
 [![GitHub stars](https://img.shields.io/github/stars/OpenDCAI/Paper2Any?style=social)](https://github.com/OpenDCAI/Paper2Any/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/OpenDCAI/Paper2Any?style=social)](https://github.com/OpenDCAI/Paper2Any/network/members)
 
-[提交 Issue](https://github.com/OpenDCAI/Paper2Any/issues) • [加入讨论](https://github.com/OpenDCAI/Paper2Any/discussions)
+<br>
 
-Made with ❤️ by OpenDCAI Team
+<img src="frontend-workflow/public/wechat.png" alt="DataFlow-Agent 社区微信群" width="800"/>
+<br>
+<sub>扫码加入社区微信群</sub>
 
-</div>
+<p align="center"> 
+  <em> ❤️ Made with by OpenDCAI Team</em>
+</p>
 
----
-
-## 🌐 加入社区
-
-- 📮 **GitHub Issues**：用于反馈 Bug 或提交功能建议  
-  👉 https://github.com/OpenDCAI/Paper2Any/issues
-- 💬 **社区交流群**：与开发者和贡献者实时交流
-
-<div align="center">
-  <img src="static/team_wechat.png" alt="DataFlow-Agent 社区微信群" width="560"/>
-  <br>
-  <sub>扫码加入社区微信群</sub>
 </div>

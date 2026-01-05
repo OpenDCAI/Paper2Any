@@ -4,12 +4,13 @@ import {
   AlertCircle, ChevronDown, ChevronUp, Github, Star, X, Sparkles,
   ArrowRight, ArrowLeft, GripVertical, Trash2, Edit3, Check, RotateCcw,
   MessageSquare, RefreshCw, FileText, Key, Globe, Cpu, Type, Lightbulb,
-  Copy, Share2
+  Copy, Share2, Info
 } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
 import { useAuthStore } from '../stores/authStore';
+import QRCodeTooltip from './QRCodeTooltip';
 
 // ============== 类型定义 ==============
 type Step = 'upload' | 'outline' | 'generate' | 'complete';
@@ -703,20 +704,41 @@ const Paper2PptPage = () => {
       await recordUsage(user?.id || null, 'paper2ppt');
       refreshQuota();
 
-      // Fetch PPT file and upload to Supabase Storage
-      const pptPath = data.ppt_pptx_path || (data.all_output_files?.find((url: string) =>
+      // Upload generated file to Supabase Storage (either PPTX or PDF)
+      // Find PPTX file first (preferred)
+      let filePath = data.ppt_pptx_path || (data.all_output_files?.find((url: string) =>
         url.endsWith('.pptx') || url.includes('editable.pptx')
       ));
-      if (pptPath) {
+      let defaultName = 'paper2ppt_result.pptx';
+
+      // If no PPTX, try PDF (exclude input PDFs)
+      if (!filePath) {
+        filePath = data.ppt_pdf_path || (data.all_output_files?.find((url: string) =>
+          url.endsWith('.pdf') && !url.includes('input')
+        ));
+        defaultName = 'paper2ppt_result.pdf';
+      }
+
+      if (filePath) {
         try {
-          const pptRes = await fetch(pptPath);
-          if (pptRes.ok) {
-            const pptBlob = await pptRes.blob();
-            const pptName = pptPath.split('/').pop() || 'paper2ppt_result.pptx';
-            uploadAndSaveFile(pptBlob, pptName, 'paper2ppt');
+          // Fix Mixed Content issue: upgrade http to https if current page is https
+          let fetchUrl = filePath;
+          if (window.location.protocol === 'https:' && filePath.startsWith('http:')) {
+            fetchUrl = filePath.replace('http:', 'https:');
+          }
+
+          const fileRes = await fetch(fetchUrl);
+          if (fileRes.ok) {
+            const fileBlob = await fileRes.blob();
+            const fileName = filePath.split('/').pop() || defaultName;
+            console.log('[Paper2PptPage] Uploading file to storage:', fileName);
+            await uploadAndSaveFile(fileBlob, fileName, 'paper2ppt');
+            console.log('[Paper2PptPage] File uploaded successfully');
+          } else {
+             console.error('[Paper2PptPage] Failed to fetch file for upload:', fileRes.status, fileRes.statusText);
           }
         } catch (e) {
-          console.warn('[Paper2PptPage] Failed to upload file:', e);
+          console.error('[Paper2PptPage] Failed to upload file:', e);
         }
       }
 
@@ -899,19 +921,9 @@ const Paper2PptPage = () => {
               />
             </div> */}
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs text-gray-400 flex items-center gap-1">
-                  <Key size={12} /> API Key *
-                </label>
-                <a
-                  href="https://api.apiyi.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[10px] text-purple-300 hover:text-purple-200 hover:underline"
-                >
-                  点击购买
-                </a>
-              </div>
+              <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
+                <Key size={12} /> API Key *
+              </label>
               <input 
                 type="password" 
                 value={apiKey} 
@@ -924,15 +936,36 @@ const Paper2PptPage = () => {
           
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
-                <Globe size={12} /> API URL
-              </label>
-              <input 
-                type="text" 
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs text-gray-400 flex items-center gap-1">
+                  <Globe size={12} /> API URL
+                </label>
+                <QRCodeTooltip>
+                <a
+                  href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com/register/?aff_code=TbrD"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-purple-300 hover:text-purple-200 hover:underline"
+                >
+                  点击购买
+                </a>
+                </QRCodeTooltip>
+              </div>
+              <select 
                 value={llmApiUrl} 
-                onChange={e => setLlmApiUrl(e.target.value)}
+                onChange={e => {
+                  const val = e.target.value;
+                  setLlmApiUrl(val);
+                  if (val === 'http://123.129.219.111:3000/v1') {
+                    setGenFigModel('gemini-3-pro-image-preview');
+                  }
+                }}
                 className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
-              />
+              >
+                <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
+                <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
+                <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
+              </select>
             </div>
             <div>
               <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
@@ -957,11 +990,15 @@ const Paper2PptPage = () => {
               <select
                 value={genFigModel}
                 onChange={e => setGenFigModel(e.target.value)}
-                className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
+                className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="gemini-2.5-flash-image">Gemini 2.5 (Flash Image)</option>
                 <option value="gemini-3-pro-image-preview">Gemini 3 Pro (中文推荐)</option>
               </select>
+              {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
+                 <p className="text-[10px] text-gray-500 mt-1">此源仅支持 gemini-3-pro</p>
+              )}
             </div>
             <div>
               <label className="block text-xs text-gray-400 mb-1">生成页数</label>
@@ -1043,6 +1080,11 @@ const Paper2PptPage = () => {
               <><ArrowRight size={18} /> {uploadMode === 'topic' ? '开始 Research' : '开始解析'}</>
             )}
           </button>
+
+          <div className="flex items-start gap-2 text-xs text-gray-500 mt-3 px-1">
+            <Info size={14} className="mt-0.5 text-gray-400 flex-shrink-0" />
+            <p>提示：如果长时间无响应或生成失败，可能是 API 服务商不稳定。建议稍后再试，或尝试更换模型/服务商。</p>
+          </div>
 
           {isUploading && (
             <div className="mt-4 animate-in fade-in slide-in-from-top-2">

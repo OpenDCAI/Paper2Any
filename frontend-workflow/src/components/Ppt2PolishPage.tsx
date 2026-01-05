@@ -3,12 +3,13 @@ import {
   Presentation, UploadCloud, Settings2, Download, Loader2, CheckCircle2,
   AlertCircle, ChevronDown, ChevronUp, Github, Star, X, Sparkles,
   ArrowRight, ArrowLeft, GripVertical, Trash2, Edit3, Check, RotateCcw,
-  MessageSquare, Eye, RefreshCw, FileText, Image as ImageIcon, Copy
+  MessageSquare, Eye, RefreshCw, FileText, Image as ImageIcon, Copy, Info
 } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
 import { useAuthStore } from '../stores/authStore';
+import QRCodeTooltip from './QRCodeTooltip';
 
 // ============== 类型定义 ==============
 type Step = 'upload' | 'beautify' | 'complete';
@@ -982,17 +983,34 @@ const Ppt2PolishPage = () => {
       await recordUsage(user?.id || null, 'ppt2polish');
       refreshQuota();
 
-      // Fetch PPT file and upload to Supabase Storage
-      if (pptxUrl) {
+      // Upload generated file to Supabase Storage (either PPTX or PDF)
+      // Prefer PPTX, fallback to PDF
+      let fileUrl = pptxUrl;
+      let defaultName = 'ppt2polish_result.pptx';
+
+      if (!fileUrl && pdfUrl) {
+        fileUrl = pdfUrl;
+        defaultName = 'ppt2polish_result.pdf';
+      }
+
+      if (fileUrl) {
         try {
-          const pptRes = await fetch(pptxUrl);
-          if (pptRes.ok) {
-            const pptBlob = await pptRes.blob();
-            const pptName = pptxUrl.split('/').pop() || 'ppt2polish_result.pptx';
-            uploadAndSaveFile(pptBlob, pptName, 'ppt2polish');
+          // Fix Mixed Content issue: upgrade http to https if current page is https
+          let fetchUrl = fileUrl;
+          if (window.location.protocol === 'https:' && fileUrl.startsWith('http:')) {
+            fetchUrl = fileUrl.replace('http:', 'https:');
+          }
+
+          const fileRes = await fetch(fetchUrl);
+          if (fileRes.ok) {
+            const fileBlob = await fileRes.blob();
+            const fileName = fileUrl.split('/').pop() || defaultName;
+            console.log('[Ppt2PolishPage] Uploading file to storage:', fileName);
+            await uploadAndSaveFile(fileBlob, fileName, 'ppt2polish');
+            console.log('[Ppt2PolishPage] File uploaded successfully');
           }
         } catch (e) {
-          console.warn('[Ppt2PolishPage] Failed to upload file:', e);
+          console.error('[Ppt2PolishPage] Failed to upload file:', e);
         }
       }
     } catch (err) {
@@ -1139,27 +1157,37 @@ const Ppt2PolishPage = () => {
           
           <div>
             <label className="block text-sm text-gray-300 mb-2">模型 API URL</label>
-            <input
-              type="text"
-              value={llmApiUrl}
-              onChange={(e) => setLlmApiUrl(e.target.value)}
-              placeholder="https://api.apiyi.com/v1"
-              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500"
-            />
+            <div className="flex items-center gap-2">
+              <select
+                value={llmApiUrl}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setLlmApiUrl(val);
+                  if (val === 'http://123.129.219.111:3000/v1') {
+                    setGenFigModel('gemini-3-pro-image-preview');
+                  }
+                }}
+                className="flex-1 rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
+              >
+                <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
+                <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
+                <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
+              </select>
+              <QRCodeTooltip>
+                <a
+                  href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com/register/?aff_code=TbrD"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="whitespace-nowrap text-[10px] text-teal-300 hover:text-teal-200 hover:underline px-1"
+                >
+                  点击购买
+                </a>
+              </QRCodeTooltip>
+            </div>
           </div>
           
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm text-gray-300 mb-0">API Key</label>
-              <a
-                href="https://api.apiyi.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[10px] text-teal-300 hover:text-teal-200 hover:underline"
-              >
-                点击购买
-              </a>
-            </div>
+            <label className="block text-sm text-gray-300 mb-2">API Key</label>
             <input
               type="password"
               value={apiKey}
@@ -1186,11 +1214,15 @@ const Ppt2PolishPage = () => {
             <select
               value={genFigModel}
               onChange={(e) => setGenFigModel(e.target.value)}
-              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
+              disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
+              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
               <option value="gemini-2.5-flash-image">gemini-2.5-flash-image</option>
             </select>
+            {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
+               <p className="text-[10px] text-gray-500 mt-1">此源仅支持 gemini-3-pro</p>
+            )}
           </div>
           
           <div>
@@ -1254,6 +1286,11 @@ const Ppt2PolishPage = () => {
           <button onClick={handleUploadAndParse} disabled={!selectedFile || isUploading} className="w-full py-3 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold flex items-center justify-center gap-2 transition-all">
             {isUploading ? <><Loader2 size={18} className="animate-spin" /> 解析中...</> : <><ArrowRight size={18} /> 开始解析</>}
           </button>
+
+          <div className="flex items-start gap-2 text-xs text-gray-500 mt-3 px-1">
+            <Info size={14} className="mt-0.5 text-gray-400 flex-shrink-0" />
+            <p>提示：如果长时间无响应或生成失败，可能是 API 服务商不稳定。建议稍后再试，或尝试更换模型/服务商。</p>
+          </div>
 
           {isUploading && (
             <div className="mt-4 animate-in fade-in slide-in-from-top-2">

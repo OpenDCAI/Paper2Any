@@ -25,6 +25,35 @@ export interface FileRecord {
  * @param workflowType - Type of workflow that generated this file
  * @returns The created file record with download URL, or null if failed
  */
+/**
+ * Sanitize filename to be compatible with Supabase Storage.
+ * Removes or replaces characters that are not allowed in storage keys.
+ * If the filename becomes empty after sanitization (e.g., all Chinese characters),
+ * uses a fallback name with timestamp.
+ */
+function sanitizeFileName(fileName: string, workflowType: string): string {
+  // Get file extension
+  const lastDotIndex = fileName.lastIndexOf('.');
+  const name = lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
+  const ext = lastDotIndex > 0 ? fileName.substring(lastDotIndex) : '';
+
+  // Replace spaces with underscores
+  // Remove or replace special characters and non-ASCII characters
+  // Keep only: alphanumeric, underscore, hyphen, dot
+  const sanitized = name
+    .replace(/\s+/g, '_')  // Replace spaces with underscores
+    .replace(/[^\w\-\.]/g, '')  // Remove non-alphanumeric except underscore, hyphen, dot
+    .substring(0, 100);  // Limit length to 100 chars
+
+  // If sanitized name is empty (all non-ASCII chars removed), use fallback
+  if (!sanitized || sanitized.trim() === '') {
+    const timestamp = Date.now();
+    return `${workflowType}_${timestamp}${ext}`;
+  }
+
+  return sanitized + ext;
+}
+
 export async function uploadAndSaveFile(
   blob: Blob,
   fileName: string,
@@ -43,9 +72,14 @@ export async function uploadAndSaveFile(
       return null;
     }
 
+    // Sanitize filename to avoid Supabase Storage errors
+    const sanitizedFileName = sanitizeFileName(fileName, workflowType);
+    console.log(`[fileService] Original filename: ${fileName}`);
+    console.log(`[fileService] Sanitized filename: ${sanitizedFileName}`);
+
     // Generate unique file path: user_id/timestamp_filename
     const timestamp = Date.now();
-    const filePath = `${user.id}/${timestamp}_${fileName}`;
+    const filePath = `${user.id}/${timestamp}_${sanitizedFileName}`;
 
     // Upload to Supabase Storage
     const { error: uploadError } = await supabase.storage

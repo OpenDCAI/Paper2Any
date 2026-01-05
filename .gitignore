@@ -214,6 +214,9 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Claude Code
+CLAUDE.md
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
@@ -280,3 +283,4 @@ dev-debug.log
 .taskmaster/
 
 frontend-workflow/vite.config.ts
+script/optimize_readme_assets.py

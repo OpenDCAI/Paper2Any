@@ -1,9 +1,10 @@
 import { useState, useEffect, ChangeEvent } from 'react';
-import { FileText, UploadCloud, Type, Settings2, Download, Loader2, CheckCircle2, AlertCircle, Image as ImageIcon, ChevronDown, ChevronUp, Github, Star, X } from 'lucide-react';
+import { FileText, UploadCloud, Type, Settings2, Download, Loader2, CheckCircle2, AlertCircle, Image as ImageIcon, ChevronDown, ChevronUp, Github, Star, X, Info } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage, QuotaInfo } from '../services/quotaService';
 import { useAuthStore } from '../stores/authStore';
+import QRCodeTooltip from './QRCodeTooltip';
 
 type UploadMode = 'file' | 'text' | 'image';
 type FileKind = 'pdf' | 'image' | null;
@@ -317,7 +318,13 @@ const Paper2FigurePage = () => {
 
     // 技术路线图 / 实验数据图 不支持 image 作为输入
     if ((graphType === 'tech_route' || graphType === 'exp_data') && uploadMode === 'image') {
-      setError('技术路线图和实验数据图仅支持 PDF 或文本输入，不支持图片');
+      setError('技术路线图和实验数据图不支持图片输入');
+      return;
+    }
+
+    // 实验数据图 仅支持 file (PDF)
+    if (graphType === 'exp_data' && uploadMode !== 'file') {
+      setError('实验数据图仅支持 PDF 文件输入');
       return;
     }
 
@@ -411,14 +418,22 @@ const Paper2FigurePage = () => {
         // Fetch PPT file and upload to Supabase Storage
         if (data.ppt_filename) {
           try {
+            console.log('[Paper2GraphPage] Fetching tech_route file from:', data.ppt_filename);
             const pptRes = await fetch(data.ppt_filename);
-            if (pptRes.ok) {
-              const pptBlob = await pptRes.blob();
-              const pptName = data.ppt_filename.split('/').pop() || 'tech_route.pptx';
-              uploadAndSaveFile(pptBlob, pptName, 'paper2figure');
+            if (!pptRes.ok) {
+              throw new Error(`HTTP ${pptRes.status}: ${pptRes.statusText}`);
+            }
+            const pptBlob = await pptRes.blob();
+            const pptName = data.ppt_filename.split('/').pop() || 'tech_route.pptx';
+            console.log('[Paper2GraphPage] Uploading tech_route file to storage:', pptName);
+            const uploadResult = await uploadAndSaveFile(pptBlob, pptName, 'paper2figure');
+            if (uploadResult) {
+              console.log('[Paper2GraphPage] Tech_route file uploaded successfully:', uploadResult.file_name);
+            } else {
+              console.warn('[Paper2GraphPage] Tech_route file upload skipped or failed');
             }
           } catch (e) {
-            console.warn('[Paper2GraphPage] Failed to upload tech_route file:', e);
+            console.error('[Paper2GraphPage] Failed to upload tech_route file:', e);
           }
         }
       } else {
@@ -460,7 +475,14 @@ const Paper2FigurePage = () => {
         // Record usage and save file to Supabase Storage
         await recordUsage(user?.id || null, 'paper2figure');
         refreshQuota();
-        uploadAndSaveFile(blob, filename, 'paper2figure');
+
+        console.log('[Paper2GraphPage] Uploading file to storage:', filename);
+        const uploadResult = await uploadAndSaveFile(blob, filename, 'paper2figure');
+        if (uploadResult) {
+          console.log('[Paper2GraphPage] File uploaded successfully:', uploadResult.file_name);
+        } else {
+          console.warn('[Paper2GraphPage] File upload skipped or failed');
+        }
 
         const a = document.createElement('a');
         a.href = url;
@@ -601,7 +623,14 @@ const Paper2FigurePage = () => {
                   <label className="block text-xs font-medium text-gray-400 mb-2">绘图类型</label>
                   <select
                     value={graphType}
-                    onChange={e => setGraphType(e.target.value as GraphType)}
+                    onChange={e => {
+                      const newType = e.target.value as GraphType;
+                      setGraphType(newType);
+                      // 实验数据图强制使用 file 模式
+                      if (newType === 'exp_data') {
+                        setUploadMode('file');
+                      }
+                    }}
                     className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-gray-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                   >
                     <option value="model_arch">模型架构图</option>
@@ -631,11 +660,19 @@ const Paper2FigurePage = () => {
 
                   <button
                     type="button"
-                    onClick={() => setUploadMode('text')}
+                    onClick={() => {
+                      if (graphType === 'exp_data') {
+                        setError('实验数据图仅支持 PDF 输入，不支持文本');
+                        return;
+                      }
+                      setUploadMode('text');
+                    }}
                     className={`relative group flex flex-col items-center justify-center py-3 rounded-xl transition-all duration-300 overflow-hidden ${
-                      uploadMode === 'text'
-                         ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-[1.02] ring-1 ring-white/20'
-                         : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200 hover:scale-[1.02]'
+                      graphType === 'exp_data'
+                        ? 'opacity-40 cursor-not-allowed bg-white/5 text-gray-600'
+                        : uploadMode === 'text'
+                           ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-[1.02] ring-1 ring-white/20'
+                           : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200 hover:scale-[1.02]'
                     }`}
                   >
                      {uploadMode === 'text' && (
@@ -649,8 +686,12 @@ const Paper2FigurePage = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      if (graphType === 'tech_route' || graphType === 'exp_data') {
-                        setError('技术路线图和实验数据图仅支持 PDF 或文本输入，不支持图片');
+                      if (graphType === 'tech_route') {
+                        setError('技术路线图仅支持 PDF 或文本输入，不支持图片');
+                        return;
+                      }
+                      if (graphType === 'exp_data') {
+                        setError('实验数据图仅支持 PDF 输入，不支持图片');
                         return;
                       }
                       setUploadMode('image');
@@ -768,29 +809,39 @@ const Paper2FigurePage = () => {
 
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">模型 API URL</label>
-                    <input
-                      type="text"
-                      value={llmApiUrl}
-                      onChange={e => setLlmApiUrl(e.target.value)}
-                      placeholder="例如：https://api.apiyi.com/v1"
-                      className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    />
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={llmApiUrl}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setLlmApiUrl(val);
+                          if (val === 'http://123.129.219.111:3000/v1') {
+                            setModel('gemini-3-pro-image-preview');
+                          }
+                        }}
+                        className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      >
+                        <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
+                        <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
+                        <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
+                      </select>
+                      <QRCodeTooltip>
+                        <a
+                          href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com/register/?aff_code=TbrD"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="whitespace-nowrap text-[10px] text-primary-300 hover:text-primary-200 hover:underline px-2"
+                        >
+                          点击购买
+                        </a>
+                      </QRCodeTooltip>
+                    </div>
                   </div>
 
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs text-gray-400">
-                        API Key
-                      </label>
-                      <a
-                        href="https://api.apiyi.com/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[10px] text-primary-300 hover:text-primary-200 hover:underline"
-                      >
-                        点击购买
-                      </a>
-                    </div>
+                    <label className="block text-xs text-gray-400 mb-1">
+                      API Key
+                    </label>
                     <input
                       type="password"
                       value={apiKey}
@@ -805,11 +856,15 @@ const Paper2FigurePage = () => {
                     <select
                       value={model}
                       onChange={e => setModel(e.target.value)}
-                      className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
+                      className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <option value="gemini-2.5-flash-image-preview">gemini-2.5-flash-image-preview</option>
                       <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
                     </select>
+                    {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
+                       <p className="text-[10px] text-gray-500 mt-1">此源仅支持 gemini-3-pro</p>
+                    )}
                   </div>
 
                   {graphType === 'model_arch' ? (
@@ -865,6 +920,11 @@ const Paper2FigurePage = () => {
                   {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
                   <span>{isLoading ? '生成中...' : '生成可编辑 PPTX'}</span>
                 </button>
+
+                <div className="flex items-start gap-2 text-xs text-gray-400 bg-white/5 border border-white/10 rounded-lg px-3 py-2">
+                  <Info size={14} className="mt-0.5 text-gray-500 flex-shrink-0" />
+                  <p>提示：如果长时间无响应或生成失败，可能是 API 服务商不稳定。建议稍后再试，或尝试更换模型/服务商。</p>
+                </div>
 
                 {/* 改进的生成进度显示 */}
                 {isLoading && !error && !successMessage && (

@@ -1,4 +1,5 @@
 import os
+import json
 import base64
 import re
 from typing import Tuple, Optional, List, Union
@@ -22,7 +23,7 @@ def detect_provider(api_url: str) -> Provider:
     """
     根据 api_url 粗略识别服务商
     """
-    if "api.apiyi.com" in api_url:
+    if "apiyi" in api_url:
         return Provider.APIYI
     if "123.129.219.111" in api_url:
         return Provider.LOCAL_123
@@ -55,6 +56,72 @@ def _encode_image_to_base64(image_path: str) -> Tuple[str, str]:
 
     return b64, fmt
 
+async def _post_stream_and_accumulate(
+    url: str,
+    api_key: str,
+    payload: dict,
+    timeout: int,
+) -> dict:
+    """
+    处理流式响应，累积 content 并返回类似非流式的响应结构
+    """
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    
+    log.info(f"POST STREAM {url}")
+    
+    async with httpx.AsyncClient(timeout=httpx.Timeout(timeout), http2=False) as client:
+        try:
+            full_content = []
+            async with client.stream("POST", url, headers=headers, json=payload) as response:
+                log.info(f"status={response.status_code}")
+                response.raise_for_status()
+                
+                async for line in response.aiter_lines():
+                    if not line or not line.strip():
+                        continue
+                    
+                    if line.startswith("data: "):
+                        line = line[6:]  # remove "data: " prefix
+                    
+                    if line.strip() == "[DONE]":
+                        break
+                        
+                    try:
+                        chunk = json.loads(line)
+                        # 处理 OpenAI 兼容的流式格式 choices[0].delta.content
+                        if "choices" in chunk and len(chunk["choices"]) > 0:
+                            delta = chunk["choices"][0].get("delta", {})
+                            content = delta.get("content", "")
+                            if content:
+                                full_content.append(content)
+                    except json.JSONDecodeError:
+                        log.warning(f"Failed to decode stream line: {line}")
+                        continue
+                        
+            joined_content = "".join(full_content)
+            # log.info(f"Stream accumulated length: {len(joined_content)}")
+            
+            # 构造兼容非流式解析的返回结构
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": joined_content
+                        }
+                    }
+                ]
+            }
+            
+        except httpx.HTTPStatusError as e:
+            log.error(f"HTTPError {e}")
+            await response.aread() # 确保读取响应体以便打印
+            log.error(f"Response body: {response.text}")
+            raise
+
 async def _post_raw(
     url: str,
     api_key: str,
@@ -70,7 +137,27 @@ async def _post_raw(
     }
 
     log.info(f"POST {url}")
-    # log.debug(f"payload: {payload}")  # avoid logging full payload (may contain base64 image data)
+    
+    # 调试打印 payload，截断 base64
+    try:
+        debug_payload = json.loads(json.dumps(payload))
+        if "messages" in debug_payload:
+            for msg in debug_payload["messages"]:
+                if isinstance(msg.get("content"), list):
+                    for part in msg["content"]:
+                        if part.get("type") == "image_url":
+                            url_str = part["image_url"].get("url", "")
+                            if len(url_str) > 50:
+                                part["image_url"]["url"] = url_str[:20] + "...[base64]..."
+        elif "contents" in debug_payload:
+             for content in debug_payload["contents"]:
+                 for part in content.get("parts", []):
+                     if "inline_data" in part:
+                         part["inline_data"]["data"] = " ...[base64]... "
+                         
+        log.info(f"Payload Preview: {json.dumps(debug_payload, ensure_ascii=False)}")
+    except Exception:
+        pass
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(timeout), http2=False) as client:
         try:
@@ -256,10 +343,15 @@ def build_gemini_generation_request(
     """
     provider = detect_provider(api_url)
     base = api_url.rstrip("/")
+    
+    # 构造 Gemini base URL (去掉 /v1 尾缀)
+    gemini_base = base
+    if gemini_base.endswith("/v1"):
+        gemini_base = gemini_base[:-3]
 
     # 1) apiyi + gemini-2.5-flash-image-preview => generateContent + aspectRatio
     if provider is Provider.APIYI and is_gemini_25(model):
-        url = "https://api.apiyi.com/v1beta/models/gemini-2.5-flash-image:generateContent"
+        url = f"{gemini_base}/v1beta/models/gemini-2.5-flash-image:generateContent"
         payload = {
             "contents": [
                 {
@@ -279,7 +371,7 @@ def build_gemini_generation_request(
 
     # 2) apiyi + gemini-3-pro-image-preview => generateContent + aspectRatio + imageSize
     if provider is Provider.APIYI and is_gemini_3_pro(model):
-        url = "https://api.apiyi.com/v1beta/models/gemini-3-pro-image-preview:generateContent"
+        url = f"{gemini_base}/v1beta/models/gemini-3-pro-image-preview:generateContent"
         payload = {
             "contents": [
                 {
@@ -298,41 +390,29 @@ def build_gemini_generation_request(
         }
         return url, payload
 
-    # 3) 123.129.219.111 + gemini-3-pro-image-preview => chat/completions + generationConfig
-    if provider is Provider.LOCAL_123 and is_gemini_3_pro(model):
+    # 3) 123.129.219.111 + (gemini-3-pro | gemini-2.5) => chat/completions + generationConfig
+    if provider is Provider.LOCAL_123 and (is_gemini_3_pro(model) or is_gemini_25(model)):
+        if aspect_ratio:
+            prompt = f"{prompt} 生成比例：{aspect_ratio}, 4K 分辨率"
+
         url = f"{base}/chat/completions"
         payload = {
             "model": model,
+            "group": "default",
             "messages": [
-                {"role": "user", "content": prompt},
+                {"role": "user", "content": prompt}
             ],
-            "response_format": {"type": "image"},
-            "max_tokens": 1024,
+            "stream": True,
             "temperature": 0.7,
+            "top_p": 1,
+            "frequency_penalty": 0,
+            "presence_penalty": 0,
             "generationConfig": {
                 "imageConfig": {
                     "aspect_ratio": aspect_ratio,
-                    "image_size": "4K",
+                    "image_size": resolution
                 }
-            },
-        }
-        return url, payload
-
-    # 4) 123.129.219.111 + gemini-2.5-flash-image-preview
-    #    该兼容层对入参格式可能更偏 OpenAI（messages[].content）或 Gemini 原生（contents[].parts），
-    #    先尝试 OpenAI 兼容格式，失败时在 call_gemini_image_generation_async 里做 fallback 重试。
-    if provider is Provider.LOCAL_123 and is_gemini_25(model):
-        url = f"{base}/chat/completions"
-        payload = {
-            "model": model,
-            "messages": [
-                {"role": "user", "content": prompt},
-            ],
-            "generationConfig": {
-                "width": 1920,
-                "height": 1080,
-                "quality": "high",
-            },
+            }
         }
         return url, payload
 
@@ -369,27 +449,13 @@ async def call_gemini_image_generation_async(
     """
     provider = detect_provider(api_url)
 
-    # local_123 + gemini-2.5：强制走 OpenAI chat/completions 兼容 payload（与 online 版本保持一致）
-    if provider is Provider.LOCAL_123 and is_gemini_25(model):
-        payload = {
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "response_format": {"type": "image"},
-            "max_tokens": 1024,
-            "temperature": 0.7,
-            "generationConfig": {
-                "imageConfig": {
-                    "aspect_ratio": aspect_ratio,
-                    "image_size": "4K",
-                }
-            },
-        }
-        # log.info(payload)  # avoid logging full payload (may contain base64 image data)
-        return await _post_chat_completions(api_url, api_key, payload, timeout)
-
     # 其它情况：沿用 build_gemini_generation_request
     url, payload = build_gemini_generation_request(api_url, model, prompt, aspect_ratio, resolution)
     # log.info(payload)  # avoid logging full payload (may contain base64 image data)
+    
+    if payload.get("stream"):
+        return await _post_stream_and_accumulate(url, api_key, payload, timeout)
+        
     return await _post_raw(url, api_key, payload, timeout)
 
 def build_gemini_edit_request(
@@ -406,10 +472,15 @@ def build_gemini_edit_request(
     """
     provider = detect_provider(api_url)
     base = api_url.rstrip("/")
+    
+    # 构造 Gemini base URL (去掉 /v1 尾缀)
+    gemini_base = base
+    if gemini_base.endswith("/v1"):
+        gemini_base = gemini_base[:-3]
 
     # 1) apiyi + 2.5 => generateContent + inlineData + aspectRatio
     if provider is Provider.APIYI and is_gemini_25(model) and aspect_ratio != "1:1":
-        url = "https://api.apiyi.com/v1beta/models/gemini-2.5-flash-image:generateContent"
+        url = f"{gemini_base}/v1beta/models/gemini-2.5-flash-image:generateContent"
         payload = {
             "contents": [
                 {
@@ -435,7 +506,7 @@ def build_gemini_edit_request(
 
     # 2) apiyi + 3 Pro => generateContent + inline_data + aspectRatio + imageSize
     if provider is Provider.APIYI and is_gemini_3_pro(model):
-        url = "https://api.apiyi.com/v1beta/models/gemini-3-pro-image-preview:generateContent"
+        url = f"{gemini_base}/v1beta/models/gemini-3-pro-image-preview:generateContent"
         payload = {
             "contents": [
                 {
@@ -460,7 +531,7 @@ def build_gemini_edit_request(
         }
         return url, payload
 
-    # 3) 123 + 3 Pro => 保持现有 chat/completions + text + image_url
+    # 3) 123 + 3 Pro => chat/completions + text + image_url + stream + generationConfig
     if provider is Provider.LOCAL_123 and is_gemini_3_pro(model):
         log.critical(f'走 Local 3000 + Gemini3 Pro 路径')
         url = f"{base}/chat/completions"
@@ -481,9 +552,14 @@ def build_gemini_edit_request(
         payload = {
             "model": model,
             "messages": messages,
-            "response_format": {"type": "image"},
-            # "max_tokens": 1024,
-            # "temperature": 0.7,
+            "stream": True,
+            "temperature": 0.7,
+            "generationConfig": {
+                "imageConfig": {
+                    "aspect_ratio": aspect_ratio, 
+                    "image_size": resolution
+                }
+            }
         }
         return url, payload
 
@@ -574,8 +650,8 @@ async def gemini_multi_image_edit_async(
         })
         
     # 2. 构造 URL (强制使用 Google 原生格式端点)
-    # 假设 api_url 可能是 "https://api.apiyi.com/v1" 或 "https://api.apiyi.com"
-    # 我们需要构造类似 "https://api.apiyi.com/v1beta/models/{model}:generateContent"
+    # 假设 api_url 可能是 "http://b.apiyi.com:16888/v1" 或 "http://b.apiyi.com:16888"
+    # 我们需要构造类似 "http://b.apiyi.com:16888/v1beta/models/{model}:generateContent"
     
     base_url = api_url.rstrip("/")
     # 如果用户传的是 v1 结尾，尝试去掉它以回到根域名，或者直接替换
@@ -690,7 +766,10 @@ async def call_gemini_image_edit_async(
 
     b64, fmt = _encode_image_to_base64(image_path)
     url, payload = build_gemini_edit_request(api_url, model, prompt, aspect_ratio, b64, fmt, resolution)
-    # log.info(payload)  # avoid logging full payload (may contain base64 image data)
+    
+    if payload.get("stream"):
+        return await _post_stream_and_accumulate(url, api_key, payload, timeout)
+        
     return await _post_raw(url, api_key, payload, timeout)
 
 # -------------------------------------------------
@@ -850,25 +929,42 @@ if __name__ == "__main__":
 
     async def _demo():
         API_URL = "http://123.129.219.111:3000/v1"
-        # API_URL = "https://api.apiyi.com/v1"
-        API_KEY = os.getenv("DF_API_KEY")
+        # API_URL = "http://b.apiyi.com:16888/v1"
+        API_KEY = os.getenv("DF_API_KEY", "sk-xxx")
         
-        # 测试Gemini模型
-        MODEL_GEMINI = "gemini-2.5-flash-image-preview"
-        # gemini-2.5-flash-image-preview gemini-3-pro-image-preview
-        
-        # 测试DALL-E模型
-        # MODEL_DALLE = "dall-e-3"
+        print("--- Testing Gemini 2.5 Flash Image ---")
+        try:
+            await generate_or_edit_and_save_image_async(
+                prompt="A neon style cyberpunk cat avatar",
+                save_path="./test_gen_cat_2.5.png",
+                api_url=API_URL,
+                api_key=API_KEY,
+                model="gemini-2.5-flash-image-preview",
+                use_edit=False,
+                aspect_ratio="16:9",
+                resolution="2K"
+            )
+            print("Gemini 2.5 Success")
+        except Exception as e:
+            print(f"Gemini 2.5 Failed: {e}")
 
-        # 1) Gemini纯文生图
-        await generate_or_edit_and_save_image_async(
-            prompt="一只霓虹风格的赛博朋克猫头像",
-            save_path="./gen_cat_gemini.png",
-            api_url=API_URL,
-            api_key=API_KEY,
-            model=MODEL_GEMINI,
-            use_edit=False, 
-        )
+        print("\n--- Testing Gemini 3 Pro Image ---")
+        try:
+            await generate_or_edit_and_save_image_async(
+                prompt="An infographic of the current weather in Tokyo",
+                save_path="./test_gen_weather_3pro.png",
+                api_url=API_URL,
+                api_key=API_KEY,
+                model="gemini-3-pro-image-preview",
+                use_edit=False,
+                aspect_ratio="16:9",
+                resolution="2K"
+            )
+            print("Gemini 3 Pro Success")
+        except Exception as e:
+            print(f"Gemini 3 Pro Failed: {e}")
+            
+        # 2) DALL-E纯文生图
 
         # 2) DALL-E纯文生图
         # await generate_or_edit_and_save_image_async(
@@ -916,4 +1012,39 @@ if __name__ == "__main__":
         #     use_edit=True,
         # )
 
-    asyncio.run(_demo())
+    async def _test_123_edit():
+        # 准备一张测试图片
+        img_path = "/data/users/liuzhou/dev/DataFlow-Agent/tests/test_01.png"
+        if not os.path.exists(img_path):
+            try:
+                from PIL import Image
+                img = Image.new('RGB', (512, 512), color='red')
+                img.save(img_path)
+                print(f"Created dummy image at {img_path}")
+            except ImportError:
+                print("PIL not installed, skipping image creation. Please ensure test_input.png exists.")
+                return
+
+        API_URL = "http://123.129.219.111:3000/v1"
+        # API_URL= "http://b.apiyi.com:16888/v1"
+        API_KEY = os.getenv("DF_API_KEY", "sk-123456") 
+        
+        print("\n--- Testing 123 Gemini 3 Pro Edit ---")
+        try:
+            await generate_or_edit_and_save_image_async(
+                prompt="多啦a梦",
+                save_path="./test_output_123.png",
+                api_url=API_URL,
+                api_key=API_KEY,
+                model="gemini-3-pro-image-preview",
+                use_edit=True,
+                image_path=img_path,
+                aspect_ratio="16:9",
+                resolution="4K"
+            )
+            print("Success!")
+        except Exception as e:
+            print(f"Failed: {e}")
+
+    # asyncio.run(_demo())
+    asyncio.run(_test_123_edit())
