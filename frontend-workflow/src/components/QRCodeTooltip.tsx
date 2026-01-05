@@ -22,7 +22,7 @@ const QRCodeTooltip: React.FC<QRCodeTooltipProps> = ({ children }) => {
                <img src="/wechat.png" alt="微信群二维码" className="w-full h-full object-contain" />
             </div>
             <p className="text-[10px] text-gray-700 text-center leading-tight font-medium">
-              分享项目/点Star/加群<br/>凭截图，领取免费Key 🎁
+              分享项目/加群<br/>凭截图，领取免费Key 🎁
             </p>
           </div>
           {/* 小三角箭头 */}
