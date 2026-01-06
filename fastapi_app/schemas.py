@@ -59,6 +59,20 @@ class FeaturePaper2VideoResponse(BaseModel):
     ppt_path: str
 
 
+# ===================== LLM Verification =====================
+
+
+class VerifyLlmRequest(BaseModel):
+    api_url: str
+    api_key: str
+    model: str = "gpt-4o"
+
+
+class VerifyLlmResponse(BaseModel):
+    success: bool
+    error: Optional[str] = None
+
+
 # ===================== paper2figure 相关 =====================
 
 
