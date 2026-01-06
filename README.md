@@ -485,8 +485,7 @@ Paper2Any/
 <img src="https://img.shields.io/badge/⚠-布局优化-yellow?style=flat-square" alt="进行中"/><br>
 <img src="https://img.shields.io/badge/⚠-参考图美化-yellow?style=flat-square" alt="进行中"/>
 </td>
-</tr
-
+</tr>
 </table>
 
 ---
