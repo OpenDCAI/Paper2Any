@@ -8,6 +8,7 @@ import {
 import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
+import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
 import QRCodeTooltip from './QRCodeTooltip';
 
@@ -148,6 +149,7 @@ const Ppt2PolishPage = () => {
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
   const [referenceImagePreview, setReferenceImagePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState('');
   
@@ -341,6 +343,19 @@ const Ppt2PolishPage = () => {
         ? '今日配额已用完（10次/天），请明天再试'
         : '今日配额已用完（5次/天），登录后可获得更多配额');
       return;
+    }
+
+    try {
+        // Step 0: Verify LLM Connection first
+        setIsValidating(true);
+        setError(null);
+        await verifyLlmConnection(llmApiUrl, apiKey, model);
+        setIsValidating(false);
+    } catch (err) {
+        setIsValidating(false);
+        const message = err instanceof Error ? err.message : 'API 验证失败';
+        setError(message);
+        return; // Stop execution if validation fails
     }
 
     setIsUploading(true);
@@ -1173,7 +1188,7 @@ const Ppt2PolishPage = () => {
           </div>
           
           <div>
-            <label className="block text-sm text-gray-300 mb-2">API Key</label>
+            <label className="block text-sm text-gray-300 mb-2">API Key （sk-开头）</label>
             <input
               type="password"
               value={apiKey}
@@ -1294,6 +1309,14 @@ const Ppt2PolishPage = () => {
           )}
         </div>
       </div>
+
+      {isValidating && (
+        <div className="mt-4 flex items-center gap-2 text-sm text-cyan-300 bg-cyan-500/10 border border-cyan-500/40 rounded-lg px-4 py-3 animate-pulse">
+            <Loader2 size={16} className="animate-spin" />
+            <p>正在验证 API Key 有效性...</p>
+        </div>
+      )}
+
       {error && <div className="mt-4 flex items-center gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-4 py-3"><AlertCircle size={16} /> {error}</div>}
 
       {/* 示例区 */}

@@ -83,7 +83,7 @@ def get_sam_urls():
             return urls
             
     # Default
-    return ["http://localhost:8021", "http://localhost:8022"]
+    return ["http://localhost:8021", "http://localhost:8022","http://localhost:8023"]
 
 def get_ocr_urls():
     # Check env var first

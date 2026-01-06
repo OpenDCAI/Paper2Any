@@ -5,12 +5,13 @@ from datetime import datetime
 import uuid
 from pathlib import Path
 from typing import Optional
+import httpx
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Request
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Request, Body
 from fastapi.responses import FileResponse
 from fastapi_app.routers.paper2video import paper2video_endpoint, FeaturePaper2VideoRequest, FeaturePaper2VideoResponse
 
-from fastapi_app.schemas import Paper2FigureRequest, Paper2FigureResponse
+from fastapi_app.schemas import Paper2FigureRequest, Paper2FigureResponse, VerifyLlmRequest, VerifyLlmResponse
 from fastapi_app.workflow_adapters import run_paper2figure_wf_api
 from dataflow_agent.utils import get_project_root
 from fastapi_app.utils import _to_outputs_url, validate_invite_code  # noqa: F401
@@ -72,6 +73,44 @@ def create_dummy_pptx(output_path: Path, title: str, content: str) -> None:
     content_placeholder.text = content
 
     prs.save(output_path)
+
+
+@router.post("/verify-llm", response_model=VerifyLlmResponse)
+async def verify_llm_connection(req: VerifyLlmRequest = Body(...)):
+    """
+    Verify LLM connection by sending a simple 'Hi' message from the backend.
+    This avoids Mixed Content issues when the frontend is HTTPS and the LLM API is HTTP.
+    """
+    api_url = req.api_url.rstrip("/")
+    if api_url.endswith("/chat/completions"):
+        target_url = api_url
+    else:
+        target_url = f"{api_url}/chat/completions"
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {req.api_key}",
+    }
+    
+    payload = {
+        "model": req.model,
+        "messages": [{"role": "user", "content": "Hi"}],
+        "max_tokens": 1024
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(target_url, json=payload, headers=headers)
+            
+            if resp.status_code != 200:
+                error_msg = f"API Error {resp.status_code}: {resp.text[:200]}"
+                return VerifyLlmResponse(success=False, error=error_msg)
+            
+            return VerifyLlmResponse(success=True)
+            
+    except Exception as e:
+        log.error(f"LLM Verification failed: {e}")
+        return VerifyLlmResponse(success=False, error=str(e))
 
 
 @router.get("/paper2figure/history_files")

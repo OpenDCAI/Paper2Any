@@ -3,6 +3,7 @@ import { FileText, UploadCloud, Type, Settings2, Download, Loader2, CheckCircle2
 import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage, QuotaInfo } from '../services/quotaService';
+import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
 import QRCodeTooltip from './QRCodeTooltip';
 
@@ -62,6 +63,7 @@ const Paper2FigurePage = () => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [lastFilename, setLastFilename] = useState('paper2figure.pptx');
@@ -375,6 +377,12 @@ const Paper2FigurePage = () => {
     }
 
     try {
+      // Step 0: Verify LLM Connection first
+      setIsValidating(true);
+      setError(null);
+      await verifyLlmConnection(llmApiUrl, apiKey, model);
+      setIsValidating(false);
+
       setIsLoading(true);
 
       if (graphType === 'tech_route') {
@@ -495,6 +503,7 @@ const Paper2FigurePage = () => {
       setError(message);
     } finally {
       setIsLoading(false);
+      setIsValidating(false);
     }
   };
 
@@ -839,7 +848,7 @@ const Paper2FigurePage = () => {
 
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">
-                      API Key
+                      API Key (sk- 开头)
                     </label>
                     <input
                       type="password"
@@ -1112,6 +1121,13 @@ const Paper2FigurePage = () => {
                     )}
                   </div>
                 )} */}
+
+                {isValidating && (
+                  <div className="flex items-start gap-2 text-xs text-blue-300 bg-blue-500/10 border border-blue-500/40 rounded-lg px-3 py-2 mt-1 animate-pulse">
+                    <Loader2 size={14} className="mt-0.5 animate-spin" />
+                    <p>正在验证 API Key 有效性...</p>
+                  </div>
+                )}
 
                 {error && (
                   <div className="flex items-start gap-2 text-xs text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-3 py-2 mt-1">
