@@ -1,0 +1,257 @@
+"""
+{{ wf_name }} workflow
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+生成时间: {{ timestamp }}
+
+1. 在 **TOOLS** 区域定义需要暴露给 Prompt 的前置工具
+2. 在 **NODES**  区域实现异步节点函数 (await-able)
+3. 在 **EDGES**  区域声明有向边
+4. 最后返回 builder.compile() 或 GenericGraphBuilder
+"""
+
+from __future__ import annotations
+import json
+from dataclasses import Field
+from pydantic import BaseModel
+from dataflow_agent.states.xxState import xxState
+# from dataflow_agent.state import xxState
+from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
+from dataflow_agent.workflow.registry import register
+from dataflow_agent.agentroles import (
+    create_agent,
+    create_simple_agent,
+    create_react_agent,
+    create_graph_agent,
+    create_vlm_agent,
+    SimpleConfig,
+    ReactConfig,
+    GraphConfig,
+    VLMConfig,
+    ExecutionMode,
+)
+
+from dataflow_agent.toolkits.tool_manager import get_tool_manager
+from langchain.tools import tool
+from langgraph.graph import StateGraph
+from langgraph.prebuilt import ToolNode, tools_condition
+
+from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
+from dataflow_agent.logger import get_logger
+
+log = get_logger(__name__)
+
+@register("{{ wf_name }}")
+def create_{{ wf_name_snake }}_graph() -> GenericGraphBuilder:  # noqa: N802
+    """
+    Workflow factory: dfa run --wf {{ wf_name }}
+    """
+    builder = GenericGraphBuilder(state_model=xxState,
+                                  entry_point="{{ entry }}")  # 自行修改入口
+
+    # ----------------------------------------------------------------------
+    # TOOLS (pre_tool definitions)
+    # ----------------------------------------------------------------------
+    # 例:
+    @builder.pre_tool("purpose", "step1")
+    def _purpose(state: xxState):
+        return "这里放入字符串 / 数值 / 列表 / 字典等供 prompt 使用"
+
+    # 后置工具就是让agent选择的工具，可以定制多个；
+    @builder.post_tool("step2")
+    @tool
+    def _example_post_tool(date_str: str):
+        """
+        示例后置工具：根据日期获取天气信息
+
+        Args:
+            date_str: 日期字符串，格式为 "MM-DD"。
+                例如: "11-29" 表示 11 月 29 日。
+
+        Returns:
+            一个描述该日期天气状况的中文字符串。
+            示例返回值: "明天天气晴朗，可以放心出行。"
+        """
+        # 这里只是 demo，真实逻辑中请根据 date_str 查询实际天气
+        return "明天天气晴朗，可以放心出行。"
+
+    # ----------------------------------------------------------------------
+
+    # ==============================================================
+    # NODES
+    # ==============================================================
+    async def step1(state: xxState) -> xxState:
+        """
+        示例节点 1: 使用新的策略模式创建和执行 Agent
+        
+        新版 Agent 创建方式推荐使用 `create_agent` 配合配置对象 (Config)
+        或使用便捷函数 `create_simple_agent`, `create_react_agent` 等。
+        
+        执行模式说明:
+        - SimpleConfig: 简单模式，单次 LLM 调用
+        - ReactConfig:  ReAct 模式，带验证和重试的循环
+        - GraphConfig:  图模式，用于执行带工具的子图 (LangGraph)
+        - VLMConfig:    视觉语言模型模式
+        """
+        
+        # ==================== 方式一：使用便捷函数 (推荐) ====================
+        
+        # 示例 1: 创建一个简单的 Agent (SimpleConfig)
+        # agent = create_simple_agent(
+        #     name="your_agent_name",      # 替换为实际 agent 名称
+        #     model_name="gpt-4",          # 模型名称，如 "gpt-4", "gpt-4-turbo"
+        #     temperature=0.7,            # 采样温度 (0.0-1.0)，越高越随机
+        #     max_tokens=4096,             # 最大生成token数
+        #     parser_type="json",          # 解析器类型: "json", "xml", "text"
+        #     ignore_history=True,         # 是否忽略历史消息
+        # )
+    
+        # 示例 2: 创建一个 ReAct Agent，具备自动修正能力 (ReactConfig)
+        # agent = create_react_agent(
+        #     name="your_agent_name",      # 替换为实际 agent 名称
+        #     model_name="gpt-4-turbo",
+        #     temperature=0.1,
+        #     max_retries=3,               # ReAct 模式下的最大重试次数
+        #     parser_type="json",          # 定义输出解析器
+        #     # validators=[],              # 可选：自定义验证器列表
+        # )
+        
+        # 示例 3: 创建一个图模式 Agent (GraphConfig)
+        # agent = create_graph_agent(
+        #     name="your_agent_name",
+        #     model_name="gpt-4",
+        #     temperature=0.2,
+        #     tool_mode="auto",            # 工具调用模式: "auto", "none", "required"
+        # )
+        
+        # 示例 4: 创建一个 VLM Agent 用于处理图像 (VLMConfig)
+        # agent = create_vlm_agent(
+        #     name="your_agent_name",
+        #     model_name="gpt-4-vision-preview",  # 视觉模型
+        #     temperature=0.1,
+        #     vlm_mode="understanding",     # 视觉模式: 'understanding', 'generation', 'edit'
+        #     image_detail="high",          # 图像细节: 'low', 'high', 'auto'
+        #     max_image_size=(2048, 2048),  # 最大图像尺寸
+        #     # additional_params={},        # 额外VLM参数
+        # )
+    
+        # ==================== 方式二：使用 create_agent 和配置对象 ====================
+        
+        # 示例 5: 使用 SimpleConfig 创建简单模式 Agent
+        # config = SimpleConfig(
+        #     model_name="gpt-4",
+        #     temperature=0.7,
+        #     max_tokens=4096,
+        #     parser_type="json",
+        #     ignore_history=True,
+        # )
+        # agent = create_agent(name="your_agent_name", config=config)
+        
+        # 示例 6: 使用 ReactConfig 创建 ReAct 模式 Agent
+        # config = ReactConfig(
+        #     model_name="gpt-4-turbo",
+        #     temperature=0.1,
+        #     max_retries=3,
+        #     parser_type="json",
+        #     # validators=[custom_validator],  # 可选：自定义验证器
+        # )
+        # agent = create_agent(name="your_agent_name", config=config)
+        
+        # 示例 7: 使用 GraphConfig 创建图模式 Agent
+        # config = GraphConfig(
+        #     model_name="gpt-4",
+        #     temperature=0.2,
+        #     tool_mode="auto",            # 工具调用模式
+        # )
+        # agent = create_agent(name="your_agent_name", config=config)
+        
+        # 示例 8: 使用 VLMConfig 创建视觉模式 Agent
+        # config = VLMConfig(
+        #     model_name="gpt-4-vision-preview",
+        #     temperature=0.1,
+        #     vlm_mode="understanding",
+        #     image_detail="high",
+        #     max_image_size=(2048, 2048),
+        #     additional_params={"max_tokens": 4096},
+        # )
+        # agent = create_agent(name="your_agent_name", config=config)
+        
+        # ==================== 方式三：使用工具管理器 ====================
+        
+        # 示例 9: 使用自定义工具管理器
+        # from dataflow_agent.toolkits.tool_manager import ToolManager
+        # tool_manager = ToolManager()  # 或使用 get_tool_manager()
+        # agent = create_simple_agent(
+        #     name="your_agent_name",
+        #     tool_manager=tool_manager,
+        #     model_name="gpt-4",
+        #     temperature=0.5,
+        # )
+        
+        # ==================== 实际使用示例 ====================
+        
+        # 实际使用：创建一个简单的代码审查 Agent
+        agent = create_simple_agent(
+            name="code_reviewer",        # 替换为已注册的 agent 名称
+            model_name="gpt-4-turbo",
+            temperature=0.1,
+            max_tokens=2048,
+            parser_type="json",
+        )
+        
+        # 或者创建一个带工具的文档分析 Agent
+        # agent = create_react_agent(
+        #     name="document_analyzer",
+        #     model_name="gpt-4",
+        #     temperature=0.3,
+        #     max_retries=2,
+        #     parser_type="json",
+        # )
+    
+        # --------------------------------------------------------------------
+    
+        # 执行 agent (注意：新版 execute 不再需要 use_agent 参数)
+        # 你可以在 execute 中传入 kwargs 来覆盖 pre_tool_results
+        state = await agent.execute(state=state)
+        
+        # 可选：处理执行结果
+        agent_result = state.agent_results.get(agent.role_name, {})
+        log.info(f"Agent {agent.role_name} 执行结果: {agent_result}")
+        
+        return state
+    
+    async def step2(state: xxState) -> xxState:
+        """
+        示例节点 2: 处理agent执行结果
+        
+        Args:
+            state: 主状态对象
+        """
+        # TODO: 替换为真正的业务逻辑
+        state.agent_results["step2"] = {"msg": "hello step2"}
+        
+        # 示例：从 step1 的结果中提取数据
+        # if "code_reviewer" in state.agent_results:
+        #     review_result = state.agent_results["code_reviewer"]
+        #     # 处理审查结果...
+        
+        return state
+
+    # ==============================================================
+    # 注册 nodes / edges
+    # ==============================================================
+    nodes = {
+        "step1": step1,
+        "step2": step2,
+        '_end_': lambda state: state,  # 终止节点
+    }
+
+    # ------------------------------------------------------------------
+    # EDGES  (从节点 A 指向节点 B)
+    # ------------------------------------------------------------------
+    edges = [
+        ("step1", "step2"),
+        ("step2", "_end_"),  # 指向终止节点
+    ]
+
+    builder.add_nodes(nodes).add_edges(edges)
+    return builder

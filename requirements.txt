@@ -1,0 +1,31 @@
+# HF Space minimal deps for:
+# - Paper2PPT (TEXT/TOPIC only)
+# - PPT Polish (PPTX -> images -> img2img polish -> PDF export)
+#
+# Intentionally avoid `torch` / `open-dataflow` / MinerU deps for CPU Space.
+
+httpx
+requests
+pydantic
+pyyaml
+cloudpickle
+
+openai
+tiktoken
+langgraph==0.6.7
+langgraph-checkpoint==2.1.1
+langgraph-prebuilt==0.6.4
+langchain==0.3.27
+langchain-community==0.3.29
+langchain-core==0.3.76
+langchain-openai==0.3.33
+langchain-text-splitters==0.3.11
+
+transformers==4.57.3
+
+numpy<2.0.0
+opencv-python-headless
+pillow
+python-pptx
+PyMuPDF
+pdf2image

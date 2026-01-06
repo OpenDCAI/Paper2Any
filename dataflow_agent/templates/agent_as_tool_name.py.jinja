@@ -1,0 +1,99 @@
+"""
+{{ agent_name_camel }} Agent
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+生成时间: {{ timestamp }}
+生成位置: dataflow_agent/agentroles/common_agents/{{ agent_name_snake }}_agent.py
+
+本文件由 `dfa create --agent_as_tool_name {{ agent_name }}` 自动生成。
+"""
+
+from __future__ import annotations
+from typing import Any, Dict, Optional
+from dataflow_agent.state import MainState
+from dataflow_agent.toolkits.tool_manager import ToolManager
+from dataflow_agent.logger import get_logger
+from dataflow_agent.agentroles.cores.base_agent import BaseAgent
+from dataflow_agent.agentroles.cores.registry import register
+
+log = get_logger(__name__)
+
+@register("{{ agent_name }}")
+class {{ agent_name_camel }}(BaseAgent):
+    """{{ agent_name_camel }} Agent - 支持作为工具被调用"""
+
+    @classmethod
+    def create(cls, tool_manager: Optional[ToolManager] = None, **kwargs):
+        return cls(tool_manager=tool_manager, **kwargs)
+
+    @property
+    def role_name(self) -> str:
+        return "{{ agent_name }}"
+
+    @property
+    def system_prompt_template_name(self) -> str:
+        # TODO: 修改为实际的模板 ID
+        return "system_prompt_for_{{ agent_name }}"
+
+    @property
+    def task_prompt_template_name(self) -> str:
+        # TODO: 修改为实际的模板 ID
+        return "task_prompt_for_{{ agent_name }}"
+
+    def get_task_prompt_params(self, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
+        """构造 prompt 参数"""
+        # TODO: 根据需要添加参数处理逻辑
+        return pre_tool_results
+
+    def get_default_pre_tool_results(self) -> Dict[str, Any]:
+        """默认参数（可选）"""
+        # TODO: 如需默认值，在此返回
+        return {}
+
+    # ==================== Agent-as-Tool 自定义（按需重写） ====================
+    
+    # def get_tool_description(self) -> str:
+    #     """工具描述（建议重写以提供更好的说明）
+    #     
+    #     示例：
+    #     return "用于分析和总结文本内容，支持多种格式输出"
+    #     """
+    #     return super().get_tool_description()
+    
+    # def get_tool_args_schema(self) -> type[BaseModel]:
+    #     """参数模式（按需重写以定义具体参数）
+    #     
+    #     示例：
+    #     from pydantic import BaseModel, Field
+    #     
+    #     class MyToolArgs(BaseModel):
+    #         content: str = Field(description="要处理的内容")
+    #         max_length: int = Field(default=500, description="最大长度")
+    #     
+    #     return MyToolArgs
+    #     """
+    #     return super().get_tool_args_schema()
+    
+    # def prepare_tool_execution_params(self, **tool_kwargs) -> Dict[str, Any]:
+    #     """参数转换（按需重写以映射参数名称）
+    #     
+    #     示例：
+    #     return {
+    #         'text': tool_kwargs.get('content'),        # 重命名
+    #         'max_len': tool_kwargs.get('max_length', 500)  # 添加默认值
+    #     }
+    #     """
+    #     return tool_kwargs
+
+
+# ----------------------------------------------------------------------
+# Helper APIs
+# ----------------------------------------------------------------------
+async def {{ agent_name_snake }}(
+    state: MainState,
+    tool_manager: Optional[ToolManager] = None,
+    use_agent: bool = False,
+    **kwargs,
+) -> MainState:
+    """{{ agent_name }} 异步入口"""
+    agent = {{ agent_name_camel }}.create(tool_manager=tool_manager, **kwargs)
+    return await agent.execute(state, use_agent=use_agent, **kwargs)
