@@ -131,6 +131,8 @@ const MOCK_AFTER_IMAGES = [
   '/ppe2more_2.jpg',
 ];
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
 // ============== 主组件 ==============
 const Ppt2PolishPage = () => {
   const { user, refreshQuota } = useAuthStore();
@@ -268,6 +270,10 @@ const Ppt2PolishPage = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!validateDocFile(file)) return;
+    if (file.size > MAX_FILE_SIZE) {
+      setError('文件大小超过 50MB 限制');
+      return;
+    }
     setSelectedFile(file);
     setError(null);
   };
@@ -278,6 +284,10 @@ const Ppt2PolishPage = () => {
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
     if (!validateDocFile(file)) return;
+    if (file.size > MAX_FILE_SIZE) {
+      setError('文件大小超过 50MB 限制');
+      return;
+    }
     setSelectedFile(file);
     setError(null);
   };
@@ -387,23 +397,11 @@ const Ppt2PolishPage = () => {
       console.log('Response status:', res.status, res.statusText); // 调试信息
       
       if (!res.ok) {
-        let msg = '解析 PPT 失败';
+        let msg = '服务器繁忙，请稍后再试';
         if (res.status === 403) {
           msg = '邀请码不正确或已失效';
-        } else {
-          try {
-            const errorData = await res.json();
-            console.error('Error response:', errorData); // 调试信息
-            msg = errorData.detail || errorData.message || msg;
-          } catch {
-            try {
-              const text = await res.text();
-              console.error('Error text:', text); // 调试信息
-              if (text) msg = text;
-            } catch {
-              // ignore
-            }
-          }
+        } else if (res.status === 429) {
+          msg = '请求过于频繁，请稍后再试';
         }
         throw new Error(msg);
       }
@@ -413,7 +411,7 @@ const Ppt2PolishPage = () => {
       console.log('API Response:', JSON.stringify(data, null, 2)); // 调试信息
       
       if (!data.success) {
-        throw new Error(data.message || '解析失败');
+        throw new Error('服务器繁忙，请稍后再试');
       }
       
       // 保存 result_path
@@ -522,7 +520,7 @@ const Ppt2PolishPage = () => {
     } catch (err) {
       clearInterval(progressInterval);
       setProgress(0);
-      const message = err instanceof Error ? err.message : '解析失败，请重试';
+      const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
       console.error(err);
     } finally {
@@ -679,15 +677,9 @@ const Ppt2PolishPage = () => {
       console.log('Response status:', res.status, res.statusText);
       
       if (!res.ok) {
-        let msg = '生成初始 PPT 失败';
-        try {
-          const errorData = await res.json();
-          console.error('Error response:', errorData);
-          msg = errorData.detail || errorData.message || msg;
-        } catch {
-          const text = await res.text();
-          console.error('Error text:', text);
-          if (text) msg = text;
+        let msg = '服务器繁忙，请稍后再试';
+        if (res.status === 429) {
+          msg = '请求过于频繁，请稍后再试';
         }
         throw new Error(msg);
       }
@@ -696,7 +688,7 @@ const Ppt2PolishPage = () => {
       console.log('Initial PPT generation response:', JSON.stringify(data, null, 2));
       
       if (!data.success) {
-        throw new Error(data.message || '生成失败');
+        throw new Error('服务器繁忙，请稍后再试');
       }
       
       // 更新美化结果，使用生成的 ppt_pages/page_*.png 作为 afterImage
@@ -739,7 +731,7 @@ const Ppt2PolishPage = () => {
       // 返回更新后的结果，供调用方使用
       return updatedResults;
     } catch (err) {
-      const message = err instanceof Error ? err.message : '生成初始 PPT 失败';
+      const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
       console.error(err);
       throw err; // 重新抛出错误
@@ -823,12 +815,9 @@ const Ppt2PolishPage = () => {
       });
       
       if (!res.ok) {
-        let msg = '美化失败';
-        try {
-          const errorData = await res.json();
-          msg = errorData.detail || errorData.message || msg;
-        } catch {
-          // ignore
+        let msg = '服务器繁忙，请稍后再试';
+        if (res.status === 429) {
+          msg = '请求过于频繁，请稍后再试';
         }
         throw new Error(msg);
       }
@@ -838,7 +827,7 @@ const Ppt2PolishPage = () => {
       console.log('all_output_files:', data.all_output_files);
       
       if (!data.success) {
-        throw new Error(data.message || '美化失败');
+        throw new Error('服务器繁忙，请稍后再试');
       }
       
       // 从 all_output_files 中找到对应的页面图片
@@ -873,7 +862,7 @@ const Ppt2PolishPage = () => {
       };
     setBeautifyResults(updatedResults);
     } catch (err) {
-      const message = err instanceof Error ? err.message : '美化失败';
+      const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
       updatedResults[index] = { ...updatedResults[index], status: 'pending' };
     setBeautifyResults(updatedResults);
@@ -946,12 +935,9 @@ const Ppt2PolishPage = () => {
       });
       
       if (!res.ok) {
-        let msg = '生成最终 PPT 失败';
-        try {
-          const errorData = await res.json();
-          msg = errorData.detail || errorData.message || msg;
-        } catch {
-          // ignore
+        let msg = '服务器繁忙，请稍后再试';
+        if (res.status === 429) {
+          msg = '请求过于频繁，请稍后再试';
         }
         throw new Error(msg);
       }
@@ -959,7 +945,7 @@ const Ppt2PolishPage = () => {
       const data = await res.json();
       
       if (!data.success) {
-        throw new Error(data.message || '生成失败');
+        throw new Error('服务器繁忙，请稍后再试');
       }
       
       // 从 all_output_files 中找到 PPTX 和 PDF 文件
@@ -1014,7 +1000,7 @@ const Ppt2PolishPage = () => {
         }
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : '生成最终 PPT 失败';
+      const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
     } finally {
     setIsGeneratingFinal(false);
@@ -1042,7 +1028,7 @@ const Ppt2PolishPage = () => {
       a.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      const message = err instanceof Error ? err.message : '下载失败';
+      const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
     }
   };
@@ -1313,6 +1299,21 @@ const Ppt2PolishPage = () => {
       {/* 示例区 */}
       {/* 示例区 */}
       <div className="space-y-8 mt-10">
+        <div className="flex items-center justify-end">
+            <a
+              href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group relative inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/50 border border-white/10 text-xs font-medium text-white overflow-hidden transition-all hover:border-white/30 hover:shadow-[0_0_15px_rgba(45,212,191,0.5)]"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-teal-500/20 to-emerald-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <Sparkles size={12} className="text-teal-300 animate-pulse" />
+              <span className="bg-gradient-to-r from-cyan-300 via-teal-300 to-emerald-300 bg-clip-text text-transparent group-hover:from-cyan-200 group-hover:via-teal-200 group-hover:to-emerald-200">
+                更多案例点击：飞书文档
+              </span>
+            </a>
+        </div>
+
         {/* 第一组：PPT 增色美化 */}
         <div className="space-y-4">
           <div className="flex items-center gap-3">
