@@ -1,3 +1,15 @@
+---
+title: Paper2Any
+emoji: 📄
+colorFrom: blue
+colorTo: purple
+sdk: gradio
+sdk_version: "5.31.0"
+app_file: app.py
+pinned: false
+license: apache-2.0
+---
+
 <div align="center">
 
 <img src="static/new_readme/logo图.png" alt="Paper2Any Logo" width="200"/>

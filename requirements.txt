@@ -4,6 +4,7 @@
 #
 # Intentionally avoid `torch` / `open-dataflow` / MinerU deps for CPU Space.
 
+gradio>=5.0.0
 httpx
 requests
 pydantic
