@@ -32,6 +32,8 @@ interface GenerateResult {
   userPrompt?: string;
 }
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
 // ============== 主组件 ==============
 const Paper2PptPage = () => {
   const { user, refreshQuota } = useAuthStore();
@@ -168,6 +170,10 @@ const Paper2PptPage = () => {
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !validateDocFile(file)) return;
+    if (file.size > MAX_FILE_SIZE) {
+      setError('文件大小超过 50MB 限制');
+      return;
+    }
     setSelectedFile(file);
     setError(null);
   };
@@ -177,6 +183,10 @@ const Paper2PptPage = () => {
     setIsDragOver(false);
     const file = e.dataTransfer.files?.[0];
     if (!file || !validateDocFile(file)) return;
+    if (file.size > MAX_FILE_SIZE) {
+      setError('文件大小超过 50MB 限制');
+      return;
+    }
     setSelectedFile(file);
     setError(null);
   };
@@ -263,21 +273,11 @@ const Paper2PptPage = () => {
       });
       
       if (!res.ok) {
-        let msg = '解析 PDF 失败';
+        let msg = '服务器繁忙，请稍后再试';
         if (res.status === 403) {
           msg = '邀请码不正确或已失效';
-        } else {
-          try {
-            const errorData = await res.json();
-            msg = errorData.detail || errorData.message || msg;
-          } catch {
-            try {
-              const text = await res.text();
-              if (text) msg = text;
-            } catch {
-              // ignore
-            }
-          }
+        } else if (res.status === 429) {
+          msg = '请求过于频繁，请稍后再试';
         }
         throw new Error(msg);
       }
@@ -286,7 +286,7 @@ const Paper2PptPage = () => {
       console.log('API Response:', JSON.stringify(data, null, 2));
       
       if (!data.success) {
-        throw new Error(data.message || '解析失败');
+        throw new Error('服务器繁忙，请稍后再试');
       }
       
       const currentResultPath = data.result_path || '';
@@ -322,7 +322,7 @@ const Paper2PptPage = () => {
     } catch (err) {
       clearInterval(progressInterval);
       setProgress(0);
-      const message = err instanceof Error ? err.message : '解析失败，请重试';
+      const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
       console.error(err);
     } finally {
@@ -437,12 +437,9 @@ const Paper2PptPage = () => {
       });
       
       if (!res.ok) {
-        let msg = '生成失败';
-        try {
-          const errorData = await res.json();
-          msg = errorData.detail || errorData.message || msg;
-        } catch {
-          // ignore
+        let msg = '服务器繁忙，请稍后再试';
+        if (res.status === 429) {
+          msg = '请求过于频繁，请稍后再试';
         }
         throw new Error(msg);
       }
@@ -450,7 +447,7 @@ const Paper2PptPage = () => {
       const data = await res.json();
       
       if (!data.success) {
-        throw new Error(data.message || '生成失败');
+        throw new Error('服务器繁忙，请稍后再试');
       }
       
       const updatedResults = results.map((result, index) => {
@@ -487,7 +484,7 @@ const Paper2PptPage = () => {
       setGenerateResults(updatedResults);
       
     } catch (err) {
-      const message = err instanceof Error ? err.message : '生成失败';
+      const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
       setGenerateResults(results.map(r => ({ ...r, status: 'pending' as const })));
     } finally {
@@ -557,12 +554,9 @@ const Paper2PptPage = () => {
       });
       
       if (!res.ok) {
-        let msg = '重新生成失败';
-        try {
-          const errorData = await res.json();
-          msg = errorData.detail || errorData.message || msg;
-        } catch {
-          // ignore
+        let msg = '服务器繁忙，请稍后再试';
+        if (res.status === 429) {
+          msg = '请求过于频繁，请稍后再试';
         }
         throw new Error(msg);
       }
@@ -570,7 +564,7 @@ const Paper2PptPage = () => {
       const data = await res.json();
       
       if (!data.success) {
-        throw new Error(data.message || '重新生成失败');
+        throw new Error('服务器繁忙，请稍后再试');
       }
       
       const pageNumStr = String(currentSlideIndex).padStart(3, '0');
@@ -594,7 +588,7 @@ const Paper2PptPage = () => {
       setSlidePrompt('');
       
     } catch (err) {
-      const message = err instanceof Error ? err.message : '重新生成失败';
+      const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
       updatedResults[currentSlideIndex] = { 
         ...updatedResults[currentSlideIndex], 
@@ -656,12 +650,9 @@ const Paper2PptPage = () => {
       });
       
       if (!res.ok) {
-        let msg = '生成最终 PPT 失败';
-        try {
-          const errorData = await res.json();
-          msg = errorData.detail || errorData.message || msg;
-        } catch {
-          // ignore
+        let msg = '服务器繁忙，请稍后再试';
+        if (res.status === 429) {
+          msg = '请求过于频繁，请稍后再试';
         }
         throw new Error(msg);
       }
@@ -669,7 +660,7 @@ const Paper2PptPage = () => {
       const data = await res.json();
       
       if (!data.success) {
-        throw new Error(data.message || '生成失败');
+        throw new Error('服务器繁忙，请稍后再试');
       }
       
       // 优先使用后端直接返回的路径
@@ -743,7 +734,7 @@ const Paper2PptPage = () => {
       }
 
     } catch (err) {
-      const message = err instanceof Error ? err.message : '生成失败';
+      const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
     } finally {
       setIsGeneratingFinal(false);
@@ -1111,8 +1102,22 @@ const Paper2PptPage = () => {
 
       {/* 示例区 */}
       <div className="space-y-4 mt-8">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-gray-200">示例：从 Paper 到 PPTX</h3>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <h3 className="text-sm font-medium text-gray-200">示例：从 Paper 到 PPTX</h3>
+            <a
+              href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group relative inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/50 border border-white/10 text-xs font-medium text-white overflow-hidden transition-all hover:border-white/30 hover:shadow-[0_0_15px_rgba(168,85,247,0.5)]"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <Sparkles size={12} className="text-yellow-300 animate-pulse" />
+              <span className="bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300 bg-clip-text text-transparent group-hover:from-blue-200 group-hover:via-purple-200 group-hover:to-pink-200">
+                更多案例点击：飞书文档
+              </span>
+            </a>
+          </div>
           <span className="text-[11px] text-gray-500">
             下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果。
           </span>

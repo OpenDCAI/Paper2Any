@@ -45,10 +45,10 @@ sleep 2
 echo "Cleanup complete."
 
 # ==================================================================================
-# 1. MinerU (vLLM) Services (GPU 0 & 4, 4 instances each)
+# 1. MinerU (vLLM) Services (GPU 0-3, 2 instances each)
 # ==================================================================================
 MINERU_MODEL_PATH="models/MinerU2.5-2509-1.2B"
-MINERU_GPU_UTIL=0.2
+MINERU_GPU_UTIL=0.4
 
 start_mineru_instance() {
     local gpu_id=$1
@@ -71,24 +71,28 @@ start_mineru_instance() {
     echo "MinerU Backend $instance_id started with PID $pid"
 }
 
-# GPU 0 Instances (Ports 8011-8014)
+# GPU 0 Instances (Ports 8011-8012)
 start_mineru_instance 0 8011 1
 sleep 10
 start_mineru_instance 0 8012 2
 sleep 10
-start_mineru_instance 0 8013 3
+
+# GPU 1 Instances (Ports 8013-8014)
+start_mineru_instance 1 8013 3
 sleep 10
-start_mineru_instance 0 8014 4
+start_mineru_instance 1 8014 4
 sleep 10
 
-# GPU 4 Instances (Ports 8015-8018)
-start_mineru_instance 4 8015 5
+# GPU 2 Instances (Ports 8015-8016)
+start_mineru_instance 2 8015 5
 sleep 10
-start_mineru_instance 4 8016 6
+start_mineru_instance 2 8016 6
 sleep 10
-start_mineru_instance 4 8017 7
+
+# GPU 3 Instances (Ports 8017-8018)
+start_mineru_instance 3 8017 7
 sleep 10
-start_mineru_instance 4 8018 8
+start_mineru_instance 3 8018 8
 sleep 10
 
 # MinerU LB (Port 8010)
@@ -106,7 +110,7 @@ nohup python3 dataflow_agent/toolkits/model_servers/generic_lb.py \
 echo "MinerU Load Balancer started"
 
 # ==================================================================================
-# 2. SAM Services (GPU 2 & 3, 1 instances each to avoid OOM)
+# 2. SAM Services (GPU 5 & 6, 1 instance each)
 # ==================================================================================
 start_sam_instance() {
     local gpu_id=$1
@@ -123,11 +127,11 @@ start_sam_instance() {
     echo "SAM Backend $instance_id started with PID $pid"
 }
 
-# GPU 2 Instance (Port 8021)
-start_sam_instance 2 8021 1
+# GPU 5 Instance (Port 8021)
+start_sam_instance 4 8021 1
 
-# GPU 3 Instance (Port 8022)
-start_sam_instance 3 8022 2
+# GPU 6 Instance (Port 8022)
+start_sam_instance 5 8022 2
 
 # SAM LB (Port 8020)
 SAM_BACKENDS=""
@@ -161,9 +165,13 @@ echo ""
 echo "Model Servers Summary:"
 echo "----------------------"
 echo "MinerU LB: http://localhost:8010"
-echo "  - Backends: 8 instances on GPU 0 & 4 (Ports 8011-8018)"
+echo "  - Backends: 8 instances on GPU 0-3 (2 per GPU, 0.4 GPU utilization)"
+echo "    - GPU 0: Ports 8011-8012"
+echo "    - GPU 1: Ports 8013-8014"
+echo "    - GPU 2: Ports 8015-8016"
+echo "    - GPU 3: Ports 8017-8018"
 echo "SAM LB:    http://localhost:8020"
-echo "  - Backends: 2 instances on GPU 2 & 3 (Ports 8021-8022)"
+echo "  - Backends: 2 instances on GPU 5 & 6 (Ports 8021-8022)"
 echo "OCR:       http://localhost:8003 (CPU, 4 workers)"
 echo ""
 echo "Logs are in logs/"

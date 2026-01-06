@@ -9,6 +9,8 @@ import { checkQuota, recordUsage } from '../services/quotaService';
 import { useAuthStore } from '../stores/authStore';
 import QRCodeTooltip from './QRCodeTooltip';
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
 // ============== 主组件 ==============
 const Pdf2PptPage = () => {
   const { user, refreshQuota } = useAuthStore();
@@ -112,6 +114,10 @@ const Pdf2PptPage = () => {
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !validateDocFile(file)) return;
+    if (file.size > MAX_FILE_SIZE) {
+      setError('文件大小超过 50MB 限制');
+      return;
+    }
     setSelectedFile(file);
     setError(null);
     setIsComplete(false);
@@ -123,6 +129,10 @@ const Pdf2PptPage = () => {
     setIsDragOver(false);
     const file = e.dataTransfer.files?.[0];
     if (!file || !validateDocFile(file)) return;
+    if (file.size > MAX_FILE_SIZE) {
+      setError('文件大小超过 50MB 限制');
+      return;
+    }
     setSelectedFile(file);
     setError(null);
     setIsComplete(false);
@@ -205,17 +215,11 @@ const Pdf2PptPage = () => {
       clearInterval(progressInterval);
       
       if (!res.ok) {
-        let msg = '转换失败';
+        let msg = '服务器繁忙，请稍后再试';
         if (res.status === 403) {
           msg = '邀请码不正确或已失效';
-        } else {
-          try {
-            const errorData = await res.json();
-            msg = errorData.detail || errorData.message || msg;
-          } catch {
-            const text = await res.text();
-            if (text) msg = text;
-          }
+        } else if (res.status === 429) {
+          msg = '请求过于频繁，请稍后再试';
         }
         throw new Error(msg);
       }
@@ -237,7 +241,7 @@ const Pdf2PptPage = () => {
       
     } catch (err) {
       clearInterval(progressInterval);
-      const message = err instanceof Error ? err.message : '转换失败，请重试';
+      const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
       setProgress(0);
       setStatusMessage('');
@@ -671,8 +675,22 @@ const Pdf2PptPage = () => {
 
           {/* 示例区 */}
           <div className="space-y-4 mt-16 max-w-4xl mx-auto">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-gray-200">示例：从 PDF 到 可编辑 PPTX（文字 + 元素ICON）</h3>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-3">
+                <h3 className="text-sm font-medium text-gray-200">示例：从 PDF 到 可编辑 PPTX（文字 + 元素ICON）</h3>
+                <a
+                  href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group relative inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/50 border border-white/10 text-xs font-medium text-white overflow-hidden transition-all hover:border-white/30 hover:shadow-[0_0_15px_rgba(168,85,247,0.5)]"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <Sparkles size={12} className="text-yellow-300 animate-pulse" />
+                  <span className="bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300 bg-clip-text text-transparent group-hover:from-blue-200 group-hover:via-purple-200 group-hover:to-pink-200">
+                    更多案例点击：飞书文档
+                  </span>
+                </a>
+              </div>
               <span className="text-[11px] text-gray-500">
                 下方示例展示不同模式下的转换效果。
               </span>
