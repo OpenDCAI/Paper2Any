@@ -204,9 +204,9 @@ def run_mineru_pdf_extract(
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     # 3. 简单的负载均衡 (Simple Load Balancing) for GPU
-    #    从环境变量 MINERU_DEVICES 中读取可用设备列表 (默认 "5,6,7")
+    #    从环境变量 MINERU_DEVICES 中读取可用设备列表 (默认 "5,6")
     #    随机选择一个设备 ID 分配给当前子进程
-    available_devices_str = os.environ.get("MINERU_DEVICES", "5,6,7")
+    available_devices_str = os.environ.get("MINERU_DEVICES", "4,5,6")
     # 清理并分割字符串，去除空白
     available_devices = [d.strip() for d in available_devices_str.split(",") if d.strip()]
     

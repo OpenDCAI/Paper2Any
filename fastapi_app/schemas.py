@@ -175,6 +175,8 @@ class Paper2PPTRequest(BaseModel):
     # 用于对话的模型
     model: str = "gpt-5.1"
 
+    ref_img : str = ""
+
     gen_fig_model: str = "gemini-3-pro-image-preview"
     # bg_rm_model: str = f"{get_project_root()}/models/RMBG-2.0"
 
@@ -186,7 +188,6 @@ class Paper2PPTRequest(BaseModel):
     aspect_ratio: Literal["1:1", "16:9", "9:16", "4:3", "3:4", "21:9"] = "16:9"
     style: str = " "
     use_long_paper: bool = False # 不使用 长文
-    reference_img: str = ""
 
     invite_code: str = ""
     # 生成的ppt页数；
