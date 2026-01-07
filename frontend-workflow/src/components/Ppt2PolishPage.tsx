@@ -331,8 +331,13 @@ const Ppt2PolishPage = () => {
       return;
     }
 
-    if (!globalPrompt.trim()) {
+    if (styleMode === 'preset' && !globalPrompt.trim()) {
       setError('请输入风格提示词');
+      return;
+    }
+
+    if (styleMode === 'reference' && !referenceImage) {
+      setError('请上传参考图片');
       return;
     }
 
@@ -1244,8 +1249,8 @@ const Ppt2PolishPage = () => {
             <button onClick={() => setStyleMode('preset')} className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${styleMode === 'preset' ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white' : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'}`}>
               <Sparkles size={16} /> 预设风格
             </button>
-            <button disabled className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all bg-white/5 text-gray-600 border border-white/5 cursor-not-allowed opacity-50`}>
-              <ImageIcon size={16} /> 参考图片 (Coming Soon)
+            <button onClick={() => setStyleMode('reference')} className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${styleMode === 'reference' ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white' : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'}`}>
+              <ImageIcon size={16} /> 参考图片
             </button>
           </div>
           {styleMode === 'preset' && (
@@ -1266,22 +1271,28 @@ const Ppt2PolishPage = () => {
             </>
           )}
           {styleMode === 'reference' && (
-            <div>
-              <label className="block text-sm text-gray-300 mb-2">上传参考风格图片</label>
-              {referenceImagePreview ? (
-                <div className="relative">
-                  <img src={referenceImagePreview} alt="参考风格" className="w-full h-40 object-cover rounded-lg border border-white/20" />
-                  <button onClick={handleRemoveReferenceImage} className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-red-500 transition-colors"><X size={14} /></button>
-                  <p className="text-xs text-teal-300 mt-2">✓ 已上传参考图片</p>
-                </div>
-              ) : (
-                <label className="border-2 border-dashed border-white/20 rounded-lg p-6 flex flex-col items-center justify-center text-center gap-2 cursor-pointer hover:border-teal-400 transition-all">
-                  <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center"><ImageIcon size={24} className="text-gray-400" /></div>
-                  <p className="text-sm text-gray-400">点击上传参考图片</p>
-                  <input type="file" accept="image/*" className="hidden" onChange={handleReferenceImageChange} />
-                </label>
-              )}
-            </div>
+            <>
+              <div>
+                <label className="block text-sm text-gray-300 mb-2">上传参考风格图片</label>
+                {referenceImagePreview ? (
+                  <div className="relative">
+                    <img src={referenceImagePreview} alt="参考风格" className="w-full h-40 object-cover rounded-lg border border-white/20" />
+                    <button onClick={handleRemoveReferenceImage} className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-red-500 transition-colors"><X size={14} /></button>
+                    <p className="text-xs text-teal-300 mt-2">✓ 已上传参考图片</p>
+                  </div>
+                ) : (
+                  <label className="border-2 border-dashed border-white/20 rounded-lg p-6 flex flex-col items-center justify-center text-center gap-2 cursor-pointer hover:border-teal-400 transition-all">
+                    <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center"><ImageIcon size={24} className="text-gray-400" /></div>
+                    <p className="text-sm text-gray-400">点击上传参考图片</p>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleReferenceImageChange} />
+                  </label>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm text-gray-300 mb-2">补充风格提示词（选填）</label>
+                <textarea value={globalPrompt} onChange={(e) => setGlobalPrompt(e.target.value)} placeholder="可补充具体的风格细节，例如：保持极简风格，使用深色背景..." rows={2} className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500 resize-none" />
+              </div>
+            </>
           )}
             </div>
           <button onClick={handleUploadAndParse} disabled={!selectedFile || isUploading} className="w-full py-3 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold flex items-center justify-center gap-2 transition-all">

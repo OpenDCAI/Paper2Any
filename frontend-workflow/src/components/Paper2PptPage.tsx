@@ -46,8 +46,11 @@ const Paper2PptPage = () => {
   const [textContent, setTextContent] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [styleMode, setStyleMode] = useState<'prompt' | 'reference'>('prompt');
   const [stylePreset, setStylePreset] = useState<'modern' | 'business' | 'academic' | 'creative'>('modern');
   const [globalPrompt, setGlobalPrompt] = useState('');
+  const [referenceImage, setReferenceImage] = useState<File | null>(null);
+  const [referenceImagePreview, setReferenceImagePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [pageCount, setPageCount] = useState(6);
@@ -193,6 +196,27 @@ const Paper2PptPage = () => {
     setError(null);
   };
 
+  const handleReferenceImageChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext || '')) {
+      setError('参考图片仅支持 JPG/PNG/WEBP/GIF 格式');
+      return;
+    }
+    setReferenceImage(file);
+    setReferenceImagePreview(URL.createObjectURL(file));
+    setError(null);
+  };
+
+  const handleRemoveReferenceImage = () => {
+    if (referenceImagePreview) {
+      URL.revokeObjectURL(referenceImagePreview);
+    }
+    setReferenceImage(null);
+    setReferenceImagePreview(null);
+  };
+
   const handleUploadAndParse = async () => {
     if (uploadMode === 'file' && !selectedFile) {
       setError('请先选择 PDF 文件');
@@ -278,6 +302,12 @@ const Paper2PptPage = () => {
       formData.append('gen_fig_model', genFigModel);
       formData.append('page_count', String(pageCount));
       formData.append('use_long_paper', String(useLongPaper));
+
+      if (styleMode === 'reference' && referenceImage) {
+        formData.append('reference_img', referenceImage);
+        // 如果有参考图，清空 style 参数，避免混淆
+        formData.set('style', '');
+      }
       
       console.log(`Sending request to /api/paper2ppt/pagecontent_json with input_type=${uploadMode}`);
       
@@ -1037,21 +1067,10 @@ const Paper2PptPage = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">选择风格</label>
-              <select 
-                value={stylePreset} 
-                onChange={e => setStylePreset(e.target.value as typeof stylePreset)} 
-                className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="modern">现代简约</option>
-                <option value="business">商务专业</option>
-                <option value="academic">学术报告</option>
-                <option value="creative">创意设计</option>
-              </select>
-            </div>
-            <div>
+          <div className="border-t border-white/10 pt-4 mt-2">
+            <h4 className="text-xs text-gray-400 mb-2">风格配置</h4>
+            
+            <div className="mb-3">
               <label className="block text-xs text-gray-400 mb-1">语言</label>
               <select 
                 value={language} 
@@ -1062,17 +1081,91 @@ const Paper2PptPage = () => {
                 <option value="en">English</option>
               </select>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">风格提示词</label>
-            <textarea 
-              value={globalPrompt} 
-              onChange={e => setGlobalPrompt(e.target.value)} 
-              placeholder="例如：使用紫色系配色，保持学术风格 / 多啦A梦风格 / 赛博朋克风格 ...... " 
-              rows={2} 
-              className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 resize-none" 
-            />
+            <div className="flex gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => setStyleMode('prompt')}
+                className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-all ${
+                  styleMode === 'prompt'
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm'
+                    : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
+                }`}
+              >
+                <Sparkles size={14} /> 风格提示词
+              </button>
+              <button
+                type="button"
+                onClick={() => setStyleMode('reference')}
+                className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-all ${
+                  styleMode === 'reference'
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm'
+                    : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
+                }`}
+              >
+                <UploadCloud size={14} /> 风格参考图
+              </button>
+            </div>
+
+            {styleMode === 'prompt' ? (
+              <>
+                <div className="mb-3">
+                  <label className="block text-xs text-gray-400 mb-1">选择风格</label>
+                  <select 
+                    value={stylePreset} 
+                    onChange={e => setStylePreset(e.target.value as typeof stylePreset)} 
+                    className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="modern">现代简约</option>
+                    <option value="business">商务专业</option>
+                    <option value="academic">学术报告</option>
+                    <option value="creative">创意设计</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">风格提示词</label>
+                  <textarea 
+                    value={globalPrompt} 
+                    onChange={e => setGlobalPrompt(e.target.value)} 
+                    placeholder="例如：使用紫色系配色，保持学术风格 / 多啦A梦风格 / 赛博朋克风格 ...... " 
+                    rows={2} 
+                    className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 resize-none" 
+                  />
+                </div>
+              </>
+            ) : (
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">上传风格参考图</label>
+                {referenceImagePreview ? (
+                  <div className="relative">
+                    <img
+                      src={referenceImagePreview}
+                      alt="参考风格"
+                      className="w-full h-32 object-cover rounded-lg border border-white/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRemoveReferenceImage}
+                      className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-red-500 transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                    <p className="text-[11px] text-purple-300 mt-1">✓ 已上传参考图片，将用于统一 PPT 风格</p>
+                  </div>
+                ) : (
+                  <label className="border-2 border-dashed border-white/20 rounded-lg p-4 flex flex-col items-center justify-center text-center gap-2 cursor-pointer hover:border-purple-400 transition-all">
+                    <UploadCloud size={20} className="text-gray-400" />
+                    <span className="text-xs text-gray-400">点击上传参考图片（JPG/PNG/WEBP/GIF）</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleReferenceImageChange}
+                    />
+                  </label>
+                )}
+              </div>
+            )}
           </div>
 
           <button 

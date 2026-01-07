@@ -393,6 +393,9 @@ class Paper2FigureRequest(MainRequest):
     # pdf2ppt是否使用AI编辑
     use_ai_edit: bool = False
 
+    # paper2ppt的参考图路径：
+    ref_img: str = ''
+
 @dataclass
 class Paper2FigureState(MainState):
     request: Paper2FigureRequest = field(default_factory=Paper2FigureRequest)

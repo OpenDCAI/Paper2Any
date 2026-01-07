@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -23,13 +24,14 @@ PROJECT_ROOT = get_project_root()
 BASE_OUTPUT_DIR = Path("outputs")
 
 
-def _create_run_dir_for_paper2ppt(invite_code: Optional[str]) -> Path:
+def _create_timestamp_run_dir(invite_code: Optional[str]) -> Path:
     """
-    为一次 paper2ppt 请求创建 input 目录，结构：
-        outputs/{invite_code or 'default'}/paper2ppt_input/
+    为 paper2ppt 请求创建基于时间戳的独立目录：
+        outputs/{invite_code or 'default'}/paper2ppt/<timestamp>/
     """
+    ts = int(time.time())
     code = invite_code or "default"
-    run_dir = PROJECT_ROOT / BASE_OUTPUT_DIR / code / "paper2ppt_input"
+    run_dir = PROJECT_ROOT / BASE_OUTPUT_DIR / code / "paper2ppt" / str(ts)
     run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir
 
@@ -116,7 +118,8 @@ async def paper2ppt_pagecontent_json(
 
     norm_input_type = input_type.lower().strip()
 
-    run_dir = _create_run_dir_for_paper2ppt(invite_code)
+    # 使用时间戳目录，避免多用户冲突
+    run_dir = _create_timestamp_run_dir(invite_code)
     input_dir = run_dir / "input"
     input_dir.mkdir(parents=True, exist_ok=True)
 
@@ -181,7 +184,8 @@ async def paper2ppt_pagecontent_json(
         use_long_paper=use_long_paper.lower() == "true",
     )
 
-    resp = await run_paper2page_content_wf_api(p2ppt_req)
+    # 传入 result_path=run_dir，确保 workflow 使用我们创建的目录
+    resp = await run_paper2page_content_wf_api(p2ppt_req, result_path=run_dir)
 
     # 等待图片保存完成（PPT 转图片可能需要一点时间）
     import asyncio
@@ -200,7 +204,8 @@ async def paper2ppt_ppt_json(
     api_key: str = Form(...),
     invite_code: Optional[str] = Form(None),
     # 控制参数
-    style: str = Form(...),
+    style: str = Form(""),
+    reference_img: Optional[UploadFile] = File(None),
     aspect_ratio: str = Form("16:9"),
     language: str = Form("en"),
     model: str = Form("gpt-5.1"),
@@ -234,6 +239,31 @@ async def paper2ppt_ppt_json(
         f"result_path={result_path}, page_id={page_id}, "
         f"pagecontent_length={len(pagecontent) if pagecontent else 0}"
     )
+
+    # 处理参考图上传
+    reference_img_path: Optional[Path] = None
+    base_dir = Path(result_path)
+    if not base_dir.is_absolute():
+        base_dir = PROJECT_ROOT / base_dir
+
+    if reference_img:
+        input_dir = base_dir / "input"
+        input_dir.mkdir(parents=True, exist_ok=True)
+        
+        ref_ext = Path(reference_img.filename or "").suffix or ".png"
+        reference_img_path = (input_dir / f"ppt_ref_style{ref_ext}").resolve()
+        reference_img_path.write_bytes(await reference_img.read())
+        log.info(f"[ppt_json] Saved reference_img to {reference_img_path}")
+    else:
+        # 如果未上传，尝试从 result_path/input 查找之前上传的 reference.*
+        input_dir = base_dir / "input"
+        if input_dir.exists():
+            for ext in [".png", ".jpg", ".jpeg", ".webp"]:
+                candidate = input_dir / f"reference{ext}"
+                if candidate.exists():
+                    reference_img_path = candidate
+                    log.info(f"[ppt_json] Found cached reference_img at {reference_img_path}")
+                    break
 
     # 仅在有值时解析 pagecontent；编辑模式下允许不传。
     if pagecontent is not None:
@@ -273,6 +303,7 @@ async def paper2ppt_ppt_json(
         input_content="",
         aspect_ratio=aspect_ratio,
         style=style,
+        ref_img=str(reference_img_path) if reference_img_path else "",
         invite_code=invite_code or "",
         all_edited_down=all_edited_down_bool,
     )
@@ -331,7 +362,7 @@ async def paper2ppt_full_json(
 
     norm_input_type = input_type.lower().strip()
 
-    run_dir = _create_run_dir_for_paper2ppt(invite_code)
+    run_dir = _create_timestamp_run_dir(invite_code)
     input_dir = run_dir / "input"
     input_dir.mkdir(parents=True, exist_ok=True)
 

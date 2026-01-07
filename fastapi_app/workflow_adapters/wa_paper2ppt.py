@@ -104,7 +104,7 @@ def _init_state_from_request(
     return state
 
 
-async def run_paper2page_content_wf_api(req: Paper2PPTRequest) -> Paper2PPTResponse:
+async def run_paper2page_content_wf_api(req: Paper2PPTRequest, result_path: Path | None = None) -> Paper2PPTResponse:
     """
     只执行 paper2page_content 工作流，主要用于从 PDF / PPTX / TEXT
     中解析出结构化的 pagecontent。
@@ -116,7 +116,10 @@ async def run_paper2page_content_wf_api(req: Paper2PPTRequest) -> Paper2PPTRespo
         - result_path: 本次 workflow 使用的统一输出目录
     """
     # 统一 result_path：若调用方希望自定义，可在 req 中扩展字段；目前统一使用 invite_code 路径
-    result_root = _ensure_result_path_for_full(req.invite_code)
+    if result_path is None:
+        result_root = _ensure_result_path_for_full(req.invite_code)
+    else:
+        result_root = result_path
 
     state = _init_state_from_request(req, result_path=result_root)
 
@@ -221,7 +224,9 @@ async def run_paper2ppt_wf_api(
         f"pagecontent_len={len(getattr(state, 'pagecontent', []) or [])}"
     )
 
-    final_state: Paper2FigureState = await run_workflow("paper2ppt_parallel", state)
+    # final_state: Paper2FigureState = await run_workflow("paper2ppt_parallel", state)
+    log.critical(f'[wa_paper2ppt] req.ref_img 路径 {req.ref_img}')
+    final_state: Paper2FigureState = await run_workflow("paper2ppt_parallel_consistent_style", state)
 
     # 提取关键输出
     ppt_pdf_path = getattr(final_state, "ppt_pdf_path", "")
