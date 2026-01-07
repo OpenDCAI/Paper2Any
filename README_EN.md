@@ -11,7 +11,7 @@
 
 English | [中文](README.md)
 
-✨ **Focus on Paper Multimodal Workflow: One-click generation of model diagrams, technical roadmaps, experimental plots, and presentations from paper PDFs/screenshots/text** ✨
+✨ **Focus on paper multimodal workflows: from paper PDFs/screenshots/text to one-click generation of model diagrams, technical roadmaps, experimental plots, and slide decks** ✨
 
 | 📄 **Universal File Support** &nbsp;|&nbsp; 🎯 **AI-Powered Generation** &nbsp;|&nbsp; 🎨 **Custom Styling** &nbsp;|&nbsp; ⚡ **Lightning Speed** |
 
@@ -33,24 +33,24 @@ English | [中文](README.md)
 <br>
 <br>
 
-<img src="static/new_readme/前端页面-01.png" alt="Paper2Any Web Interface" width="100%"/>
+<img src="static/new_readme/first.png" alt="Paper2Any Web Interface" width="80%"/>
 
 </div>
 
 ---
 
-## 📢 Roadmap & Announcement
+## 📢 Roadmap & Split Announcement
 
 > [!IMPORTANT]
-> **This project is undergoing an architectural split to provide a more focused experience.**
+> **This project is undergoing an architectural split to provide a more focused feature experience.**
 
-- **[Paper2Any](https://github.com/OpenDCAI/Paper2Any)** (Current Repository):
+- **[Paper2Any](https://github.com/OpenDCAI/Paper2Any)** (this repo):
   - Focuses on paper multimodal workflows (Paper2Figure, Paper2PPT, Paper2Video, etc.).
-  - Provides researchers with one-click tools for plotting, PPT generation, and video scripting.
+  - Provides one-click tools for scientific plotting, PPT generation, and video script assistance for researchers.
 
-- **[DataFlow-Agent](https://github.com/OpenDCAI/DataFlow-Agent)** (New Repository):
+- **[DataFlow-Agent](https://github.com/OpenDCAI/DataFlow-Agent)** (new repo):
   - Focuses on DataFlow operator orchestration and authoring.
-  - Provides a general-purpose multi-agent dataflow processing framework and operator development tools.
+  - Provides a general-purpose multi-agent dataflow processing framework and operator development toolkits.
 
 ---
 
@@ -70,22 +70,22 @@ English | [中文](README.md)
 
 > [!TIP]
 > 🆕 <strong>2025-12-12 · Paper2Figure Web public beta is live</strong><br>
-> One-click generation of multiple <strong>editable</strong> scientific figures (Model Architecture / Technical Roadmap / Experimental Plots)<br>
+> Supports one-click generation of multiple <strong>editable</strong> scientific figures (model architecture diagrams / technical roadmaps / experimental plots)<br>
 > 🌐 Online Demo: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
 
-- 2025-10-01 · Released <code>0.1.0</code> first version
+- 2025-10-01 · Released the first version <code>0.1.0</code>
 
 ---
 
 ## ✨ Core Features
 
-> From paper PDFs / images / text to **editable** scientific figures, slide decks, video scripts, posters and more in one click.
+> From paper PDFs / images / text to **editable** scientific figures, slide decks, video scripts, academic posters, and other multimodal content in one click.
 
 Paper2Any currently includes the following sub-capabilities:
 
-- **📊 Paper2Figure - Editable Scientific Figures**: One-click generation of model architecture diagrams, technical roadmaps (PPT + SVG), and experimental plots. Supports various input sources and outputs editable PPTX.
-- **🎬 Paper2PPT - Editable Slide Decks**: Generate Beamer-style or open-format editable PPTs. Supports long document processing, with built-in table extraction and figure parsing capabilities.
-- **🖼️ PDF2PPT - Layout Preserved Conversion**: Intelligent cutout and layout analysis to accurately convert PDFs into editable PPTX.
+- **📊 Paper2Figure - Editable Scientific Figures**: One-click generation of model architecture diagrams, technical roadmaps (PPT + SVG), and experimental plots. Supports multiple input sources and outputs editable PPTX.
+- **🎬 Paper2PPT - Editable Slide Decks**: Generate PPTs in arbitrary styles, support ultra-long document processing, and include built-in table extraction and chart parsing.
+- **🖼️ PDF2PPT - Layout-Preserving Conversion**: Intelligent cutout and layout analysis to accurately convert PDFs into editable PPTX.
 - **🎨 PPT Smart Beautification**: AI-based PPT layout optimization and style transfer.
 
 ---
@@ -129,24 +129,12 @@ Paper2Any currently includes the following sub-capabilities:
 <br><sub>✨ Paper / Text / Topic → PPT</sub>
 
 <br><br>
-<img src="static/new_readme/paper2ppt-长文长ppt.png" width="90%"/>
+<img src="static/new_readme/paper2ppt-长文长ppt.png" width="85%"/>
 <br><sub>✨ Long Document Support (40+ Slides)</sub>
 
 <br><br>
 <img src="static/new_readme/paper2ppt-表格提取功能.png" width="90%"/>
 <br><sub>✨ Intelligent Table Extraction & Insertion</sub>
-
-</div>
-
----
-
-### 🖼️ PDF2PPT: Layout Preserved Conversion
-
-<div align="center">
-
-<br>
-<img src="static/new_readme/pdf2ppt抠图.png" width="90%"/>
-<br><sub>✨ Intelligent Cutout & Layout Preservation</sub>
 
 </div>
 
@@ -163,6 +151,18 @@ Paper2Any currently includes the following sub-capabilities:
 <br>
 <img src="static/new_readme/ppt美化-1.png" width="90%"/>
 <br><sub>✨ AI-based Layout Optimization & Style Transfer</sub>
+
+</div>
+
+---
+
+### 🖼️ PDF2PPT: Layout-Preserving Conversion
+
+<div align="center">
+
+<br>
+<img src="static/new_readme/pdf2ppt抠图.png" width="90%"/>
+<br><sub>✨ Intelligent Cutout & Layout Preservation</sub>
 
 </div>
 
@@ -199,7 +199,7 @@ pip install -e .
 
 #### 2. Install Paper2Any-specific Dependencies (Required)
 
-Paper2Any involves LaTeX rendering, vector graphics processing and PPT/PDF conversion, which require extra dependencies:
+Paper2Any involves LaTeX rendering, vector graphics processing as well as PPT/PDF conversion, which require extra dependencies:
 
 ```bash
 # 1. Python dependencies
@@ -216,17 +216,17 @@ sudo apt-get update
 sudo apt-get install -y inkscape libreoffice poppler-utils wkhtmltopdf
 ```
 
-#### 3. Environment Configuration
+#### 3. Environment Variables
 
 ```bash
 export DF_API_KEY=your_api_key_here
-export DF_API_URL=xxx  # Optional: if using a third-party API gateway
+export DF_API_URL=xxx  # Optional: if you need a third-party API gateway
 export MINERU_DEVICES="0,1,2,3" # Optional: MinerU task GPU resource pool
 ```
 
-#### 4. Configure Supabase (Required for Frontend/Backend)
+#### 4. Configure Supabase (Required for Frontend & Backend)
 
-Create a `.env` file in the `frontend-workflow` directory and fill in the following configuration:
+Create a `.env` file under the `frontend-workflow` directory and fill in the following configuration:
 
 ```bash
 # frontend-workflow/.env
@@ -247,34 +247,36 @@ DAILY_WORKFLOW_LIMIT=10
 <details>
 <summary><strong>Advanced Configuration: Local Model Service Load Balancing</strong></summary>
 
-If deploying in a high-concurrency environment locally, you can use `script/start_model_servers.sh` to start a local model service cluster (MinerU / SAM / OCR).
+If you are deploying in a high-concurrency local environment, you can use `script/start_model_servers.sh` to start a local model service cluster (MinerU / SAM / OCR).
 
 Script location: `/DataFlow-Agent/script/start_model_servers.sh`
 
-**Main Configuration Items:**
+**Main configuration items:**
 
 - **MinerU (PDF Parsing)**
   - `MINERU_MODEL_PATH`: Model path (default `models/MinerU2.5-2509-1.2B`)
   - `MINERU_GPU_UTIL`: GPU memory utilization (default 0.2)
-  - **Instance Config**: Default starts 4 instances each on GPU 0 and GPU 4 (total 8), ports 8011-8018.
-  - **Load Balancer**: Port 8010, automatically distributes requests.
+  - **Instance configuration**: By default, 4 instances are started on GPU 0 and GPU 4 respectively (8 in total), ports 8011-8018.
+  - **Load Balancer**: Port 8010, automatically dispatches requests.
 
 - **SAM (Segment Anything Model)**
-  - **Instance Config**: Default starts 1 instance each on GPU 2 and GPU 3, ports 8021-8022.
+  - **Instance configuration**: By default, 1 instance is started on GPU 2 and GPU 3 respectively, ports 8021-8022.
   - **Load Balancer**: Port 8020.
 
 - **OCR (PaddleOCR)**
-  - **Config**: Runs on CPU, uses uvicorn worker mechanism (default 4 workers).
+  - **Config**: Runs on CPU, uses uvicorn's worker mechanism (4 workers by default).
   - **Port**: 8003.
 
-> Please modify `gpu_id` and instance count in the script according to your actual GPU quantity and memory before use.
+> Before using, please modify `gpu_id` and the number of instances in the script according to your actual GPU count and memory.
 
 </details>
+
+---
 
 ### 🪟 Windows Installation
 
 > [!NOTE]
-> Currently, we recommend experiencing Paper2Any in a Linux / WSL environment. If you need to deploy on native Windows, please follow the steps below.
+> We currently recommend trying Paper2Any on Linux / WSL. If you need to deploy on native Windows, please follow the steps below.
 
 #### 1. Create Environment & Install Base Dependencies
 
@@ -296,7 +298,7 @@ pip install -e .
 
 #### 2. Install Paper2Any-specific Dependencies (Recommended)
 
-Paper2Any involves LaTeX rendering and vector graphics processing, requiring extra dependencies (see requirements-paper.txt):
+Paper2Any involves LaTeX rendering and vector graphics processing, which require extra dependencies (see `requirements-paper.txt`):
 
 ```bash
 # Python dependencies
@@ -309,14 +311,14 @@ conda install -c conda-forge tectonic -y
 **🎨 Install Inkscape (SVG/Vector Graphics Processing | Recommended/Required)**
 
 1. Download and install (Windows 64-bit MSI): [Inkscape Download](https://inkscape.org/release/inkscape-1.4.2/windows/64-bit/msi/?redirected=1)
-2. Add the Inkscape executable directory to the system environment variable Path (Example): `C:\Program Files\Inkscape\bin\`
+2. Add the Inkscape executable directory to the system environment variable Path (example): `C:\Program Files\Inkscape\bin\`
 
 > [!TIP]
-> After configuring Path, it is recommended to reopen the terminal (or restart VS Code / PowerShell) to ensure the environment variables take effect.
+> After configuring the Path, it is recommended to reopen the terminal (or restart VS Code / PowerShell) to ensure the environment variables take effect.
 
-#### ⚡ Install Windows Compiled vLLM (Optional | For Local Inference Acceleration)
+#### ⚡ Install Windows Build of vLLM (Optional | For Local Inference Acceleration)
 
-Release page reference: [vllm-windows releases](https://github.com/SystemPanic/vllm-windows/releases)
+Release page: [vllm-windows releases](https://github.com/SystemPanic/vllm-windows/releases)  
 Recommended version: 0.11.0
 
 ```bash
@@ -324,12 +326,12 @@ pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
 ```
 
 > [!IMPORTANT]
-> Please ensure `.whl` matches your current environment:
+> Please make sure the `.whl` matches your current environment:
 > - Python: cp312 (Python 3.12)
 > - Platform: win_amd64
-> - CUDA: cu124 (Must match your local CUDA/driver)
+> - CUDA: cu124 (must match your local CUDA / driver)
 
-#### Launch Applications
+#### Launch Application
 
 **Paper2Any - Paper Workflow Web Frontend (Recommended)**
 
@@ -357,19 +359,20 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',  // FastAPI Backend Address
+        target: 'http://127.0.0.1:8000',  // FastAPI backend address
         changeOrigin: true,
       },
     },
   },
 })
 ```
-Visit `http://localhost:3000`
 
-**Windows Load MinerU Pre-trained Model**
+Visit `http://localhost:3000`.
+
+**Windows: Load MinerU Pre-trained Model**
 
 ```powershell
-# Start in PowerShell environment
+# Start in PowerShell
 vllm serve opendatalab/MinerU2.5-2509-1.2B `
   --host 127.0.0.1 `
   --port 8010 `
@@ -382,19 +385,16 @@ vllm serve opendatalab/MinerU2.5-2509-1.2B `
 > [!TIP]
 > **Paper2Figure Web Beta Instructions**
 > 
-> When you deploy the frontend, you also need to manually create a `invite_codes.txt` file and write your invitation code (e.g., `ABCDEFG123456`).
-> Then start the backend.
-> 
-> If you don't want to deploy frontend/backend for now, you can try core features via local scripts first:
-> - `python script/run_paper2figure.py`: Model architecture diagram generation
-> - `python script/run_paper2expfigure.py`: Experimental plot generation
-> - `python script/run_paper2technical.py`: Technical roadmap generation
-> - `python script/run_paper2ppt.py`: Paper content to editable PPT
-> - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`: PDF2PPT (Layout preservation + Editable content)
+> If you do not want to deploy both frontend and backend for now, you can try the core capabilities via local scripts:
+> - `python script/run_paper2figure.py`: model architecture diagram generation
+> - `python script/run_paper2expfigure.py`: experimental plot generation
+> - `python script/run_paper2technical.py`: technical roadmap generation
+> - `python script/run_paper2ppt.py`: paper to editable PPT
+> - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`: PDF2PPT (layout preserved + editable content)
 
 ---
 
-### Launch Applications
+### Launch Application
 
 #### 🎨 Web Frontend (Recommended)
 
@@ -412,10 +412,10 @@ npm run dev
 Visit `http://localhost:3000`.
 
 > [!TIP]
-> If you don't want to deploy frontend/backend for now, you can try core features via local scripts:
+> If you do not want to deploy frontend/backend for now, you can try the core features via local scripts:
 > - `python script/run_paper2figure.py`: model architecture diagram generation
-> - `python script/run_paper2ppt.py`: PPT generation from content
-> - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`: PDF2PPT
+> - `python script/run_paper2ppt.py`: paper to PPT
+> - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`: PDF to PPT
 
 ---
 
@@ -423,15 +423,15 @@ Visit `http://localhost:3000`.
 
 ```
 Paper2Any/
-├── dataflow_agent/          # Core framework code
+├── dataflow_agent/          # Core codebase
 │   ├── agentroles/         # Agent definitions
-│   │   └── paper2any_agents/ # Agents specific to Paper2Any
+│   │   └── paper2any_agents/ # Paper2Any-specific agents
 │   ├── workflow/           # Workflow definitions
-│   ├── promptstemplates/   # Prompt template library
-│   └── toolkits/           # Toolkits (Figure gen, PPT gen, etc.)
-├── fastapi_app/            # FastAPI backend service
-├── frontend-workflow/      # Frontend workflow editor
-├── static/                 # Static resources
+│   ├── promptstemplates/   # Prompt templates
+│   └── toolkits/           # Toolkits (drawing, PPT generation, etc.)
+├── fastapi_app/            # Backend API service
+├── frontend-workflow/      # Frontend web interface
+├── static/                 # Static assets
 ├── script/                 # Script tools
 └── tests/                  # Test cases
 ```
@@ -452,7 +452,7 @@ Paper2Any/
 <td>
 <img src="https://img.shields.io/badge/✓-Model_Architecture-success?style=flat-square" alt="Done"/><br>
 <img src="https://img.shields.io/badge/✓-Technical_Roadmap-success?style=flat-square" alt="Done"/><br>
-<img src="https://img.shields.io/badge/⚠-Experimental_Plots-yellow?style=flat-square" alt="WIP"/><br>
+<img src="https://img.shields.io/badge/✓-Experimental_Plots-success?style=flat-square" alt="Done"/><br>
 <img src="https://img.shields.io/badge/✓-Web_Frontend-success?style=flat-square" alt="Done"/>
 </td>
 </tr>
@@ -462,12 +462,14 @@ Paper2Any/
 <td>
 <img src="https://img.shields.io/badge/✓-Beamer_Style-success?style=flat-square" alt="Done"/><br>
 <img src="https://img.shields.io/badge/✓-Long_Doc_PPT-success?style=flat-square" alt="Done"/><br>
+<img src="https://img.shields.io/badge/⚠-Template_based_PPT_Generation-yellow?style=flat-square" alt="In_Progress"/><br>
+<img src="https://img.shields.io/badge/⚠-KB_based_PPT_Generation-yellow?style=flat-square" alt="In_Progress"/><br>
 <img src="https://img.shields.io/badge/✓-Table_Extraction-success?style=flat-square" alt="Done"/><br>
 <img src="https://img.shields.io/badge/✓-Figure_Extraction-success?style=flat-square" alt="Done"/>
 </td>
 </tr>
 <tr>
-<td><strong>🖼️ PDF2PPT</strong><br><sub>Layout Preserved Conversion</sub></td>
+<td><strong>🖼️ PDF2PPT</strong><br><sub>Layout-Preserving Conversion</sub></td>
 <td><img src="https://img.shields.io/badge/Progress-90%25-green?style=flat-square&logo=progress" alt="90%"/></td>
 <td>
 <img src="https://img.shields.io/badge/✓-Smart_Cutout-success?style=flat-square" alt="Done"/><br>
@@ -480,7 +482,8 @@ Paper2Any/
 <td><img src="https://img.shields.io/badge/Progress-50%25-yellow?style=flat-square&logo=progress" alt="50%"/></td>
 <td>
 <img src="https://img.shields.io/badge/✓-Style_Transfer-success?style=flat-square" alt="Done"/><br>
-<img src="https://img.shields.io/badge/⚠-Layout_Optimization-yellow?style=flat-square" alt="WIP"/>
+<img src="https://img.shields.io/badge/⚠-Layout_Optimization-yellow?style=flat-square" alt="In_Progress"/><br>
+<img src="https://img.shields.io/badge/⚠-Reference_Image_Beautification-yellow?style=flat-square" alt="In_Progress"/>
 </td>
 </tr>
 </table>
@@ -489,7 +492,7 @@ Paper2Any/
 
 ## 🤝 Contributing
 
-We welcome all forms of contributions!
+We welcome all forms of contribution!
 
 [![Issues](https://img.shields.io/badge/Issues-Submit_Bug-red?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/issues)
 [![Discussions](https://img.shields.io/badge/Discussions-Feature_Request-blue?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/discussions)
@@ -518,9 +521,9 @@ This project is licensed under [Apache License 2.0](LICENSE).
 
 <br>
 
-<img src="static/team_wechat.png" alt="DataFlow-Agent WeChat Community" width="800"/>
+<img src="frontend-workflow/public/wechat.png" alt="DataFlow-Agent WeChat Community" width="300"/>
 <br>
-<sub>Scan to join the community group</sub>
+<sub>Scan to join the community WeChat group</sub>
 
 <p align="center"> 
   <em> ❤️ Made with by OpenDCAI Team</em>

@@ -384,8 +384,6 @@ vllm serve opendatalab/MinerU2.5-2509-1.2B `
 > [!TIP]
 > **Paper2Figure 网页端内测说明**
 > 
-> 当你部署了前端，还需要手动新建一个 `invite_codes.txt` 文件，并写入你的邀请码（例如：`ABCDEFG123456`）。
-> 然后再启动后端。
 > 
 > 如果暂时不想部署前后端，可以先通过本地脚本体验 Paper2Any 的核心能力：
 > - `python script/run_paper2figure.py`：模型架构图生成
@@ -454,7 +452,7 @@ Paper2Any/
 <td>
 <img src="https://img.shields.io/badge/✓-模型架构图-success?style=flat-square" alt="完成"/><br>
 <img src="https://img.shields.io/badge/✓-技术路线图-success?style=flat-square" alt="完成"/><br>
-<img src="https://img.shields.io/badge/⚠-实验数据图-yellow?style=flat-square" alt="进行中"/><br>
+<img src="https://img.shields.io/badge/✓-实验数据图-success?style=flat-square" alt="完成"/><br>
 <img src="https://img.shields.io/badge/✓-Web_前端-success?style=flat-square" alt="完成"/>
 </td>
 </tr>
@@ -464,6 +462,8 @@ Paper2Any/
 <td>
 <img src="https://img.shields.io/badge/✓-Beamer_样式-success?style=flat-square" alt="完成"/><br>
 <img src="https://img.shields.io/badge/✓-长文_PPT-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/⚠-参考模版PPT生成-yellow?style=flat-square" alt="进行中"/><br>
+<img src="https://img.shields.io/badge/⚠-基于知识库的PPT生成-yellow?style=flat-square" alt="进行中"/><br>
 <img src="https://img.shields.io/badge/✓-表格提取-success?style=flat-square" alt="完成"/><br>
 <img src="https://img.shields.io/badge/✓-配图提取-success?style=flat-square" alt="完成"/>
 </td>
@@ -482,7 +482,8 @@ Paper2Any/
 <td><img src="https://img.shields.io/badge/进度-50%25-yellow?style=flat-square&logo=progress" alt="50%"/></td>
 <td>
 <img src="https://img.shields.io/badge/✓-样式迁移-success?style=flat-square" alt="完成"/><br>
-<img src="https://img.shields.io/badge/⚠-布局优化-yellow?style=flat-square" alt="进行中"/>
+<img src="https://img.shields.io/badge/⚠-布局优化-yellow?style=flat-square" alt="进行中"/><br>
+<img src="https://img.shields.io/badge/⚠-参考图美化-yellow?style=flat-square" alt="进行中"/>
 </td>
 </tr>
 </table>
@@ -520,7 +521,7 @@ Paper2Any/
 
 <br>
 
-<img src="frontend-workflow/public/wechat.png" alt="DataFlow-Agent 社区微信群" width="800"/>
+<img src="frontend-workflow/public/wechat.png" alt="DataFlow-Agent 社区微信群" width="200"/>
 <br>
 <sub>扫码加入社区微信群</sub>
 
