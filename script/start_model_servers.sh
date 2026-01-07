@@ -72,9 +72,9 @@ start_mineru_instance() {
 }
 
 # GPU 0 Instances (Ports 8011-8012)
-start_mineru_instance 0 8011 1
+start_mineru_instance 7 8011 1
 sleep 10
-start_mineru_instance 0 8012 2
+start_mineru_instance 7 8012 2
 sleep 10
 
 # GPU 1 Instances (Ports 8013-8014)
@@ -127,15 +127,18 @@ start_sam_instance() {
     echo "SAM Backend $instance_id started with PID $pid"
 }
 
-# GPU 5 Instance (Port 8021)
+# GPU 4 Instance (Port 8021)
 start_sam_instance 4 8021 1
 
-# GPU 6 Instance (Port 8022)
+# GPU 5 Instance (Port 8022)
 start_sam_instance 5 8022 2
+
+# GPU 6 Instance (Port 8023)
+start_sam_instance 6 8023 3
 
 # SAM LB (Port 8020)
 SAM_BACKENDS=""
-for port in {8021..8022}; do
+for port in {8021..8023}; do
     SAM_BACKENDS="$SAM_BACKENDS http://127.0.0.1:$port"
 done
 

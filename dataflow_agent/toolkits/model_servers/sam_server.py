@@ -58,10 +58,8 @@ async def predict(req: SAMRequest):
         raise HTTPException(status_code=404, detail=f"Image path not found: {req.image_path}")
 
     try:
-        # Force device to cuda:0 if it's generic cuda, to align with CUDA_VISIBLE_DEVICES env
+        # Use the device from request, CUDA_VISIBLE_DEVICES will handle GPU mapping
         target_device = req.device
-        if target_device == "cuda":
-            target_device = "cuda:0"
 
         # 调用本地的 sam_tool 函数
         # 注意：这里会利用 sam_tool 内部的 caching 机制

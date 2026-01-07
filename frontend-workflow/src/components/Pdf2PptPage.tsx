@@ -6,6 +6,7 @@ import {
 import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
+import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
 import QRCodeTooltip from './QRCodeTooltip';
 
@@ -17,6 +18,7 @@ const Pdf2PptPage = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showBanner, setShowBanner] = useState(true);
@@ -161,6 +163,19 @@ const Pdf2PptPage = () => {
       }
       if (!llmApiUrl.trim()) {
         setError('开启 AI 增强时必须输入 API URL');
+        return;
+      }
+
+      // Step 0: Verify LLM Connection if AI Edit is enabled
+      try {
+        setIsValidating(true);
+        setError(null);
+        await verifyLlmConnection(llmApiUrl, apiKey, 'gpt-4o'); 
+        setIsValidating(false);
+      } catch (err) {
+        setIsValidating(false);
+        const message = err instanceof Error ? err.message : 'API 验证失败';
+        setError(message);
         return;
       }
     }
@@ -514,6 +529,14 @@ const Pdf2PptPage = () => {
                         )}
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* 验证状态 */}
+                {isValidating && (
+                  <div className="mb-6 flex items-center gap-2 text-sm text-purple-300 bg-purple-500/10 border border-purple-500/40 rounded-lg px-4 py-3 animate-pulse">
+                    <Loader2 size={16} className="animate-spin" />
+                    <p>正在验证 API Key 有效性...</p>
                   </div>
                 )}
 
