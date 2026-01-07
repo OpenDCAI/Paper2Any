@@ -116,8 +116,7 @@ async def _make_prompt_for_structured_page(item: Dict[str, Any], style: str, sta
     base = _serialize_prompt_dict(prompt_dict)
 
     if not asset_ref:
-        prompt = f"{base}\n\n根据上述内容。生成{style}风格的 PPT 图像, \n 使用语言：{state.request.language}"
-        return prompt, None, False
+        return base, None, False
 
     # table 占位提取
     if _is_table_asset(asset_ref):
@@ -143,21 +142,17 @@ async def _make_prompt_for_structured_page(item: Dict[str, Any], style: str, sta
         image_path = _resolve_asset_path(table_img_path, state)
         if not image_path or not os.path.exists(image_path):
             log.error(f"[paper2ppt] 表格图像文件不存在: {image_path!r} (asset_ref={asset_ref})")
-            prompt = f"{base}\n\n根据上述内容生成{style}风格的 PPT 图像, \n 使用语言：{state.request.language}"
-            return prompt, None, False
+            return base, None, False
 
-        prompt = f"{base}\n\n根据上述内容绘制ppt，把这个图作为PPT的一部分。生成{style}风格的PPT. \n 使用语言：{state.request.language} !!!"
-        return prompt, image_path, True
+        return base, image_path, True
 
     # 默认：当作图片路径，走编辑
     image_path = _resolve_asset_path(asset_ref, state)
     if not image_path or not os.path.exists(image_path):
         log.error(f"[paper2ppt] 图片文件不存在: {image_path!r} (asset_ref={asset_ref})")
-        prompt = f"{base}\n\n根据上述内容生成{style}风格的 PPT 图像, \n 使用语言：{state.request.language}"
-        return prompt, None, False
+        return base, None, False
 
-    prompt = f"{base}\n\n根据上述内容绘制ppt，把这个图作为PPT的一部分。生成{style}风格的PPT. \n 使用语言：{state.request.language} !!!"
-    return prompt, image_path, True
+    return base, image_path, True
 
 
 def _resolve_asset_path(asset_ref: str, state: Paper2FigureState) -> str:
@@ -354,7 +349,8 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
 
             try:
                 # 解析原始意图：是生图(prompt only) 还是 编辑(prompt + asset)
-                base_prompt, asset_path, is_edit_originally = await _make_prompt_for_structured_page(item, style=style, state=state)
+                # base_content 仅包含 json 描述，不包含指令
+                base_content, asset_path, is_edit_originally = await _make_prompt_for_structured_page(item, style=style, state=state)
             except Exception as e:
                 log.error(f"[paper2ppt] page={idx} prompt build failed: {e}")
                 return {"page_idx": idx, "generated_img_path": None, "mode": "prompt_failed", "error": str(e)}
@@ -365,13 +361,17 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
             # 1. 如果有 Ref 图
             if use_ref:
                 if is_edit_originally and asset_path:
-                    # 原本就是 Edit (有素材) -> 改为多图 Edit (Ref + Asset)
+                    # Multi-Edit: Ref + Asset
+                    # 明确区分 Image 1 (Style) 和 Image 2 (Content)
                     final_prompt = (
-                        f"{base_prompt}\n\n"
-                        f"IMPORTANT: The first image provided is the STYLE REFERENCE. "
-                        f"The second image is the CONTENT ASSET (e.g. chart/table). "
-                        f"Please generate a {style} presentation slide that incorporates the CONTENT from the second image, "
-                        f"but strictly follows the visual style, color palette, and background design of the first image."
+                        f"{base_content}\n\n"
+                        f"--------------------------------------------------\n"
+                        f"TASK: Generate a {style} presentation slide.\n"
+                        f"INPUT IMAGES:\n"
+                        f"  - IMAGE 1 (First Image): STYLE REFERENCE. Strictly follow its color palette, and background style.\n"
+                        f"  - IMAGE 2 (Second Image): CONTENT ASSET. Incorporate the chart/table/figure from this image into the slide.\n\n"
+                        f"INSTRUCTION: Create a cohesive slide that presents the content from Image 2 but looks exactly like it belongs to the deck of Image 1.\n"
+                        f"Language: {state.request.language}"
                     )
                     mode = "multi_edit_ref_asset"
                     log.info(f"[paper2ppt] page={idx} Multi-Edit (Ref+Asset). Asset={asset_path}")
@@ -389,13 +389,13 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                     )
                 else:
                     # 原本是 Text2Img -> 改为 Img2Img (Ref as base)
-                    # 注意：这里我们用 Ref 图作为 image_path 传给 edit 接口，
                     # 提示词要求“基于此风格生成新内容”
                     final_prompt = (
-                        f"{base_prompt}\n\n"
+                        f"{base_content}\n\n"
                         f"Reference the style of the provided image (layout, color, background), "
                         f"but generate NEW CONTENT based on the text description above. "
-                        f"Keep the background style consistent."
+                        f"Keep the background style consistent.\n"
+                        f"Language: {state.request.language}"
                     )
                     mode = "edit_ref_style"
                     log.info(f"[paper2ppt] page={idx} Edit (Ref Style).")
@@ -415,7 +415,19 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
             
             # 2. 如果没有 Ref 图 (比如是第0页，或者第0页生成失败)
             else:
-                final_prompt = base_prompt
+                if is_edit_originally:
+                    final_prompt = (
+                        f"{base_content}\n\n"
+                        f"根据上述内容绘制ppt，把这个图作为PPT的一部分。生成{style}风格的PPT. \n "
+                        f"使用语言：{state.request.language} !!!"
+                    )
+                else:
+                    final_prompt = (
+                        f"{base_content}\n\n"
+                        f"根据上述内容。生成{style}风格的 PPT 图像, \n "
+                        f"使用语言：{state.request.language}"
+                    )
+
                 mode = "origin_edit" if is_edit_originally else "origin_gen"
                 log.info(f"[paper2ppt] page={idx} Origin {mode}. Asset={asset_path}")
                 

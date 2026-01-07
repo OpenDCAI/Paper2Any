@@ -1110,13 +1110,13 @@ const Ppt2PolishPage = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="glass rounded-xl border border-white/10 p-6">
+        <div className="glass rounded-xl border border-white/10 p-6 flex flex-col h-full">
           <h3 className="text-white font-semibold flex items-center gap-2 mb-4">
             <FileText size={18} className="text-teal-400" />
             上传 PPT
           </h3>
           <div
-            className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center gap-4 transition-all ${
+            className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center gap-4 transition-all flex-1 ${
               isDragOver ? 'border-teal-500 bg-teal-500/10' : 'border-white/20 hover:border-teal-400'
             }`}
             onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
@@ -1287,10 +1287,6 @@ const Ppt2PolishPage = () => {
                     <input type="file" accept="image/*" className="hidden" onChange={handleReferenceImageChange} />
                   </label>
                 )}
-              </div>
-              <div>
-                <label className="block text-sm text-gray-300 mb-2">补充风格提示词（选填）</label>
-                <textarea value={globalPrompt} onChange={(e) => setGlobalPrompt(e.target.value)} placeholder="可补充具体的风格细节，例如：保持极简风格，使用深色背景..." rows={2} className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500 resize-none" />
               </div>
             </>
           )}

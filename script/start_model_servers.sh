@@ -1,180 +1,196 @@
 #!/bin/bash
 
-# start_model_servers.sh
-# 启动 SAM, OCR, 和 MinerU (vLLM) 模型服务
-# 假设运行在 dev/DataFlow-Agent 目录下
+# ==============================================================================
+#  MinerU & SAM Production Launcher v2.0
+#  "One GPU, One Instance, Maximum Power"
+# ==============================================================================
 
-# 确保在正确目录
-cd "$(dirname "$0")/.."
-echo "Current directory: $(pwd)"
+# ------------------------------------------------------------------------------
+#  🎨 Colors & Styles
+# ------------------------------------------------------------------------------
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+BOLD='\033[1m'
 
-# 创建日志目录
-mkdir -p logs
+# ------------------------------------------------------------------------------
+#  ⚙️ Configuration
+# ------------------------------------------------------------------------------
+ROOT_DIR="$(dirname "$0")/.."
+LOG_DIR="$ROOT_DIR/logs"
 
-# ==================================================================================
-# 0. Cleanup Old Processes
-# ==================================================================================
-echo "Cleaning up old processes..."
+# MinerU Config
+MINERU_MODEL="models/MinerU2.5-2509-1.2B"
+MINERU_GPU_UTIL=0.85
+MINERU_MAX_SEQS=64
+MINERU_GPUS=(7 1 2 3)
+MINERU_START_PORT=8011
 
-# Cleanup MinerU (Ports 8010-8018)
-for port in {8010..8018}; do
-    pid=$(lsof -t -i:$port)
+# SAM Config
+SAM_GPUS=(4 5 6)
+SAM_START_PORT=8021
+
+# ------------------------------------------------------------------------------
+#  🛠️ Helper Functions
+# ------------------------------------------------------------------------------
+
+log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error() { echo -e "${RED}[ERR]${NC} $1"; }
+
+# A cool spinner for waiting
+spinner() {
+    local pid=$1
+    local delay=0.1
+    local spinstr='|/-\'
+    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
+        local temp=${spinstr#?}
+        printf " [%c]  " "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+    printf "    \b\b\b\b"
+}
+
+check_port() {
+    local port=$1
+    lsof -i:$port > /dev/null
+    if [ $? -eq 0 ]; then
+        return 0 # Port is in use
+    else
+        return 1 # Port is free
+    fi
+}
+
+kill_port() {
+    local port=$1
+    local pid=$(lsof -t -i:$port)
     if [ ! -z "$pid" ]; then
-        echo "Killing process on port $port (PID: $pid)"
+        log_warn "Port $port is busy (PID: $pid). Killing..."
         kill -9 $pid 2>/dev/null
     fi
+}
+
+# ------------------------------------------------------------------------------
+#  🚀 Main Execution Flow
+# ------------------------------------------------------------------------------
+
+cd "$ROOT_DIR" || { log_error "Failed to cd to $ROOT_DIR"; exit 1; }
+mkdir -p "$LOG_DIR"
+
+echo -e "${CYAN}${BOLD}"
+echo "  ____                         ____    _                  "
+echo " |  _ \ __ _ _ __   ___ _ __  |___ \  / \   _ __  _   _ "
+echo " | |_) / _\` | '_ \ / _ \ '__|   __) |/ _ \ | '_ \| | | |"
+echo " |  __/ (_| | |_) |  __/ |     / __// ___ \| | | | |_| |"
+echo " |_|   \__,_| .__/ \___|_|    |_____/_/   \_\_| |_|\__, |"
+echo "            |_|                                    |___/ "
+echo -e "${NC}"
+echo -e "  Target: ${BOLD}High Concurrency / Single Instance Mode${NC}"
+echo -e "  Log Dir: $LOG_DIR"
+echo "------------------------------------------------------------"
+
+# --- Step 1: Deep Cleanup ---
+log_info "Initiating deep cleanup sequence..."
+
+# Kill specific ports
+PORTS_TO_CLEAN=({8010..8024} 8003)
+for port in "${PORTS_TO_CLEAN[@]}"; do
+    kill_port $port
 done
 
-# Cleanup SAM (Ports 8020-8024)
-for port in {8020..8024}; do
-    pid=$(lsof -t -i:$port)
-    if [ ! -z "$pid" ]; then
-        echo "Killing process on port $port (PID: $pid)"
-        kill -9 $pid 2>/dev/null
-    fi
-done
-
-# Cleanup OCR (Port 8003)
-pid=$(lsof -t -i:8003)
-if [ ! -z "$pid" ]; then
-    echo "Killing process on port 8003 (PID: $pid)"
-    kill -9 $pid 2>/dev/null
-fi
+# Nuke process names
+log_info "Nuking vLLM and worker processes..."
+pkill -9 -f "vllm.entrypoints.openai.api_server" 2>/dev/null
+pkill -9 -f "VLLM::EngineCore" 2>/dev/null
+pkill -9 -f "sam_server" 2>/dev/null
+pkill -9 -f "ocr_server" 2>/dev/null
 
 sleep 2
-echo "Cleanup complete."
+log_success "Cleanup complete. System is clean."
 
-# ==================================================================================
-# 1. MinerU (vLLM) Services (GPU 0-3, 2 instances each)
-# ==================================================================================
-MINERU_MODEL_PATH="models/MinerU2.5-2509-1.2B"
-MINERU_GPU_UTIL=0.4
+# --- Step 2: Launch MinerU (vLLM) ---
+echo "------------------------------------------------------------"
+log_info "Launching MinerU Cluster (vLLM)"
+log_info "Config: Util=$MINERU_GPU_UTIL | MaxSeqs=$MINERU_MAX_SEQS"
 
-start_mineru_instance() {
-    local gpu_id=$1
-    local port=$2
-    local instance_id=$3
+MINERU_BACKENDS=""
+
+for i in "${!MINERU_GPUS[@]}"; do
+    gpu_id=${MINERU_GPUS[$i]}
+    port=$((MINERU_START_PORT + i))
     
-    echo "Starting MinerU Backend $instance_id on GPU $gpu_id (Port $port)..."
+    log_info "Booting instance on GPU $gpu_id @ Port $port..."
+    
     CUDA_VISIBLE_DEVICES=$gpu_id nohup python3 -m vllm.entrypoints.openai.api_server \
-        --model "$MINERU_MODEL_PATH" \
+        --model "$MINERU_MODEL" \
         --served-model-name "mineru" \
         --host 127.0.0.1 \
         --port $port \
         --logits-processors mineru_vl_utils:MinerULogitsProcessor \
         --gpu-memory-utilization $MINERU_GPU_UTIL \
+        --max-num-seqs $MINERU_MAX_SEQS \
         --trust-remote-code \
         --enforce-eager \
-        > logs/mineru_backend_${instance_id}.log 2>&1 &
-    
-    local pid=$!
-    echo "MinerU Backend $instance_id started with PID $pid"
-}
-
-# GPU 0 Instances (Ports 8011-8012)
-start_mineru_instance 7 8011 1
-sleep 10
-start_mineru_instance 7 8012 2
-sleep 10
-
-# GPU 1 Instances (Ports 8013-8014)
-start_mineru_instance 1 8013 3
-sleep 10
-start_mineru_instance 1 8014 4
-sleep 10
-
-# GPU 2 Instances (Ports 8015-8016)
-start_mineru_instance 2 8015 5
-sleep 10
-start_mineru_instance 2 8016 6
-sleep 10
-
-# GPU 3 Instances (Ports 8017-8018)
-start_mineru_instance 3 8017 7
-sleep 10
-start_mineru_instance 3 8018 8
-sleep 10
-
-# MinerU LB (Port 8010)
-MINERU_BACKENDS=""
-for port in {8011..8018}; do
-    MINERU_BACKENDS="$MINERU_BACKENDS http://127.0.0.1:$port"
+        > "$LOG_DIR/mineru_gpu${gpu_id}.log" 2>&1 &
+        
+    MINERU_BACKENDS+="http://127.0.0.1:$port "
 done
 
-echo "Starting MinerU Load Balancer (Port 8010)..."
+# --- Step 3: Launch SAM ---
+echo "------------------------------------------------------------"
+log_info "Launching SAM Cluster"
+
+SAM_BACKENDS=""
+
+for i in "${!SAM_GPUS[@]}"; do
+    gpu_id=${SAM_GPUS[$i]}
+    port=$((SAM_START_PORT + i))
+    
+    log_info "Booting SAM on GPU $gpu_id @ Port $port..."
+    
+    env CUDA_VISIBLE_DEVICES=$gpu_id nohup uvicorn dataflow_agent.toolkits.model_servers.sam_server:app \
+        --port $port --host 0.0.0.0 \
+        > "$LOG_DIR/sam_${gpu_id}.log" 2>&1 &
+        
+    SAM_BACKENDS+="http://127.0.0.1:$port "
+done
+
+# --- Step 4: Launch Load Balancers ---
+echo "------------------------------------------------------------"
+log_info "Initializing Load Balancers..."
+
+# MinerU LB
 nohup python3 dataflow_agent/toolkits/model_servers/generic_lb.py \
     --port 8010 \
     --name "MinerU LB" \
     --backends $MINERU_BACKENDS \
-    > logs/mineru_lb.log 2>&1 &
-echo "MinerU Load Balancer started"
+    > "$LOG_DIR/mineru_lb.log" 2>&1 &
+log_success "MinerU LB running on :8010 -> [ $MINERU_BACKENDS]"
 
-# ==================================================================================
-# 2. SAM Services (GPU 5 & 6, 1 instance each)
-# ==================================================================================
-start_sam_instance() {
-    local gpu_id=$1
-    local port=$2
-    local instance_id=$3
-    
-    echo "Starting SAM Backend $instance_id on GPU $gpu_id (Port $port)..."
-    # Explicitly using env to set CUDA_VISIBLE_DEVICES
-    env CUDA_VISIBLE_DEVICES=$gpu_id nohup uvicorn dataflow_agent.toolkits.model_servers.sam_server:app \
-        --port $port --host 0.0.0.0 \
-        > logs/sam_backend_${instance_id}.log 2>&1 &
-        
-    local pid=$!
-    echo "SAM Backend $instance_id started with PID $pid"
-}
-
-# GPU 4 Instance (Port 8021)
-start_sam_instance 4 8021 1
-
-# GPU 5 Instance (Port 8022)
-start_sam_instance 5 8022 2
-
-# GPU 6 Instance (Port 8023)
-start_sam_instance 6 8023 3
-
-# SAM LB (Port 8020)
-SAM_BACKENDS=""
-for port in {8021..8023}; do
-    SAM_BACKENDS="$SAM_BACKENDS http://127.0.0.1:$port"
-done
-
-echo "Starting SAM Load Balancer (Port 8020)..."
+# SAM LB
 nohup python3 dataflow_agent/toolkits/model_servers/generic_lb.py \
     --port 8020 \
     --name "SAM LB" \
     --backends $SAM_BACKENDS \
-    > logs/sam_lb.log 2>&1 &
-echo "SAM Load Balancer started"
+    > "$LOG_DIR/sam_lb.log" 2>&1 &
+log_success "SAM LB running on :8020 -> [ $SAM_BACKENDS]"
 
-# ==================================================================================
-# 3. OCR Service (CPU)
-# ==================================================================================
+# --- Step 5: Launch OCR ---
+echo "------------------------------------------------------------"
+log_info "Starting OCR Service (CPU)..."
+CUDA_VISIBLE_DEVICES="" nohup uvicorn dataflow_agent.toolkits.model_servers.ocr_server:app \
+    --port 8003 --host 0.0.0.0 --workers 4 \
+    > "$LOG_DIR/ocr_server.log" 2>&1 &
+log_success "OCR Service running on :8003"
 
-# OCR LB (Port 8003) - PaddleOCR handles multi-processing internally via --workers
-# So we don't need a separate LB for it, uvicorn workers are sufficient for CPU bound tasks
-echo "Starting OCR Server on CPU (Port 8003)..."
-CUDA_VISIBLE_DEVICES="" nohup uvicorn dataflow_agent.toolkits.model_servers.ocr_server:app --port 8003 --host 0.0.0.0 --workers 4 > logs/ocr_server.log 2>&1 &
-OCR_PID=$!
-echo "OCR Server started with PID $OCR_PID"
-
-# ==================================================================================
-# Summary
-# ==================================================================================
+# --- Final Check ---
+echo "------------------------------------------------------------"
+echo -e "${GREEN}${BOLD}ALL SYSTEMS GO!${NC}"
+echo -e "Monitor logs with: ${YELLOW}tail -f logs/*.log${NC}"
 echo ""
-echo "Model Servers Summary:"
-echo "----------------------"
-echo "MinerU LB: http://localhost:8010"
-echo "  - Backends: 8 instances on GPU 0-3 (2 per GPU, 0.4 GPU utilization)"
-echo "    - GPU 0: Ports 8011-8012"
-echo "    - GPU 1: Ports 8013-8014"
-echo "    - GPU 2: Ports 8015-8016"
-echo "    - GPU 3: Ports 8017-8018"
-echo "SAM LB:    http://localhost:8020"
-echo "  - Backends: 2 instances on GPU 5 & 6 (Ports 8021-8022)"
-echo "OCR:       http://localhost:8003 (CPU, 4 workers)"
-echo ""
-echo "Logs are in logs/"
