@@ -7,11 +7,13 @@
  */
 
 import { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "../stores/authStore";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { User, LogOut, ChevronDown, LogIn, Sparkles, Crown } from "lucide-react";
 
 export function UserMenu() {
+  const { t } = useTranslation('common');
   const { user, signOut } = useAuthStore();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -32,7 +34,7 @@ export function UserMenu() {
 
   // Check if user is anonymous (no email means anonymous/guest)
   const isAnonymous = user.is_anonymous || !user.email;
-  const displayName = isAnonymous ? "匿名用户" : (user.email?.split('@')[0] || "用户");
+  const displayName = isAnonymous ? t('userMenu.anonymous') : (user.email?.split('@')[0] || t('userMenu.user'));
   const fullEmail = user.email || "";
 
   const handleSignOut = async () => {
@@ -100,7 +102,7 @@ export function UserMenu() {
            {/* Header Info */}
            <div className="p-4 border-b border-white/5 relative">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
-                {isAnonymous ? "当前身份" : "已登录"}
+                {isAnonymous ? t('userMenu.identity') : t('userMenu.loggedIn')}
               </p>
               <div className="flex items-center gap-3">
                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold shadow-lg ${
@@ -112,7 +114,7 @@ export function UserMenu() {
                  </div>
                  <div className="overflow-hidden">
                     <p className="text-sm font-bold text-white truncate">{displayName}</p>
-                    <p className="text-xs text-gray-400 truncate max-w-[150px]">{isAnonymous ? "访客模式" : fullEmail}</p>
+                    <p className="text-xs text-gray-400 truncate max-w-[150px]">{isAnonymous ? t('userMenu.guestMode') : fullEmail}</p>
                  </div>
               </div>
 
@@ -125,12 +127,12 @@ export function UserMenu() {
                  {isAnonymous ? (
                     <>
                       <Sparkles size={12} />
-                      <span>仅限部分功能可用</span>
+                      <span>{t('userMenu.limited')}</span>
                     </>
                  ) : (
                     <>
                       <Crown size={12} className="text-yellow-300" />
-                      <span>尊贵会员功能已解锁</span>
+                      <span>{t('userMenu.pro')}</span>
                     </>
                  )}
               </div>
@@ -146,12 +148,12 @@ export function UserMenu() {
                    <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 opacity-80 group-hover:opacity-100 transition-opacity" />
                    <div className="relative flex items-center gap-3">
                       <LogIn size={16} className="text-white" />
-                      登录以获取完整权限
+                      {t('userMenu.signIn')}
                    </div>
                  </button>
               ) : (
                 <div className="px-3 py-2 text-xs text-gray-500 text-center italic">
-                   感谢您的使用与支持
+                   {t('userMenu.thanks')}
                 </div>
               )}
 
@@ -164,7 +166,7 @@ export function UserMenu() {
                 }`}>
                    <LogOut size={14} />
                 </div>
-                {isAnonymous ? "退出访客模式" : "退出登录"}
+                {isAnonymous ? t('userMenu.exitGuest') : t('userMenu.signOut')}
               </button>
            </div>
         </div>

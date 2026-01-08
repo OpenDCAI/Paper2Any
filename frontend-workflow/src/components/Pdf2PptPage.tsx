@@ -1,4 +1,5 @@
 import { useState, useEffect, ChangeEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   UploadCloud, Download, Loader2, CheckCircle2,
   AlertCircle, Github, Star, X, FileText, ArrowRight, Key, Globe, ToggleLeft, ToggleRight, Sparkles, Image, MessageSquare, Copy, Info
@@ -14,6 +15,7 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 // ============== 主组件 ==============
 const Pdf2PptPage = () => {
+  const { t } = useTranslation('pdf2ppt');
   const { user, refreshQuota } = useAuthStore();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -107,7 +109,7 @@ const Pdf2PptPage = () => {
   const validateDocFile = (file: File): boolean => {
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (ext !== 'pdf') {
-      setError('仅支持 PDF 格式');
+      setError(t('errors.pdfOnly'));
       return false;
     }
     return true;
@@ -117,7 +119,7 @@ const Pdf2PptPage = () => {
     const file = e.target.files?.[0];
     if (!file || !validateDocFile(file)) return;
     if (file.size > MAX_FILE_SIZE) {
-      setError('文件大小超过 50MB 限制');
+      setError(t('errors.sizeLimit'));
       return;
     }
     setSelectedFile(file);
@@ -132,7 +134,7 @@ const Pdf2PptPage = () => {
     const file = e.dataTransfer.files?.[0];
     if (!file || !validateDocFile(file)) return;
     if (file.size > MAX_FILE_SIZE) {
-      setError('文件大小超过 50MB 限制');
+      setError(t('errors.sizeLimit'));
       return;
     }
     setSelectedFile(file);
@@ -143,26 +145,24 @@ const Pdf2PptPage = () => {
 
   const handleConvert = async () => {
     if (!selectedFile) {
-      setError('请先选择 PDF 文件');
+      setError(t('errors.selectFile'));
       return;
     }
 
     // Check quota before proceeding
     const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
     if (quota.remaining <= 0) {
-      setError(quota.isAuthenticated
-        ? '今日配额已用完（10次/天），请明天再试'
-        : '今日配额已用完（5次/天），登录后可获得更多配额');
+      setError(t('errors.quotaFull'));
       return;
     }
 
     if (useAiEdit) {
       if (!apiKey.trim()) {
-        setError('开启 AI 增强时必须输入 API Key');
+        setError(t('errors.enterKey'));
         return;
       }
       if (!llmApiUrl.trim()) {
-        setError('开启 AI 增强时必须输入 API URL');
+        setError(t('errors.enterUrl'));
         return;
       }
 
@@ -174,7 +174,7 @@ const Pdf2PptPage = () => {
         setIsValidating(false);
       } catch (err) {
         setIsValidating(false);
-        const message = err instanceof Error ? err.message : 'API 验证失败';
+        const message = err instanceof Error ? err.message : t('errors.apiFail');
         setError(message);
         return;
       }
@@ -183,7 +183,7 @@ const Pdf2PptPage = () => {
     setIsProcessing(true);
     setError(null);
     setProgress(0);
-    setStatusMessage('正在上传文件...');
+    setStatusMessage(t('status.uploading'));
     
     // 模拟进度
     const progressInterval = setInterval(() => {
@@ -193,11 +193,11 @@ const Pdf2PptPage = () => {
           return 90;
         }
         const messages = [
-          '正在分析 PPT 结构...',
-          '正在提取关键内容...',
-          '正在提取 Icon ...',
-          '正在生成 PPT 页面...',
-          '正在导出文件...',
+          t('status.analyzing'),
+          t('status.extracting'),
+          t('status.extractingIcon'),
+          t('status.generating'),
+          t('status.exporting'),
         ];
         const msgIndex = Math.floor(prev / 20);
         if (msgIndex < messages.length) {
@@ -230,7 +230,7 @@ const Pdf2PptPage = () => {
       clearInterval(progressInterval);
       
       if (!res.ok) {
-        let msg = '服务器繁忙，请稍后再试';
+        let msg = t('errors.serverBusy');
         if (res.status === 403) {
           msg = '邀请码不正确或已失效';
         } else if (res.status === 429) {
@@ -243,7 +243,7 @@ const Pdf2PptPage = () => {
       const blob = await res.blob();
       setDownloadBlob(blob);
       setProgress(100);
-      setStatusMessage('转换完成！');
+      setStatusMessage(t('status.complete'));
       setIsComplete(true);
 
       // Record usage and upload file to Supabase Storage
@@ -256,7 +256,7 @@ const Pdf2PptPage = () => {
       
     } catch (err) {
       clearInterval(progressInterval);
-      const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
+      const message = err instanceof Error ? err.message : t('errors.serverBusy');
       setError(message);
       setProgress(0);
       setStatusMessage('');
@@ -364,15 +364,15 @@ const Pdf2PptPage = () => {
           <div className="max-w-2xl mx-auto">
           {/* 标题 */}
           <div className="text-center mb-8">
-            <p className="text-xs uppercase tracking-[0.2em] text-purple-300 mb-3 font-semibold">PDF → PPTX</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-purple-300 mb-3 font-semibold">{t('subtitle')}</p>
             <h1 className="text-4xl md:text-5xl font-bold mb-4">
               <span className="bg-gradient-to-r from-violet-400 via-purple-400 to-fuchsia-400 bg-clip-text text-transparent">
-                PDF2PPT
+                {t('title')}
               </span>
             </h1>
             <p className="text-base text-gray-300 max-w-xl mx-auto leading-relaxed">
-              上传 PDF 版本 PPT，提取PPT元素以及文字可编辑。<br />
-              <span className="text-purple-400">一键转换，快速生成！</span>
+              {t('desc')}<br />
+              <span className="text-purple-400">{t('descHighlight')}</span>
             </p>
           </div>
 
@@ -399,19 +399,19 @@ const Pdf2PptPage = () => {
                   
                   {selectedFile ? (
                     <div className="px-4 py-2 bg-purple-500/20 border border-purple-500/40 rounded-lg">
-                      <p className="text-sm text-purple-300">✓ {selectedFile.name}</p>
+                      <p className="text-sm text-purple-300">{t('dropzone.fileInfo', { name: selectedFile.name })}</p>
                       <p className="text-xs text-gray-400 mt-1">
-                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                        {t('dropzone.fileSize', { size: (selectedFile.size / 1024 / 1024).toFixed(2) })}
                       </p>
                     </div>
                   ) : (
                     <>
                       <div>
-                        <p className="text-white font-medium mb-1">拖拽 PDF 文件到此处</p>
-                        <p className="text-sm text-gray-400">或点击下方按钮选择文件</p>
+                        <p className="text-white font-medium mb-1">{t('dropzone.dragText')}</p>
+                        <p className="text-sm text-gray-400">{t('dropzone.clickText')}</p>
                       </div>
                       <label className="px-6 py-2.5 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-sm font-medium cursor-pointer hover:from-violet-700 hover:to-fuchsia-700 transition-all">
-                        选择文件
+                        {t('dropzone.button')}
                         <input type="file" accept=".pdf" className="hidden" onChange={handleFileChange} />
                       </label>
                     </>
@@ -439,8 +439,8 @@ const Pdf2PptPage = () => {
                       <Sparkles size={16} className="text-purple-400" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-white">AI 背景增强 （ 5分钟 ）</p>
-                      <p className="text-xs text-gray-400">使用 Gemini 模型清除文字并修复背景</p>
+                      <p className="text-sm font-medium text-white">{t('config.aiEdit')}</p>
+                      <p className="text-xs text-gray-400">{t('config.aiEditDesc')}</p>
                     </div>
                   </div>
                   <button 
@@ -460,7 +460,7 @@ const Pdf2PptPage = () => {
                   <div className="space-y-4 mb-6 p-4 rounded-xl border border-purple-500/20 bg-purple-500/5 animate-in fade-in slide-in-from-top-2">
                     <div>
                       <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
-                        <Globe size={12} /> API URL <span className="text-red-400">*</span>
+                        <Globe size={12} /> {t('config.apiUrl')} <span className="text-red-400">*</span>
                       </label>
                       <div className="flex items-center gap-2">
                         <select 
@@ -485,7 +485,7 @@ const Pdf2PptPage = () => {
                           rel="noopener noreferrer"
                           className="whitespace-nowrap text-[10px] text-purple-300 hover:text-purple-200 hover:underline px-1"
                         >
-                          点击购买
+                          {t('config.buyLink')}
                         </a>
                         </QRCodeTooltip>
                       </div>
@@ -494,7 +494,7 @@ const Pdf2PptPage = () => {
                     <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
-                        <Key size={12} /> API Key <span className="text-red-400">*</span>
+                        <Key size={12} /> {t('config.apiKey')} <span className="text-red-400">*</span>
                       </label>
                       <input 
                         type="password" 
@@ -506,7 +506,7 @@ const Pdf2PptPage = () => {
                     </div>
                       <div>
                         <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
-                          <Image size={12} /> 生成模型
+                          <Image size={12} /> {t('config.genModel')}
                         </label>
                         <div className="relative">
                           <select 
@@ -536,7 +536,7 @@ const Pdf2PptPage = () => {
                 {isValidating && (
                   <div className="mb-6 flex items-center gap-2 text-sm text-purple-300 bg-purple-500/10 border border-purple-500/40 rounded-lg px-4 py-3 animate-pulse">
                     <Loader2 size={16} className="animate-spin" />
-                    <p>正在验证 API Key 有效性...</p>
+                    <p>{t('config.validating')}</p>
                   </div>
                 )}
 
@@ -563,15 +563,15 @@ const Pdf2PptPage = () => {
                   className="w-full py-4 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold flex items-center justify-center gap-2 transition-all text-lg"
                 >
                   {isProcessing ? (
-                    <><Loader2 size={20} className="animate-spin" /> 正在转换中...</>
+                    <><Loader2 size={20} className="animate-spin" /> {t('action.converting')}</>
                   ) : (
-                    <><ArrowRight size={20} /> 开始转换</>
+                    <><ArrowRight size={20} /> {t('action.convert')}</>
                   )}
                 </button>
 
                 <div className="flex items-start gap-2 text-xs text-gray-500 mt-3 px-1">
                   <Info size={14} className="mt-0.5 text-gray-400 flex-shrink-0" />
-                  <p>提示：如果长时间无响应或生成失败，可能是 API 服务商不稳定。建议稍后再试，或尝试更换模型/服务商。</p>
+                  <p>{t('errors.serverBusy')}</p>
                 </div>
               </>
             ) : (
@@ -580,22 +580,22 @@ const Pdf2PptPage = () => {
                 <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center mx-auto mb-6">
                   <CheckCircle2 size={48} className="text-white" />
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-2">转换完成！</h2>
-                <p className="text-gray-400 mb-8">您的 PPT 文件已准备好下载</p>
+                <h2 className="text-2xl font-bold text-white mb-2">{t('complete.title')}</h2>
+                <p className="text-gray-400 mb-8">{t('complete.desc')}</p>
                 
                 <div className="space-y-4">
                   <button 
                     onClick={handleDownload} 
                     className="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold flex items-center justify-center gap-2 transition-all text-lg"
                   >
-                    <Download size={20} /> 下载 PPT
+                    <Download size={20} /> {t('action.download')}
                   </button>
                   
                   <button 
                     onClick={handleReset} 
                     className="w-full py-3 rounded-xl border border-white/20 text-gray-300 hover:bg-white/10 transition-all"
                   >
-                    转换新的文件
+                    {t('action.reset')}
                   </button>
                 </div>
 
@@ -692,7 +692,7 @@ const Pdf2PptPage = () => {
 
           {/* 说明文字 */}
           <p className="text-center text-xs text-gray-500 mt-6">
-            支持的文件格式：PDF | 最大文件大小：50MB
+            {t('footer.support')}
           </p>
           </div>
 
@@ -700,7 +700,7 @@ const Pdf2PptPage = () => {
           <div className="space-y-4 mt-16 max-w-4xl mx-auto">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-3">
-                <h3 className="text-sm font-medium text-gray-200">示例：从 PDF 到 可编辑 PPTX（文字 + 元素ICON）</h3>
+                <h3 className="text-sm font-medium text-gray-200">{t('demo.title')}</h3>
                 <a
                   href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
                   target="_blank"
@@ -710,25 +710,25 @@ const Pdf2PptPage = () => {
                   <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
                   <Sparkles size={12} className="text-yellow-300 animate-pulse" />
                   <span className="bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300 bg-clip-text text-transparent group-hover:from-blue-200 group-hover:via-purple-200 group-hover:to-pink-200">
-                    更多案例点击：飞书文档
+                    {t('demo.more')}
                   </span>
                 </a>
               </div>
               <span className="text-[11px] text-gray-500">
-                下方示例展示不同模式下的转换效果。
+                {t('demo.desc')}
               </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <DemoCard
-                title="基础转换（白色背景）"
-                desc="快速将 PDF 转换为可编辑的 PPT，保留原始排版和内容，适合标准文档转换。"
+                title={t('demo.card1.title')}
+                desc={t('demo.card1.desc')}
                 inputImg="/pdf2ppt/input_1.png"
                 outputImg="/pdf2ppt/output_1.png"
               />
               <DemoCard
-                title="AI 增强模式（AI重塑背景）"
-                desc="利用 AI 清除原有背景，智能重塑页面风格，提升视觉效果，打造专业演示文稿。"
+                title={t('demo.card2.title')}
+                desc={t('demo.card2.desc')}
                 inputImg="/pdf2ppt/input_2.png"
                 outputImg="/pdf2ppt/output_2.png"
               />

@@ -5,11 +5,14 @@ import Paper2PptPage from './components/Paper2PptPage';
 import Pdf2PptPage from './components/Pdf2PptPage';
 import Ppt2PolishPage from './components/Ppt2PolishPage';
 import { FilesPage } from './components/FilesPage';
+import { useTranslation } from 'react-i18next';
 import { QuotaDisplay } from './components/QuotaDisplay';
 import { UserMenu } from './components/UserMenu';
+import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { Workflow } from 'lucide-react';
 
 function App() {
+  const { t } = useTranslation('common');
   const [activePage, setActivePage] = useState<'paper2figure' | 'paper2ppt' | 'pdf2ppt' | 'ppt2polish' | 'files'>('paper2figure');
 
   return (
@@ -29,7 +32,7 @@ function App() {
               <h1 className="text-lg font-bold text-white glow-text">
                 Paper2Any
               </h1>
-              <p className="text-xs text-gray-400">Agent 驱动的科研创作新体验</p>
+              <p className="text-xs text-gray-400">{t('app.subtitle')}</p>
             </div>
           </div>
 
@@ -45,7 +48,7 @@ function App() {
                     : 'glass text-gray-300 hover:bg-white/10'
                 }`}
               >
-                Paper2Figure
+                {t('app.nav.paper2figure')}
               </button>
               <button
                 onClick={() => setActivePage('paper2ppt')}
@@ -55,7 +58,7 @@ function App() {
                     : 'glass text-gray-300 hover:bg-white/10'
                 }`}
               >
-                Paper2PPT
+                {t('app.nav.paper2ppt')}
               </button>
               <button
                 onClick={() => setActivePage('pdf2ppt')}
@@ -65,7 +68,7 @@ function App() {
                     : 'glass text-gray-300 hover:bg-white/10'
                 }`}
               >
-                Pdf2PPT
+                {t('app.nav.pdf2ppt')}
               </button>
               <button
                 onClick={() => setActivePage('ppt2polish')}
@@ -75,7 +78,7 @@ function App() {
                     : 'glass text-gray-300 hover:bg-white/10'
                 }`}
               >
-                PptPolish
+                {t('app.nav.ppt2polish')}
               </button>
               <button
                 onClick={() => setActivePage('files')}
@@ -85,12 +88,13 @@ function App() {
                     : 'glass text-gray-300 hover:bg-white/10'
                 }`}
               >
-                我的历史文件
+                {t('app.nav.files')}
               </button>
             </div>
 
             {/* 右侧：配额显示 & 用户菜单 */}
             <div className="flex items-center gap-3">
+              <LanguageSwitcher />
               <QuotaDisplay />
               <UserMenu />
             </div>
@@ -113,12 +117,12 @@ function App() {
       <footer className="absolute bottom-0 left-0 right-0 h-8 glass-dark border-t border-white/10 z-10">
         <div className="h-full px-4 flex items-center justify-between text-xs text-gray-500">
           <div className="flex items-center gap-4">
-            <span>Paper2Any v1.0.0</span>
+            <span>{t('app.footer.version')}</span>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              <span>就绪</span>
+              <span>{t('app.footer.ready')}</span>
             </div>
           </div>
         </div>

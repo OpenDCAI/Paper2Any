@@ -1,0 +1,67 @@
+{
+  "title": "PDF2PPT",
+  "subtitle": "PDF → PPTX",
+  "desc": "Upload PDF version of PPT, extract elements and make text editable.",
+  "descHighlight": "One-click conversion, fast generation!",
+  "dropzone": {
+    "dragText": "Drag PDF file here",
+    "clickText": "Or click button below to select",
+    "button": "Select File",
+    "fileInfo": "✓ {{name}}",
+    "fileSize": "{{size}} MB"
+  },
+  "config": {
+    "aiEdit": "AI Background Enhancement (5 mins)",
+    "aiEditDesc": "Use Gemini model to remove text and repair background",
+    "apiUrl": "API URL",
+    "buyLink": "Buy Now",
+    "apiKey": "API Key",
+    "genModel": "Generation Model",
+    "validating": "Validating API Key..."
+  },
+  "status": {
+    "uploading": "Uploading file...",
+    "analyzing": "Analyzing PPT structure...",
+    "extracting": "Extracting key content...",
+    "extractingIcon": "Extracting Icons...",
+    "generating": "Generating PPT pages...",
+    "exporting": "Exporting file...",
+    "complete": "Conversion Complete!"
+  },
+  "action": {
+    "convert": "Start Conversion",
+    "converting": "Converting...",
+    "download": "Download PPT",
+    "reset": "Convert New File"
+  },
+  "complete": {
+    "title": "Conversion Complete!",
+    "desc": "Your PPT file is ready for download"
+  },
+  "footer": {
+    "support": "Supported format: PDF | Max size: 50MB"
+  },
+  "demo": {
+    "title": "Example: From PDF to Editable PPTX (Text + Icons)",
+    "more": "More cases: Feishu Doc",
+    "desc": "Examples below show conversion effects in different modes.",
+    "card1": {
+      "title": "Basic Conversion (White Background)",
+      "desc": "Quickly convert PDF to editable PPT, retaining original layout and content."
+    },
+    "card2": {
+      "title": "AI Enhanced Mode (AI Background Reshape)",
+      "desc": "Use AI to remove original background and reshape page style for professional presentation."
+    }
+  },
+  "errors": {
+    "pdfOnly": "Supports PDF format only",
+    "sizeLimit": "File size exceeds 50MB limit",
+    "selectFile": "Please select PDF file first",
+    "quotaFull": "Daily quota used up",
+    "enterKey": "API Key required for AI enhancement",
+    "enterUrl": "API URL required for AI enhancement",
+    "apiFail": "API Validation Failed",
+    "serverBusy": "Server busy, please try again later"
+  }
+}

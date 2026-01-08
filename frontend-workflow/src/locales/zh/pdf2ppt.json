@@ -1,0 +1,67 @@
+{
+  "title": "PDF2PPT",
+  "subtitle": "PDF → PPTX",
+  "desc": "上传 PDF 版本 PPT，提取PPT元素以及文字可编辑。",
+  "descHighlight": "一键转换，快速生成！",
+  "dropzone": {
+    "dragText": "拖拽 PDF 文件到此处",
+    "clickText": "或点击下方按钮选择文件",
+    "button": "选择文件",
+    "fileInfo": "✓ {{name}}",
+    "fileSize": "{{size}} MB"
+  },
+  "config": {
+    "aiEdit": "AI 背景增强 （ 5分钟 ）",
+    "aiEditDesc": "使用 Gemini 模型清除文字并修复背景",
+    "apiUrl": "API URL",
+    "buyLink": "点击购买",
+    "apiKey": "API Key",
+    "genModel": "生成模型",
+    "validating": "正在验证 API Key 有效性..."
+  },
+  "status": {
+    "uploading": "正在上传文件...",
+    "analyzing": "正在分析 PPT 结构...",
+    "extracting": "正在提取关键内容...",
+    "extractingIcon": "正在提取 Icon ...",
+    "generating": "正在生成 PPT 页面...",
+    "exporting": "正在导出文件...",
+    "complete": "转换完成！"
+  },
+  "action": {
+    "convert": "开始转换",
+    "converting": "正在转换中...",
+    "download": "下载 PPT",
+    "reset": "转换新的文件"
+  },
+  "complete": {
+    "title": "转换完成！",
+    "desc": "您的 PPT 文件已准备好下载"
+  },
+  "footer": {
+    "support": "支持的文件格式：PDF | 最大文件大小：50MB"
+  },
+  "demo": {
+    "title": "示例：从 PDF 到 可编辑 PPTX（文字 + 元素ICON）",
+    "more": "更多案例点击：飞书文档",
+    "desc": "下方示例展示不同模式下的转换效果。",
+    "card1": {
+      "title": "基础转换（白色背景）",
+      "desc": "快速将 PDF 转换为可编辑的 PPT，保留原始排版和内容，适合标准文档转换。"
+    },
+    "card2": {
+      "title": "AI 增强模式（AI重塑背景）",
+      "desc": "利用 AI 清除原有背景，智能重塑页面风格，提升视觉效果，打造专业演示文稿。"
+    }
+  },
+  "errors": {
+    "pdfOnly": "仅支持 PDF 格式",
+    "sizeLimit": "文件大小超过 50MB 限制",
+    "selectFile": "请先选择 PDF 文件",
+    "quotaFull": "今日配额已用完",
+    "enterKey": "开启 AI 增强时必须输入 API Key",
+    "enterUrl": "开启 AI 增强时必须输入 API URL",
+    "apiFail": "API 验证失败",
+    "serverBusy": "服务器繁忙，请稍后再试"
+  }
+}

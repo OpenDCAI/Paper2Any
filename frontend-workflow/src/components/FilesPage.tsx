@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { getFileRecords, deleteFileRecord, FileRecord } from "../services/fileService";
 import { FileText, Download, Trash2, RefreshCw, Loader2 } from "lucide-react";
 
@@ -15,9 +16,9 @@ function formatSize(bytes: number | null | undefined): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatDate(dateStr: string | undefined): string {
+function formatDate(dateStr: string | undefined, locale: string): string {
   if (!dateStr) return "-";
-  return new Date(dateStr).toLocaleDateString("zh-CN", {
+  return new Date(dateStr).toLocaleDateString(locale, {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -26,6 +27,7 @@ function formatDate(dateStr: string | undefined): string {
 }
 
 export function FilesPage() {
+  const { t, i18n } = useTranslation("common");
   const [files, setFiles] = useState<FileRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export function FilesPage() {
   }, []);
 
   const handleDelete = async (id: string, fileName: string) => {
-    if (!confirm(`确定要删除 "${fileName}" 吗？`)) return;
+    if (!confirm(t("filesPage.actions.confirmDelete", { fileName }))) return;
 
     setDeleting(id);
     try {
@@ -55,11 +57,11 @@ export function FilesPage() {
       if (success) {
         setFiles(files.filter((f) => f.id !== id));
       } else {
-        alert("删除文件失败");
+        alert(t("filesPage.actions.deleteError"));
       }
     } catch (e) {
       console.error("Failed to delete file:", e);
-      alert("删除文件失败");
+      alert(t("filesPage.actions.deleteError"));
     } finally {
       setDeleting(null);
     }
@@ -70,7 +72,7 @@ export function FilesPage() {
       <div className="p-6 max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-bold text-white">我的历史文件</h1>
+          <h1 className="text-xl font-bold text-white">{t("filesPage.title")}</h1>
           <button
             onClick={loadFiles}
             disabled={loading}
@@ -90,14 +92,14 @@ export function FilesPage() {
               size={32}
               className="animate-spin text-primary-500 mx-auto"
             />
-            <p className="text-gray-400 mt-3">正在加载文件...</p>
+            <p className="text-gray-400 mt-3">{t("filesPage.loading")}</p>
           </div>
         ) : files.length === 0 ? (
           <div className="text-center py-12 glass-dark rounded-xl border border-white/10">
             <FileText className="mx-auto text-gray-600 mb-4" size={48} />
-            <p className="text-gray-400">暂无文件</p>
+            <p className="text-gray-400">{t("filesPage.empty.title")}</p>
             <p className="text-gray-500 text-sm mt-1">
-              工作流生成的文件将显示在这里
+              {t("filesPage.empty.desc")}
             </p>
           </div>
         ) : (
@@ -105,10 +107,10 @@ export function FilesPage() {
             <table className="w-full">
               <thead>
                 <tr className="text-left text-sm text-gray-500 border-b border-white/10">
-                  <th className="px-4 py-3 font-medium">文件名</th>
-                  <th className="px-4 py-3 font-medium">大小</th>
-                  <th className="px-4 py-3 font-medium">日期</th>
-                  <th className="px-4 py-3 font-medium">类型</th>
+                  <th className="px-4 py-3 font-medium">{t("filesPage.table.fileName")}</th>
+                  <th className="px-4 py-3 font-medium">{t("filesPage.table.size")}</th>
+                  <th className="px-4 py-3 font-medium">{t("filesPage.table.date")}</th>
+                  <th className="px-4 py-3 font-medium">{t("filesPage.table.type")}</th>
                   <th className="px-4 py-3 font-medium w-24"></th>
                 </tr>
               </thead>
@@ -130,7 +132,7 @@ export function FilesPage() {
                       {formatSize(file.file_size)}
                     </td>
                     <td className="px-4 py-3 text-gray-400 text-sm">
-                      {formatDate(file.created_at)}
+                      {formatDate(file.created_at, i18n.language)}
                     </td>
                     <td className="px-4 py-3">
                       {file.workflow_type && (
@@ -147,7 +149,7 @@ export function FilesPage() {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-1.5 hover:bg-primary-500/20 rounded text-primary-400 transition-colors"
-                            title="下载"
+                            title={t("filesPage.actions.download")}
                           >
                             <Download size={16} />
                           </a>
@@ -156,7 +158,7 @@ export function FilesPage() {
                           onClick={() => file.id && handleDelete(file.id, file.file_name)}
                           disabled={!file.id || deleting === file.id}
                           className="p-1.5 hover:bg-red-500/20 rounded text-red-400 transition-colors disabled:opacity-50"
-                          title="删除"
+                          title={t("filesPage.actions.delete")}
                         >
                           {deleting === file.id ? (
                             <Loader2 size={16} className="animate-spin" />
