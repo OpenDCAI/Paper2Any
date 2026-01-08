@@ -1,4 +1,5 @@
 import { useState, useEffect, ChangeEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FileText, UploadCloud, Type, Settings2, Download, Loader2, CheckCircle2, AlertCircle, Image as ImageIcon, ChevronDown, ChevronUp, Github, Star, X, Info, Sparkles } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
@@ -46,6 +47,7 @@ const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const STORAGE_KEY = 'paper2figure_config_v1';
 
 const Paper2FigurePage = () => {
+  const { t, i18n } = useTranslation('paper2graph');
   const { user, refreshQuota } = useAuthStore();
   const [uploadMode, setUploadMode] = useState<UploadMode>('file');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -317,25 +319,25 @@ const Paper2FigurePage = () => {
     const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
     if (quota.remaining <= 0) {
       setError(quota.isAuthenticated
-        ? '今日配额已用完（10次/天），请明天再试'
-        : '今日配额已用完（5次/天），登录后可获得更多配额');
+        ? t('errors.quotaUserExhausted')
+        : t('errors.quotaGuestExhausted'));
       return;
     }
 
     if (!llmApiUrl.trim() || !apiKey.trim()) {
-      setError('请先配置模型 API URL 和 API Key');
+      setError(t('errors.missingApiConfig'));
       return;
     }
 
     // 技术路线图 / 实验数据图 不支持 image 作为输入
     if ((graphType === 'tech_route' || graphType === 'exp_data') && uploadMode === 'image') {
-      setError('技术路线图和实验数据图不支持图片输入');
+      setError(t('errors.techRouteNoImage'));
       return;
     }
 
     // 实验数据图 仅支持 file (PDF)
     if (graphType === 'exp_data' && uploadMode !== 'file') {
-      setError('实验数据图仅支持 PDF 文件输入');
+      setError(t('errors.expDataFileOnly'));
       return;
     }
 
@@ -348,29 +350,32 @@ const Paper2FigurePage = () => {
     formData.append('graph_type', graphType);
     formData.append('style', style);
 
+    // 使用全局 i18n 语言作为后端语言参数
+    const backendLanguage = i18n.language && i18n.language.startsWith('zh') ? 'zh' : 'en';
+
     if (graphType === 'model_arch') {
       // 模型结构图：使用绘图难度，不再传语言
       formData.append('figure_complex', figureComplex);
     } else {
       // 其他图：使用语言配置，不传绘图难度
-      formData.append('language', language);
+      formData.append('language', backendLanguage);
     }
 
     if (uploadMode === 'file' || uploadMode === 'image') {
       if (!selectedFile) {
-        setError('请先选择要上传的文件或图片');
+        setError(t('errors.noFile'));
         return;
       }
       const kind = fileKind ?? detectFileKind(selectedFile);
       if (!kind) {
-        setError('仅支持 PDF 和常见图片格式，请检查文件类型');
+        setError(t('errors.unsupportedFile'));
         return;
       }
       formData.append('file', selectedFile);
       formData.append('file_kind', kind);
     } else if (uploadMode === 'text') {
       if (!textContent.trim()) {
-        setError('请输入要转换为 PPTX 的文本内容');
+        setError(t('errors.noText'));
         return;
       }
       formData.append('text', textContent.trim());
@@ -396,9 +401,9 @@ const Paper2FigurePage = () => {
         if (!res.ok) {
           let msg = '服务器繁忙，请稍后再试';
           if (res.status === 403) {
-            msg = '邀请码不正确或已失效';
+            msg = t('errors.inviteInvalid');
           } else if (res.status === 429) {
-            msg = '请求过于频繁，请稍后再试';
+            msg = t('errors.tooManyRequests');
           }
           throw new Error(msg);
         }
@@ -414,14 +419,14 @@ const Paper2FigurePage = () => {
         const data: Paper2FigureJsonResp = await res.json();
 
         if (!data.success) {
-          throw new Error('服务器繁忙，请稍后再试');
+          throw new Error(t('errors.serverBusy'));
         }
 
         setPptPath(data.ppt_filename);
         setSvgPath(data.svg_filename);
         setSvgPreviewPath(data.svg_image_filename);
         setAllOutputFiles(data.all_output_files ?? []);
-        setSuccessMessage('技术路线图已生成，可下载 PPT / SVG 或直接预览 PNG');
+        setSuccessMessage(t('success.techRouteGenerated'));
 
         // Record usage
         await recordUsage(user?.id || null, 'paper2figure');
@@ -457,11 +462,11 @@ const Paper2FigurePage = () => {
         });
 
         if (!res.ok) {
-          let msg = '服务器繁忙，请稍后再试';
+          let msg = t('errors.serverBusy');
           if (res.status === 403) {
-            msg = '邀请码不正确或已失效';
+            msg = t('errors.inviteInvalid');
           } else if (res.status === 429) {
-            msg = '请求过于频繁，请稍后再试';
+            msg = t('errors.tooManyRequests');
           }
           throw new Error(msg);
         }
@@ -477,7 +482,7 @@ const Paper2FigurePage = () => {
         const url = URL.createObjectURL(blob);
         setDownloadUrl(url);
         setLastFilename(filename);
-        setSuccessMessage('PPTX 已生成，正在下载...');
+        setSuccessMessage(t('success.pptGenerated'));
 
         // Record usage and save file to Supabase Storage
         await recordUsage(user?.id || null, 'paper2figure');
@@ -499,7 +504,7 @@ const Paper2FigurePage = () => {
         a.remove();
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
+      const message = err instanceof Error ? err.message : t('errors.serverBusy');
       setError(message);
     } finally {
       setIsLoading(false);
@@ -508,10 +513,10 @@ const Paper2FigurePage = () => {
   };
 
   const showFileHint = () => {
-    if (!selectedFile) return '支持 PDF、PNG、JPG 等格式';
-    if (fileKind === 'pdf') return `已选择 PDF：${selectedFile.name}`;
-    if (fileKind === 'image') return `已选择图片：${selectedFile.name}`;
-    return `文件类型暂不识别：${selectedFile.name}`;
+    if (!selectedFile) return t('upload.fileHint');
+    if (fileKind === 'pdf') return `PDF：${selectedFile.name}`;
+    if (fileKind === 'image') return `Image：${selectedFile.name}`;
+    return `Unknown file type: ${selectedFile.name}`;
   };
 
   return (
@@ -596,13 +601,13 @@ const Paper2FigurePage = () => {
           {/* 顶部标题区 */}
           <div className="mb-8 text-center">
             <p className="text-xs uppercase tracking-[0.2em] text-primary-300 mb-2">
-              PAPER → EDITABLE PPTX
+              {t('hero.badge')}
             </p>
             <h1 className="text-3xl font-semibold text-white mb-2">
-              一键根据论文内容绘制（可编辑）科研绘图
+              {t('hero.title')}
             </h1>
             <p className="text-sm text-gray-400 max-w-2xl mx-auto">
-              上传论文 PDF / 图片，或直接粘贴文字，一键生成可编辑的 科研绘图PPTX，方便你继续修改、增删和排版。
+              {t('hero.subtitle')}
             </p>
           </div>
 
@@ -614,21 +619,9 @@ const Paper2FigurePage = () => {
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50 blur-sm"></div>
 
               <div className="relative">
-                <div className="mb-3 flex items-center gap-2 px-1">
-                  <span className="w-1 h-4 rounded-full bg-blue-500"></span>
-                  <h3 className="text-white font-medium text-sm">选择你的输入方式</h3>
-                </div>
-
-                <div className="mb-6">
-                   <p className="text-2xl font-semibold mb-1 text-white">从 Paper 出发，生成 PPTX</p>
-                   <p className="text-xs text-gray-400">
-                     支持上传 PDF / 图片，或直接粘贴文字内容，我们会帮你生成结构清晰、可编辑的 PPTX。
-                   </p>
-                </div>
-
                 {/* 绘图类型选择 */}
                 <div className="mb-6">
-                  <label className="block text-xs font-medium text-gray-400 mb-2">绘图类型</label>
+                  <label className="block text-xs font-medium text-gray-400 mb-2">{t('graphType.label')}</label>
                   <select
                     value={graphType}
                     onChange={e => {
@@ -641,9 +634,9 @@ const Paper2FigurePage = () => {
                     }}
                     className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-gray-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                   >
-                    <option value="model_arch">模型架构图</option>
-                    <option value="tech_route">技术路线图</option>
-                    <option value="exp_data">实验数据图</option>
+                    <option value="model_arch">{t('graphType.model_arch')}</option>
+                    <option value="tech_route">{t('graphType.tech_route')}</option>
+                    <option value="exp_data">{t('graphType.exp_data')}</option>
                   </select>
                 </div>
 
@@ -662,15 +655,15 @@ const Paper2FigurePage = () => {
                         <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-shimmer-fast"></div>
                      )}
                      <FileText size={22} className={`mb-1.5 transition-colors ${uploadMode === 'file' ? 'text-white' : 'text-gray-500 group-hover:text-blue-400'}`} />
-                     <span className={`text-sm font-bold tracking-wide ${uploadMode === 'file' ? 'text-white' : 'text-gray-300'}`}>文件</span>
-                     <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === 'file' ? 'text-blue-100' : 'text-gray-600'}`}>PDF</span>
+                     <span className={`text-sm font-bold tracking-wide ${uploadMode === 'file' ? 'text-white' : 'text-gray-300'}`}>{t('uploadTabs.file')}</span>
+                     <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === 'file' ? 'text-blue-100' : 'text-gray-600'}`}>{t('uploadTabs.fileSub')}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => {
                       if (graphType === 'exp_data') {
-                        setError('实验数据图仅支持 PDF 输入，不支持文本');
+                        setError(t('errors.expDataNoImage'));
                         return;
                       }
                       setUploadMode('text');
@@ -687,19 +680,19 @@ const Paper2FigurePage = () => {
                         <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-shimmer-fast"></div>
                      )}
                      <Type size={22} className={`mb-1.5 transition-colors ${uploadMode === 'text' ? 'text-white' : 'text-gray-500 group-hover:text-blue-400'}`} />
-                     <span className={`text-sm font-bold tracking-wide ${uploadMode === 'text' ? 'text-white' : 'text-gray-300'}`}>文本</span>
-                     <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === 'text' ? 'text-blue-100' : 'text-gray-600'}`}>Text Content</span>
+                     <span className={`text-sm font-bold tracking-wide ${uploadMode === 'text' ? 'text-white' : 'text-gray-300'}`}>{t('uploadTabs.text')}</span>
+                     <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === 'text' ? 'text-blue-100' : 'text-gray-600'}`}>{t('uploadTabs.textSub')}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => {
                       if (graphType === 'tech_route') {
-                        setError('技术路线图仅支持 PDF 或文本输入，不支持图片');
+                        setError(t('errors.techRouteNoImage'));
                         return;
                       }
                       if (graphType === 'exp_data') {
-                        setError('实验数据图仅支持 PDF 输入，不支持图片');
+                        setError(t('errors.expDataNoImage'));
                         return;
                       }
                       setUploadMode('image');
@@ -716,8 +709,8 @@ const Paper2FigurePage = () => {
                         <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-shimmer-fast"></div>
                      )}
                      <ImageIcon size={22} className={`mb-1.5 transition-colors ${uploadMode === 'image' ? 'text-white' : 'text-gray-500 group-hover:text-blue-400'}`} />
-                     <span className={`text-sm font-bold tracking-wide ${uploadMode === 'image' ? 'text-white' : 'text-gray-300'}`}>图片</span>
-                     <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === 'image' ? 'text-blue-100' : 'text-gray-600'}`}>Image</span>
+                     <span className={`text-sm font-bold tracking-wide ${uploadMode === 'image' ? 'text-white' : 'text-gray-300'}`}>{t('uploadTabs.image')}</span>
+                     <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === 'image' ? 'text-blue-100' : 'text-gray-600'}`}>{t('uploadTabs.imageSub')}</span>
                   </button>
                 </div>
 
@@ -736,14 +729,14 @@ const Paper2FigurePage = () => {
                     </div>
                     <div>
                       <p className="text-white font-medium mb-1">
-                        拖拽 {uploadMode === 'file' ? 'PDF' : '图片'} 到此处，或点击选择文件
+                        {uploadMode === 'file' ? t('upload.fileDragTitleFile') : t('upload.fileDragTitleImage')}
                       </p>
                       <p className="text-sm text-gray-400">
-                        {showFileHint()}，单个文件建议小于 20MB。
+                        {showFileHint()}
                       </p>
                     </div>
                     <label className="px-6 py-2.5 rounded-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-sm font-medium cursor-pointer hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg shadow-blue-500/20">
-                      选择文件
+                      {t('upload.selectFile')}
                       <input
                         type="file"
                         accept={
@@ -768,16 +761,16 @@ const Paper2FigurePage = () => {
                 {uploadMode === 'text' && (
                   <div className="space-y-3 h-[300px] flex flex-col">
                     <label className="block text-xs font-medium text-gray-400">
-                      粘贴论文摘要、章节内容或任意需要做成 PPT 的文字
+                      {t('upload.textLabel')}
                     </label>
                     <textarea
                       value={textContent}
                       onChange={e => setTextContent(e.target.value)}
-                      placeholder="在这里粘贴论文的摘要、章节内容，或任意需要转换为 PPTX 的文本（支持中英文）..."
+                      placeholder={t('upload.textPlaceholder')}
                       className="flex-1 w-full rounded-xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-blue-500 resize-none placeholder:text-gray-600"
                     />
                     <p className="text-[11px] text-gray-500 text-right">
-                      建议控制在 5,000 字以内，过长内容可以分段多次生成 PPTX。
+                      {t('upload.textTip')}
                     </p>
                   </div>
                 )}
@@ -793,7 +786,7 @@ const Paper2FigurePage = () => {
               >
                 <div className="flex items-center gap-2">
                   <Settings2 size={16} className="text-primary-300" />
-                  <span className="text-white font-medium">模型配置（高级设置）</span>
+                  <span className="text-white font-medium">{t('advanced.title')}</span>
                 </div>
                 {showAdvanced ? (
                   <ChevronUp size={16} className="text-gray-400" />
@@ -816,7 +809,7 @@ const Paper2FigurePage = () => {
                   </div> */}
 
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">模型 API URL</label>
+                    <label className="block text-xs text-gray-400 mb-1">{t('advanced.apiUrlLabel')}</label>
                     <div className="flex items-center gap-2">
                       <select
                         value={llmApiUrl}
@@ -840,7 +833,7 @@ const Paper2FigurePage = () => {
                           rel="noopener noreferrer"
                           className="whitespace-nowrap text-[10px] text-primary-300 hover:text-primary-200 hover:underline px-2"
                         >
-                          点击购买
+                          {t('advanced.buyLink')}
                         </a>
                       </QRCodeTooltip>
                     </div>
@@ -848,19 +841,19 @@ const Paper2FigurePage = () => {
 
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">
-                      API Key (sk- 开头)
+                      {t('advanced.apiKeyLabel')}
                     </label>
                     <input
                       type="password"
                       value={apiKey}
                       onChange={e => setApiKey(e.target.value)}
-                      placeholder="用于调用 OpenAI / 兼容模型的 API Key"
+                      placeholder={t('advanced.apiKeyPlaceholder')}
                       className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">模型选择</label>
+                    <label className="block text-xs text-gray-400 mb-1">{t('advanced.modelLabel')}</label>
                     <select
                       value={model}
                       onChange={e => setModel(e.target.value)}
@@ -871,48 +864,48 @@ const Paper2FigurePage = () => {
                       <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
                     </select>
                     {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
-                       <p className="text-[10px] text-gray-500 mt-1">此源仅支持 gemini-3-pro</p>
+                       <p className="text-[10px] text-gray-500 mt-1">{t('advanced.modelOnlyHint')}</p>
                     )}
                   </div>
 
                   {graphType === 'model_arch' ? (
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">绘图难度</label>
+                      <label className="block text-xs text-gray-400 mb-1">{t('advanced.figureComplexLabel')}</label>
                       <select
                         value={figureComplex}
                         onChange={e => setFigureComplex(e.target.value as FigureComplex)}
                         className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       >
-                        <option value="easy">简单</option>
-                        <option value="mid">中等</option>
-                        <option value="hard">复杂</option>
+                        <option value="easy">{t('advanced.figureComplex.easy')}</option>
+                        <option value="mid">{t('advanced.figureComplex.mid')}</option>
+                        <option value="hard">{t('advanced.figureComplex.hard')}</option>
                       </select>
                     </div>
                   ) : (
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">语言</label>
+                      <label className="block text-xs text-gray-400 mb-1">{t('advanced.languageLabel')}</label>
                       <select
                         value={language}
                         onChange={e => setLanguage(e.target.value as Language)}
                         className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                       >
-                        <option value="zh">中文</option>
-                        <option value="en">英文</option>
+                        <option value="zh">{t('advanced.language.zh')}</option>
+                        <option value="en">{t('advanced.language.en')}</option>
                       </select>
                     </div>
                   )}
 
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">风格</label>
+                    <label className="block text-xs text-gray-400 mb-1">{t('advanced.styleLabel')}</label>
                     <select
                       value={style}
                       onChange={e => setStyle(e.target.value as StyleType)}
                       className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     >
-                      <option value="cartoon">卡通</option>
-                      {graphType !== 'exp_data' && <option value="realistic">写实</option>}
-                      {graphType === 'exp_data' && <option value="Low Poly 3D">低多边形</option>}
-                      {graphType === 'exp_data' && <option value="blocky LEGO aesthetic">乐高风</option>}
+                      <option value="cartoon">{t('advanced.style.cartoon')}</option>
+                      {graphType !== 'exp_data' && <option value="realistic">{t('advanced.style.realistic')}</option>}
+                      {graphType === 'exp_data' && <option value="Low Poly 3D">{t('advanced.style.lowPoly')}</option>}
+                      {graphType === 'exp_data' && <option value="blocky LEGO aesthetic">{t('advanced.style.lego')}</option>}
                     </select>
                   </div>
                 </div>
@@ -926,12 +919,12 @@ const Paper2FigurePage = () => {
                   className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/60 disabled:cursor-not-allowed text-white text-sm font-medium py-2.5 transition-colors glow"
                 >
                   {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                  <span>{isLoading ? '生成中...' : '生成可编辑 PPTX'}</span>
+                  <span>{isLoading ? t('submit.buttonLoading') : t('submit.buttonIdle')}</span>
                 </button>
 
                 <div className="flex items-start gap-2 text-xs text-gray-400 bg-white/5 border border-white/10 rounded-lg px-3 py-2">
                   <Info size={14} className="mt-0.5 text-gray-500 flex-shrink-0" />
-                  <p>提示：如果长时间无响应或生成失败，可能是 API 服务商不稳定。建议稍后再试，或尝试更换模型/服务商。</p>
+                  <p>{t('submit.hintText')}</p>
                 </div>
 
                 {/* 改进的生成进度显示 */}
@@ -966,31 +959,31 @@ const Paper2FigurePage = () => {
                       <div className="flex items-center gap-1.5">
                         <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 0 ? 'bg-primary-400 animate-pulse' : 'bg-primary-950/60'}`} />
                         <span className={currentStage >= 0 ? 'text-primary-200 font-medium' : ''}>
-                          分析论文内容
+                          {t('progress.stage1')}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 1 ? 'bg-primary-400 animate-pulse' : 'bg-primary-950/60'}`} />
                         <span className={currentStage >= 1 ? 'text-primary-200 font-medium' : ''}>
-                          生成科研绘图
+                          {t('progress.stage2')}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 2 ? 'bg-primary-400 animate-pulse' : 'bg-primary-950/60'}`} />
                         <span className={currentStage >= 2 ? 'text-primary-200 font-medium' : ''}>
-                          转为可编辑绘图
+                          {t('progress.stage3')}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <div className={`w-1.5 h-1.5 rounded-full ${currentStage >= 3 ? 'bg-primary-400 animate-pulse' : 'bg-primary-950/60'}`} />
                         <span className={currentStage >= 3 ? 'text-primary-200 font-medium' : ''}>
-                          合成 PPT
+                          {t('progress.stage4')}
                         </span>
                       </div>
                     </div>
 
                     <p className="text-[11px] text-primary-200/70 pt-1 border-t border-primary-400/20">
-                      预计需要 2-5 分钟，请耐心等待...
+                      {t('progress.eta')}
                     </p>
                   </div>
                 )}
@@ -1010,7 +1003,7 @@ const Paper2FigurePage = () => {
                     className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-400/60 text-emerald-300 text-xs py-2 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
                   >
                     <CheckCircle2 size={14} />
-                    <span>重新下载：{lastFilename}</span>
+                    <span>{t('download.reDownload', { filename: lastFilename })}</span>
                   </button>
                 )}
 
@@ -1027,11 +1020,11 @@ const Paper2FigurePage = () => {
                           className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-400/60 text-emerald-300 text-xs py-2 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
                         >
                           <CheckCircle2 size={14} />
-                          <span>下载技术路线图 PPT：{pptPath.split('/').pop()}</span>
+                          <span>{t('techRoute.pptDownload', { filename: pptPath.split('/').pop() })}</span>
                         </button>
 
                         <div className="text-[11px] text-gray-300 bg-black/30 border border-white/10 rounded-md px-2 py-1.5">
-                          <div>如果下载失败，请复制下面链接到浏览器地址栏打开：</div>
+                          <div>{t('techRoute.pptCopyHintTitle')}</div>
                           <div className="mt-1 break-all text-primary-200 underline decoration-dotted">
                             {pptPath}
                           </div>
@@ -1049,13 +1042,13 @@ const Paper2FigurePage = () => {
                         className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-sky-400/60 text-sky-300 text-xs py-2 bg-sky-500/10 hover:bg-sky-500/20 transition-colors"
                       >
                         <ImageIcon size={14} />
-                        <span>下载 SVG 源文件：{svgPath.split('/').pop()}</span>
+                        <span>{t('techRoute.svgDownload', { filename: svgPath.split('/').pop() })}</span>
                       </button>
                     )}
 
                     {svgPreviewPath && (
                       <div className="rounded-lg border border-white/10 bg-black/30 p-2">
-                        <p className="text-[11px] text-gray-300 mb-1">SVG 预览（PNG 渲染图）</p>
+                        <p className="text-[11px] text-gray-300 mb-1">{t('techRoute.svgPreviewTitle')}</p>
                         <div className="w-full max-h-64 overflow-auto bg-black/60 rounded-md flex items-center justify-center">
                           <img
                             src={svgPreviewPath}
@@ -1125,7 +1118,7 @@ const Paper2FigurePage = () => {
                 {isValidating && (
                   <div className="flex items-start gap-2 text-xs text-blue-300 bg-blue-500/10 border border-blue-500/40 rounded-lg px-3 py-2 mt-1 animate-pulse">
                     <Loader2 size={14} className="mt-0.5 animate-spin" />
-                    <p>正在验证 API Key 有效性...</p>
+                    <p>{t('validating.apiKey')}</p>
                   </div>
                 )}
 
@@ -1150,7 +1143,7 @@ const Paper2FigurePage = () => {
             <div className="space-y-4 mb-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-3">
-                <h3 className="text-sm font-medium text-gray-200">示例：从 Paper 到 PPTX</h3>
+                <h3 className="text-sm font-medium text-gray-200">{t('examples.sectionTitle')}</h3>
                 <a
                   href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
                   target="_blank"
@@ -1160,55 +1153,55 @@ const Paper2FigurePage = () => {
                   <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
                   <Sparkles size={12} className="text-yellow-300 animate-pulse" />
                   <span className="bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300 bg-clip-text text-transparent group-hover:from-blue-200 group-hover:via-purple-200 group-hover:to-pink-200">
-                    更多案例点击：飞书文档
+                    {t('examples.feishuLink')}
                   </span>
                 </a>
               </div>
               <span className="text-[11px] text-gray-500">
-                下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果。
+                {t('examples.sectionSubtitle')}
               </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
               <DemoCard
-                title="论文 PDF → 符合论文主题的 科研绘图（PPT）"
-                desc="上传英文论文 PDF，自动提炼研究背景、方法、实验设计和结论，生成结构清晰、符合学术风格的汇报 PPTX。"
+                title={t('examples.cards.paperPdfToFigureTitle')}
+                desc={t('examples.cards.paperPdfToFigureDesc')}
                 inputImg="/p2f_paper_pdf_img.png"
                 outputImg="/p2f_paper_pdf_img_2.png"
               />
               <DemoCard
-                title="科研配图 / 示意图截图 → 可编辑 PPTX"
-                desc="上传科研配图或示意图截图，自动识别段落层级与要点，自动排版为可编辑的英文 PPTX。"
+                title={t('examples.cards.figureScreenshotToPptTitle')}
+                desc={t('examples.cards.figureScreenshotToPptDesc')}
                 inputImg="/p2f_paper_model_img.png"
                 outputImg="/p2f_paper_modle_img_2.png"
               />
               <DemoCard
-                title="论文摘要文本 → 科研绘图 PPTX"
-                desc="粘贴论文摘要或章节内容，一键生成包含标题层级、关键要点与图示占位的 PPTX 大纲，方便后续细化与美化。"
+                title={t('examples.cards.abstractTextToPptTitle')}
+                desc={t('examples.cards.abstractTextToPptDesc')}
                 inputImg="/p2f_paper_content.png"
                 outputImg="/p2f_paper_content_2.png"
               />
               <DemoCard
-                title="论文 PDF → 符合论文主题的 技术路线图 PPT + SVG"
-                desc="根据论文方法部分，自动梳理技术路线与模块依赖关系，生成清晰的技术路线图 PPTX 与 SVG 示意图。"
+                title={t('examples.cards.pdfToTechRouteTitle')}
+                desc={t('examples.cards.pdfToTechRouteDesc')}
                 inputImg="/p2t_paper_img.png"
                 outputImg="/p2t_paper_img_2.png"
               />
               <DemoCard
-                title="论文摘要文本 → 符合论文主题的 技术路线图 PPT + SVG"
-                desc="从整篇技术方案 PDF 中提取关键步骤与时间轴，自动生成技术路线时间线 PPTX 与 SVG。"
+                title={t('examples.cards.textToTechRouteTitle')}
+                desc={t('examples.cards.textToTechRouteDesc')}
                 inputImg="/p2t_paper_text.png"
                 outputImg="/p2t_paper_text_2.png"
               />
               <DemoCard
-                title="论文 PDF → 自动提取实验数据 绘制成 PPT"
-                desc="从论文实验部分 PDF 中提取表格与结果描述，自动生成对比柱状图 / 折线图 PPTX，便于直观展示结果。"
+                title={t('examples.cards.pdfToExpDataTitle')}
+                desc={t('examples.cards.pdfToExpDataDesc')}
                 inputImg="/p2e_paper_1.png"
                 outputImg="/p2e_paper_2.png"
               />
               <DemoCard
-                title="论文实验表格文本 → 自动整理实验数据 绘制成 PPT"
-                desc="从文本形式的实验结果描述中抽取指标与对照组，一键生成适合汇报的实验结果 PPTX。"
+                title={t('examples.cards.tableTextToExpDataTitle')}
+                desc={t('examples.cards.tableTextToExpDataDesc')}
                 inputImg="/p2f_exp_content_1.png"
                 outputImg="/p2f_exp_content_2.png"
               />

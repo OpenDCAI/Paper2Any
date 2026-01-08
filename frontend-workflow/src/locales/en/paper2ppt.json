@@ -1,0 +1,177 @@
+{
+  "steps": {
+    "upload": "Upload Paper",
+    "outline": "Confirm Outline",
+    "generate": "Generate Pages",
+    "complete": "Complete & Download"
+  },
+  "upload": {
+    "subtitle": "PAPER → PPT",
+    "title": "Paper2PPT",
+    "desc": "Upload PDF paper or enter a Topic. AI analyzes content and generates beautiful slides.",
+    "descHighlight": "Supports page-by-page editing and regeneration for perfect presentations!",
+    "tabs": {
+      "file": "Upload File",
+      "text": "Long Text",
+      "topic": "Topic",
+      "fileSub": "PDF",
+      "textSub": "Paste Content",
+      "topicSub": "Deep Research"
+    },
+    "instruction": {
+      "file": "Please upload your PDF paper or PPT",
+      "text": "Enter long text to generate PPT",
+      "topic": "Enter research topic"
+    },
+    "dropzone": {
+      "dragText": "Drag PDF file here",
+      "supportText": "Supports PDF only",
+      "button": "Select File",
+      "analyzing": "Will analyze content to generate PPT"
+    },
+    "textInput": {
+      "placeholderText": "Paste long text here, we will generate PPT outline...",
+      "placeholderTopic": "Enter a Topic, we will perform deep research...",
+      "charCount": "characters",
+      "deepResearch": "Deep Research Agent will expand content"
+    },
+    "config": {
+      "title": "Configuration",
+      "apiKey": "API Key * (starts with sk-)",
+      "apiKeyPlaceholder": "sk-...",
+      "apiUrl": "API URL",
+      "buyLink": "Buy Now",
+      "model": "Model",
+      "genModel": "Image Gen Model",
+      "pageCount": "Page Count",
+      "longPaper": "Enable Long Paper Mode (40-100 pages)",
+      "styleTitle": "Style Config",
+      "language": "Language",
+      "styleMode": {
+        "prompt": "Style Prompt",
+        "reference": "Reference Image"
+      },
+      "stylePreset": "Select Style",
+      "presets": {
+        "modern": "Modern",
+        "business": "Business",
+        "academic": "Academic",
+        "creative": "Creative"
+      },
+      "promptLabel": "Style Prompt",
+      "promptPlaceholder": "e.g., Use purple color scheme, keep academic style...",
+      "referenceLabel": "Upload Reference Image",
+      "referenceUploaded": "Reference image uploaded, will be used for PPT style",
+      "referenceUpload": "Click to upload reference image (JPG/PNG/WEBP/GIF)",
+      "startButton": {
+        "research": "Start Research",
+        "parse": "Start Parsing",
+        "researching": "Deep Researching...",
+        "parsing": "Parsing..."
+      },
+      "tip": "Tip: If no response for a long time or generation fails, the API provider might be unstable. Please try again later or switch model/provider."
+    },
+    "progress": {
+      "preparing": "Preparing content...",
+      "parsing": "Parsing content...",
+      "analyzing": "Analyzing structure...",
+      "extracting": "Extracting key points...",
+      "generating": "Generating outline...",
+      "done": "Parsing complete!"
+    },
+    "demo": {
+      "title": "Example: From Paper to PPTX",
+      "more": "More cases: Feishu Doc",
+      "desc": "Examples below show effects from PDF / Image / Text to editable PPTX.",
+      "card1": {
+        "title": "Paper PDF → Academic PPT",
+        "desc": "Upload paper PDF, automatically extract key info, generate structured academic report PPT."
+      },
+      "card2": {
+        "title": "Paper Content → Presentation",
+        "desc": "Smartly analyze paper content, generate beautifully laid out and logical presentation."
+      },
+      "card3": {
+        "title": "Long Text → PPT",
+        "desc": "Supports pasting long text directly, AI automatically refines core points and generates PPT outline."
+      },
+      "card4": {
+        "title": "Topic → Themed PPT",
+        "desc": "Just enter a topic, AI will conduct deep research and generate content-rich, style-matched PPT."
+      }
+    }
+  },
+  "outline": {
+    "title": "Confirm Outline",
+    "subtitle": "Check content structure extracted from paper, editable, sortable or deletable",
+    "edit": {
+      "titlePlaceholder": "Title",
+      "layoutPlaceholder": "Layout Description",
+      "pointPlaceholder": "Key Point",
+      "addPoint": "+ Add Point",
+      "save": "Save",
+      "cancel": "Cancel"
+    },
+    "back": "Back to Upload",
+    "confirm": "Confirm & Start Generating"
+  },
+  "generate": {
+    "title": "Generate Pages",
+    "subtitle": "Page",
+    "layout": "Layout Description",
+    "points": "Key Points",
+    "aiResult": "AI Generation Result",
+    "status": {
+      "batch": "Batch generating all pages...",
+      "single": "Regenerating current page...",
+      "batchDesc": "pages in total, please wait",
+      "singleDesc": "AI is recreating based on your prompt",
+      "waiting": "Waiting to generate"
+    },
+    "regeneratePlaceholder": "Enter refinement prompt, then click regenerate...",
+    "regenerate": "Regenerate",
+    "back": "Back to Outline",
+    "prev": "Previous",
+    "next": "Confirm & Continue",
+    "finish": "Finish Generation"
+  },
+  "complete": {
+    "title": "Generation Complete!",
+    "subtitle": "Processed {{total}} pages, successfully generated {{done}} pages",
+    "preview": "Result Preview",
+    "generateFinal": "Generate Final File",
+    "generating": "Generating final file...",
+    "downloadPdf": "Download PDF",
+    "pdf2pptLink": "If you need to convert PDF to editable PPTX, please go to",
+    "pdf2pptText": "PDF2PPT Page",
+    "new": "Process New Paper",
+    "share": {
+      "title": "Get Free API Key",
+      "desc": "Click platform icon below to copy promotion text\nShare to WeChat Moments/RedNote/Twitter, screenshot and contact admin to get Key!",
+      "wechat": "WeChat",
+      "rednote": "RedNote",
+      "twitter": "Twitter",
+      "copy": "Copy",
+      "copied": "Text copied! Go share it",
+      "star": "If this project helps you, please give us a star~"
+    },
+    "group": {
+      "title": "Join Community",
+      "desc": "Satisfied? Issues?\nScan code to join group for feedback and discussion",
+      "scan": "Scan to join WeChat group"
+    }
+  },
+  "errors": {
+    "pdfOnly": "Supports PDF format only",
+    "sizeLimit": "File size exceeds 50MB limit",
+    "imageFormat": "Reference image supports JPG/PNG/WEBP/GIF only",
+    "selectFile": "Please select PDF file first",
+    "enterText": "Please enter long text content",
+    "enterTopic": "Please enter Topic",
+    "enterKey": "Please enter API Key",
+    "quotaFull": "Daily quota used up",
+    "serverBusy": "Server busy, please try again later",
+    "noResultPath": "Missing result_path",
+    "enterPrompt": "Please enter prompt for regeneration"
+  }
+}

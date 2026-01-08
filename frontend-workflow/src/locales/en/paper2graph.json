@@ -1,0 +1,122 @@
+{
+  "hero": {
+    "badge": "PAPER → EDITABLE PPTX",
+    "title": "One-click scientific figures from your paper content",
+    "subtitle": "Upload paper PDF / images, or paste text directly to generate editable scientific figure PPTX that you can further edit, add/remove content and adjust layout."
+  },
+  "graphType": {
+    "label": "Figure Type",
+    "model_arch": "Model architecture",
+    "tech_route": "Technical roadmap",
+    "exp_data": "Experimental data chart"
+  },
+  "uploadTabs": {
+    "file": "File",
+    "fileSub": "PDF",
+    "text": "Text",
+    "textSub": "Text Content",
+    "image": "Image",
+    "imageSub": "Image"
+  },
+  "upload": {
+    "fileDragTitleFile": "Drag PDF here or click to select",
+    "fileDragTitleImage": "Drag image here or click to select",
+    "fileHint": "Supports PDF, PNG, JPG and other formats, single file recommended < 20MB.",
+    "selectFile": "Choose file",
+    "textLabel": "Paste abstract, section content or any text you want to turn into PPT",
+    "textPlaceholder": "Paste the paper abstract, chapter content, or any text you want to convert to PPTX here (both Chinese and English are supported)...",
+    "textTip": "Recommended within 5,000 characters. For very long content, please split into multiple runs."
+  },
+  "advanced": {
+    "title": "Model configuration (advanced)",
+    "apiUrlLabel": "Model API URL",
+    "buyLink": "Click to buy",
+    "apiKeyLabel": "API Key (starts with sk-)",
+    "apiKeyPlaceholder": "API Key for calling OpenAI / compatible models",
+    "modelLabel": "Model",
+    "modelOnlyHint": "This endpoint only supports gemini-3-pro",
+    "figureComplexLabel": "Figure complexity",
+    "figureComplex": {
+      "easy": "Simple",
+      "mid": "Medium",
+      "hard": "Complex"
+    },
+    "languageLabel": "Language",
+    "language": {
+      "zh": "Chinese",
+      "en": "English"
+    },
+    "styleLabel": "Style",
+    "style": {
+      "cartoon": "Cartoon",
+      "realistic": "Photorealistic",
+      "lowPoly": "Low poly 3D",
+      "lego": "LEGO-style"
+    }
+  },
+  "submit": {
+    "buttonIdle": "Generate editable PPTX",
+    "buttonLoading": "Generating...",
+    "hintTitle": "Tip",
+    "hintText": "If the request takes long or fails, the API provider may be unstable. Please try again later, or switch model/provider."
+  },
+  "progress": {
+    "stage1": "Analyzing paper content...",
+    "stage2": "Generating scientific figures...",
+    "stage3": "Converting to editable figures...",
+    "stage4": "Composing PPT...",
+    "eta": "Estimated 2–5 minutes, please wait..."
+  },
+  "download": {
+    "reDownload": "Download again: {{filename}}"
+  },
+  "techRoute": {
+    "pptDownload": "Download technical roadmap PPT: {{filename}}",
+    "pptCopyHintTitle": "If download fails, copy the link below into your browser:",
+    "svgDownload": "Download SVG source file: {{filename}}",
+    "svgPreviewTitle": "SVG preview (PNG rendering)"
+  },
+  "validating": {
+    "apiKey": "Validating API Key..."
+  },
+  "errors": {
+    "fileTooLarge": "File size exceeds 20MB limit",
+    "unsupportedFile": "Only PDF and common image formats are supported. Please check the file type.",
+    "noFile": "Please select a file or image to upload first",
+    "noText": "Please enter the text content to be converted to PPTX",
+    "quotaUserExhausted": "Daily quota used up (10 times/day). Please try again tomorrow.",
+    "quotaGuestExhausted": "Daily quota used up (5 times/day). Log in to get more quota.",
+    "missingApiConfig": "Please configure model API URL and API Key first",
+    "techRouteNoImage": "Technical roadmap does not support image input",
+    "expDataNoImage": "Experimental data chart only supports PDF input, image is not allowed",
+    "expDataFileOnly": "Experimental data chart only supports PDF file input",
+    "inviteInvalid": "Invite code is incorrect or expired",
+    "tooManyRequests": "Too many requests. Please try again later.",
+    "serverBusy": "Server is busy, please try again later."
+  },
+  "success": {
+    "pptGenerated": "PPTX generated, downloading...",
+    "techRouteGenerated": "Technical roadmap generated. You can download PPT / SVG or directly preview PNG."
+  },
+  "examples": {
+    "sectionTitle": "Examples: from Paper to PPTX",
+    "sectionSubtitle": "The following examples show the效果from PDF / images / text to editable PPTX.",
+    "feishuLink": "More cases (Feishu doc)",
+    "cards": {
+      "paperPdfToFigureTitle": "Paper PDF → Scientific figures (PPT)",
+      "paperPdfToFigureDesc": "Upload an English paper PDF, automatically extract background, methods, experiment design and conclusions, and generate a clear, academic-style PPTX.",
+      "figureScreenshotToPptTitle": "Scientific figure / schematic screenshot → editable PPTX",
+      "figureScreenshotToPptDesc": "Upload scientific figures or schematic screenshots, automatically recognize hierarchy and key points and layout them into an editable English PPTX.",
+      "abstractTextToPptTitle": "Paper abstract text → scientific figure PPTX",
+      "abstractTextToPptDesc": "Paste the paper abstract or chapter content to generate a PPTX outline with headings, key points and figure placeholders for later refinement.",
+      "pdfToTechRouteTitle": "Paper PDF → technical roadmap PPT + SVG",
+      "pdfToTechRouteDesc": "Based on the method section of the paper, automatically organize the technical route and module dependencies and generate clear roadmap PPTX and SVG diagrams.",
+      "textToTechRouteTitle": "Paper abstract text → technical roadmap PPT + SVG",
+      "textToTechRouteDesc": "Extract key steps and timeline from an entire technical proposal PDF and generate a technical timeline PPTX and SVG.",
+      "pdfToExpDataTitle": "Paper PDF → experimental data charts in PPT",
+      "pdfToExpDataDesc": "Extract tables and result descriptions from the experimental section of the paper and automatically generate comparison bar / line charts in PPTX.",
+      "tableTextToExpDataTitle": "Experimental table text → data charts in PPT",
+      "tableTextToExpDataDesc": "Extract metrics and baselines from textual experimental descriptions and generate presentation-ready experimental result PPTX."
+    }
+  }
+}
