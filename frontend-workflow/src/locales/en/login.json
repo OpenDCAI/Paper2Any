@@ -1,0 +1,34 @@
+{
+  "welcome": "Welcome Back 👋",
+  "loginSubtitle": "Sign in to continue",
+  "emailLabel": "Email",
+  "emailPlaceholder": "name@example.com",
+  "passwordLabel": "Password",
+  "passwordPlaceholder": "Enter your password",
+  "loginButton": "Sign In",
+  "loggingIn": "Signing in...",
+  "noAccount": "No account yet?",
+  "registerLink": "Sign up for free",
+  "title": "Paper2Any",
+  "subtitle": "AI-Powered Research & Presentation Assistant",
+  "heroTitlePrefix": "Paper to",
+  "heroDesc": "One-stop AI assistant for research and presentations. Make knowledge flow freely and creation simpler.",
+  "features": {
+    "paper2figure": {
+      "title": "Paper2Figure",
+      "desc": "One-click Paper to Scientific Figure"
+    },
+    "paper2ppt": {
+      "title": "Paper2PPT",
+      "desc": "Smartly generate PPT from paper content, supporting ultra-long PPTs"
+    },
+    "pdf2ppt": {
+      "title": "PDF2PPT",
+      "desc": "Convert PDF slides to editable text and icons"
+    },
+    "pptPolish": {
+      "title": "PPT Polish",
+      "desc": "Professional-grade intelligent PPT polishing"
+    }
+  }
+}

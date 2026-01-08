@@ -1,0 +1,133 @@
+{
+  "subtitle": "PPT → BEAUTIFIED PPT",
+  "title": "PptPolish",
+  "desc": "Upload original PPT, AI analyzes structure and beautifies it into professional presentation.",
+  "descHighlight": "Real-time comparison to control beautification effect!",
+  "steps": {
+    "upload": "Upload PPT",
+    "beautify": "Beautify Pages",
+    "complete": "Complete & Download"
+  },
+  "upload": {
+    "title": "Upload PPT",
+    "dragText": "Drag PPT file here",
+    "supportText": "Supports PPT / PPTX",
+    "button": "Select File",
+    "fileInfo": "✓ {{name}}",
+    "modeInfo": "🎨 Beautify Mode: Optimizes original PPT style",
+    "config": {
+      "title": "Configuration",
+      "apiUrl": "Model API URL",
+      "buyLink": "Buy Now",
+      "apiKey": "API Key (starts with sk-)",
+      "apiKeyPlaceholder": "sk-...",
+      "model": "Model Name",
+      "genModel": "Image Gen Model",
+      "language": "Language",
+      "styleTitle": "Style Config",
+      "styleMode": {
+        "preset": "Preset Style",
+        "reference": "Reference Image"
+      },
+      "stylePreset": "Select Style",
+      "presets": {
+        "modern": "Modern",
+        "business": "Business",
+        "academic": "Academic",
+        "creative": "Creative"
+      },
+      "promptLabel": "Style Prompt (Required)",
+      "promptPlaceholder": "e.g., Use purple color scheme, keep academic style...",
+      "referenceLabel": "Upload Reference Image",
+      "referenceUploaded": "Reference image uploaded",
+      "referenceUpload": "Click to upload reference image",
+      "start": "Start Parsing",
+      "parsing": "Parsing...",
+      "tip": "Tip: If no response for a long time or generation fails, the API provider might be unstable. Please try again later or switch model/provider."
+    }
+  },
+  "progress": {
+    "init": "Initializing...",
+    "uploading": "Uploading PPT...",
+    "analyzing": "Analyzing page structure...",
+    "extracting": "Extracting content...",
+    "identifying": "Identifying images...",
+    "planning": "Generating beautification plan...",
+    "done": "Parsing complete!"
+  },
+  "outline": {
+    "title": "Confirm Outline",
+    "subtitle": "Check and adjust page structure, editable, sortable or deletable",
+    "edit": {
+      "titlePlaceholder": "Page Title",
+      "layoutPlaceholder": "Layout Description",
+      "pointPlaceholder": "Key Point",
+      "addPoint": "+ Add Point",
+      "save": "Save",
+      "cancel": "Cancel"
+    },
+    "back": "Back to Upload",
+    "confirm": "Confirm & Start Beautifying"
+  },
+  "beautify": {
+    "initTitle": "Generating Initial PPT",
+    "initDesc": "Please wait, processing your PPT file...",
+    "loadingTitle": "Generating Initial PPT and Previews",
+    "loadingDesc": "This may take a few minutes, please be patient...",
+    "title": "Beautify Pages",
+    "pageInfo": "Page {{current}} / {{total}}: {{title}}",
+    "modeInfo": "🎨 Beautify Mode - Optimizes original PPT style",
+    "original": "Original PPT Render",
+    "result": "Beautified Result",
+    "processing": "Beautifying...",
+    "waiting": "Waiting to generate",
+    "regeneratePlaceholder": "Enter refinement prompt, then click regenerate...",
+    "regenerate": "Regenerate",
+    "back": "Back to Upload",
+    "prev": "Previous",
+    "next": "Confirm & Continue"
+  },
+  "complete": {
+    "title": "Beautification Complete!",
+    "overview": "Result Overview",
+    "page": "Page {{index}}",
+    "status": "Beautified",
+    "generateFinal": "Generate Final File",
+    "generating": "Generating final file...",
+    "downloadPdf": "Download PDF",
+    "pdf2pptLink": "If you need to convert PDF to editable PPTX, please go to",
+    "pdf2pptText": "PDF2PPT Page",
+    "new": "Process New Document"
+  },
+  "demo": {
+    "more": "More cases: Feishu Doc",
+    "group1": {
+      "title": "PPT Enhancement",
+      "desc": "Intelligently adjust style, color scheme and visual hierarchy based on original PPT content.",
+      "original": "Original PPT",
+      "result": "Enhanced"
+    },
+    "group2": {
+      "title": "PPT Polishing & Expansion",
+      "desc": "Expand pure text or simple blank PPT, automatically generate beautiful layout and visual elements.",
+      "original": "Original PPT",
+      "result": "Polished"
+    }
+  },
+  "errors": {
+    "format": "Supports PPT/PPTX format only",
+    "size": "File size exceeds 50MB limit",
+    "selectFile": "Please select PPT file first",
+    "config": "Please configure Model API URL and API Key first",
+    "prompt": "Please enter style prompt",
+    "reference": "Please upload reference image",
+    "quota": "Daily quota used up",
+    "validating": "Validating API Key...",
+    "serverBusy": "Server busy, please try again later",
+    "noResultPath": "Missing result_path",
+    "emptyResult": "Parsing result is empty",
+    "noPages": "No pages to beautify",
+    "noOutline": "No outline data",
+    "downloadFail": "Download link does not exist"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "loading": "加载中...",
+  "error": "发生错误",
+  "success": "操作成功",
+  "app": {
+    "subtitle": "Agent 驱动的科研创作新体验",
+    "nav": {
+      "paper2figure": "Paper2Figure",
+      "paper2ppt": "Paper2PPT",
+      "pdf2ppt": "Pdf2PPT",
+      "ppt2polish": "PptPolish",
+      "files": "我的历史文件"
+    },
+    "footer": {
+      "ready": "就绪",
+      "version": "Paper2Any v1.0.0"
+    }
+  },
+  "userMenu": {
+    "anonymous": "匿名用户",
+    "user": "用户",
+    "identity": "当前身份",
+    "loggedIn": "已登录",
+    "guestMode": "访客模式",
+    "limited": "仅限部分功能可用",
+    "pro": "尊贵会员功能已解锁",
+    "signIn": "登录以获取完整权限",
+    "thanks": "感谢您的使用与支持",
+    "exitGuest": "退出访客模式",
+    "signOut": "退出登录"
+  },
+  "filesPage": {
+    "title": "我的历史文件",
+    "loading": "正在加载文件...",
+    "empty": {
+      "title": "暂无文件",
+      "desc": "工作流生成的文件将显示在这里"
+    },
+    "table": {
+      "fileName": "文件名",
+      "size": "大小",
+      "date": "日期",
+      "type": "类型",
+      "actions": "操作"
+    },
+    "actions": {
+      "download": "下载",
+      "delete": "删除",
+      "confirmDelete": "确定要删除 \"{{fileName}}\" 吗？",
+      "deleteError": "删除文件失败"
+    }
+  }
+}

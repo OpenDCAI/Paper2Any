@@ -1,4 +1,5 @@
 import { useState, useEffect, ChangeEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   UploadCloud, Settings2, Download, Loader2, CheckCircle2,
   AlertCircle, ChevronDown, ChevronUp, Github, Star, X, Sparkles,
@@ -37,6 +38,7 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 // ============== 主组件 ==============
 const Paper2PptPage = () => {
+  const { t } = useTranslation('paper2ppt');
   const { user, refreshQuota } = useAuthStore();
   // Step 状态
   const [currentStep, setCurrentStep] = useState<Step>('upload');
@@ -381,6 +383,17 @@ const Paper2PptPage = () => {
   };
 
   const getStyleDescription = (preset: string): string => {
+    // Note: These descriptions are sent to the backend, so they might need to stay in the language the backend expects (likely Chinese or English depending on prompt).
+    // If the backend uses these for image generation prompts, English is usually better, or keep Chinese if the model is optimized for it.
+    // For now, I will keep them hardcoded or use t() if they are just for display.
+    // But wait, these are used in `formData.append('style', ...)`
+    // If I translate them, the backend receives translated strings.
+    // Assuming backend handles it or LLM handles it.
+    // Let's use t() but ensure keys exist. I didn't add these specific long descriptions to JSON.
+    // I'll leave them as is for now to avoid breaking generation logic, or map them if I added them.
+    // I added "presets" keys but not the descriptions.
+    // Let's keep them hardcoded for safety as they are prompt inputs, unless I add them to JSON.
+    // Actually, let's leave them hardcoded for now as they are "backend values".
     const styles: Record<string, string> = {
       modern: '现代简约风格，使用干净的线条和充足的留白',
       business: '商务专业风格，稳重大气，适合企业演示',
@@ -803,10 +816,10 @@ const Paper2PptPage = () => {
   // ============== 渲染函数 ==============
   const renderStepIndicator = () => {
     const steps = [
-      { key: 'upload', label: '上传论文', num: 1 },
-      { key: 'outline', label: '大纲确认', num: 2 },
-      { key: 'generate', label: '逐页生成', num: 3 },
-      { key: 'complete', label: '完成下载', num: 4 },
+      { key: 'upload', label: t('steps.upload'), num: 1 },
+      { key: 'outline', label: t('steps.outline'), num: 2 },
+      { key: 'generate', label: t('steps.generate'), num: 3 },
+      { key: 'complete', label: t('steps.complete'), num: 4 },
     ];
     const currentIndex = steps.findIndex(s => s.key === currentStep);
     return (
@@ -839,15 +852,15 @@ const Paper2PptPage = () => {
   const renderUploadStep = () => (
     <div className="max-w-6xl mx-auto">
       <div className="mb-10 text-center">
-        <p className="text-xs uppercase tracking-[0.2em] text-purple-300 mb-3 font-semibold">PAPER → PPT</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-purple-300 mb-3 font-semibold">{t('upload.subtitle')}</p>
         <h1 className="text-4xl md:text-5xl font-bold mb-4">
           <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-rose-400 bg-clip-text text-transparent">
-            Paper2PPT
+            {t('upload.title')}
           </span>
         </h1>
         <p className="text-base text-gray-300 max-w-2xl mx-auto leading-relaxed">
-          上传论文 PDF 或输入 Topic，AI 智能分析内容并生成精美幻灯片。<br />
-          <span className="text-purple-400">支持逐页编辑、重新生成，打造完美演示文稿！</span>
+          {t('upload.desc')}<br />
+          <span className="text-purple-400">{t('upload.descHighlight')}</span>
         </p>
       </div>
 
@@ -860,9 +873,9 @@ const Paper2PptPage = () => {
           {/* 炫酷模式切换 Tabs */}
           <div className="grid grid-cols-3 gap-3 mb-6 p-1.5 bg-black/40 rounded-2xl border border-white/5">
             {[
-              { id: 'file', label: '上传文件', icon: FileText, sub: 'PDF' },
-              { id: 'text', label: '长文本', icon: Type, sub: 'Paste Content' },
-              { id: 'topic', label: 'Topic', icon: Lightbulb, sub: 'Deep Research' },
+              { id: 'file', label: t('upload.tabs.file'), icon: FileText, sub: t('upload.tabs.fileSub') },
+              { id: 'text', label: t('upload.tabs.text'), icon: Type, sub: t('upload.tabs.textSub') },
+              { id: 'topic', label: t('upload.tabs.topic'), icon: Lightbulb, sub: t('upload.tabs.topicSub') },
             ].map((item) => (
               <button 
                 key={item.id}
@@ -888,7 +901,7 @@ const Paper2PptPage = () => {
           <div className="mb-3 flex items-center gap-2 px-1">
             <span className="w-1 h-4 rounded-full bg-purple-500"></span>
             <h3 className="text-white font-medium text-sm">
-              {uploadMode === 'file' ? '请上传您的 PDF 论文或 PPT' : uploadMode === 'text' ? '请输入需要生成 PPT 的长文本' : '请输入研究主题 (Topic)'}
+              {uploadMode === 'file' ? t('upload.instruction.file') : uploadMode === 'text' ? t('upload.instruction.text') : t('upload.instruction.topic')}
             </h3>
           </div>
 
@@ -905,17 +918,17 @@ const Paper2PptPage = () => {
                 <UploadCloud size={32} className="text-purple-400" />
               </div>
               <div>
-                <p className="text-white font-medium mb-1">拖拽论文 PDF 到此处</p>
-                <p className="text-sm text-gray-400">仅支持 PDF 格式</p>
+                <p className="text-white font-medium mb-1">{t('upload.dropzone.dragText')}</p>
+                <p className="text-sm text-gray-400">{t('upload.dropzone.supportText')}</p>
               </div>
               <label className="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-medium cursor-pointer hover:from-purple-700 hover:to-pink-700 transition-all">
-                选择文件
+                {t('upload.dropzone.button')}
                 <input type="file" accept=".pdf" className="hidden" onChange={handleFileChange} />
               </label>
               {selectedFile && (
                 <div className="px-4 py-2 bg-purple-500/20 border border-purple-500/40 rounded-lg">
                   <p className="text-sm text-purple-300">✓ {selectedFile.name}</p>
-                  <p className="text-xs text-gray-400 mt-1">✨ 将分析论文内容生成 PPT</p>
+                  <p className="text-xs text-gray-400 mt-1">✨ {t('upload.dropzone.analyzing')}</p>
                 </div>
               )}
             </div>
@@ -925,12 +938,12 @@ const Paper2PptPage = () => {
                 value={textContent}
                 onChange={e => setTextContent(e.target.value)}
                 placeholder={uploadMode === 'text' 
-                  ? "请在此处粘贴长文本内容，我们将为您生成 PPT 大纲..." 
-                  : "请输入一个主题 (Topic)，我们将自动进行深度搜索并生成 PPT..."}
+                  ? t('upload.textInput.placeholderText')
+                  : t('upload.textInput.placeholderTopic')}
                 className="flex-1 w-full rounded-xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 resize-none"
               />
               <p className="text-xs text-gray-500 mt-2 text-right">
-                {uploadMode === 'text' ? `${textContent.length} 字符` : 'Deep Research Agent 将为您扩展内容'}
+                {uploadMode === 'text' ? `${textContent.length} ${t('upload.textInput.charCount')}` : t('upload.textInput.deepResearch')}
               </p>
             </div>
           )}
@@ -939,32 +952,20 @@ const Paper2PptPage = () => {
         {/* 右侧：配置区域 */}
         <div className="glass rounded-xl border border-white/10 p-6 space-y-4">
           <h3 className="text-white font-semibold flex items-center gap-2">
-            <Settings2 size={18} className="text-purple-400" /> 配置
+            <Settings2 size={18} className="text-purple-400" /> {t('upload.config.title')}
           </h3>
           
           {/* API 配置 */}
           <div className="grid grid-cols-2 gap-3">
-            {/* <div>
-              <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
-                <Key size={12} /> 邀请码 *
-              </label>
-              <input 
-                type="text" 
-                value={inviteCode} 
-                onChange={e => setInviteCode(e.target.value)}
-                placeholder="xxx-xxx"
-                className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </div> */}
             <div>
               <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
-                <Key size={12} /> API Key * （sk-开头）
+                <Key size={12} /> {t('upload.config.apiKey')}
               </label>
               <input 
                 type="password" 
                 value={apiKey} 
                 onChange={e => setApiKey(e.target.value)}
-                placeholder="sk-..."
+                placeholder={t('upload.config.apiKeyPlaceholder')}
                 className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>
@@ -974,7 +975,7 @@ const Paper2PptPage = () => {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs text-gray-400 flex items-center gap-1">
-                  <Globe size={12} /> API URL
+                  <Globe size={12} /> {t('upload.config.apiUrl')}
                 </label>
                 <QRCodeTooltip>
                 <a
@@ -983,7 +984,7 @@ const Paper2PptPage = () => {
                   rel="noopener noreferrer"
                   className="text-[10px] text-purple-300 hover:text-purple-200 hover:underline"
                 >
-                  点击购买
+                  {t('upload.config.buyLink')}
                 </a>
                 </QRCodeTooltip>
               </div>
@@ -1005,7 +1006,7 @@ const Paper2PptPage = () => {
             </div>
             <div>
               <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
-                <Cpu size={12} /> 模型
+                <Cpu size={12} /> {t('upload.config.model')}
               </label>
               <select 
                 value={model} 
@@ -1022,7 +1023,7 @@ const Paper2PptPage = () => {
           
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-gray-400 mb-1">图像生成模型（中文使用3 pro）</label>
+              <label className="block text-xs text-gray-400 mb-1">{t('upload.config.genModel')}</label>
               <select
                 value={genFigModel}
                 onChange={e => setGenFigModel(e.target.value)}
@@ -1037,7 +1038,7 @@ const Paper2PptPage = () => {
               )}
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">生成页数</label>
+              <label className="block text-xs text-gray-400 mb-1">{t('upload.config.pageCount')}</label>
               <input 
                 type="number" 
                 value={pageCount} 
@@ -1063,15 +1064,15 @@ const Paper2PptPage = () => {
               />
             </button>
             <span className="text-xs text-gray-300 cursor-pointer" onClick={() => setUseLongPaper(!useLongPaper)}>
-              启用长文档模式，适用于生成40到100页的PPT
+              {t('upload.config.longPaper')}
             </span>
           </div>
 
           <div className="border-t border-white/10 pt-4 mt-2">
-            <h4 className="text-xs text-gray-400 mb-2">风格配置</h4>
+            <h4 className="text-xs text-gray-400 mb-2">{t('upload.config.styleTitle')}</h4>
             
             <div className="mb-3">
-              <label className="block text-xs text-gray-400 mb-1">语言</label>
+              <label className="block text-xs text-gray-400 mb-1">{t('upload.config.language')}</label>
               <select 
                 value={language} 
                 onChange={e => setLanguage(e.target.value as 'zh' | 'en')} 
@@ -1092,7 +1093,7 @@ const Paper2PptPage = () => {
                     : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
                 }`}
               >
-                <Sparkles size={14} /> 风格提示词
+                <Sparkles size={14} /> {t('upload.config.styleMode.prompt')}
               </button>
               <button
                 type="button"
@@ -1103,31 +1104,31 @@ const Paper2PptPage = () => {
                     : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
                 }`}
               >
-                <UploadCloud size={14} /> 风格参考图
+                <UploadCloud size={14} /> {t('upload.config.styleMode.reference')}
               </button>
             </div>
 
             {styleMode === 'prompt' ? (
               <>
                 <div className="mb-3">
-                  <label className="block text-xs text-gray-400 mb-1">选择风格</label>
+                  <label className="block text-xs text-gray-400 mb-1">{t('upload.config.stylePreset')}</label>
                   <select 
                     value={stylePreset} 
                     onChange={e => setStylePreset(e.target.value as typeof stylePreset)} 
                     className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
                   >
-                    <option value="modern">现代简约</option>
-                    <option value="business">商务专业</option>
-                    <option value="academic">学术报告</option>
-                    <option value="creative">创意设计</option>
+                    <option value="modern">{t('upload.config.presets.modern')}</option>
+                    <option value="business">{t('upload.config.presets.business')}</option>
+                    <option value="academic">{t('upload.config.presets.academic')}</option>
+                    <option value="creative">{t('upload.config.presets.creative')}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">风格提示词</label>
+                  <label className="block text-xs text-gray-400 mb-1">{t('upload.config.promptLabel')}</label>
                   <textarea 
                     value={globalPrompt} 
                     onChange={e => setGlobalPrompt(e.target.value)} 
-                    placeholder="例如：使用紫色系配色，保持学术风格 / 多啦A梦风格 / 赛博朋克风格 ...... " 
+                    placeholder={t('upload.config.promptPlaceholder')}
                     rows={2} 
                     className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 resize-none" 
                   />
@@ -1135,7 +1136,7 @@ const Paper2PptPage = () => {
               </>
             ) : (
               <div>
-                <label className="block text-xs text-gray-400 mb-1">上传风格参考图</label>
+                <label className="block text-xs text-gray-400 mb-1">{t('upload.config.referenceLabel')}</label>
                 {referenceImagePreview ? (
                   <div className="relative">
                     <img
@@ -1150,12 +1151,12 @@ const Paper2PptPage = () => {
                     >
                       <X size={14} />
                     </button>
-                    <p className="text-[11px] text-purple-300 mt-1">✓ 已上传参考图片，将用于统一 PPT 风格</p>
+                    <p className="text-[11px] text-purple-300 mt-1">✓ {t('upload.config.referenceUploaded')}</p>
                   </div>
                 ) : (
                   <label className="border-2 border-dashed border-white/20 rounded-lg p-4 flex flex-col items-center justify-center text-center gap-2 cursor-pointer hover:border-purple-400 transition-all">
                     <UploadCloud size={20} className="text-gray-400" />
-                    <span className="text-xs text-gray-400">点击上传参考图片（JPG/PNG/WEBP/GIF）</span>
+                    <span className="text-xs text-gray-400">{t('upload.config.referenceUpload')}</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -1174,15 +1175,15 @@ const Paper2PptPage = () => {
             className="w-full py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold flex items-center justify-center gap-2 transition-all"
           >
             {isUploading ? (
-              <><Loader2 size={18} className="animate-spin" /> {uploadMode === 'topic' ? '深度研究中...' : '解析中...'}</>
+              <><Loader2 size={18} className="animate-spin" /> {uploadMode === 'topic' ? t('upload.config.startButton.researching') : t('upload.config.startButton.parsing')}</>
             ) : (
-              <><ArrowRight size={18} /> {uploadMode === 'topic' ? '开始 Research' : '开始解析'}</>
+              <><ArrowRight size={18} /> {uploadMode === 'topic' ? t('upload.config.startButton.research') : t('upload.config.startButton.parse')}</>
             )}
           </button>
 
           <div className="flex items-start gap-2 text-xs text-gray-500 mt-3 px-1">
             <Info size={14} className="mt-0.5 text-gray-400 flex-shrink-0" />
-            <p>提示：如果长时间无响应或生成失败，可能是 API 服务商不稳定。建议稍后再试，或尝试更换模型/服务商。</p>
+            <p>{t('upload.config.tip')}</p>
           </div>
 
           {isUploading && (
@@ -1218,8 +1219,8 @@ const Paper2PptPage = () => {
       {/* 示例区 */}
       <div className="space-y-4 mt-8">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-3">
-            <h3 className="text-sm font-medium text-gray-200">示例：从 Paper 到 PPTX</h3>
+            <div className="flex items-center gap-3">
+            <h3 className="text-sm font-medium text-gray-200">{t('upload.demo.title')}</h3>
             <a
               href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
               target="_blank"
@@ -1229,37 +1230,37 @@ const Paper2PptPage = () => {
               <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
               <Sparkles size={12} className="text-yellow-300 animate-pulse" />
               <span className="bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300 bg-clip-text text-transparent group-hover:from-blue-200 group-hover:via-purple-200 group-hover:to-pink-200">
-                更多案例点击：飞书文档
+                {t('upload.demo.more')}
               </span>
             </a>
           </div>
           <span className="text-[11px] text-gray-500">
-            下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果。
+            {t('upload.demo.desc')}
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           <DemoCard
-            title="论文 PDF → 学术 PPT"
-            desc="上传论文 PDF，自动提取关键信息，生成结构化的学术汇报 PPT。"
+            title={t('upload.demo.card1.title')}
+            desc={t('upload.demo.card1.desc')}
             inputImg="/paper2ppt/input_1.png"
             outputImg="/paper2ppt/ouput_1.png"
           />
           <DemoCard
-            title="论文内容 → 演示文稿"
-            desc="智能分析论文内容，生成排版精美、逻辑清晰的演示文稿。"
+            title={t('upload.demo.card2.title')}
+            desc={t('upload.demo.card2.desc')}
             inputImg="/paper2ppt/input_3.png"
             outputImg="/paper2ppt/ouput_3.png"
           />
           <DemoCard
-            title="输入长文本 → PPT"
-            desc="支持直接粘贴长文本内容，AI 自动提炼核心观点并生成 PPT 大纲。"
+            title={t('upload.demo.card3.title')}
+            desc={t('upload.demo.card3.desc')}
             inputImg="/paper2ppt/input_2.png"
             outputImg="/paper2ppt/ouput_2.png"
           />
           <DemoCard
-            title="输入PPT主题 → 符合主题内容的PPT"
-            desc="仅需输入一个主题，AI 将进行深度搜索研究，生成内容丰富、风格匹配的 PPT。"
+            title={t('upload.demo.card4.title')}
+            desc={t('upload.demo.card4.desc')}
             inputImg="/paper2ppt/input_4.png"
             outputImg="/paper2ppt/ouput_4.png"
           />
