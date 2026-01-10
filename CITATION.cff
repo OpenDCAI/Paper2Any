@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Paper2Any: Turn Paper/Text/Topic into Editable Research Figures, Technical Route Diagrams, and Presentation Slides"
+abstract: "Focus on paper multimodal workflows: from paper PDFs/screenshots/text to one-click generation of model diagrams, technical roadmaps, experimental plots, and slide decks."
+authors:
+  - family-names: "Liu"
+    given-names: "Zhou"
+  - family-names: "Guo"
+    given-names: "Ziyi"
+  - family-names: "Su"
+    given-names: "Zeli"
+  - family-names: "Huang"
+    given-names: "Ligang"
+  - alias: "Yihe"  
+    given-names: "Yihe"
+  - family-names: "Han"
+    given-names: "Zhaoyang"
+  - family-names: "Pan"
+    given-names: "Zewei"
+version: 0.1.0
+date-released: 2025-10-01
+license: Apache-2.0
+url: "https://github.com/OpenDCAI/Paper2Any"
+repository-code: "https://github.com/OpenDCAI/Paper2Any"
+keywords:
+  - "agent"
+  - "ai"
+  - "ppt-generator"
+  - "scientific-figures"
+  - "multimodal"
