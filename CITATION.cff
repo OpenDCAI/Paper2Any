@@ -17,6 +17,8 @@ authors:
     given-names: "Zhaoyang"
   - family-names: "Pan"
     given-names: "Zewei"
+  - family-names: "Zhang"
+    given-names: "Wentao"
 version: 0.1.0
 date-released: 2025-10-01
 license: Apache-2.0
