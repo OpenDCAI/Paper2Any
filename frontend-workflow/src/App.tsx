@@ -4,6 +4,7 @@ import Paper2GraphPage from './components/Paper2GraphPage';
 import Paper2PptPage from './components/Paper2PptPage';
 import Pdf2PptPage from './components/Pdf2PptPage';
 import Ppt2PolishPage from './components/Ppt2PolishPage';
+import KnowledgeBasePage from './components/KnowledgeBasePage';
 import { FilesPage } from './components/FilesPage';
 import { useTranslation } from 'react-i18next';
 import { QuotaDisplay } from './components/QuotaDisplay';
@@ -13,7 +14,7 @@ import { Workflow } from 'lucide-react';
 
 function App() {
   const { t } = useTranslation('common');
-  const [activePage, setActivePage] = useState<'paper2figure' | 'paper2ppt' | 'pdf2ppt' | 'ppt2polish' | 'files'>('paper2figure');
+  const [activePage, setActivePage] = useState<'paper2figure' | 'paper2ppt' | 'pdf2ppt' | 'ppt2polish' | 'knowledge' | 'files'>('paper2figure');
 
   return (
     <div className="w-screen h-screen bg-[#0a0a1a] overflow-hidden relative">
@@ -81,6 +82,16 @@ function App() {
                 {t('app.nav.ppt2polish')}
               </button>
               <button
+                onClick={() => setActivePage('knowledge')}
+                className={`px-3 py-1.5 rounded-full text-sm ${
+                  activePage === 'knowledge'
+                    ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow'
+                    : 'glass text-gray-300 hover:bg-white/10'
+                }`}
+              >
+                {t('app.nav.knowledge')}
+              </button>
+              <button
                 onClick={() => setActivePage('files')}
                 className={`px-3 py-1.5 rounded-full text-sm ${
                   activePage === 'files'
@@ -109,6 +120,7 @@ function App() {
           {activePage === 'paper2ppt' && <Paper2PptPage />}
           {activePage === 'pdf2ppt' && <Pdf2PptPage />}
           {activePage === 'ppt2polish' && <Ppt2PolishPage />}
+          {activePage === 'knowledge' && <KnowledgeBasePage />}
           {activePage === 'files' && <FilesPage />}
         </div>
       </main>
