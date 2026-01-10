@@ -183,7 +183,7 @@ const Ppt2PolishPage = () => {
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-5.1');
-  const [genFigModel, setGenFigModel] = useState('gemini-2.5-flash-image');
+  const [genFigModel, setGenFigModel] = useState('gemini-3-pro-image-preview');
   const [language, setLanguage] = useState<'zh' | 'en'>('en');
   const [resultPath, setResultPath] = useState<string | null>(null);
 
@@ -1224,23 +1224,10 @@ const Ppt2PolishPage = () => {
               className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
-              <option value="gemini-2.5-flash-image">gemini-2.5-flash-image</option>
             </select>
             {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
                <p className="text-[10px] text-gray-500 mt-1">此源仅支持 gemini-3-pro</p>
             )}
-          </div>
-          
-          <div>
-            <label className="block text-sm text-gray-300 mb-2">生成语言</label>
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value as 'zh' | 'en')}
-              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
-            >
-              <option value="zh">中文 (zh)</option>
-              <option value="en">英文 (en)</option>
-            </select>
           </div>
           
           <div className="border-t border-white/10 pt-4">
