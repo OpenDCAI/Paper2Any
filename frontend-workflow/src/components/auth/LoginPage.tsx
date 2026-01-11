@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "../../stores/authStore";
 import { Mail, Lock, AlertCircle, Loader2, ArrowRight, Sparkles, FileText, Presentation, Palette } from "lucide-react";
 
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function LoginPage({ onSwitchToRegister, footer }: Props) {
+  const { t } = useTranslation('login');
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   
@@ -23,32 +25,32 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
   const features = [
     {
       icon: Sparkles,
-      title: "Paper2Figure",
-      desc: "论文一键转科研绘图",
+      title: t('features.paper2figure.title'),
+      desc: t('features.paper2figure.desc'),
       color: "text-purple-400",
       bg: "bg-purple-500/10",
       border: "border-purple-500/20"
     },
     {
       icon: FileText,
-      title: "Paper2PPT",
-      desc: "论文内容智能生成 PPT，支持超级长PPT",
+      title: t('features.paper2ppt.title'),
+      desc: t('features.paper2ppt.desc'),
       color: "text-blue-400",
       bg: "bg-blue-500/10",
       border: "border-blue-500/20"
     },
     {
       icon: Presentation,
-      title: "PDF2PPT",
-      desc: "PDF版本PPT转文字图标可编辑",
+      title: t('features.pdf2ppt.title'),
+      desc: t('features.pdf2ppt.desc'),
       color: "text-pink-400",
       bg: "bg-pink-500/10",
       border: "border-pink-500/20"
     },
     {
       icon: Palette,
-      title: "PPT Polish",
-      desc: "专业级 PPT 智能润色",
+      title: t('features.pptPolish.title'),
+      desc: t('features.pptPolish.desc'),
       color: "text-emerald-400",
       bg: "bg-emerald-500/10",
       border: "border-emerald-500/20"
@@ -85,10 +87,10 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
         <div className="hidden lg:flex flex-col justify-center space-y-8 pr-8">
           <div>
             <h1 className="text-5xl font-bold text-white mb-4 leading-tight">
-              Paper to <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">Any</span>
+              {t('heroTitlePrefix')} <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">Any</span>
             </h1>
             <p className="text-gray-400 text-lg max-w-md">
-              一站式 AI 科研与演示文稿助手，让知识流动更自由，让创作更简单。
+              {t('heroDesc')}
             </p>
           </div>
 
@@ -125,12 +127,12 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
         {/* 右侧：登录表单 */}
         <div className="glass-dark p-8 md:p-10 rounded-2xl w-full border border-white/10 shadow-2xl backdrop-blur-xl bg-black/40">
           <div className="lg:hidden mb-8 text-center">
-             <h2 className="text-3xl font-bold text-white mb-2">Paper2Any</h2>
-             <p className="text-gray-400 text-sm">AI 驱动的科研与演示助手</p>
+             <h2 className="text-3xl font-bold text-white mb-2">{t('title')}</h2>
+             <p className="text-gray-400 text-sm">{t('subtitle')}</p>
           </div>
 
-          <h2 className="text-2xl font-bold text-white mb-2">欢迎回来 👋</h2>
-          <p className="text-gray-400 mb-8 text-sm">登录您的账户以继续使用</p>
+          <h2 className="text-2xl font-bold text-white mb-2">{t('welcome')}</h2>
+          <p className="text-gray-400 mb-8 text-sm">{t('loginSubtitle')}</p>
 
           {error && (
             <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3 text-red-300 animate-in fade-in slide-in-from-top-2">
@@ -141,7 +143,7 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-gray-400 ml-1">电子邮箱</label>
+              <label className="block text-xs font-medium text-gray-400 ml-1">{t('emailLabel')}</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Mail className="text-gray-500 group-focus-within:text-purple-400 transition-colors" size={18} />
@@ -151,7 +153,7 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
-                  placeholder="name@example.com"
+                  placeholder={t('emailPlaceholder')}
                   required
                   disabled={loading}
                 />
@@ -160,7 +162,7 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
 
             <div className="space-y-1.5">
               <div className="flex justify-between items-center ml-1">
-                <label className="block text-xs font-medium text-gray-400">密码</label>
+                <label className="block text-xs font-medium text-gray-400">{t('passwordLabel')}</label>
                 {/* <a href="#" className="text-xs text-purple-400 hover:text-purple-300 transition-colors">忘记密码？</a> */}
               </div>
               <div className="relative group">
@@ -172,7 +174,7 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
-                  placeholder="请输入您的密码"
+                  placeholder={t('passwordPlaceholder')}
                   required
                   disabled={loading}
                 />
@@ -187,11 +189,11 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
               {loading ? (
                 <>
                   <Loader2 size={20} className="animate-spin" />
-                  <span>正在登录...</span>
+                  <span>{t('loggingIn')}</span>
                 </>
               ) : (
                 <>
-                  <span>立即登录</span>
+                  <span>{t('loginButton')}</span>
                   <ArrowRight size={18} />
                 </>
               )}
@@ -200,12 +202,12 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
 
           <div className="mt-8 text-center">
             <p className="text-gray-400 text-sm">
-              还没有账号？{" "}
+              {t('noAccount')}{" "}
               <button
                 onClick={onSwitchToRegister}
                 className="text-purple-400 hover:text-purple-300 font-medium hover:underline transition-colors"
               >
-                免费注册
+                {t('registerLink')}
               </button>
             </p>
           </div>

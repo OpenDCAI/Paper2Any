@@ -1,0 +1,122 @@
+{
+  "hero": {
+    "badge": "PAPER → EDITABLE PPTX",
+    "title": "一键根据论文内容绘制（可编辑）科研绘图",
+    "subtitle": "上传论文 PDF / 图片，或直接粘贴文字，一键生成可编辑的 科研绘图PPTX，方便你继续修改、增删和排版。"
+  },
+  "graphType": {
+    "label": "绘图类型",
+    "model_arch": "模型架构图",
+    "tech_route": "技术路线图",
+    "exp_data": "实验数据图"
+  },
+  "uploadTabs": {
+    "file": "文件",
+    "fileSub": "PDF",
+    "text": "文本",
+    "textSub": "Text Content",
+    "image": "图片",
+    "imageSub": "Image"
+  },
+  "upload": {
+    "fileDragTitleFile": "拖拽 PDF 到此处，或点击选择文件",
+    "fileDragTitleImage": "拖拽图片到此处，或点击选择文件",
+    "fileHint": "支持 PDF、PNG、JPG 等格式，单个文件建议小于 20MB。",
+    "selectFile": "选择文件",
+    "textLabel": "粘贴论文摘要、章节内容或任意需要做成 PPT 的文字",
+    "textPlaceholder": "在这里粘贴论文的摘要、章节内容，或任意需要转换为 PPTX 的文本（支持中英文）...",
+    "textTip": "建议控制在 5,000 字以内，过长内容可以分段多次生成 PPTX。"
+  },
+  "advanced": {
+    "title": "模型配置（高级设置）",
+    "apiUrlLabel": "模型 API URL",
+    "buyLink": "点击购买",
+    "apiKeyLabel": "API Key (sk- 开头)",
+    "apiKeyPlaceholder": "用于调用 OpenAI / 兼容模型的 API Key",
+    "modelLabel": "模型选择",
+    "modelOnlyHint": "此源仅支持 gemini-3-pro",
+    "figureComplexLabel": "绘图难度",
+    "figureComplex": {
+      "easy": "简单",
+      "mid": "中等",
+      "hard": "复杂"
+    },
+    "languageLabel": "语言",
+    "language": {
+      "zh": "中文",
+      "en": "英文"
+    },
+    "styleLabel": "风格",
+    "style": {
+      "cartoon": "卡通",
+      "realistic": "写实",
+      "lowPoly": "低多边形",
+      "lego": "乐高风"
+    }
+  },
+  "submit": {
+    "buttonIdle": "生成可编辑 PPTX",
+    "buttonLoading": "生成中...",
+    "hintTitle": "提示",
+    "hintText": "提示：如果长时间无响应或生成失败，可能是 API 服务商不稳定。建议稍后再试，或尝试更换模型/服务商。"
+  },
+  "progress": {
+    "stage1": "正在分析论文内容...",
+    "stage2": "正在生成科研绘图...",
+    "stage3": "正在转为可编辑绘图...",
+    "stage4": "正在合成 PPT...",
+    "eta": "预计需要 2-5 分钟，请耐心等待..."
+  },
+  "download": {
+    "reDownload": "重新下载：{{filename}}"
+  },
+  "techRoute": {
+    "pptDownload": "下载技术路线图 PPT：{{filename}}",
+    "pptCopyHintTitle": "如果下载失败，请复制下面链接到浏览器地址栏打开：",
+    "svgDownload": "下载 SVG 源文件：{{filename}}",
+    "svgPreviewTitle": "SVG 预览（PNG 渲染图）"
+  },
+  "validating": {
+    "apiKey": "正在验证 API Key 有效性..."
+  },
+  "errors": {
+    "fileTooLarge": "文件大小超过 20MB 限制",
+    "unsupportedFile": "仅支持 PDF 和常见图片格式，请检查文件类型",
+    "noFile": "请先选择要上传的文件或图片",
+    "noText": "请输入要转换为 PPTX 的文本内容",
+    "quotaUserExhausted": "今日配额已用完（10次/天），请明天再试",
+    "quotaGuestExhausted": "今日配额已用完（5次/天），登录后可获得更多配额",
+    "missingApiConfig": "请先配置模型 API URL 和 API Key",
+    "techRouteNoImage": "技术路线图和实验数据图不支持图片输入",
+    "expDataNoImage": "实验数据图仅支持 PDF 输入，不支持图片",
+    "expDataFileOnly": "实验数据图仅支持 PDF 文件输入",
+    "inviteInvalid": "邀请码不正确或已失效",
+    "tooManyRequests": "请求过于频繁，请稍后再试",
+    "serverBusy": "服务器繁忙，请稍后再试"
+  },
+  "success": {
+    "pptGenerated": "PPTX 已生成，正在下载...",
+    "techRouteGenerated": "技术路线图已生成，可下载 PPT / SVG 或直接预览 PNG"
+  },
+  "examples": {
+    "sectionTitle": "示例：从 Paper 到 PPTX",
+    "sectionSubtitle": "下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果。",
+    "feishuLink": "更多案例点击：飞书文档",
+    "cards": {
+      "paperPdfToFigureTitle": "论文 PDF → 符合论文主题的 科研绘图（PPT）",
+      "paperPdfToFigureDesc": "上传英文论文 PDF，自动提炼研究背景、方法、实验设计和结论，生成结构清晰、符合学术风格的汇报 PPTX。",
+      "figureScreenshotToPptTitle": "科研配图 / 示意图截图 → 可编辑 PPTX",
+      "figureScreenshotToPptDesc": "上传科研配图或示意图截图，自动识别段落层级与要点，自动排版为可编辑的英文 PPTX。",
+      "abstractTextToPptTitle": "论文摘要文本 → 科研绘图 PPTX",
+      "abstractTextToPptDesc": "粘贴论文摘要或章节内容，一键生成包含标题层级、关键要点与图示占位的 PPTX 大纲，方便后续细化与美化。",
+      "pdfToTechRouteTitle": "论文 PDF → 符合论文主题的 技术路线图 PPT + SVG",
+      "pdfToTechRouteDesc": "根据论文方法部分，自动梳理技术路线与模块依赖关系，生成清晰的技术路线图 PPTX 与 SVG 示意图。",
+      "textToTechRouteTitle": "论文摘要文本 → 符合论文主题的 技术路线图 PPT + SVG",
+      "textToTechRouteDesc": "从整篇技术方案 PDF 中提取关键步骤与时间轴，自动生成技术路线时间线 PPTX 与 SVG。",
+      "pdfToExpDataTitle": "论文 PDF → 自动提取实验数据 绘制成 PPT",
+      "pdfToExpDataDesc": "从论文实验部分 PDF 中提取表格与结果描述，自动生成对比柱状图 / 折线图 PPTX，便于直观展示结果。",
+      "tableTextToExpDataTitle": "论文实验表格文本 → 自动整理实验数据 绘制成 PPT",
+      "tableTextToExpDataDesc": "从文本形式的实验结果描述中抽取指标与对照组，一键生成适合汇报的实验结果 PPTX。"
+    }
+  }
+}

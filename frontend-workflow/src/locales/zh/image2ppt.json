@@ -1,0 +1,67 @@
+{
+  "title": "Image2PPT",
+  "subtitle": "Image → PPTX",
+  "desc": "上传图片或截图，智能提取元素并转为可编辑 PPT。",
+  "descHighlight": "一键转换，静态图变演示文稿！",
+  "dropzone": {
+    "dragText": "拖拽图片文件到这里",
+    "clickText": "或点击下方按钮选择",
+    "button": "选择图片",
+    "fileInfo": "✓ {{name}}",
+    "fileSize": "{{size}} MB"
+  },
+  "config": {
+    "aiEdit": "AI 智能增强（推荐）",
+    "aiEditDesc": "使用大模型分析布局结构，优化内容提取效果。",
+    "apiUrl": "API 地址",
+    "buyLink": "购买 Key",
+    "apiKey": "API Key",
+    "genModel": "分析模型",
+    "validating": "验证 API Key..."
+  },
+  "status": {
+    "uploading": "正在上传图片...",
+    "analyzing": "正在分析图像结构...",
+    "extracting": "正在提取文本与元素...",
+    "extractingIcon": "正在处理视觉组件...",
+    "generating": "正在生成 PPT 页面...",
+    "exporting": "正在导出文件...",
+    "complete": "转换完成！"
+  },
+  "action": {
+    "convert": "开始转换",
+    "converting": "转换中...",
+    "download": "下载 PPT",
+    "reset": "转换新图片"
+  },
+  "complete": {
+    "title": "转换完成！",
+    "desc": "您的 PPT 文件已准备好下载"
+  },
+  "footer": {
+    "support": "支持格式: PNG, JPG, JPEG | 最大限制: 20MB"
+  },
+  "demo": {
+    "title": "示例：从图片到可编辑 PPTX",
+    "more": "更多案例",
+    "desc": "查看静态图片如何转换为分层可编辑的 PPT 页面。",
+    "card1": {
+      "title": "图表转换",
+      "desc": "将技术架构图转换为可编辑的形状和文本。"
+    },
+    "card2": {
+      "title": "幻灯片截图还原",
+      "desc": "将演示文稿的截图还原为可编辑的幻灯片页面。"
+    }
+  },
+  "errors": {
+    "imgOnly": "仅支持图片格式 (PNG, JPG)",
+    "sizeLimit": "文件大小超过 20MB 限制",
+    "selectFile": "请先选择图片文件",
+    "quotaFull": "今日配额已用完",
+    "enterKey": "开启 AI 增强需要 API Key",
+    "enterUrl": "开启 AI 增强需要 API URL",
+    "apiFail": "API 验证失败",
+    "serverBusy": "服务器繁忙，请稍后再试"
+  }
+}

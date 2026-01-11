@@ -1409,7 +1409,7 @@ if __name__ == "__main__":
     - 识别结果会打印在终端，并把画好检测框的图片保存到指定路径
     """
     # 测试图片路径（也是可视化输出路径）
-    img_path = f"{get_project_root()}/tests/test_02.png"
+    img_path = f"{get_project_root()}/tests/fig_1767604887.png"
 
     if not os.path.exists(img_path):
         raise FileNotFoundError(f"测试图片不存在: {img_path}")
