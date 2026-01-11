@@ -92,7 +92,7 @@ function App() {
               >
                 {t('app.nav.ppt2polish')}
               </button>
-              <button
+              {/* <button
                 onClick={() => setActivePage('knowledge')}
                 className={`px-3 py-1.5 rounded-full text-sm ${
                   activePage === 'knowledge'
@@ -101,7 +101,7 @@ function App() {
                 }`}
               >
                 {t('app.nav.knowledge')}
-              </button>
+              </button> */}
               <button
                 onClick={() => setActivePage('files')}
                 className={`px-3 py-1.5 rounded-full text-sm ${

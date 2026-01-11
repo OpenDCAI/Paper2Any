@@ -1,5 +1,6 @@
 import React from 'react';
 import { Github, Star, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface BannerProps {
   show: boolean;
@@ -12,6 +13,7 @@ interface BannerProps {
 }
 
 const Banner: React.FC<BannerProps> = ({ show, onClose, stars }) => {
+  const { t } = useTranslation('common');
   if (!show) return null;
 
   return (
@@ -30,11 +32,11 @@ const Banner: React.FC<BannerProps> = ({ show, onClose, stars }) => {
             className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 hover:bg-white/30 transition-colors"
           >
             <Star size={16} className="text-yellow-300 fill-yellow-300 animate-pulse" />
-            <span className="text-xs font-bold text-white">GitHub开源项目</span>
+            <span className="text-xs font-bold text-white">{t('app.githubProject')}</span>
           </a>
           
           <span className="text-sm font-medium text-white">
-            🚀 探索更多 AI 数据处理工具
+            {t('app.exploreMore')}
           </span>
         </div>
 
