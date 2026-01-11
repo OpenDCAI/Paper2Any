@@ -893,11 +893,8 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         elif(state.request.input_type == "TEXT"):
             log.critical(f'进入TEXT node ......')
             return "figure_desc_generator"
-        elif(state.request.input_type == "FIGURE"):
-            log.critical(f'进入FIGURE node ......')
-            return "figure_layout_sam"
         else:
-            log.error(f"Invalid input type: {state.request.input_type}")
+            log.error(f"Invalid input type: {state.request.input_type}. Only PDF and TEXT are supported.")
             return "_end_"
 
     def _init_result_path(state: Paper2FigureState) -> Paper2FigureState:

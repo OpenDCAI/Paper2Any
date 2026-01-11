@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Literal
 from dataflow_agent.utils import get_project_root
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ============================================================
@@ -40,6 +40,13 @@ from pydantic import BaseModel
 class APIError(BaseModel):
     code: str
     message: str
+
+
+class ErrorResponse(BaseModel):
+    """统一错误响应模型"""
+    error: str
+    code: str = "INTERNAL_ERROR"  # 错误代码，如VALIDATION_ERROR, WORKFLOW_ERROR等
+    details: Optional[Dict] = None
 
 
 # ===================== paper2video相关 =====================
@@ -137,6 +144,13 @@ class Paper2FigureRequest(BaseModel):
 
     invite_code: str = ""
 
+    # ---------------------- 重新生成/编辑相关 ----------------------
+    edit_prompt: str = ""
+    # 用户重新生成时提供的提示词
+
+    prev_image: str = ""
+    # 上一次生成的图片路径（用于 image-to-image 或 edit 模式）
+
     # ---------------------- 兼容 dict 风格访问 ----------------------
     def get(self, key: str, default=None):
         """
@@ -155,6 +169,57 @@ class Paper2FigureResponse(BaseModel):
 
 
 # ===================== paper2ppt 相关 =====================
+
+class PageContentRequest(BaseModel):
+    """专用于pagecontent生成的请求模型"""
+    chat_api_url: str
+    api_key: str
+    invite_code: Optional[str] = None
+    input_type: Literal["text", "pdf", "pptx", "topic"]
+    file: Optional[Any] = None  # UploadFile 在路由层处理，这里用Any占位
+    text: Optional[str] = None
+    model: str = "gpt-5.1"
+    language: str = "zh"
+    style: str = ""
+    reference_img: Optional[Any] = None
+    gen_fig_model: str = Field(...)
+    page_count: int = 5
+    use_long_paper: str = "false"
+
+
+class PPTGenerationRequest(BaseModel):
+    """专用于PPT生成/编辑的请求模型"""
+    img_gen_model_name: str
+    chat_api_url: str
+    api_key: str
+    invite_code: Optional[str] = None
+    style: str = ""
+    reference_img: Optional[Any] = None
+    aspect_ratio: str = "16:9"
+    language: str = "en"
+    model: str = "gpt-5.1"
+    get_down: str = "false"
+    all_edited_down: str = "false"
+    result_path: str
+    pagecontent: Optional[str] = None
+    page_id: Optional[int] = None
+    edit_prompt: Optional[str] = None
+
+
+class FullPipelineRequest(BaseModel):
+    """专用于完整流水线的请求模型"""
+    img_gen_model_name: str
+    chat_api_url: str
+    api_key: str
+    invite_code: Optional[str] = None
+    input_type: Literal["text", "pdf", "pptx"]
+    file: Optional[Any] = None
+    text: Optional[str] = None
+    language: str = "zh"
+    aspect_ratio: str = "16:9"
+    style: str = ""
+    model: str = "gpt-5.1"
+    use_long_paper: str = "false"
 
 
 class Paper2PPTRequest(BaseModel):
@@ -181,7 +246,7 @@ class Paper2PPTRequest(BaseModel):
     # bg_rm_model: str = f"{get_project_root()}/models/RMBG-2.0"
 
     # ---------------------- 输入类型设置 ----------------------
-    input_type: Literal["PDF", "TEXT", "PPT", "TOPIC"] = "PDF"
+    input_type: Literal["PDF", "TEXT", "PPT", "TOPIC", "FIGURE"] = "PDF"
     input_content: str = ""
 
     # ---------------------- 输出图像比例设置 ----------------------

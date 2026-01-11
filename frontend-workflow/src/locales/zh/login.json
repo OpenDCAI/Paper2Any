@@ -1,0 +1,34 @@
+{
+  "welcome": "欢迎回来 👋",
+  "loginSubtitle": "登录您的账户以继续使用",
+  "emailLabel": "电子邮箱",
+  "emailPlaceholder": "name@example.com",
+  "passwordLabel": "密码",
+  "passwordPlaceholder": "请输入您的密码",
+  "loginButton": "立即登录",
+  "loggingIn": "正在登录...",
+  "noAccount": "还没有账号？",
+  "registerLink": "免费注册",
+  "title": "Paper2Any",
+  "subtitle": "AI 驱动的科研与演示助手",
+  "heroTitlePrefix": "Paper to",
+  "heroDesc": "一站式 AI 科研与演示文稿助手，让知识流动更自由，让创作更简单。",
+  "features": {
+    "paper2figure": {
+      "title": "Paper2Figure",
+      "desc": "论文一键转科研绘图"
+    },
+    "paper2ppt": {
+      "title": "Paper2PPT",
+      "desc": "论文内容智能生成 PPT，支持超级长PPT"
+    },
+    "pdf2ppt": {
+      "title": "PDF2PPT",
+      "desc": "PDF版本PPT转文字图标可编辑"
+    },
+    "pptPolish": {
+      "title": "PPT Polish",
+      "desc": "专业级 PPT 智能润色"
+    }
+  }
+}

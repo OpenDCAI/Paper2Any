@@ -1,0 +1,177 @@
+{
+  "steps": {
+    "upload": "上传论文",
+    "outline": "大纲确认",
+    "generate": "逐页生成",
+    "complete": "完成下载"
+  },
+  "upload": {
+    "subtitle": "PAPER → PPT",
+    "title": "Paper2PPT",
+    "desc": "上传论文 PDF 或输入 Topic，AI 智能分析内容并生成精美幻灯片。",
+    "descHighlight": "支持逐页编辑、重新生成，打造完美演示文稿！",
+    "tabs": {
+      "file": "上传文件",
+      "text": "长文本",
+      "topic": "Topic",
+      "fileSub": "PDF",
+      "textSub": "Paste Content",
+      "topicSub": "Deep Research"
+    },
+    "instruction": {
+      "file": "请上传您的 PDF 论文或 PPT",
+      "text": "请输入需要生成 PPT 的长文本",
+      "topic": "请输入研究主题 (Topic)"
+    },
+    "dropzone": {
+      "dragText": "拖拽论文 PDF 到此处",
+      "supportText": "仅支持 PDF 格式",
+      "button": "选择文件",
+      "analyzing": "将分析论文内容生成 PPT"
+    },
+    "textInput": {
+      "placeholderText": "请在此处粘贴长文本内容，我们将为您生成 PPT 大纲...",
+      "placeholderTopic": "请输入一个主题 (Topic)，我们将自动进行深度搜索并生成 PPT...",
+      "charCount": "字符",
+      "deepResearch": "Deep Research Agent 将为您扩展内容"
+    },
+    "config": {
+      "title": "配置",
+      "apiKey": "API Key * （sk-开头）",
+      "apiKeyPlaceholder": "sk-...",
+      "apiUrl": "API URL",
+      "buyLink": "点击购买",
+      "model": "模型",
+      "genModel": "图像生成模型（中文使用3 pro）",
+      "pageCount": "生成页数",
+      "longPaper": "启用长文档模式，适用于生成40到100页的PPT",
+      "styleTitle": "风格配置",
+      "language": "语言",
+      "styleMode": {
+        "prompt": "风格提示词",
+        "reference": "风格参考图"
+      },
+      "stylePreset": "选择风格",
+      "presets": {
+        "modern": "现代简约",
+        "business": "商务专业",
+        "academic": "学术报告",
+        "creative": "创意设计"
+      },
+      "promptLabel": "风格提示词",
+      "promptPlaceholder": "例如：使用紫色系配色，保持学术风格...",
+      "referenceLabel": "上传风格参考图",
+      "referenceUploaded": "已上传参考图片，将用于统一 PPT 风格",
+      "referenceUpload": "点击上传参考图片（JPG/PNG/WEBP/GIF）",
+      "startButton": {
+        "research": "开始 Research",
+        "parse": "开始解析",
+        "researching": "深度研究中...",
+        "parsing": "解析中..."
+      },
+      "tip": "提示：如果长时间无响应或生成失败，可能是 API 服务商不稳定。建议稍后再试，或尝试更换模型/服务商。"
+    },
+    "progress": {
+      "preparing": "正在内容准备...",
+      "parsing": "正在解析内容...",
+      "analyzing": "正在分析结构...",
+      "extracting": "正在提取关键点...",
+      "generating": "正在生成大纲...",
+      "done": "解析完成！"
+    },
+    "demo": {
+      "title": "示例：从 Paper 到 PPTX",
+      "more": "更多案例点击：飞书文档",
+      "desc": "下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果。",
+      "card1": {
+        "title": "论文 PDF → 学术 PPT",
+        "desc": "上传论文 PDF，自动提取关键信息，生成结构化的学术汇报 PPT。"
+      },
+      "card2": {
+        "title": "论文内容 → 演示文稿",
+        "desc": "智能分析论文内容，生成排版精美、逻辑清晰的演示文稿。"
+      },
+      "card3": {
+        "title": "输入长文本 → PPT",
+        "desc": "支持直接粘贴长文本内容，AI 自动提炼核心观点并生成 PPT 大纲。"
+      },
+      "card4": {
+        "title": "输入PPT主题 → 符合主题内容的PPT",
+        "desc": "仅需输入一个主题，AI 将进行深度搜索研究，生成内容丰富、风格匹配的 PPT。"
+      }
+    }
+  },
+  "outline": {
+    "title": "确认大纲",
+    "subtitle": "检查从论文提取的内容结构，可编辑、排序或删除",
+    "edit": {
+      "titlePlaceholder": "标题",
+      "layoutPlaceholder": "布局描述",
+      "pointPlaceholder": "要点",
+      "addPoint": "+ 添加要点",
+      "save": "保存",
+      "cancel": "取消"
+    },
+    "back": "返回上传",
+    "confirm": "确认并开始生成"
+  },
+  "generate": {
+    "title": "逐页生成",
+    "subtitle": "页",
+    "layout": "布局描述",
+    "points": "要点内容",
+    "aiResult": "AI 生成结果",
+    "status": {
+      "batch": "正在批量生成所有页面...",
+      "single": "正在重新生成当前页...",
+      "batchDesc": "页，请稍候",
+      "singleDesc": "AI 正在根据您的提示重新创建",
+      "waiting": "等待生成"
+    },
+    "regeneratePlaceholder": "输入微调 Prompt，然后点击重新生成...",
+    "regenerate": "重新生成",
+    "back": "返回大纲",
+    "prev": "上一页",
+    "next": "确认并继续",
+    "finish": "完成生成"
+  },
+  "complete": {
+    "title": "生成完成！",
+    "subtitle": "共处理 {{total}} 页，成功生成 {{done}} 页",
+    "preview": "生成结果预览",
+    "generateFinal": "生成最终文件",
+    "generating": "正在生成最终文件...",
+    "downloadPdf": "下载 PDF",
+    "pdf2pptLink": "如果需要继续 PDF 转可编辑 PPTX，请前往",
+    "pdf2pptText": "PDF2PPT 页面",
+    "new": "处理新的论文",
+    "share": {
+      "title": "获取免费 API Key",
+      "desc": "点击下方平台图标复制推广文案\n分享至朋友圈/小红书/推特，截图联系微信群管理员领 Key！",
+      "wechat": "微信",
+      "rednote": "小红书",
+      "twitter": "Twitter",
+      "copy": "复制",
+      "copied": "文案已复制！快去分享吧",
+      "star": "如果本项目对你有帮助，可以点个star嘛～"
+    },
+    "group": {
+      "title": "加入交流群",
+      "desc": "效果满意？遇到问题？\n欢迎扫码加入交流群反馈与讨论",
+      "scan": "扫码加入微信交流群"
+    }
+  },
+  "errors": {
+    "pdfOnly": "仅支持 PDF 格式",
+    "sizeLimit": "文件大小超过 50MB 限制",
+    "imageFormat": "参考图片仅支持 JPG/PNG/WEBP/GIF 格式",
+    "selectFile": "请先选择 PDF 文件",
+    "enterText": "请输入长文本内容",
+    "enterTopic": "请输入 Topic 主题",
+    "enterKey": "请输入 API Key",
+    "quotaFull": "今日配额已用完",
+    "serverBusy": "服务器繁忙，请稍后再试",
+    "noResultPath": "缺少 result_path",
+    "enterPrompt": "请输入重新生成的提示词"
+  }
+}
