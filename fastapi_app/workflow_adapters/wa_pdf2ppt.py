@@ -98,7 +98,8 @@ async def run_pdf2ppt_wf_api(req: Paper2PPTRequest) -> Paper2PPTResponse:
 
     # final_state: Paper2FigureState = await run_workflow("pdf2ppt_with_sam_ocr_mineru", state)
     # 换成并行处理了；
-    final_state: Paper2FigureState = await run_workflow("pdf2ppt_parallel", state)
+    # final_state: Paper2FigureState = await run_workflow("pdf2ppt_parallel", state)
+    final_state: Paper2FigureState = await run_workflow("pdf2ppt_optimized", state)
 
     ppt_path_value = final_state["ppt_path"]
     if not ppt_path_value:

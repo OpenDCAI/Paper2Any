@@ -202,6 +202,8 @@ class Paper2AnyService:
         graph_type: str,
         language: str,
         style: str,
+        figure_complex: str = "easy",
+        edit_prompt: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         执行 paper2figure 生成，返回 JSON 响应数据（包含 URL）。
@@ -240,7 +242,9 @@ class Paper2AnyService:
             aspect_ratio="16:9",
             graph_type=graph_type,
             style=style,
+            figure_complex=figure_complex,
             invite_code=invite_code or "",
+            edit_prompt=edit_prompt or "",
         )
 
         # 5. 执行 workflow
@@ -367,10 +371,18 @@ class Paper2AnyService:
                     status_code=400,
                     detail="text is required when input_type is 'text'",
                 )
+        elif input_type == "FIGURE":
+            # FIGURE 模式下，可能是重新生成（传入URL/path在text里），也可能是上传图片（但这种情况通常用 input_type=image）
+            # 这里宽松校验，允许 text 不为空
+            if not text and not file:
+                raise HTTPException(
+                    status_code=400,
+                    detail="text (image path) or file is required when input_type is 'FIGURE'",
+                )
         else:
             raise HTTPException(
                 status_code=400,
-                detail="invalid input_type, must be one of: file, text, image",
+                detail="invalid input_type, must be one of: file, text, image, FIGURE",
             )
 
     async def _save_and_prepare_input(
@@ -402,5 +414,20 @@ class Paper2AnyService:
             input_path = input_dir / "input.txt"
             input_path.write_text(text or "", encoding="utf-8")
             return "TEXT", text or ""
+        elif input_type == "FIGURE":
+            # 如果是 FIGURE 模式
+            if file:
+                # 依然支持上传文件
+                original_name = file.filename or "uploaded.png"
+                ext = Path(original_name).suffix or ".png"
+                input_path = input_dir / f"input{ext}"
+                content_bytes = await file.read()
+                input_path.write_bytes(content_bytes)
+                return "FIGURE", str(input_path)
+            else:
+                # 认为是传入了图片路径或 URL (在 text 字段)
+                # 简单起见，直接透传 text 作为 input_content
+                # 后续 workflow 需自行处理该路径/URL
+                return "FIGURE", text or ""
         else:
             raise HTTPException(status_code=400, detail="unsupported input_type")

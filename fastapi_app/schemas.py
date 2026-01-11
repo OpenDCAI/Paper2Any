@@ -144,6 +144,13 @@ class Paper2FigureRequest(BaseModel):
 
     invite_code: str = ""
 
+    # ---------------------- 重新生成/编辑相关 ----------------------
+    edit_prompt: str = ""
+    # 用户重新生成时提供的提示词
+
+    prev_image: str = ""
+    # 上一次生成的图片路径（用于 image-to-image 或 edit 模式）
+
     # ---------------------- 兼容 dict 风格访问 ----------------------
     def get(self, key: str, default=None):
         """
@@ -239,7 +246,7 @@ class Paper2PPTRequest(BaseModel):
     # bg_rm_model: str = f"{get_project_root()}/models/RMBG-2.0"
 
     # ---------------------- 输入类型设置 ----------------------
-    input_type: Literal["PDF", "TEXT", "PPT", "TOPIC"] = "PDF"
+    input_type: Literal["PDF", "TEXT", "PPT", "TOPIC", "FIGURE"] = "PDF"
     input_content: str = ""
 
     # ---------------------- 输出图像比例设置 ----------------------

@@ -94,6 +94,8 @@ async def generate_paper2figure_json(
     graph_type: str = Form("model_arch"),   # 'model_arch' | 'tech_route' | 'exp_data'
     language: str = Form("zh"),
     style: str = Form("cartoon"),
+    figure_complex: str = Form("easy"),
+    edit_prompt: Optional[str] = Form(None),
     service: Paper2AnyService = Depends(get_service),
 ):
     """
@@ -112,6 +114,8 @@ async def generate_paper2figure_json(
         graph_type=graph_type,
         language=language,
         style=style,
+        figure_complex=figure_complex,
+        edit_prompt=edit_prompt,
     )
     
     return Paper2FigureResponse(**resp_data)

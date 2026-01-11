@@ -76,7 +76,35 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
     elif req.input_type == "TEXT":
         state.paper_idea = req.input_content
     elif req.input_type == "FIGURE":
-        state.fig_draft_path = req.input_content
+        # 如果是图片输入（编辑/重绘模式），将内容设为 prev_image
+        image_path_or_url = req.input_content
+        
+        # 尝试将 URL 转换为本地路径
+        if image_path_or_url and image_path_or_url.startswith("http"):
+            if "/outputs/" in image_path_or_url:
+                try:
+                    # 提取 /outputs/ 之后的部分
+                    relative_path = image_path_or_url.split("/outputs/", 1)[1]
+                    # 去掉查询参数
+                    relative_path = relative_path.split('?', 1)[0]
+                    # 解码可能的 URL 编码
+                    import urllib.parse
+                    relative_path = urllib.parse.unquote(relative_path)
+                    
+                    local_path = project_root / "outputs" / relative_path
+                    if local_path.exists():
+                        image_path_or_url = str(local_path)
+                        # 同时更新 req.input_content，确保 workflow 也能读到本地路径
+                        req.input_content = str(local_path)
+                        log.info(f"Converted URL to local path: {image_path_or_url}")
+                    else:
+                        log.warning(f"Local file not found for URL {req.input_content} at {local_path}")
+                except Exception as e:
+                    log.warning(f"Failed to convert URL to local path: {e}")
+
+        state.request.prev_image = image_path_or_url
+        # 同时也将 input_content 放在 paper_file 或 paper_idea 中作为备用，防止某些地方检查空值
+        state.paper_idea = "Image Edit Mode" 
     else:
         raise TypeError("Invalid input type. Available input type: PDF, TEXT, FIGURE.")
 
@@ -88,8 +116,16 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
     graph_type = req.graph_type
 
     if graph_type == "model_arch":
-        wf_name = "paper2fig_with_sam"
-        result_root = project_root / "outputs" / req.invite_code / "paper2fig" / ts
+        # 检查是否为 Step 2 (转 PPT) 还是 Step 1 (预览/编辑)
+        # 如果是 FIGURE 输入，但没有 edit_prompt，说明是转 PPT
+        if req.input_type == "FIGURE" and not req.edit_prompt:
+            # wf_name = "pdf2ppt_parallel"
+            wf_name = "pdf2ppt_optimized"
+            result_root = project_root / "outputs" / req.invite_code / "paper2fig_ppt" / ts
+        else:
+            # 否则是生成/编辑图片（Step 1）
+            wf_name = "paper2fig_image_only"
+            result_root = project_root / "outputs" / req.invite_code / "paper2fig" / ts
     elif graph_type == "tech_route":
         wf_name = "paper2technical"
         result_root = project_root / "outputs" / req.invite_code / "paper2tec" / ts

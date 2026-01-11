@@ -1,0 +1,67 @@
+{
+  "title": "Image2PPT",
+  "subtitle": "Image → PPTX",
+  "desc": "Convert images into editable PPT slides with AI-powered layout analysis.",
+  "descHighlight": "Turn static images into editable presentations instantly!",
+  "dropzone": {
+    "dragText": "Drag image file here",
+    "clickText": "Or click button below to select",
+    "button": "Select Image",
+    "fileInfo": "✓ {{name}}",
+    "fileSize": "{{size}} MB"
+  },
+  "config": {
+    "aiEdit": "AI Enhancement (Recommended)",
+    "aiEditDesc": "Use AI model to analyze layout and refine content structure.",
+    "apiUrl": "API URL",
+    "buyLink": "Buy Now",
+    "apiKey": "API Key",
+    "genModel": "Analysis Model",
+    "validating": "Validating API Key..."
+  },
+  "status": {
+    "uploading": "Uploading image...",
+    "analyzing": "Analyzing image structure...",
+    "extracting": "Extracting elements...",
+    "extractingIcon": "Processing visuals...",
+    "generating": "Generating PPT slide...",
+    "exporting": "Exporting file...",
+    "complete": "Conversion Complete!"
+  },
+  "action": {
+    "convert": "Start Conversion",
+    "converting": "Converting...",
+    "download": "Download PPT",
+    "reset": "Convert New Image"
+  },
+  "complete": {
+    "title": "Conversion Complete!",
+    "desc": "Your PPT file is ready for download"
+  },
+  "footer": {
+    "support": "Supported formats: PNG, JPG, JPEG | Max size: 20MB"
+  },
+  "demo": {
+    "title": "Example: From Image to Editable PPTX",
+    "more": "More cases",
+    "desc": "See how static images become editable slides.",
+    "card1": {
+      "title": "Diagram Conversion",
+      "desc": "Convert technical diagrams into editable shapes and text."
+    },
+    "card2": {
+      "title": "Slide Screenshot",
+      "desc": "Turn a screenshot of a presentation back into an editable slide."
+    }
+  },
+  "errors": {
+    "imgOnly": "Supports Image format only (PNG, JPG)",
+    "sizeLimit": "File size exceeds 20MB limit",
+    "selectFile": "Please select an image file first",
+    "quotaFull": "Daily quota used up",
+    "enterKey": "API Key required for AI enhancement",
+    "enterUrl": "API URL required for AI enhancement",
+    "apiFail": "API Validation Failed",
+    "serverBusy": "Server busy, please try again later"
+  }
+}
