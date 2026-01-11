@@ -6,11 +6,13 @@
  */
 
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "../stores/authStore";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { Zap, AlertTriangle } from "lucide-react";
 
 export function QuotaDisplay() {
+  const { t } = useTranslation('common');
   const { quota, refreshQuota } = useAuthStore();
 
   useEffect(() => {
@@ -71,7 +73,7 @@ export function QuotaDisplay() {
               : "text-gray-300"
         }`}
       >
-        剩余次数: {remaining}/{quota.limit}
+        {t('app.quotaRemaining', { remaining, limit: quota.limit })}
       </span>
     </div>
   );

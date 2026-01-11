@@ -38,7 +38,7 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 // ============== 主组件 ==============
 const Paper2PptPage = () => {
-  const { t } = useTranslation('paper2ppt');
+  const { t } = useTranslation(['paper2ppt', 'common']);
   const { user, refreshQuota } = useAuthStore();
   // Step 状态
   const [currentStep, setCurrentStep] = useState<Step>('upload');
@@ -1623,11 +1623,11 @@ const Paper2PptPage = () => {
                 className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 hover:bg-white/30 transition-colors"
               >
                 <Star size={16} className="text-yellow-300 fill-yellow-300 animate-pulse" />
-                <span className="text-xs font-bold text-white">GitHub开源项目</span>
+                <span className="text-xs font-bold text-white">{t('app.githubProject', { ns: 'common' })}</span>
               </a>
               
               <span className="text-sm font-medium text-white">
-                🚀 探索更多 AI 数据处理工具
+                {t('app.exploreMore', { ns: 'common' })}
               </span>
             </div>
 
