@@ -11,6 +11,8 @@ pydantic
 pyyaml
 cloudpickle
 
+beautifulsoup4
+
 openai
 tiktoken
 langgraph==0.6.7

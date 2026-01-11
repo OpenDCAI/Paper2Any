@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 from gradio_app.app import PAGE_SETS, create_app
+from gradio_app.utils.space_paths import get_persistent_outputs_root
 
 
 def main() -> None:
@@ -16,9 +17,15 @@ def main() -> None:
     page_names = PAGE_SETS["space"]
     app = create_app(page_names)
     app.queue()
-    app.launch(server_name=server_name, server_port=port, share=False)
+    # HF Space persistent storage is usually under /data, which is outside the
+    # repo root. Allow Gradio to serve generated images/PDFs from that directory.
+    app.launch(
+        server_name=server_name,
+        server_port=port,
+        share=False,
+        allowed_paths=[str(get_persistent_outputs_root())],
+    )
 
 
 if __name__ == "__main__":
     main()
-

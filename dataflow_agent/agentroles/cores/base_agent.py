@@ -72,6 +72,14 @@ PROJDIR = get_project_root()
 log = get_logger(__name__)
 """模块日志记录器"""
 
+def _mask_secret(value: str | None) -> str:
+    if not value:
+        return ""
+    s = str(value)
+    if len(s) <= 8:
+        return "*" * len(s)
+    return f"{s[:4]}...{s[-4:]}"
+
 # =============================================================================
 # 类型定义
 # =============================================================================
@@ -557,7 +565,7 @@ class BaseAgent(ABC):
         
         log.info(f"[create_llm:]创建LLM实例，温度: {self.temperature}, "
                  f"最大token: {self.max_tokens}, 模型: {actual_model}, "
-                 f"接口URL: {actual_url}, API Key: {state.request.api_key}")
+                 f"接口URL: {actual_url}, API Key: {_mask_secret(state.request.api_key)}")
         
         # 创建 LLM 实例
         llm = ChatOpenAI(

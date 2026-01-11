@@ -38,6 +38,7 @@ def _ensure_httpx_proxy_compat() -> None:
 _ensure_httpx_proxy_compat()
 
 import gradio as gr
+from gradio_app.utils.space_paths import get_persistent_outputs_root
 
 
 # 标签显示名称映射,如果需要自定义页面名称
@@ -199,4 +200,7 @@ if __name__ == "__main__":
         server_name=server_name,
         server_port=port,
         share=False,
+        # Outputs may be configured to go outside repo root (e.g. HF /data).
+        # Allow Gradio to serve generated images/PDFs from the outputs root.
+        allowed_paths=[str(get_persistent_outputs_root())],
     )
