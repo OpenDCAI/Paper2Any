@@ -1,5 +1,5 @@
-import { Presentation, Download, Trash2 } from 'lucide-react';
 import { KnowledgeFile, ToolType } from './types';
+import { FileText, Download, ExternalLink, Clock } from 'lucide-react';
 
 interface OutputViewProps {
   files: KnowledgeFile[];
@@ -9,37 +9,54 @@ interface OutputViewProps {
 export const OutputView = ({ files, onGoToTool }: OutputViewProps) => {
   if (files.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-[50vh] text-gray-500">
-        <Presentation size={48} className="mb-4 opacity-20" />
-        <p className="text-sm">暂无生成内容</p>
-        <button 
-          onClick={() => onGoToTool('ppt')}
-          className="mt-4 text-primary-400 hover:text-primary-300 text-sm"
-        >
-          在右侧面板尝试生成 PPT
-        </button>
+      <div className="h-full flex flex-col items-center justify-center text-center">
+        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
+          <FileText className="text-gray-600" size={32} />
+        </div>
+        <h3 className="text-lg font-medium text-white mb-2">No Outputs Yet</h3>
+        <p className="text-gray-500 text-sm max-w-xs mb-6">
+          Generate content from your knowledge base using the tools in the right panel.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {files.map(file => (
-        <div key={file.id} className="flex items-center gap-4 p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-colors group">
-          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 flex items-center justify-center text-orange-400">
-            <Presentation size={24} />
+        <div key={file.id} className="bg-white/5 border border-white/10 rounded-xl p-4 hover:border-purple-500/30 transition-all">
+          <div className="flex items-start justify-between mb-4">
+            <div className="p-2 bg-purple-500/10 rounded-lg">
+              <FileText className="text-purple-400" size={24} />
+            </div>
+            <span className="text-xs text-purple-300 bg-purple-500/10 px-2 py-1 rounded-full">
+              Generated
+            </span>
           </div>
-          <div className="flex-1">
-            <h4 className="text-sm font-medium text-gray-200">{file.name}</h4>
-            <p className="text-xs text-gray-500 mt-0.5">{file.desc} • {file.uploadTime}</p>
-          </div>
-          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg">
-              <Download size={18} />
-            </button>
-            <button className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg">
-              <Trash2 size={18} />
-            </button>
+          
+          <h3 className="text-white font-medium mb-1">{file.name}</h3>
+          <p className="text-gray-500 text-xs mb-4 line-clamp-2">{file.desc}</p>
+          
+          <div className="flex items-center justify-between pt-4 border-t border-white/5">
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <Clock size={12} />
+              <span>{file.uploadTime}</span>
+            </div>
+            <div className="flex gap-2">
+              <a 
+                href={file.url} 
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                title="Download"
+              >
+                <Download size={16} />
+              </a>
+              <button 
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                title="View"
+              >
+                <ExternalLink size={16} />
+              </button>
+            </div>
           </div>
         </div>
       ))}
