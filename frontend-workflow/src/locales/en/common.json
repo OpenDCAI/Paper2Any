@@ -4,6 +4,9 @@
   "success": "Success",
   "app": {
     "subtitle": "Agent-driven Research Creation Experience",
+    "githubProject": "GitHub Open Source",
+    "exploreMore": "🚀 Explore more AI data processing tools",
+    "quotaRemaining": "Remaining: {{remaining}}/{{limit}}",
     "nav": {
       "paper2figure": "Paper2Figure",
       "paper2ppt": "Paper2PPT",

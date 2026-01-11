@@ -4,6 +4,9 @@
   "success": "操作成功",
   "app": {
     "subtitle": "Agent 驱动的科研创作新体验",
+    "githubProject": "GitHub开源项目",
+    "exploreMore": "🚀 探索更多 AI 数据处理工具",
+    "quotaRemaining": "剩余次数: {{remaining}}/{{limit}}",
     "nav": {
       "paper2figure": "Paper2Figure",
       "paper2ppt": "Paper2PPT",

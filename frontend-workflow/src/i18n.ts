@@ -9,6 +9,8 @@ import enPaper2ppt from './locales/en/paper2ppt.json';
 import zhPaper2ppt from './locales/zh/paper2ppt.json';
 import enPdf2ppt from './locales/en/pdf2ppt.json';
 import zhPdf2ppt from './locales/zh/pdf2ppt.json';
+import enImage2ppt from './locales/en/image2ppt.json';
+import zhImage2ppt from './locales/zh/image2ppt.json';
 import enPptPolish from './locales/en/pptPolish.json';
 import zhPptPolish from './locales/zh/pptPolish.json';
 import enCommon from './locales/en/common.json';
@@ -36,6 +38,7 @@ i18n
         login: enLogin,
         paper2ppt: enPaper2ppt,
         pdf2ppt: enPdf2ppt,
+        image2ppt: enImage2ppt,
         pptPolish: enPptPolish,
         paper2graph: enPaper2graph
       },
@@ -44,6 +47,7 @@ i18n
         login: zhLogin,
         paper2ppt: zhPaper2ppt,
         pdf2ppt: zhPdf2ppt,
+        image2ppt: zhImage2ppt,
         pptPolish: zhPptPolish,
         paper2graph: zhPaper2graph
       }
@@ -51,7 +55,7 @@ i18n
     // 默认命名空间
     defaultNS: 'common',
     // 命名空间
-    ns: ['common', 'login', 'paper2ppt', 'pdf2ppt', 'pptPolish', 'paper2graph']
+    ns: ['common', 'login', 'paper2ppt', 'pdf2ppt', 'image2ppt', 'pptPolish', 'paper2graph']
   });
 
 export default i18n;

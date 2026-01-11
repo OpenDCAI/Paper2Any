@@ -137,7 +137,7 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 // ============== 主组件 ==============
 const Ppt2PolishPage = () => {
-  const { t } = useTranslation('pptPolish');
+  const { t } = useTranslation(['pptPolish', 'common']);
   const { user, refreshQuota } = useAuthStore();
   // 步骤状态
   const [currentStep, setCurrentStep] = useState<Step>('upload');
@@ -185,7 +185,7 @@ const Ppt2PolishPage = () => {
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-5.1');
-  const [genFigModel, setGenFigModel] = useState('gemini-2.5-flash-image');
+  const [genFigModel, setGenFigModel] = useState('gemini-3-pro-image-preview');
   const [language, setLanguage] = useState<'zh' | 'en'>('en');
   const [resultPath, setResultPath] = useState<string | null>(null);
 
@@ -1228,7 +1228,6 @@ const Ppt2PolishPage = () => {
               className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
-              <option value="gemini-2.5-flash-image">gemini-2.5-flash-image</option>
             </select>
             {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
                <p className="text-[10px] text-gray-500 mt-1">此源仅支持 gemini-3-pro</p>
@@ -1724,11 +1723,11 @@ const Ppt2PolishPage = () => {
                 className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1 hover:bg-white/30 transition-colors"
               >
                 <Star size={16} className="text-yellow-300 fill-yellow-300 animate-pulse" />
-                <span className="text-xs font-bold text-white">GitHub开源项目</span>
+                <span className="text-xs font-bold text-white">{t('app.githubProject', { ns: 'common' })}</span>
               </a>
               
               <span className="text-sm font-medium text-white">
-                🚀 探索更多 AI 数据处理工具
+                {t('app.exploreMore', { ns: 'common' })}
               </span>
             </div>
 

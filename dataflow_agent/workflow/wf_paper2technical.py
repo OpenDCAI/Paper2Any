@@ -246,7 +246,7 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
 
         - 根据前面步骤生成的 PNG 整图（state.svg_img_path），
           生成用于展示技术路线图的 PPT。
-        - 优先进行 SVG -> EMF 转换插入矢量图，失败时回退 PNG。
+        - 仅使用 SVG -> PNG 路径插入位图，不再尝试 EMF。
         """
         from pptx import Presentation
         from PIL import Image
@@ -271,7 +271,7 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
             slide_height = prs.slide_height
 
             # ------------------------------------------------------------------
-            # 第 1 页：技术路线图（优先 SVG-cmf，失败则回退 PNG）
+            # 第 1 页：技术路线图（仅使用 PNG）
             # ------------------------------------------------------------------
             slide = prs.slides.add_slide(blank_slide_layout)
 
@@ -298,53 +298,10 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
                 pic.top = int((slide_height - pic.height) / 2)
                 return True
 
-            def _insert_emf(emf_path: str) -> bool:
-                """EMF 插图函数：按 80% 宽度缩放并居中。"""
-                try:
-                    pic = slide.shapes.add_picture(emf_path, 0, 0)
-                except Exception as e:
-                    log.error(f"technical_ppt_generator_node: 插入 EMF 失败: {e}")
-                    return False
-
-                if pic.width and pic.width > 0:
-                    scale = (slide_width * 0.8) / pic.width
-                else:
-                    scale = 1.0
-
-                pic.width = int(pic.width * scale)
-                pic.height = int(pic.height * scale)
-
-                pic.left = int((slide_width - pic.width) / 2)
-                pic.top = int((slide_height - pic.height) / 2)
-                return True
-
+            # 直接使用 PNG（位图）插入 PPT
             inserted = False
-            emf_path = output_dir / f"technical_route_{timestamp}.emf"
 
-            # 优先 SVG -> EMF -> PPT（矢量）
-            if svg_path:
-                try:
-                    emf_abs = svg_to_emf(svg_path, str(emf_path))
-                    log.info(
-                        "technical_ppt_generator_node: SVG 转 EMF 成功: %s -> %s",
-                        svg_path,
-                        emf_abs,
-                    )
-                    inserted = _insert_emf(svg_path)
-                    if inserted:
-                        log.info(
-                            "technical_ppt_generator_node: 使用 EMF 插入技术路线图成功: %s",
-                            emf_abs,
-                        )
-                except Exception as e:
-                    log.error(
-                        "technical_ppt_generator_node: SVG->EMF 失败，准备回退到 PNG: %s",
-                        e,
-                    )
-                    inserted = False
-
-            # 如果 EMF 失败或不可用，则回退到 PNG（位图）
-            if (not inserted) and png_path:
+            if png_path:
                 try:
                     ok = _insert_picture(png_path)
                     if ok:

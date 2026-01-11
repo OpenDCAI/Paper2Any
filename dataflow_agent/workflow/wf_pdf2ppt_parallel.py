@@ -217,7 +217,21 @@ def create_pdf2ppt_with_sam_graph() -> GenericGraphBuilder:  # noqa: N802
     async def pdf_to_images_node(state: Paper2FigureState) -> Paper2FigureState:
         """
         将 PDF 每一页渲染为 PNG。
+        如果输入是 FIGURE (图片模式)，直接使用 input_content 作为 slide_images。
         """
+        if state.request.input_type == "FIGURE":
+            img_path = state.request.input_content
+            log.info(f"[pdf2ppt_with_sam] FIGURE mode: using input image {img_path}")
+            
+            # 强制开启 AI 编辑，以便在转 PPT 过程中去除背景文字
+            state.use_ai_edit = True
+            
+            if img_path and os.path.exists(img_path):
+                state.slide_images = [img_path]
+            else:
+                log.error(f"[pdf2ppt_with_sam] FIGURE mode: image not found {img_path}")
+            return state
+
         pdf_path = getattr(state, "pdf_file", None)
         if not pdf_path:
             log.error("[pdf2ppt_with_sam] state.pdf_file is empty")
