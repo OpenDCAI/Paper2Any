@@ -89,8 +89,12 @@ async def _run_pagecontent_from_pptx(
     state.paper_file = str(dst)
 
     from dataflow_agent.workflow import run_workflow
-    final_state: Paper2FigureState = await run_workflow("paper2page_content", state)
-    pagecontent = getattr(final_state, "pagecontent", []) or []
+    final_state = await run_workflow("paper2page_content", state)
+    # langgraph will return `dict` when the state schema is a dataclass.
+    if isinstance(final_state, dict):
+        pagecontent = final_state.get("pagecontent") or []
+    else:
+        pagecontent = getattr(final_state, "pagecontent", []) or []
     return str(run_dir), json.dumps(pagecontent, ensure_ascii=False, indent=2)
 
 
