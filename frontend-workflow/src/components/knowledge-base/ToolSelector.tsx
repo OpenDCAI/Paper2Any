@@ -23,7 +23,7 @@ export const ToolSelector = ({ activeTool, onToolChange }: ToolSelectorProps) =>
           onClick={() => onToolChange(tool.id as ToolType)}
           className={`flex items-center justify-center gap-2 py-3 px-2 rounded-xl text-sm font-medium transition-all ${
             activeTool === tool.id
-              ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30'
+              ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
               : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200 border border-transparent'
           }`}
         >

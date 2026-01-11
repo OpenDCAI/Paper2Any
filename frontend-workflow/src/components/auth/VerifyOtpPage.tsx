@@ -14,11 +14,21 @@ interface Props {
 }
 
 export function VerifyOtpPage({ email, onBack }: Props) {
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [otpLength, setOtpLength] = useState(6);
+  const [otp, setOtp] = useState(Array(6).fill(""));
   const [resendCooldown, setResendCooldown] = useState(0);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const { verifyOtp, resendOtp, loading, error, clearError } = useAuthStore();
+
+  // Reset OTP array when length changes
+  useEffect(() => {
+    setOtp(Array(otpLength).fill(""));
+    // Reset refs array
+    inputRefs.current = inputRefs.current.slice(0, otpLength);
+    // Focus first input
+    setTimeout(() => inputRefs.current[0]?.focus(), 0);
+  }, [otpLength]);
 
   // Handle cooldown timer
   useEffect(() => {
@@ -42,12 +52,12 @@ export function VerifyOtpPage({ email, onBack }: Props) {
     setOtp(newOtp);
 
     // Auto-focus next input
-    if (value && index < 5) {
+    if (value && index < otpLength - 1) {
       inputRefs.current[index + 1]?.focus();
     }
 
     // Auto-submit when all digits entered
-    if (value && index === 5 && newOtp.every((d) => d !== "")) {
+    if (value && index === otpLength - 1 && newOtp.every((d) => d !== "")) {
       handleSubmit(newOtp.join(""));
     }
   };
@@ -61,18 +71,32 @@ export function VerifyOtpPage({ email, onBack }: Props) {
 
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-    if (pasted.length === 6) {
-      const newOtp = pasted.split("");
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "");
+    
+    // Auto-detect length
+    if (pasted.length === 8 && otpLength !== 8) {
+      setOtpLength(8);
+      // We need to wait for the effect to update state and refs
+      setTimeout(() => {
+        const newOtp = pasted.split("");
+        setOtp(newOtp);
+        handleSubmit(pasted);
+      }, 50);
+      return;
+    }
+    
+    const relevantPasted = pasted.slice(0, otpLength);
+    if (relevantPasted.length === otpLength) {
+      const newOtp = relevantPasted.split("");
       setOtp(newOtp);
-      handleSubmit(pasted);
+      handleSubmit(relevantPasted);
     }
   };
 
   const handleSubmit = async (code?: string) => {
     clearError();
     const otpCode = code || otp.join("");
-    if (otpCode.length !== 6) return;
+    if (otpCode.length !== otpLength) return;
 
     await verifyOtp(email, otpCode);
   };
@@ -95,7 +119,7 @@ export function VerifyOtpPage({ email, onBack }: Props) {
             Check your email
           </h2>
           <p className="text-gray-400 text-sm">
-            We sent a 6-digit code to <strong className="text-white">{email}</strong>
+            We sent a verification code to <strong className="text-white">{email}</strong>
           </p>
         </div>
 
@@ -107,7 +131,7 @@ export function VerifyOtpPage({ email, onBack }: Props) {
         )}
 
         {/* OTP Input */}
-        <div className="flex justify-center gap-2 mb-6">
+        <div className="flex justify-center gap-2 mb-4">
           {otp.map((digit, index) => (
             <input
               key={index}
@@ -120,9 +144,19 @@ export function VerifyOtpPage({ email, onBack }: Props) {
               onKeyDown={(e) => handleKeyDown(index, e)}
               onPaste={handlePaste}
               disabled={loading}
-              className="w-12 h-14 text-center text-2xl font-bold bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:border-primary-500 disabled:opacity-50 transition-colors"
+              className="w-10 h-14 sm:w-12 text-center text-xl sm:text-2xl font-bold bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:border-primary-500 disabled:opacity-50 transition-colors"
             />
           ))}
+        </div>
+
+        {/* Length Toggle */}
+        <div className="text-center mb-6">
+          <button
+            onClick={() => setOtpLength(otpLength === 6 ? 8 : 6)}
+            className="text-xs text-gray-500 hover:text-gray-400 transition-colors"
+          >
+            {otpLength === 6 ? "Use 8-digit code" : "Use 6-digit code"}
+          </button>
         </div>
 
         <button
