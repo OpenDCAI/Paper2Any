@@ -282,5 +282,4 @@ dev-debug.log
 # Taskmaster AI (local task management)
 .taskmaster/
 
-frontend-workflow/vite.config.ts
 script/optimize_readme_assets.py

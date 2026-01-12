@@ -14,7 +14,7 @@ import { getUserIdentifier } from './fingerprintService';
 
 // Quota limits
 const ANONYMOUS_DAILY_LIMIT = 5;
-const AUTHENTICATED_DAILY_LIMIT = 10;
+const AUTHENTICATED_DAILY_LIMIT = 20;
 
 // Local storage key for anonymous usage tracking (fallback when Supabase not configured)
 const LOCAL_USAGE_KEY = 'df_usage';

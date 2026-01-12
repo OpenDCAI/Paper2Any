@@ -2,7 +2,7 @@ import { useState, useEffect, ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   UploadCloud, Download, Loader2, CheckCircle2,
-  AlertCircle, Github, Star, X, FileText, ArrowRight, Key, Globe, ToggleLeft, ToggleRight, Sparkles, Image, MessageSquare, Copy, Info
+  AlertCircle, Github, Star, X, FileImage, ArrowRight, Key, Globe, Sparkles, Image as ImageIcon, MessageSquare, Copy, Info
 } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
@@ -11,11 +11,11 @@ import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
 import QRCodeTooltip from './QRCodeTooltip';
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB for images
 
 // ============== 主组件 ==============
-const Pdf2PptPage = () => {
-  const { t } = useTranslation(['pdf2ppt', 'common']);
+const Image2PptPage = () => {
+  const { t } = useTranslation(['image2ppt', 'common']);
   const { user, refreshQuota } = useAuthStore();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -37,7 +37,7 @@ const Pdf2PptPage = () => {
   const [copySuccess, setCopySuccess] = useState('');
 
   const shareText = `发现一个超好用的AI工具 DataFlow-Agent！🚀
-支持论文转PPT、PDF转PPT、PPT美化等功能，科研打工人的福音！
+支持论文转PPT、PDF转PPT、图片转PPT等功能，科研打工人的福音！
 
 🔗 在线体验：https://dcai-paper2any.nas.cpolar.cn/
 ⭐ GitHub Agent：https://github.com/OpenDCAI/Paper2Any
@@ -101,15 +101,16 @@ const Pdf2PptPage = () => {
   
   // 配置
   const [inviteCode, setInviteCode] = useState('');
-  const [useAiEdit, setUseAiEdit] = useState(false);
+  // 强制开启 AI 增强
+  const useAiEdit = true; 
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [genFigModel, setGenFigModel] = useState('gemini-2.5-flash-image');
 
-  const validateDocFile = (file: File): boolean => {
-    const ext = file.name.split('.').pop()?.toLowerCase();
-    if (ext !== 'pdf') {
-      setError(t('errors.pdfOnly'));
+  const validateImageFile = (file: File): boolean => {
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+    if (!validTypes.includes(file.type)) {
+      setError(t('errors.imgOnly'));
       return false;
     }
     return true;
@@ -117,7 +118,7 @@ const Pdf2PptPage = () => {
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !validateDocFile(file)) return;
+    if (!file || !validateImageFile(file)) return;
     if (file.size > MAX_FILE_SIZE) {
       setError(t('errors.sizeLimit'));
       return;
@@ -132,7 +133,7 @@ const Pdf2PptPage = () => {
     e.preventDefault();
     setIsDragOver(false);
     const file = e.dataTransfer.files?.[0];
-    if (!file || !validateDocFile(file)) return;
+    if (!file || !validateImageFile(file)) return;
     if (file.size > MAX_FILE_SIZE) {
       setError(t('errors.sizeLimit'));
       return;
@@ -205,11 +206,11 @@ const Pdf2PptPage = () => {
         }
         return prev + Math.random() * 5;
       });
-    }, 3000);
+    }, 2000);
     
     try {
       const formData = new FormData();
-      formData.append('pdf_file', selectedFile);
+      formData.append('image_file', selectedFile);
       formData.append('invite_code', inviteCode.trim());
       
       if (useAiEdit) {
@@ -221,7 +222,7 @@ const Pdf2PptPage = () => {
         formData.append('use_ai_edit', 'false');
       }
       
-      const res = await fetch('/api/pdf2ppt/generate', {
+      const res = await fetch('/api/image2ppt/generate', {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
@@ -247,12 +248,15 @@ const Pdf2PptPage = () => {
       setIsComplete(true);
 
       // Record usage and upload file to Supabase Storage
-      await recordUsage(user?.id || null, 'pdf2ppt');
+      await recordUsage(user?.id || null, 'image2ppt'); // Assuming same quota type or distinct one
       refreshQuota();
-      const outputName = selectedFile?.name.replace('.pdf', '.pptx') || 'pdf2ppt_output.pptx';
-      console.log('[Pdf2PptPage] Uploading file to storage:', outputName);
-      await uploadAndSaveFile(blob, outputName, 'pdf2ppt');
-      console.log('[Pdf2PptPage] File uploaded successfully');
+      
+      // Upload to storage
+      const ext = selectedFile.name.split('.').pop() || 'png';
+      const outputName = selectedFile.name.replace(`.${ext}`, '.pptx') || 'image2ppt_output.pptx';
+      console.log('[Image2PptPage] Uploading file to storage:', outputName);
+      await uploadAndSaveFile(blob, outputName, 'image2ppt'); // new bucket/folder
+      console.log('[Image2PptPage] File uploaded successfully');
       
     } catch (err) {
       clearInterval(progressInterval);
@@ -270,7 +274,8 @@ const Pdf2PptPage = () => {
     const url = URL.createObjectURL(downloadBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = selectedFile?.name.replace('.pdf', '.pptx') || 'converted.pptx';
+    const ext = selectedFile?.name.split('.').pop() || 'png';
+    a.download = selectedFile?.name.replace(`.${ext}`, '.pptx') || 'converted.pptx';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -287,7 +292,7 @@ const Pdf2PptPage = () => {
   return (
     <div className="w-full h-screen flex flex-col bg-[#050512] overflow-hidden">
       {showBanner && (
-        <div className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 relative overflow-hidden flex-shrink-0">
+        <div className="w-full bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-500 relative overflow-hidden flex-shrink-0">
           <div className="absolute inset-0 bg-black opacity-20"></div>
           <div className="absolute inset-0 animate-pulse">
             <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white to-transparent opacity-10 animate-shimmer"></div>
@@ -364,15 +369,15 @@ const Pdf2PptPage = () => {
           <div className="max-w-2xl mx-auto">
           {/* 标题 */}
           <div className="text-center mb-8">
-            <p className="text-xs uppercase tracking-[0.2em] text-purple-300 mb-3 font-semibold">{t('subtitle')}</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-300 mb-3 font-semibold">{t('subtitle')}</p>
             <h1 className="text-4xl md:text-5xl font-bold mb-4">
-              <span className="bg-gradient-to-r from-violet-400 via-purple-400 to-fuchsia-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 bg-clip-text text-transparent">
                 {t('title')}
               </span>
             </h1>
             <p className="text-base text-gray-300 max-w-xl mx-auto leading-relaxed">
               {t('desc')}<br />
-              <span className="text-purple-400">{t('descHighlight')}</span>
+              <span className="text-cyan-400">{t('descHighlight')}</span>
             </p>
           </div>
 
@@ -383,23 +388,23 @@ const Pdf2PptPage = () => {
                 {/* 上传区域 */}
                 <div 
                   className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center gap-4 transition-all mb-6 ${
-                    isDragOver ? 'border-purple-500 bg-purple-500/10' : 'border-white/20 hover:border-purple-400'
+                    isDragOver ? 'border-cyan-500 bg-cyan-500/10' : 'border-white/20 hover:border-cyan-400'
                   }`} 
                   onDragOver={e => { e.preventDefault(); setIsDragOver(true); }} 
                   onDragLeave={e => { e.preventDefault(); setIsDragOver(false); }} 
                   onDrop={handleDrop}
                 >
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center">
                     {selectedFile ? (
-                      <FileText size={32} className="text-purple-400" />
+                      <FileImage size={32} className="text-cyan-400" />
                     ) : (
-                      <UploadCloud size={32} className="text-purple-400" />
+                      <UploadCloud size={32} className="text-cyan-400" />
                     )}
                   </div>
                   
                   {selectedFile ? (
-                    <div className="px-4 py-2 bg-purple-500/20 border border-purple-500/40 rounded-lg">
-                      <p className="text-sm text-purple-300">{t('dropzone.fileInfo', { name: selectedFile.name })}</p>
+                    <div className="px-4 py-2 bg-cyan-500/20 border border-cyan-500/40 rounded-lg">
+                      <p className="text-sm text-cyan-300">{t('dropzone.fileInfo', { name: selectedFile.name })}</p>
                       <p className="text-xs text-gray-400 mt-1">
                         {t('dropzone.fileSize', { size: (selectedFile.size / 1024 / 1024).toFixed(2) })}
                       </p>
@@ -410,54 +415,22 @@ const Pdf2PptPage = () => {
                         <p className="text-white font-medium mb-1">{t('dropzone.dragText')}</p>
                         <p className="text-sm text-gray-400">{t('dropzone.clickText')}</p>
                       </div>
-                      <label className="px-6 py-2.5 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-sm font-medium cursor-pointer hover:from-violet-700 hover:to-fuchsia-700 transition-all">
+                      <label className="px-6 py-2.5 rounded-full bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-sm font-medium cursor-pointer hover:from-cyan-700 hover:to-blue-700 transition-all">
                         {t('dropzone.button')}
-                        <input type="file" accept=".pdf" className="hidden" onChange={handleFileChange} />
+                        <input type="file" accept="image/png, image/jpeg, image/jpg" className="hidden" onChange={handleFileChange} />
                       </label>
                     </>
                   )}
                 </div>
 
-                {/* 必填配置：邀请码 */}
-                {/* <div className="mb-6">
-                    <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
-                      <Key size={12} /> 邀请码 <span className="text-red-400">*</span>
-                    </label>
-                    <input 
-                      type="text" 
-                      value={inviteCode} 
-                      onChange={e => setInviteCode(e.target.value)}
-                      placeholder="xxx-xxx"
-                      className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
-                    />
-                </div> */}
-
-                {/* AI 增强选项开关 */}
-                <div className="mb-4 flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/5">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20">
-                      <Sparkles size={16} className="text-purple-400" />
+                {/* AI 增强配置面板 - 强制开启 */}
+                <div className="space-y-4 mb-6 p-4 rounded-xl border border-cyan-500/20 bg-cyan-500/5 animate-in fade-in slide-in-from-top-2">
+                    {/* 提示信息 */}
+                    <div className="flex items-center gap-2 mb-4 text-cyan-300 bg-cyan-500/10 p-2 rounded-lg text-xs">
+                         <Sparkles size={14} className="flex-shrink-0" />
+                         <span>{t('config.aiEditDesc')}</span>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-white">{t('config.aiEdit')}</p>
-                      <p className="text-xs text-gray-400">{t('config.aiEditDesc')}</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setUseAiEdit(!useAiEdit)}
-                    className="focus:outline-none transition-colors"
-                  >
-                    {useAiEdit ? (
-                      <ToggleRight size={32} className="text-purple-500" />
-                    ) : (
-                      <ToggleLeft size={32} className="text-gray-500" />
-                    )}
-                  </button>
-                </div>
 
-                {/* AI 增强配置面板 - 仅开启时显示 */}
-                {useAiEdit && (
-                  <div className="space-y-4 mb-6 p-4 rounded-xl border border-purple-500/20 bg-purple-500/5 animate-in fade-in slide-in-from-top-2">
                     <div>
                       <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
                         <Globe size={12} /> {t('config.apiUrl')} <span className="text-red-400">*</span>
@@ -472,7 +445,7 @@ const Pdf2PptPage = () => {
                               setGenFigModel('gemini-3-pro-image-preview');
                             }
                           }}
-                          className="flex-1 rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                          className="flex-1 rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-cyan-500"
                         >
                           <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
                           <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
@@ -483,7 +456,7 @@ const Pdf2PptPage = () => {
                           href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com/register/?aff_code=TbrD"}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="whitespace-nowrap text-[10px] text-purple-300 hover:text-purple-200 hover:underline px-1"
+                          className="whitespace-nowrap text-[10px] text-cyan-300 hover:text-cyan-200 hover:underline px-1"
                         >
                           {t('config.buyLink')}
                         </a>
@@ -501,19 +474,19 @@ const Pdf2PptPage = () => {
                         value={apiKey} 
                         onChange={e => setApiKey(e.target.value)}
                         placeholder="sk-..."
-                        className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                        className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-cyan-500"
                       />
                     </div>
                       <div>
                         <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
-                          <Image size={12} /> {t('config.genModel')}
+                          <ImageIcon size={12} /> {t('config.genModel')}
                         </label>
                         <div className="relative">
                           <select 
                             value={genFigModel} 
                             onChange={e => setGenFigModel(e.target.value)}
                             disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
-                            className="w-full appearance-none rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full appearance-none rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <option value="gemini-2.5-flash-image">Gemini 2.5 Flash</option>
                             <option value="gemini-3-pro-image-preview">Gemini 3 Pro</option>
@@ -530,11 +503,10 @@ const Pdf2PptPage = () => {
                       </div>
                     </div>
                   </div>
-                )}
 
                 {/* 验证状态 */}
                 {isValidating && (
-                  <div className="mb-6 flex items-center gap-2 text-sm text-purple-300 bg-purple-500/10 border border-purple-500/40 rounded-lg px-4 py-3 animate-pulse">
+                  <div className="mb-6 flex items-center gap-2 text-sm text-cyan-300 bg-cyan-500/10 border border-cyan-500/40 rounded-lg px-4 py-3 animate-pulse">
                     <Loader2 size={16} className="animate-spin" />
                     <p>{t('config.validating')}</p>
                   </div>
@@ -549,7 +521,7 @@ const Pdf2PptPage = () => {
                     </div>
                     <div className="h-2 bg-white/10 rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 transition-all duration-500"
+                        className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-500"
                         style={{ width: `${progress}%` }}
                       />
                     </div>
@@ -560,7 +532,7 @@ const Pdf2PptPage = () => {
                 <button 
                   onClick={handleConvert} 
                   disabled={!selectedFile || isProcessing} 
-                  className="w-full py-4 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold flex items-center justify-center gap-2 transition-all text-lg"
+                  className="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold flex items-center justify-center gap-2 transition-all text-lg"
                 >
                   {isProcessing ? (
                     <><Loader2 size={20} className="animate-spin" /> {t('action.converting')}</>
@@ -568,11 +540,6 @@ const Pdf2PptPage = () => {
                     <><ArrowRight size={20} /> {t('action.convert')}</>
                   )}
                 </button>
-
-                <div className="flex items-start gap-2 text-xs text-gray-500 mt-3 px-1">
-                  <Info size={14} className="mt-0.5 text-gray-400 flex-shrink-0" />
-                  <p>{t('errors.serverBusy')}</p>
-                </div>
               </>
             ) : (
               /* 完成状态 */
@@ -696,43 +663,20 @@ const Pdf2PptPage = () => {
           </p>
           </div>
 
-          {/* 示例区 */}
-          <div className="space-y-4 mt-16 max-w-4xl mx-auto">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-3">
-                <h3 className="text-sm font-medium text-gray-200">{t('demo.title')}</h3>
+          {/* 底部链接区 */}
+          <div className="mt-12 flex justify-center">
                 <a
                   href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group relative inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/50 border border-white/10 text-xs font-medium text-white overflow-hidden transition-all hover:border-white/30 hover:shadow-[0_0_15px_rgba(168,85,247,0.5)]"
+                  className="group relative inline-flex items-center gap-2 px-6 py-2 rounded-full bg-black/50 border border-white/10 text-sm font-medium text-white overflow-hidden transition-all hover:border-white/30 hover:shadow-[0_0_15px_rgba(34,211,238,0.5)]"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <Sparkles size={12} className="text-yellow-300 animate-pulse" />
-                  <span className="bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300 bg-clip-text text-transparent group-hover:from-blue-200 group-hover:via-purple-200 group-hover:to-pink-200">
+                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-blue-500/20 to-indigo-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <Sparkles size={14} className="text-yellow-300 animate-pulse" />
+                  <span className="bg-gradient-to-r from-cyan-300 via-blue-300 to-indigo-300 bg-clip-text text-transparent group-hover:from-cyan-200 group-hover:via-blue-200 group-hover:to-indigo-200">
                     {t('demo.more')}
                   </span>
                 </a>
-              </div>
-              <span className="text-[11px] text-gray-500">
-                {t('demo.desc')}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <DemoCard
-                title={t('demo.card1.title')}
-                desc={t('demo.card1.desc')}
-                inputImg="/pdf2ppt/input_1.png"
-                outputImg="/pdf2ppt/output_1.png"
-              />
-              <DemoCard
-                title={t('demo.card2.title')}
-                desc={t('demo.card2.desc')}
-                inputImg="/pdf2ppt/input_2.png"
-                outputImg="/pdf2ppt/output_2.png"
-              />
-            </div>
           </div>
         </div>
 
@@ -758,64 +702,5 @@ const Pdf2PptPage = () => {
   );
 };
 
-interface DemoCardProps {
-  title: string;
-  desc: string;
-  inputImg?: string;
-  outputImg?: string;
-}
 
-const DemoCard = ({ title, desc, inputImg, outputImg }: DemoCardProps) => {
-  return (
-    <div className="glass rounded-lg border border-white/10 p-4 flex flex-col gap-3 hover:bg-white/5 transition-colors">
-      <div className="flex gap-3">
-        {/* 左侧：输入示例图片 */}
-        <div className="flex-1 rounded-md bg-white/5 border border-dashed border-white/10 flex items-center justify-center demo-input-placeholder overflow-hidden relative group">
-          {inputImg ? (
-            <>
-              <img
-                src={inputImg}
-                alt="输入示例图"
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-xs text-white font-medium">Input (PDF)</span>
-              </div>
-            </>
-          ) : (
-            <span className="text-[10px] text-gray-400">输入示例图</span>
-          )}
-        </div>
-        
-        {/* 中间箭头 */}
-        <div className="flex items-center justify-center text-gray-500">
-          <ArrowRight size={16} />
-        </div>
-
-        {/* 右侧：输出 PPTX 示例图片 */}
-        <div className="flex-1 rounded-md bg-violet-500/10 border border-dashed border-violet-300/40 flex items-center justify-center demo-output-placeholder overflow-hidden relative group">
-          {outputImg ? (
-            <>
-              <img
-                src={outputImg}
-                alt="PPTX 示例图"
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-xs text-white font-medium">Output (PPTX)</span>
-              </div>
-            </>
-          ) : (
-            <span className="text-[10px] text-violet-200">PPTX 示例图</span>
-          )}
-        </div>
-      </div>
-      <div>
-        <p className="text-sm text-white font-medium mb-1">{title}</p>
-        <p className="text-xs text-gray-400 leading-relaxed">{desc}</p>
-      </div>
-    </div>
-  );
-};
-
-export default Pdf2PptPage;
+export default Image2PptPage;
