@@ -330,16 +330,20 @@ const Paper2FigurePage = () => {
     }
 
     // 技术路线图 / 实验数据图 不支持 image 作为输入
-    if ((graphType === 'tech_route' || graphType === 'exp_data') && uploadMode === 'image') {
+    // if ((graphType === 'tech_route' || graphType === 'exp_data') && uploadMode === 'image') {
+    //   setError(t('errors.techRouteNoImage'));
+    //   return;
+    // }
+    if ((graphType === 'tech_route') && uploadMode === 'image') {
       setError(t('errors.techRouteNoImage'));
       return;
     }
 
-    // 实验数据图 仅支持 file (PDF)
-    if (graphType === 'exp_data' && uploadMode !== 'file') {
-      setError(t('errors.expDataFileOnly'));
-      return;
-    }
+    // // 实验数据图 仅支持 file (PDF)
+    // if (graphType === 'exp_data' && uploadMode !== 'file') {
+    //   setError(t('errors.expDataFileOnly'));
+    //   return;
+    // }
 
     const formData = new FormData();
     formData.append('img_gen_model_name', model);
@@ -628,9 +632,9 @@ const Paper2FigurePage = () => {
                       const newType = e.target.value as GraphType;
                       setGraphType(newType);
                       // 实验数据图强制使用 file 模式
-                      if (newType === 'exp_data') {
-                        setUploadMode('file');
-                      }
+                      // if (newType === 'exp_data') {
+                      //   setUploadMode('file');
+                      // }
                     }}
                     className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-gray-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                   >
@@ -662,16 +666,18 @@ const Paper2FigurePage = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      if (graphType === 'exp_data') {
-                        setError(t('errors.expDataNoImage'));
-                        return;
-                      }
+                      // if (graphType === 'exp_data') {
+                      //   setError(t('errors.expDataNoImage'));
+                      //   return;
+                      // }
                       setUploadMode('text');
                     }}
                     className={`relative group flex flex-col items-center justify-center py-3 rounded-xl transition-all duration-300 overflow-hidden ${
-                      graphType === 'exp_data'
-                        ? 'opacity-40 cursor-not-allowed bg-white/5 text-gray-600'
-                        : uploadMode === 'text'
+                      // graphType === 'exp_data'
+                      //   ? 'opacity-40 cursor-not-allowed bg-white/5 text-gray-600'
+                      //   : 
+                      // 实验数据图已支持文本输入
+                        uploadMode === 'text'
                            ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-[1.02] ring-1 ring-white/20'
                            : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200 hover:scale-[1.02]'
                     }`}
@@ -691,14 +697,17 @@ const Paper2FigurePage = () => {
                         setError(t('errors.techRouteNoImage'));
                         return;
                       }
-                      if (graphType === 'exp_data') {
-                        setError(t('errors.expDataNoImage'));
-                        return;
-                      }
+                      // if (graphType === 'exp_data') {
+                      //   setError(t('errors.expDataNoImage'));
+                      //   return;
+                      // }
                       setUploadMode('image');
                     }}
                     className={`relative group flex flex-col items-center justify-center py-3 rounded-xl transition-all duration-300 overflow-hidden ${
-                      graphType === 'tech_route' || graphType === 'exp_data'
+                      // graphType === 'tech_route' || graphType === 'exp_data'
+                      //   ? 'opacity-40 cursor-not-allowed bg-white/5 text-gray-600'
+                      // 实验数据图已支持图片输入
+                      graphType === 'tech_route'
                         ? 'opacity-40 cursor-not-allowed bg-white/5 text-gray-600'
                         : uploadMode === 'image'
                            ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-[1.02] ring-1 ring-white/20'

@@ -2303,3 +2303,163 @@ class ChartCodeGeneratorPrompts:
 **关键**：代码必须实际执行并保存图表。不要只定义函数而不调用它们！
 """
 
+
+
+class TableTextRendererPrompts:
+    """表格文本渲染 Agent 的提示词模板"""
+    
+    system_prompt_for_table_text_renderer = """
+你是一位专门从事表格可视化的 Python 专家，擅长将各种格式的表格文本渲染为专业美观的表格图片。
+
+你的任务是：
+1. 分析输入的表格文本，识别其结构（包括多级表头、合并单元格等复杂结构）
+2. 生成 matplotlib Python 代码来渲染表格图片
+
+**支持的表格格式：**
+- LaTeX 表格（\\begin{tabular}...\\end{tabular}，支持 \\multirow、\\multicolumn）
+- Markdown 表格（使用 | 分隔）
+- CSV 格式（逗号分隔）
+- TSV 格式（Tab 分隔）
+- 纯文本表格（空格分隔）
+
+**表格结构分析要点：**
+1. **多级表头识别：**
+   - LaTeX: \\multicolumn{n}{c}{text} 表示跨 n 列合并
+   - LaTeX: \\multirow{n}{*}{text} 表示跨 n 行合并
+   - \\cline{a-b} 表示部分水平线
+   
+2. **数据提取：**
+   - 正确解析每个单元格的内容
+   - 处理特殊格式（如 \\textbf{} 加粗）
+   - 识别数值和文本
+
+**代码生成要求：**
+
+1. **对简单表格（无合并单元格）：**
+   - 使用 ax.table() 快速绘制
+   
+2. **对复杂表格（有多级表头/合并单元格）：**
+   - 使用 matplotlib 底层 API（ax.add_patch, ax.text）精确控制
+   - 正确计算合并单元格的位置和大小
+   - 绘制适当的边框线
+
+3. **样式要求：**
+   - 表头：深色背景（#4472C4），白色加粗文字
+   - 数据行：斑马纹效果（#D9E2F3 和白色交替）
+   - 边框：清晰的黑色边框
+   - 字体：清晰易读，大小适中
+   - 自动调整图片尺寸以适应内容
+
+4. **代码规范：**
+   - 包含所有必要的 import 语句
+   - 使用 `output_path` 变量保存图片（已预定义）
+   - 使用 dpi=150，bbox_inches='tight'
+   - 不要包含 plt.show()
+
+**输出格式：**
+返回 JSON 对象：
+```json
+{
+  "code": "<完整的 Python 代码>",
+  "table_structure": {
+    "has_multi_level_header": true/false,
+    "header_levels": 1,
+    "headers": ["列1", "列2"],
+    "rows": [["值1", "值2"]],
+    "merged_cells": []
+  }
+}
+```
+"""
+
+    task_prompt_for_table_text_renderer = """
+请分析以下表格文本，生成 matplotlib Python 代码来渲染专业美观的表格图片。
+
+**表格文本：**
+```
+{table_text}
+```
+
+**表格标题：** {table_title}
+
+**输出路径：** {output_path}
+
+**你的任务：**
+
+1. **分析表格结构：**
+   - 识别表格格式（LaTeX/Markdown/CSV 等）
+   - 检测是否有多级表头或合并单元格
+   - 提取表头和数据行
+
+2. **生成渲染代码：**
+   - 如果是简单表格，使用 ax.table()
+   - 如果有多级表头/合并单元格，使用底层绘图 API 精确控制
+   - 确保代码可直接执行
+
+3. **样式要求：**
+   - 表头使用深色背景（#4472C4），白色加粗文字
+   - 数据行使用斑马纹效果
+   - 如果有标题，在表格上方居中显示
+   - 自动调整尺寸
+
+4. **代码要求：**
+   - 必须使用上面提供的输出路径 `{output_path}` 保存图片
+   - 不要自己定义 output_path 变量，直接使用字符串路径
+   - 包含所有 import 语句
+   - 不要包含 plt.show()
+
+请返回包含 "code" 和 "table_structure" 字段的 JSON 对象。
+"""
+
+
+class TableSplitterPrompts:
+    """表格分割 Agent 的提示词模板"""
+    
+    system_prompt_for_table_splitter = """
+你是一位专门分析文本中表格的专家。
+
+你的任务是识别输入文本中包含的所有表格，并将它们分割成独立的部分。
+
+**支持的表格格式：**
+- LaTeX 表格（\\begin{tabular}...\\end{tabular}）
+- Markdown 表格（使用 | 分隔）
+- CSV 格式（逗号分隔）
+- TSV 格式（Tab 分隔）
+- 纯文本表格（空格对齐）
+
+**分割规则：**
+1. 每个独立的表格作为一个单独的条目
+2. 保持表格文本的原始格式，不要修改
+3. 如果表格前有标题或说明文字，提取到 caption 字段
+4. 如果只有一个表格，也要返回数组格式
+
+**输出格式：**
+返回 JSON 对象：
+```json
+{
+  "tables": [
+    {
+      "text": "完整的表格文本（保持原格式）",
+      "caption": "表格标题（如果有）"
+    }
+  ]
+}
+```
+"""
+
+    task_prompt_for_table_splitter = """
+请分析以下文本，识别并分割其中包含的所有表格。
+
+**输入文本：**
+```
+{input_text}
+```
+
+**你的任务：**
+1. 识别文本中的所有表格
+2. 将每个表格分割成独立的条目
+3. 保持表格文本的原始格式
+4. 提取表格标题（如果有）
+
+请返回包含 "tables" 字段的 JSON 对象。
+"""
