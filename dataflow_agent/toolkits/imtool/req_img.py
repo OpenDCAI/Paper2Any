@@ -19,6 +19,17 @@ class Provider(str, Enum):
 _B64_RE = re.compile(r"[A-Za-z0-9+/=]+")  # 匹配 Base64 字符
 
 
+def _mask_secret(value: str, keep_start: int = 4, keep_end: int = 4) -> str:
+    if value is None:
+        return ""
+    s = str(value)
+    if not s:
+        return ""
+    if len(s) <= keep_start + keep_end:
+        return "*" * len(s)
+    return f"{s[:keep_start]}...{s[-keep_end:]}"
+
+
 def detect_provider(api_url: str) -> Provider:
     """
     根据 api_url 粗略识别服务商
@@ -823,7 +834,9 @@ async def generate_or_edit_and_save_image_async(
         timeout_map = {"1K": 180, "2K": 300, "4K": 360}
         timeout = timeout_map.get(resolution, 300)
     
-    log.info(f"aspect_ratio: {aspect_ratio} \n resolution: {resolution} \n use_edit: {use_edit} \n model: {model} \n api_url: {api_url} \n timeout: {timeout} \n api_key: {api_key}")
+    log.info(
+        f"aspect_ratio: {aspect_ratio} \n resolution: {resolution} \n use_edit: {use_edit} \n model: {model} \n api_url: {api_url} \n timeout: {timeout} \n api_key: {_mask_secret(api_key)}"
+    )
     # 根据模型类型选择不同的API
     if _is_dalle_model(model):
         if use_edit:

@@ -103,7 +103,7 @@ def create_paper2video() -> gr.Blocks:
                     str(target_img_path) if image_path else None
                 )
                 # 提取结果
-                ppt_path = result.get("ppt_path", "")
+                ppt_path = result.get("ppt_path")
                 
                 # 构建日志信息
                 if ppt_path and Path(ppt_path).exists():
@@ -111,12 +111,12 @@ def create_paper2video() -> gr.Blocks:
                     return str(ppt_path)
                 else:
                     log.error("未能生成 PPT 文件。")
-                    return ""           
+                    return None
             except Exception as e:
                 import traceback
                 error_msg = f"执行失败:\n{traceback.format_exc()}"
                 print(f"错误: {error_msg}")
-                return ""
+                return None
 
 
         gen_btn.click(

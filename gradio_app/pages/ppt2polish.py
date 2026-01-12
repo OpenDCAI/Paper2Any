@@ -4,7 +4,7 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 import gradio as gr
 
@@ -24,11 +24,11 @@ def _list_generated_pages(run_dir: str) -> list[str]:
     return [str(p.resolve()) for p in sorted(img_dir.glob("page_*.png"))]
 
 
-def _pdf_path(run_dir: str) -> str:
+def _pdf_path(run_dir: str) -> Optional[str]:
     if not run_dir:
-        return ""
+        return None
     p = Path(run_dir) / "paper2ppt.pdf"
-    return str(p.resolve()) if p.exists() else ""
+    return str(p.resolve()) if p.exists() else None
 
 
 def _safe_json_loads(s: str) -> list[dict]:
@@ -108,7 +108,7 @@ async def _run_polish_all(
     gen_fig_model: str,
     style: str,
     aspect_ratio: str,
-) -> Tuple[list[str], str]:
+) -> Tuple[list[str], Optional[str]]:
     if not run_dir:
         raise gr.Error("请先生成 pagecontent。")
     if not (gen_fig_model or "").strip():
@@ -188,7 +188,7 @@ async def _run_edit_one(
     return _list_generated_pages(run_dir)
 
 
-async def _run_export(run_dir: str, language: str, chat_api_url: str, api_key: str, llm_model: str, gen_fig_model: str) -> str:
+async def _run_export(run_dir: str, language: str, chat_api_url: str, api_key: str, llm_model: str, gen_fig_model: str) -> Optional[str]:
     if not run_dir:
         raise gr.Error("请先生成一次 polish（产生 ppt_pages/page_*.png）。")
     os.environ["DF_API_KEY"] = api_key

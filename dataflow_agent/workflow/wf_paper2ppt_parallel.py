@@ -467,7 +467,6 @@ def create_paper2ppt_parallel_graph() -> GenericGraphBuilder:  # noqa: N802
                     state.generated_pages.append("")
 
         state.pagecontent = new_pagecontent
-        state.gen_down = True
         return state
 
     async def edit_single_page(state: Paper2FigureState) -> Paper2FigureState:
