@@ -634,10 +634,11 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                 l_bbox = [x1, y1, x2, y2]
                 
                 is_in_image = False
-                for z in image_zones:
-                    if _is_inside(l_bbox, z["bbox"]): 
-                        is_in_image = True
-                        break
+                # [MODIFIED] Keep all VLM text, even if inside image zones
+                # for z in image_zones:
+                #     if _is_inside(l_bbox, z["bbox"]): 
+                #         is_in_image = True
+                #         break
                 
                 if not is_in_image:
                     # 估算字号
