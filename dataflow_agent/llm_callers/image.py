@@ -42,6 +42,67 @@ class VisionLLMCaller(BaseLLMCaller):
     async def _call_image_understanding(self, messages: List[BaseMessage]) -> AIMessage:
         """图像理解模式 - 输入图像，输出文本"""
 
+        # ------------------------------------------------------------------
+        # 分支：Qwen-VL-OCR (APIYI / DashScope 兼容)
+        # ------------------------------------------------------------------
+        if "qwen-vl-ocr" in self.model_name.lower() and "apiyi" in self.state.request.chat_api_url:
+            log.info(f"[VisionLLM] 命中 Qwen-VL-OCR (APIYI) 理解分支: {self.model_name}")
+            
+            processed_messages = []
+            for msg in messages:
+                role = "user"
+                if hasattr(msg, "type"):
+                    # LangChain message type mapping
+                    if msg.type == "human": role = "user"
+                    elif msg.type == "ai": role = "assistant"
+                    elif msg.type == "system": role = "system"
+                processed_messages.append({"role": role, "content": msg.content})
+
+            # 处理输入图像
+            if "input_image" in self.vlm_config:
+                img_path = self.vlm_config["input_image"]
+                b64, fmt = self._encode_image(img_path)
+                
+                # 找到最后一条 user 消息注入图片
+                target_msg = None
+                for m in reversed(processed_messages):
+                    if m["role"] == "user":
+                        target_msg = m
+                        break
+                
+                if target_msg:
+                    original_text = target_msg["content"]
+                    # 构造 OpenAI Vision 格式
+                    target_msg["content"] = [
+                        {"type": "image_url", "image_url": {"url": f"data:image/{fmt};base64,{b64}"}},
+                        {"type": "text", "text": original_text}
+                    ]
+                else:
+                    # 如果没有 user 消息，强行加一条
+                    processed_messages.append({
+                        "role": "user",
+                        "content": [
+                            {"type": "image_url", "image_url": {"url": f"data:image/{fmt};base64,{b64}"}},
+                            {"type": "text", "text": "Describe this image."}
+                        ]
+                    })
+
+            # 构造 Payload
+            payload = {
+                "model": self.model_name,
+                "messages": processed_messages,
+                # OCR 任务建议低温
+                "temperature": 0.01, 
+                "max_tokens": self.max_tokens if hasattr(self, 'max_tokens') else 4096,
+            }
+            
+            resp = await self._post_chat_completions(payload)
+            content = resp["choices"][0]["message"]["content"]
+            return AIMessage(content=content)
+
+        # ------------------------------------------------------------------
+        # 通用分支 (默认)
+        # ------------------------------------------------------------------
         ROLE_MAP = {
             "human": "user",
             "ai": "assistant",
