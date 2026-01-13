@@ -313,6 +313,7 @@ def create_vlm_agent(
             - message_history: 消息历史管理器
             - max_image_size: 最大图像尺寸，默认(1024, 1024)（Dalle-3）
             - additional_params: 额外VLM参数字典，默认空字典
+                - input_image : 需要处理的图片路径
                 - 比如 aspect_ratio 生成图像比例（只适合Gemini）
             - chat_api_url: 自定义Chat API URL
     

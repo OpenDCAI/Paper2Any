@@ -104,7 +104,7 @@ const Pdf2PptPage = () => {
   const [useAiEdit, setUseAiEdit] = useState(false);
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
-  const [genFigModel, setGenFigModel] = useState('gemini-2.5-flash-image');
+  const [genFigModel, setGenFigModel] = useState('gemini-3-pro-image-preview');
 
   const validateDocFile = (file: File): boolean => {
     const ext = file.name.split('.').pop()?.toLowerCase();
@@ -465,22 +465,15 @@ const Pdf2PptPage = () => {
                       <div className="flex items-center gap-2">
                         <select 
                           value={llmApiUrl} 
-                          onChange={e => {
-                            const val = e.target.value;
-                            setLlmApiUrl(val);
-                            if (val === 'http://123.129.219.111:3000/v1') {
-                              setGenFigModel('gemini-3-pro-image-preview');
-                            }
-                          }}
+                          onChange={e => setLlmApiUrl(e.target.value)}
                           className="flex-1 rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
                         >
                           <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
                           <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
-                          <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
                         </select>
                         <QRCodeTooltip>
                         <a
-                          href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com/register/?aff_code=TbrD"}
+                          href="https://api.apiyi.com/register/?aff_code=TbrD"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="whitespace-nowrap text-[10px] text-purple-300 hover:text-purple-200 hover:underline px-1"
@@ -512,10 +505,8 @@ const Pdf2PptPage = () => {
                           <select 
                             value={genFigModel} 
                             onChange={e => setGenFigModel(e.target.value)}
-                            disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
-                            className="w-full appearance-none rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full appearance-none rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
                           >
-                            <option value="gemini-2.5-flash-image">Gemini 2.5 Flash</option>
                             <option value="gemini-3-pro-image-preview">Gemini 3 Pro</option>
                           </select>
                           <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
@@ -524,9 +515,6 @@ const Pdf2PptPage = () => {
                             </svg>
                           </div>
                         </div>
-                        {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
-                           <p className="text-[10px] text-gray-500 mt-1">此源仅支持 gemini-3-pro</p>
-                        )}
                       </div>
                     </div>
                   </div>
