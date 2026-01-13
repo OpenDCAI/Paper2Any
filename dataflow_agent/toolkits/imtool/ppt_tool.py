@@ -121,6 +121,8 @@ BODY_RATIO_MAX = 1.1  # 正文最大倍率
 PADDLE_OCR = PaddleOCR(
     use_angle_cls=True,  # 角度分类，处理横竖混排
     lang="ch",  # 中文 + 英文
+    det_db_unclip_ratio=1.2 ,
+    det_db_box_thresh=0.5
 )
 
 # ----------------------------

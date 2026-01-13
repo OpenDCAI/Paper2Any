@@ -60,7 +60,7 @@ const Paper2FigurePage = () => {
 
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('gemini-2.5-flash-image-preview');
+  const [model, setModel] = useState('gemini-3-pro-image-preview');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);

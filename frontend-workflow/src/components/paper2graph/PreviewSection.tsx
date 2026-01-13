@@ -197,16 +197,49 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
             放弃
           </button>
           {graphStep === 'done' && pptUrl ? (
-            <a
-              href={pptUrl}
-              download={`paper2figure_ppt_${Date.now()}.pptx`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={async () => {
+                if (!pptUrl) return;
+                try {
+                  // 如果当前页面是 HTTPS，但资源是 HTTP，尝试升级协议以避免 Mixed Content 错误
+                  let fetchUrl = pptUrl;
+                  if (window.location.protocol === 'https:' && fetchUrl.startsWith('http:')) {
+                    fetchUrl = fetchUrl.replace(/^http:/, 'https:');
+                  }
+
+                  // 简单的加载提示
+                  const btn = document.activeElement as HTMLButtonElement;
+                  const originalText = btn.innerText;
+                  if (btn) btn.innerText = '下载中...';
+
+                  const res = await fetch(fetchUrl);
+                  if (!res.ok) throw new Error('下载失败');
+                  
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `paper2figure_ppt_${Date.now()}.pptx`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                  
+                  if (btn) btn.innerText = originalText;
+                } catch (e) {
+                  console.error('Download failed', e);
+                  alert('下载失败，请尝试手动复制链接或检查网络。');
+                  // 恢复按钮文本
+                  const btn = document.activeElement as HTMLButtonElement;
+                  if (btn && btn.innerText === '下载中...') btn.innerText = '下载 PPT';
+                }
+              }}
               className="px-6 py-3 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 transition-all min-w-[180px]"
             >
               <Download size={18} />
               下载 PPT
-            </a>
+            </button>
           ) : (
             <button
               type="button"
