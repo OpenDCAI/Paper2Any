@@ -13,7 +13,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { getUserIdentifier } from './fingerprintService';
 
 // Quota limits
-const ANONYMOUS_DAILY_LIMIT = 10;
+const ANONYMOUS_DAILY_LIMIT = 15;
 const AUTHENTICATED_DAILY_LIMIT = 20;
 
 // Local storage key for anonymous usage tracking (fallback when Supabase not configured)
