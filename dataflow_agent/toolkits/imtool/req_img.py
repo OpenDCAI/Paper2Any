@@ -5,6 +5,8 @@ import re
 from typing import Tuple, Optional, List, Union
 import httpx
 from enum import Enum
+from io import BytesIO
+from PIL import Image
 
 from dataflow_agent.logger import get_logger
 
@@ -40,21 +42,52 @@ def extract_base64(s: str) -> str:
 
 def _encode_image_to_base64(image_path: str) -> Tuple[str, str]:
     """
-    读取本地图片并编码为 Base64，同时返回图片格式（jpeg / png）
+    读取本地图片并编码为 Base64，同时返回图片格式（jpeg / png）。
+    如果图片过大（>3MB），则自动进行压缩/Resize以避免 413 错误。
     """
-    with open(image_path, "rb") as f:
-        raw = f.read()
-    b64 = base64.b64encode(raw).decode("utf-8")
+    MAX_SIZE = 3 * 1024 * 1024  # 3MB
+    MAX_DIM = 2048              # 最大边长 2048
 
+    file_size = os.path.getsize(image_path)
     ext = image_path.rsplit(".", 1)[-1].lower()
-    if ext in {"jpg", "jpeg"}:
-        fmt = "jpeg"
-    elif ext == "png":
-        fmt = "png"
-    else:
-        raise ValueError(f"Unsupported image format: {ext}")
+    fmt = "jpeg" if ext in {"jpg", "jpeg"} else "png"
 
-    return b64, fmt
+    # 如果文件小于 3MB 且是常见格式，直接读取
+    if file_size < MAX_SIZE and fmt in ["jpeg", "png"]:
+        with open(image_path, "rb") as f:
+            raw = f.read()
+        b64 = base64.b64encode(raw).decode("utf-8")
+        return b64, fmt
+
+    # 否则进行压缩处理
+    log.info(f"[req_img] Image {os.path.basename(image_path)} too large ({file_size/1024/1024:.2f}MB), compressing...")
+    try:
+        with Image.open(image_path) as img:
+            # 1. Resize if too large
+            if max(img.size) > MAX_DIM:
+                scale = MAX_DIM / max(img.size)
+                new_size = (int(img.width * scale), int(img.height * scale))
+                img = img.resize(new_size, Image.Resampling.LANCZOS)
+            
+            # 2. Convert to RGB if needed (for JPEG)
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            
+            # 3. Save to buffer as JPEG
+            buffer = BytesIO()
+            img.save(buffer, format="JPEG", quality=85)
+            raw = buffer.getvalue()
+            
+            log.info(f"[req_img] Compressed size: {len(raw)/1024/1024:.2f}MB")
+            b64 = base64.b64encode(raw).decode("utf-8")
+            return b64, "jpeg"
+            
+    except Exception as e:
+        log.warning(f"[req_img] Compression failed: {e}, falling back to original.")
+        with open(image_path, "rb") as f:
+            raw = f.read()
+        b64 = base64.b64encode(raw).decode("utf-8")
+        return b64, fmt
 
 async def _post_stream_and_accumulate(
     url: str,

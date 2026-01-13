@@ -134,6 +134,7 @@ const MOCK_AFTER_IMAGES = [
 ];
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const STORAGE_KEY = 'pptpolish-storage';
 
 // ============== 主组件 ==============
 const Ppt2PolishPage = () => {
@@ -259,6 +260,52 @@ const Ppt2PolishPage = () => {
     };
     fetchStars();
   }, []);
+
+  // 从 localStorage 恢复配置
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      
+      if (saved.styleMode) setStyleMode(saved.styleMode);
+      if (saved.stylePreset) setStylePreset(saved.stylePreset);
+      if (saved.globalPrompt) setGlobalPrompt(saved.globalPrompt);
+      if (saved.inviteCode) setInviteCode(saved.inviteCode);
+      if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
+      if (saved.apiKey) setApiKey(saved.apiKey);
+      if (saved.model) setModel(saved.model);
+      if (saved.genFigModel) setGenFigModel(saved.genFigModel);
+      if (saved.language) setLanguage(saved.language);
+    } catch (e) {
+      console.error('Failed to restore pptpolish config', e);
+    }
+  }, []);
+
+  // 将配置写入 localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const data = {
+      styleMode,
+      stylePreset,
+      globalPrompt,
+      inviteCode,
+      llmApiUrl,
+      apiKey,
+      model,
+      genFigModel,
+      language
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.error('Failed to persist pptpolish config', e);
+    }
+  }, [
+    styleMode, stylePreset, globalPrompt, inviteCode, 
+    llmApiUrl, apiKey, model, genFigModel, language
+  ]);
 
   // ============== Step 1: 上传处理 ==============
   const validateDocFile = (file: File): boolean => {
