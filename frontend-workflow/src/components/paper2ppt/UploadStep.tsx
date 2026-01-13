@@ -190,55 +190,8 @@ const UploadStep: React.FC<UploadStepProps> = ({
             <Settings2 size={18} className="text-purple-400" /> {t('upload.config.title')}
           </h3>
           
-          {/* API 配置 */}
+          {/* 模型配置 */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
-                <Key size={12} /> {t('upload.config.apiKey')}
-              </label>
-              <input 
-                type="password" 
-                value={apiKey} 
-                onChange={e => setApiKey(e.target.value)}
-                placeholder={t('upload.config.apiKeyPlaceholder')}
-                className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs text-gray-400 flex items-center gap-1">
-                  <Globe size={12} /> {t('upload.config.apiUrl')}
-                </label>
-                <QRCodeTooltip>
-                <a
-                  href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com/register/?aff_code=TbrD"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[10px] text-purple-300 hover:text-purple-200 hover:underline"
-                >
-                  {t('upload.config.buyLink')}
-                </a>
-                </QRCodeTooltip>
-              </div>
-              <select 
-                value={llmApiUrl} 
-                onChange={e => {
-                  const val = e.target.value;
-                  setLlmApiUrl(val);
-                  if (val === 'http://123.129.219.111:3000/v1') {
-                    setGenFigModel('gemini-3-pro-image-preview');
-                  }
-                }}
-                className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
-                <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
-                <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
-              </select>
-            </div>
             <div>
               <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
                 <Cpu size={12} /> {t('upload.config.model')}

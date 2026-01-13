@@ -495,45 +495,6 @@ const Pdf2PptPage = () => {
                 {useAiEdit && (
                   <div className="space-y-4 mb-6 p-4 rounded-xl border border-purple-500/20 bg-purple-500/5 animate-in fade-in slide-in-from-top-2">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
-                        <Globe size={12} /> {t('config.apiUrl')} <span className="text-red-400">*</span>
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <select 
-                          value={llmApiUrl} 
-                          onChange={e => setLlmApiUrl(e.target.value)}
-                          className="flex-1 rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
-                        >
-                          <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
-                          <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
-                        </select>
-                        <QRCodeTooltip>
-                        <a
-                          href="https://api.apiyi.com/register/?aff_code=TbrD"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="whitespace-nowrap text-[10px] text-purple-300 hover:text-purple-200 hover:underline px-1"
-                        >
-                          {t('config.buyLink')}
-                        </a>
-                        </QRCodeTooltip>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
-                        <Key size={12} /> {t('config.apiKey')} <span className="text-red-400">*</span>
-                      </label>
-                      <input 
-                        type="password" 
-                        value={apiKey} 
-                        onChange={e => setApiKey(e.target.value)}
-                        placeholder="sk-..."
-                        className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                    </div>
-                      <div>
                         <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
                           <Image size={12} /> {t('config.genModel')}
                         </label>
@@ -551,7 +512,6 @@ const Pdf2PptPage = () => {
                             </svg>
                           </div>
                         </div>
-                      </div>
                     </div>
                   </div>
                 )}

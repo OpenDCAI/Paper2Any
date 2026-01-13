@@ -1213,48 +1213,6 @@ const Ppt2PolishPage = () => {
           </div> */}
           
           <div>
-            <label className="block text-sm text-gray-300 mb-2">{t('upload.config.apiUrl')}</label>
-            <div className="flex items-center gap-2">
-              <select
-                value={llmApiUrl}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setLlmApiUrl(val);
-                  if (val === 'http://123.129.219.111:3000/v1') {
-                    setGenFigModel('gemini-3-pro-image-preview');
-                  }
-                }}
-                className="flex-1 rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
-              >
-                <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
-                <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
-                <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
-              </select>
-              <QRCodeTooltip>
-                <a
-                  href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com/register/?aff_code=TbrD"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="whitespace-nowrap text-[10px] text-teal-300 hover:text-teal-200 hover:underline px-1"
-                >
-                  {t('upload.config.buyLink')}
-                </a>
-              </QRCodeTooltip>
-            </div>
-          </div>
-          
-          <div>
-            <label className="block text-sm text-gray-300 mb-2">{t('upload.config.apiKey')}</label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={t('upload.config.apiKeyPlaceholder')}
-              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500"
-            />
-          </div>
-          
-          <div>
             <label className="block text-sm text-gray-300 mb-2">{t('upload.config.model')}</label>
             <select
               value={model}
@@ -1271,14 +1229,10 @@ const Ppt2PolishPage = () => {
             <select
               value={genFigModel}
               onChange={(e) => setGenFigModel(e.target.value)}
-              disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
-              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
             >
               <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
             </select>
-            {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
-               <p className="text-[10px] text-gray-500 mt-1">此源仅支持 gemini-3-pro</p>
-            )}
           </div>
           
           <div>

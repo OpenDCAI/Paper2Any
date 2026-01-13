@@ -134,19 +134,6 @@ const NodeConfigPanel = ({ node, onClose, onDelete, onUpdate }: NodeConfigPanelP
               />
             </div>
 
-            {/* API URL */}
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Chat API URL (可选)</label>
-              <input
-                type="text"
-                value={config.chat_api_url || ''}
-                onChange={(e) => setConfig({ ...config, chat_api_url: e.target.value })}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg
-                         text-white text-sm focus:outline-none focus:border-primary-500"
-                placeholder="https://api.openai.com/v1"
-              />
-            </div>
-
             {/* Temperature */}
             <div>
               <label className="block text-xs text-gray-500 mb-1">
