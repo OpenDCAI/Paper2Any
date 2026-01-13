@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../stores/authStore';
 import { uploadAndSaveFile } from '../../services/fileService';
 import { API_KEY } from '../../config/api';
-import { checkQuota, recordUsage } from '../../services/quotaService';
 import { verifyLlmConnection } from '../../services/llmService';
 
 import {
@@ -41,7 +40,7 @@ function detectFileKind(file: File): FileKind {
 
 const Paper2FigurePage = () => {
   const { t, i18n } = useTranslation('paper2graph');
-  const { user, refreshQuota } = useAuthStore();
+  const { user } = useAuthStore();
   
   // State from original file
   const [uploadMode, setUploadMode] = useState<UploadMode>('file');
@@ -318,14 +317,6 @@ const Paper2FigurePage = () => {
       setStageProgress(0);
       // setShowOutputPanel(true);
 
-      const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
-      if (quota.remaining <= 0) {
-        setError(quota.isAuthenticated
-          ? t('errors.quotaUserExhausted')
-          : t('errors.quotaGuestExhausted'));
-        return;
-      }
-
       if (!llmApiUrl.trim() || !apiKey.trim()) {
         setError(t('errors.missingApiConfig'));
         return;
@@ -392,8 +383,6 @@ const Paper2FigurePage = () => {
 
         setAllOutputFiles(data.all_output_files ?? []);
         setSuccessMessage(t('success.previewGenerated', '模型结构图预览已生成，请确认并转为 PPT'));
-        await recordUsage(user?.id || null, 'paper2figure');
-        refreshQuota();
 
         // 选一张主图做预览：优先 fig_*.png，其次最大 png
         let mainImg: string | null = null;
@@ -438,15 +427,6 @@ const Paper2FigurePage = () => {
     setCurrentStage(0);
     setStageProgress(0);
     // setShowOutputPanel(true);
-
-    // Check quota before proceeding
-    const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
-    if (quota.remaining <= 0) {
-      setError(quota.isAuthenticated
-        ? t('errors.quotaUserExhausted')
-        : t('errors.quotaGuestExhausted'));
-      return;
-    }
 
     if (!llmApiUrl.trim() || !apiKey.trim()) {
       setError(t('errors.missingApiConfig'));
@@ -542,10 +522,6 @@ const Paper2FigurePage = () => {
         setAllOutputFiles(data.all_output_files ?? []);
         setSuccessMessage(t('success.techRouteGenerated'));
 
-        // Record usage
-        await recordUsage(user?.id || null, 'paper2figure');
-        refreshQuota();
-
         // Fetch PPT file and upload to Supabase Storage
         if (data.ppt_filename) {
           try {
@@ -597,10 +573,6 @@ const Paper2FigurePage = () => {
         setDownloadUrl(url);
         setLastFilename(filename);
         setSuccessMessage(t('success.pptGenerated'));
-
-        // Record usage and save file to Supabase Storage
-        await recordUsage(user?.id || null, 'paper2figure');
-        refreshQuota();
 
         console.log('[Paper2GraphPage] Uploading file to storage:', filename);
         const uploadResult = await uploadAndSaveFile(blob, filename, 'paper2figure');

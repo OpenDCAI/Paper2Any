@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
-import { checkQuota, recordUsage } from '../services/quotaService';
 import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
 import QRCodeTooltip from './QRCodeTooltip';
@@ -139,7 +138,7 @@ const STORAGE_KEY = 'pptpolish-storage';
 // ============== 主组件 ==============
 const Ppt2PolishPage = () => {
   const { t } = useTranslation(['pptPolish', 'common']);
-  const { user, refreshQuota } = useAuthStore();
+  const { user } = useAuthStore();
   // 步骤状态
   const [currentStep, setCurrentStep] = useState<Step>('upload');
   
@@ -391,13 +390,6 @@ const Ppt2PolishPage = () => {
 
     if (styleMode === 'reference' && !referenceImage) {
       setError(t('errors.reference'));
-      return;
-    }
-
-    // Check quota before proceeding
-    const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
-    if (quota.remaining <= 0) {
-      setError(t('errors.quota'));
       return;
     }
 
@@ -1035,10 +1027,6 @@ const Ppt2PolishPage = () => {
       if (!pptxUrl && !pdfUrl) {
         throw new Error('未找到生成的文件');
       }
-
-      // Record usage
-      await recordUsage(user?.id || null, 'ppt2polish');
-      refreshQuota();
 
       // Upload generated file to Supabase Storage (either PPTX or PDF)
       // Prefer PPTX, fallback to PDF

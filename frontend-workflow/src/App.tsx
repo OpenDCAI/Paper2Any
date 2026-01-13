@@ -8,7 +8,7 @@ import Ppt2PolishPage from './components/Ppt2PolishPage';
 // import KnowledgeBasePage from './components/KnowledgeBasePage';
 import { FilesPage } from './components/FilesPage';
 import { useTranslation } from 'react-i18next';
-import { QuotaDisplay } from './components/QuotaDisplay';
+
 import { UserMenu } from './components/UserMenu';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { Workflow } from 'lucide-react';
@@ -114,10 +114,9 @@ function App() {
               </button>
             </div>
 
-            {/* 右侧：配额显示 & 用户菜单 */}
+            {/* 右侧：用户菜单 */}
             <div className="flex items-center gap-3">
               <LanguageSwitcher />
-              <QuotaDisplay />
               <UserMenu />
             </div>
           </div>

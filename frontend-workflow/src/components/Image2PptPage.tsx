@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
-import { checkQuota, recordUsage } from '../services/quotaService';
 import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
 import QRCodeTooltip from './QRCodeTooltip';
@@ -16,7 +15,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB for images
 // ============== 主组件 ==============
 const Image2PptPage = () => {
   const { t } = useTranslation(['image2ppt', 'common']);
-  const { user, refreshQuota } = useAuthStore();
+  const { user } = useAuthStore();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -150,13 +149,6 @@ const Image2PptPage = () => {
       return;
     }
 
-    // Check quota before proceeding
-    const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
-    if (quota.remaining <= 0) {
-      setError(t('errors.quotaFull'));
-      return;
-    }
-
     if (useAiEdit) {
       if (!apiKey.trim()) {
         setError(t('errors.enterKey'));
@@ -247,10 +239,6 @@ const Image2PptPage = () => {
       setStatusMessage(t('status.complete'));
       setIsComplete(true);
 
-      // Record usage and upload file to Supabase Storage
-      await recordUsage(user?.id || null, 'image2ppt'); // Assuming same quota type or distinct one
-      refreshQuota();
-      
       // Upload to storage
       const ext = selectedFile.name.split('.').pop() || 'png';
       const outputName = selectedFile.name.replace(`.${ext}`, '.pptx') || 'image2ppt_output.pptx';

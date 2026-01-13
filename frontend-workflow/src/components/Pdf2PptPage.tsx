@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
-import { checkQuota, recordUsage } from '../services/quotaService';
 import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
 import QRCodeTooltip from './QRCodeTooltip';
@@ -17,7 +16,7 @@ const STORAGE_KEY = 'pdf2ppt-storage';
 // ============== 主组件 ==============
 const Pdf2PptPage = () => {
   const { t } = useTranslation(['pdf2ppt', 'common']);
-  const { user, refreshQuota } = useAuthStore();
+  const { user } = useAuthStore();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -185,13 +184,6 @@ const Pdf2PptPage = () => {
       return;
     }
 
-    // Check quota before proceeding
-    const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
-    if (quota.remaining <= 0) {
-      setError(t('errors.quotaFull'));
-      return;
-    }
-
     if (useAiEdit) {
       if (!apiKey.trim()) {
         setError(t('errors.enterKey'));
@@ -282,9 +274,7 @@ const Pdf2PptPage = () => {
       setStatusMessage(t('status.complete'));
       setIsComplete(true);
 
-      // Record usage and upload file to Supabase Storage
-      await recordUsage(user?.id || null, 'pdf2ppt');
-      refreshQuota();
+      // Upload file to Supabase Storage
       const outputName = selectedFile?.name.replace('.pdf', '.pptx') || 'pdf2ppt_output.pptx';
       console.log('[Pdf2PptPage] Uploading file to storage:', outputName);
       await uploadAndSaveFile(blob, outputName, 'pdf2ppt');

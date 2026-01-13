@@ -2,7 +2,6 @@ import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { uploadAndSaveFile } from '../../services/fileService';
 import { API_KEY } from '../../config/api';
-import { checkQuota, recordUsage } from '../../services/quotaService';
 import { verifyLlmConnection } from '../../services/llmService';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -17,7 +16,7 @@ import GenerateStep from './GenerateStep';
 import CompleteStep from './CompleteStep';
 
 const Paper2PptPage = () => {
-  const { user, refreshQuota } = useAuthStore();
+  const { user } = useAuthStore();
   
   // Step 状态
   const [currentStep, setCurrentStep] = useState<Step>('upload');
@@ -270,20 +269,6 @@ const Paper2PptPage = () => {
     }
     if ((uploadMode === 'text' || uploadMode === 'topic') && !textContent.trim()) {
       setError(uploadMode === 'text' ? '请输入长文本内容' : '请输入 Topic 主题');
-      return;
-    }
-    
-    if (!apiKey.trim()) {
-      setError('请输入 API Key');
-      return;
-    }
-
-    // Check quota before proceeding
-    const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
-    if (quota.remaining <= 0) {
-      setError(quota.isAuthenticated
-        ? '今日配额已用完（10次/天），请明天再试'
-        : '今日配额已用完（5次/天），登录后可获得更多配额');
       return;
     }
 
@@ -781,10 +766,6 @@ const Paper2PptPage = () => {
           }
         }
       }
-
-      // Record usage
-      await recordUsage(user?.id || null, 'paper2ppt');
-      refreshQuota();
 
       // Upload generated file to Supabase Storage (either PPTX or PDF)
       let filePath = data.ppt_pptx_path || (data.all_output_files?.find((url: string) =>
