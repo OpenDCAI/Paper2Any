@@ -48,7 +48,7 @@ export const UploadView = ({ onSuccess }: UploadViewProps) => {
         formData.append('user_id', user.id);
 
         // 1. Upload to Backend
-        const res = await fetch('/api/kb/upload', {
+        const res = await fetch('/api/v1/kb/upload', {
           method: 'POST',
           headers: {
             'X-API-Key': 'df-internal-2024-workflow-key'

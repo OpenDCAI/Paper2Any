@@ -22,7 +22,7 @@ def get_service() -> Paper2PPTService:
 
 
 @router.post(
-    "/pagecontent_json",
+    "/paper2ppt/page-content",
     response_model=Dict[str, Any],
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
@@ -74,7 +74,7 @@ async def paper2ppt_pagecontent_json(
 
 
 @router.post(
-    "/ppt_json",
+    "/paper2ppt/generate",
     response_model=Dict[str, Any],
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
@@ -131,59 +131,6 @@ async def paper2ppt_ppt_json(
     data = await service.generate_ppt(
         req=req,
         reference_img=reference_img,
-        request=request,
-    )
-    return data
-
-
-@router.post(
-    "/full_json",
-    response_model=Dict[str, Any],
-    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
-)
-async def paper2ppt_full_json(
-    request: Request,
-    img_gen_model_name: str = Form(...),
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
-    invite_code: Optional[str] = Form(None),
-    # 输入：支持 text/pdf/pptx
-    input_type: str = Form(...),  # 'text' | 'pdf' | 'pptx'
-    file: Optional[UploadFile] = File(None),
-    text: Optional[str] = Form(None),
-    # 其他控制参数
-    language: str = Form("zh"),
-    aspect_ratio: str = Form("16:9"),
-    style: str = Form(""),
-    model: str = Form("gpt-5.1"),
-    use_long_paper: str = Form("false"),
-    service: Paper2PPTService = Depends(get_service),
-):
-    """
-    Full pipeline：
-    - paper2page_content -> paper2ppt
-    - get_down 固定为 False（首次生成）
-    """
-    # validate_invite_code(invite_code)
-
-    req = FullPipelineRequest(
-        img_gen_model_name=img_gen_model_name,
-        chat_api_url=chat_api_url,
-        api_key=api_key,
-        invite_code=invite_code,
-        input_type=input_type,
-        file=None,  # UploadFile 不放进 Pydantic，作为单独参数传给 service
-        text=text,
-        language=language,
-        aspect_ratio=aspect_ratio,
-        style=style,
-        model=model,
-        use_long_paper=use_long_paper,
-    )
-
-    data = await service.run_full_pipeline(
-        req=req,
-        file=file,
         request=request,
     )
     return data

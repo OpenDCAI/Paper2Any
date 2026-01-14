@@ -1,4 +1,4 @@
-site_name: Dataflow Agent Docs
+site_name: Paper2Any Docs
 site_url: ""
 theme:
   name: material
@@ -10,12 +10,12 @@ nav:
   - 主页: index.md
   - 快速开始: quickstart.md
   - 安装: installation.md
-  - 教程:
-      - 示例教程: tutorials/tutorial_first.md
-      - workflow编写指南: tutorials/workflow_write.md
-  - 指南:
-      - 架构设计: guides/architecture.md
-      - 算子编写: guides/operator_write.md
+  - 功能指南:
+      - Paper2Figure: guides/paper2figure.md
+      - Paper2PPT: guides/paper2ppt.md
+      - Paper2Video: guides/paper2video.md
+      - Paper2Technical: guides/paper2technical.md
+  - CLI工具: cli.md
   - FAQ: faq.md
   - 贡献指南: contributing.md
   - 更新日志: changelog.md

@@ -40,16 +40,16 @@ def create_app() -> FastAPI:
 
     # 路由挂载
     app.include_router(paper2video.router, prefix="/paper2video", tags=["paper2video"])
-    # Paper2Graph / Paper2PPT 假接口，对接前端 /api/*
-    app.include_router(paper2any.router, prefix="/api", tags=["paper2any"])
-    # Paper2PPT full pipeline JSON 接口，对接前端 /api/paper2ppt/*
-    app.include_router(paper2ppt.router, prefix="/api/paper2ppt", tags=["paper2ppt"])
-    # pdf2ppt_with_sam workflow 接口：仅上传 PDF，返回 PPTX 文件
-    app.include_router(pdf2ppt.router, prefix="/api", tags=["pdf2ppt"])
-    # image2ppt 接口
-    app.include_router(image2ppt.router, prefix="/api", tags=["image2ppt"])
+    # Paper2Graph / System
+    app.include_router(paper2any.router, prefix="/api/v1", tags=["paper2any"])
+    # Paper2PPT
+    app.include_router(paper2ppt.router, prefix="/api/v1", tags=["paper2ppt"])
+    # PDF2PPT
+    app.include_router(pdf2ppt.router, prefix="/api/v1", tags=["pdf2ppt"])
+    # Image2PPT
+    app.include_router(image2ppt.router, prefix="/api/v1", tags=["image2ppt"])
     # 知识库接口
-    app.include_router(kb.router, prefix="/api", tags=["Knowledge Base"])
+    app.include_router(kb.router, prefix="/api/v1", tags=["Knowledge Base"])
 
     # 挂载静态文件目录（用于提供生成的 PPTX/SVG/PNG 文件）
     project_root = get_project_root()
