@@ -96,12 +96,13 @@
   },
   "success": {
     "pptGenerated": "PPTX 已生成，正在下载...",
-    "techRouteGenerated": "技术路线图已生成，可下载 PPT / SVG 或直接预览 PNG"
+    "techRouteGenerated": "技术路线图已生成，可下载 PPT / SVG 或直接预览 PNG",
+    "previewGenerated": "模型结构图预览已生成，请确认并转为 PPT"
   },
   "examples": {
     "sectionTitle": "示例：从 Paper 到 PPTX",
     "sectionSubtitle": "下方示例展示从 PDF / 图片 / 文本 到可编辑 PPTX 的效果。",
-    "feishuLink": "更多案例点击：飞书文档",
+    "feishuLink": "常见问题与更多案例",
     "cards": {
       "paperPdfToFigureTitle": "论文 PDF → 符合论文主题的 科研绘图（PPT）",
       "paperPdfToFigureDesc": "上传英文论文 PDF，自动提炼研究背景、方法、实验设计和结论，生成结构清晰、符合学术风格的汇报 PPTX。",

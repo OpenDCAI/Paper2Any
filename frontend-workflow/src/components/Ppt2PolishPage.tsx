@@ -1389,7 +1389,7 @@ const Ppt2PolishPage = () => {
               <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-teal-500/20 to-emerald-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
               <Sparkles size={12} className="text-teal-300 animate-pulse" />
               <span className="bg-gradient-to-r from-cyan-300 via-teal-300 to-emerald-300 bg-clip-text text-transparent group-hover:from-cyan-200 group-hover:via-teal-200 group-hover:to-emerald-200">
-                更多案例点击：飞书文档
+                常见问题与更多案例
               </span>
             </a>
         </div>
