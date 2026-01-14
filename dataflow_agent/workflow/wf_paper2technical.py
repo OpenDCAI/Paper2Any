@@ -193,7 +193,7 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         agent = create_react_agent(
             name="technical_route_desc_generator",
             max_retries=4,
-            model_name="claude-haiku-4-5-20251001",
+            model_name=getattr(state.request, "technical_model", "claude-haiku-4-5-20251001"),
         )
         state = await agent.execute(state=state)
 

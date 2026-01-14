@@ -249,6 +249,19 @@ class Paper2FigureRequest(MainRequest):
     # gen_fig_model: str = "gemini-3-pro-image-preview"
     sam2_model: str = "models/facebook/sam2.1-hiera-tiny"
     bg_rm_model: str = "models/RMBG-2.0"
+
+    # 新增：用于 wf_pdf2ppt_qwenvl.py 的 VLM 模型
+    vlm_model: str = "qwen-vl-ocr-2025-11-20"
+    
+    # 新增：用于 wf_paper2expfigure.py 的图表相关模型
+    chart_model: str = "gpt-4o"
+    
+    # 新增：用于 wf_paper2figure_image_only.py 的描述生成模型
+    fig_desc_model: str = "gpt-5.1"
+    
+    # 新增：用于 wf_paper2technical.py 的技术路线生成模型
+    technical_model: str = "claude-haiku-4-5-20251001"
+
     input_type: str = "PDF"
     #  科研绘图复杂度    
     figure_complex: str = "hard"

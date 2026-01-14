@@ -120,7 +120,8 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
         # 如果是 FIGURE 输入，但没有 edit_prompt，说明是转 PPT
         if req.input_type == "FIGURE" and not req.edit_prompt:
             # wf_name = "pdf2ppt_parallel"
-            wf_name = "pdf2ppt_optimized"
+            # wf_name = "pdf2ppt_optimized"
+            wf_name = "pdf2ppt_qwenvl"
             result_root = project_root / "outputs" / req.invite_code / "paper2fig_ppt" / ts
         else:
             # 否则是生成/编辑图片（Step 1）

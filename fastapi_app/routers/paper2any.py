@@ -16,7 +16,7 @@ def get_service() -> Paper2AnyService:
     return Paper2AnyService()
 
 
-@router.post("/verify-llm", response_model=VerifyLlmResponse)
+@router.post("/system/verify-llm", response_model=VerifyLlmResponse)
 async def verify_llm_connection(
     req: VerifyLlmRequest = Body(...),
     service: Paper2AnyService = Depends(get_service),
@@ -27,7 +27,7 @@ async def verify_llm_connection(
     return await service.verify_llm_connection(req)
 
 
-@router.get("/paper2figure/history_files")
+@router.get("/paper2figure/history")
 async def list_paper2figure_history_files(
     request: Request,
     invite_code: str,
@@ -80,7 +80,7 @@ async def generate_paper2figure(
     )
 
 
-@router.post("/paper2figure/generate_json", response_model=Paper2FigureResponse)
+@router.post("/paper2figure/generate-json", response_model=Paper2FigureResponse)
 async def generate_paper2figure_json(
     request: Request,
     img_gen_model_name: str = Form(...),
@@ -119,36 +119,3 @@ async def generate_paper2figure_json(
     )
     
     return Paper2FigureResponse(**resp_data)
-
-
-@router.post("/paper2beamer/generate")
-async def generate_paper2beamer(
-    model_name: str = Form(...),
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
-    input_type: str = Form(...),  # 当前前端固定为 'file'
-    invite_code: Optional[str] = Form(None),
-    file: Optional[UploadFile] = File(None),
-    file_kind: Optional[str] = Form(None),  # 当前前端固定为 'pdf'
-    language: str = Form(...),
-    service: Paper2AnyService = Depends(get_service),
-):
-    """
-    paper2beamer 假接口（带邀请码校验）
-    """
-    output_path = await service.generate_paper2beamer(
-        model_name=model_name,
-        chat_api_url=chat_api_url,
-        api_key=api_key,
-        input_type=input_type,
-        invite_code=invite_code,
-        file=file,
-        file_kind=file_kind,
-        language=language,
-    )
-
-    return FileResponse(
-        path=str(output_path),
-        media_type="application/pdf",
-        filename="paper2beamer.pdf",
-    )

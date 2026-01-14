@@ -1,962 +1,210 @@
-# DataFlow Agent 快速入门指南
+# 🚀 Paper2Any 快速开始指南
 
-本指南将帮助您快速上手 DataFlow Agent 平台的5个核心功能模块。
+本指南帮助您快速上手 Paper2Any 的核心功能。在完成 [安装指南](./installation.md) 后，您可以通过以下方式快速体验 Paper2Any 的强大能力。
 
-## 目录
+## 📊 快速体验 Paper2Figure：科研绘图
 
-1. [管线推荐](#1-管线推荐)
-2. [算子编写](#2-算子编写)
-3. [手动编排](#3-手动编排)
-4. [算子复用/提示词优化](#4-算子复用提示词优化)
-5. [Web Search/数据采集](#5-web-search数据采集)
+Paper2Figure 支持三种主要绘图模式：模型架构图、技术路线图、实验数据图。
+
+### 方式一：命令行快速生成（推荐）
+
+1. **模型架构图生成**：
+   ```bash
+   python script/run_paper2figure.py --input "tests/2506.02454v1.pdf" --model architecture
+   ```
+
+2. **技术路线图生成**：
+   ```bash
+   python script/run_paper2technical.py --input "tests/2506.02454v1.pdf"
+   ```
+
+3. **实验数据图生成**：
+   ```bash
+   python script/run_paper2expfigure.py --input "tests/2506.02454v1.pdf"
+   ```
+
+### 方式二：Web界面交互体验
+
+1. **启动后端服务**：
+   ```bash
+   cd fastapi_app
+   uvicorn main:app --host 0.0.0.0 --port 8000
+   ```
+
+2. **启动前端界面**：
+   ```bash
+   cd frontend-workflow
+   npm run dev
+   ```
+
+3. **访问界面**：
+   打开浏览器访问 `http://localhost:3000`，选择"Paper2Figure"功能模块，上传论文PDF或输入文本即可快速生成。
+
+## 🎬 快速体验 Paper2PPT：论文转演示文稿
+
+### 方式一：命令行生成
+
+```bash
+# 从论文PDF生成PPT
+python script/run_paper2ppt.py --input "tests/2506.02454v1.pdf"
+
+# 从文本生成PPT
+python script/run_paper2ppt.py --text "深度学习在医疗影像分析中的应用"
+
+# 生成长文档PPT（40+页）
+python script/run_paper2ppt.py --input "long_paper.pdf" --long_doc
+```
+
+### 方式二：Web界面使用
+
+1. 确保后端和前端服务正在运行（同上）
+2. 访问 `http://localhost:3000`，选择"Paper2PPT"功能模块
+3. 上传论文PDF或输入主题，选择风格模板，点击生成
+
+## 🖼️ 快速体验 PDF2PPT：保持版式的PDF转换
+
+### 方式一：命令行生成
+
+```bash
+# 基本转换
+python script/run_pdf2ppt_parallel.py --input "tests/test_02.pdf"
+
+# 使用MinerU优化版
+python script/run_pdf2ppt_with_paddle_sam_mineru.py --input "tests/test_02.pdf"
+```
+
+### 方式二：Web界面使用
+
+1. 访问 `http://localhost:3000`，选择"PDF2PPT"功能模块
+2. 上传PDF文件，系统会自动进行智能抠图和版式分析
+3. 下载可编辑的PPTX文件
+
+## 🎨 快速体验 Image2PPT：图片转演示文稿
+
+### 方式一：命令行生成
+
+```bash
+python script/run_image2ppt.py --image "tests/test_02.png"
+```
+
+### 方式二：Web界面使用
+
+1. 访问 `http://localhost:3000`，选择"Image2PPT"功能模块
+2. 上传图片文件（支持PNG、JPG、JPEG格式）
+3. 系统会自动分析图片内容并生成PPT
+
+## ⚡ 快速脚本说明
+
+Paper2Any 提供了多个快速脚本，位于 `script/` 目录下：
+
+| 脚本文件 | 功能 | 常用参数 |
+|---------|------|----------|
+| `run_paper2figure.py` | 模型架构图生成 | `--input`, `--model`, `--output_dir` |
+| `run_paper2technical.py` | 技术路线图生成 | `--input`, `--style`, `--output_dir` |
+| `run_paper2expfigure.py` | 实验数据图生成 | `--input`, `--chart_type`, `--output_dir` |
+| `run_paper2ppt.py` | 论文转PPT | `--input`, `--text`, `--long_doc`, `--output` |
+| `run_pdf2ppt_parallel.py` | PDF转PPT（并行版） | `--input`, `--output`, `--workers` |
+| `run_pdf2ppt_with_paddle_sam_mineru.py` | PDF转PPT（优化版） | `--input`, `--output`, `--gpu_id` |
+| `run_image2ppt.py` | 图片转PPT | `--image`, `--output` |
+
+## 🔧 配置说明
+
+### 环境变量配置
+
+在运行前，请确保已配置必要的环境变量：
+
+```bash
+# API密钥配置
+export DF_API_KEY="your_api_key_here"
+
+# 可选：自定义API端点
+export DF_API_URL="http://your-api-gateway/v1/"
+
+# 可选：MinerU GPU资源配置
+export MINERU_DEVICES="0,1"  # 使用GPU 0和1
+```
+
+### Supabase配置（Web功能必需）
+
+在 `frontend-workflow/.env` 文件中配置：
+
+```bash
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SUPABASE_JWT_SECRET=your_jwt_secret
+```
+
+## 📁 输出文件说明
+
+所有生成的输出文件默认保存在以下目录：
+
+- **Paper2Figure输出**：`outputs/paper2fig_ppt/{timestamp}/`
+  - `ppt_pages/`：PPT页面图片
+  - `clean_backgrounds/`：去背景后的图片
+  - `final_output.pptx`：最终PPT文件
+
+- **Paper2PPT输出**：`outputs/paper2ppt/{timestamp}/`
+  - `ppt_pages/`：PPT页面
+  - `final_output.pptx`：最终PPT文件
+
+- **PDF2PPT输出**：`outputs/pdf2ppt/{timestamp}/`
+  - `pages/`：处理后的页面
+  - `final_output.pptx`：最终PPT文件
+
+## 🐳 Docker快速体验
+
+如果您不想在本地安装环境，可以使用Docker快速体验：
+
+```bash
+# 克隆项目
+git clone https://github.com/OpenDCAI/Paper2Any.git
+cd Paper2Any
+
+# 启动所有服务
+docker-compose up -d
+
+# 访问Web界面
+# 前端：http://localhost:3000
+# 后端API：http://localhost:8000
+```
+
+## ❓ 常见问题
+
+### Q1: 运行时提示缺少依赖？
+A: 请确保已按照 [安装指南](./installation.md) 安装了所有依赖，特别是LaTeX引擎（tectonic）和系统工具（Inkscape、LibreOffice）。
+
+### Q2: 生成速度慢怎么办？
+A: 可以尝试以下优化：
+1. 使用 `--workers` 参数并行处理（如果脚本支持）
+2. 确保已正确配置GPU资源（对于MinerU等需要GPU的组件）
+3. 调整模型服务配置，减少等待时间
+
+### Q3: 如何自定义生成风格？
+A: 大多数脚本支持 `--style` 或 `--template` 参数，可以指定不同的生成风格。您也可以修改 `dataflow_agent/promptstemplates/` 中的提示词模板来自定义风格。
+
+### Q4: 生成的PPT无法编辑？
+A: Paper2Any 生成的PPT是完全可编辑的PPTX格式。如果遇到问题，请确保：
+1. 使用最新版本的Microsoft PowerPoint或LibreOffice
+2. 检查文件扩展名是否为 `.pptx`
+3. 尝试使用脚本的 `--output_format pptx` 参数（如果支持）
+
+## 📚 下一步
+
+- 查看 [详细功能指南](../docs/guides/) 了解每个功能的深度用法
+- 了解 [系统架构](../docs/index.md#系统架构) 理解内部工作原理
+- 参考 [API文档](../docs/api/) 进行二次开发
+- 参与 [贡献指南](../docs/contributing.md) 帮助改进项目
+
+## 🆘 获取帮助
+
+如果在使用过程中遇到问题：
+1. 查看 [FAQ](./faq.md) 寻找常见问题解答
+2. 提交 [GitHub Issue](https://github.com/OpenDCAI/Paper2Any/issues)
+3. 加入 [微信社群](../README.md#wechat-group) 获取实时帮助
 
 ---
 
-## 1. 管线推荐
-
-### 功能概述
-根据用户的自然语言描述，自动推荐并生成合适的 DataFlow Pipeline，包括算子选择、参数配置和代码生成。
-
-### 使用场景
-- 快速构建数据处理流程
-- 不熟悉具体算子时的智能推荐
-- 自动化 Pipeline 生成
-
-### 输入参数
-
-#### 基础配置
-- **目标描述** (必需)
-  - 描述您想要实现的数据处理目标
-  - 示例：`"给我随意符合逻辑的5个算子，过滤，去重！"`
-  - 示例：`"对文本数据进行清洗、去重、分类"`
-
-- **输入 JSONL 文件路径** (必需)
-  - 用于测试 Pipeline 的数据文件
-  - 格式：每行一个 JSON 对象
-  - 默认：`{项目根目录}/tests/test.jsonl`
-
-- **Session ID**
-  - 会话标识符，用于缓存和追踪
-  - 默认：`"default"`
-
-#### API 配置
-
-**主要模型配置**
-- **Chat API URL**: LLM 服务地址
-  - 默认：`http://123.129.219.111:3000/v1/`
-- **API Key**: 访问密钥
-- **模型名称**: 如 `gpt-4o`, `qwen-max`, `llama3` 等
-  - 默认：`gpt-4o`
-
-**嵌入模型配置**
-- **Embedding API URL**: 嵌入模型服务地址（可选，留空则使用主要 API）
-- **Embedding 模型名称**: 如 `text-embedding-3-small`
-
-#### 调试配置
-- **启用调试模式**: 是否启用自动调试和修复
-- **调试模式执行次数**: 1-10 次，默认 2 次
-
-### 输出结果
-
-#### 1. Pipeline Code (生成的代码)
-```python
-# 自动生成的 Python 代码
-# 包含完整的 Pipeline 定义和执行逻辑
-```
-
-#### 2. Execution Log (执行日志)
-- Pipeline 执行过程的详细日志
-- 包含每个算子的执行状态
-- 错误信息和调试信息
-
-#### 3. Agent Results (Agent 执行结果)
-```json
-{
-  "recommender": {...},
-  "pipeline_builder": {...},
-  "operator_executor": {...}
-}
-```
-- 各个 Agent 节点的详细执行结果
-- 包含推荐的算子列表、构建过程等
-
-### 使用步骤
-
-1. 在"目标描述"框中输入您的需求
-2. 配置 API 信息（URL、Key、模型）
-3. （可选）配置嵌入模型和调试选项
-4. 点击"生成 Pipeline"按钮
-5. 查看生成的代码和执行结果
-
----
-
-## 2. 算子编写
-
-### 功能概述
-根据用户需求自动生成新的 DataFlow 算子代码，包括算子实现、测试代码和调试。
-
-### 使用场景
-- 创建自定义数据处理算子
-- 扩展 DataFlow 功能
-- 快速原型开发
-
-### 输入参数
-
-#### 基础配置
-- **目标描述** (必需)
-  - 描述算子的功能和用途
-  - 示例：`"创建一个算子，用于对文本进行情感分析"`
-  - 示例：`"实现一个数据去重算子，支持多字段组合去重"`
-
-- **算子类别**
-  - 算子所属类别，用于匹配相似算子作为参考
-  - 默认：`"Default"`
-  - 可选：`"filter"`, `"mapper"`, `"aggregator"` 等
-
-- **测试数据文件路径 (JSONL)**
-  - 用于测试算子的数据文件
-  - 默认：`{项目根目录}/tests/test.jsonl`
-
-#### API 配置
-- **Chat API URL**: LLM 服务地址
-- **API Key**: 访问密钥（留空则使用环境变量 `DF_API_KEY`）
-- **模型名称**: 默认 `gpt-4o`
-
-#### 高级配置
-- **输出语言**: `en` (英文) 或 `zh` (中文)
-- **启用调试模式**: 自动执行并修复代码错误
-- **最大调试轮次**: 1-10 次，默认 3 次
-- **输出文件路径**: 保存生成代码的位置（可选）
-
-### 输出结果
-
-#### 1. 生成的代码
-```python
-# 完整的算子实现代码
-class YourOperator(Operator):
-    def __init__(self, ...):
-        ...
-    
-    def run(self, dataset, ...):
-        ...
-```
-
-#### 2. 匹配的算子
-```json
-[
-  {
-    "op_name": "similar_operator_1",
-    "similarity": 0.85,
-    "description": "..."
-  }
-]
-```
-- 系统匹配到的相似算子列表
-- 用作参考和学习
-
-#### 3. 执行结果
-```json
-{
-  "success": true,
-  "output": {...},
-  "stderr": "",
-  "stdout": "..."
-}
-```
-- 算子的执行状态
-- 输出数据预览
-- 错误信息（如有）
-
-#### 4. 调试信息
-```json
-{
-  "round": 2,
-  "input_key": "text",
-  "available_keys": ["text", "label"],
-  "stdout": "...",
-  "stderr": "..."
-}
-```
-- 调试过程的详细信息
-- 每轮调试的输入输出
-
-#### 5. Agent 结果
-- 各个 Agent 节点的执行详情
-- 包含匹配、编写、执行、调试等阶段
-
-#### 6. 执行日志
-- 完整的执行过程日志
-- 包含所有阶段的详细信息
-
-### 使用步骤
-
-1. 在"目标描述"中详细说明算子功能
-2. 选择合适的算子类别
-3. 配置 API 信息
-4. （可选）启用调试模式以自动修复错误
-5. 点击"生成算子"按钮
-6. 查看生成的代码和测试结果
-7. 如需修改，可调整参数后重新生成
-
----
-
-## 3. 手动编排
-
-### 功能概述
-通过可视化界面手动选择和组装算子，构建自定义 Pipeline，支持拖拽排序和参数配置。
-
-### 使用场景
-- 精确控制 Pipeline 结构
-- 复用现有算子
-- 快速原型验证
-- 学习算子使用方法
-
-### 输入参数
-
-#### API 和文件配置
-- **Chat API URL**: LLM 服务地址
-- **API Key**: 访问密钥
-- **模型名称**: 默认 `gpt-4o`
-- **输入 JSONL 文件路径**: 测试数据文件
-
-#### 算子选择和配置
-
-**步骤 1: 选择算子**
-1. 从"算子分类"下拉框选择类别
-   - 如：`filter`, `mapper`, `deduplicator` 等
-2. 从"算子"下拉框选择具体算子
-   - 系统会自动显示该算子的参数说明
-
-**步骤 2: 配置参数**
-
-- **Prompt Template (可选)**
-  - 如果算子支持 Prompt 模板，会显示下拉选择器
-  - 选择后自动更新到 `__init__()` 参数中
-
-- **`__init__()` 参数 (JSON 格式)**
-  ```json
-  {
-    "param1": "value1",
-    "param2": 123,
-    "prompt_template": "module.PromptClass"
-  }
-  ```
-  - 算子初始化参数
-  - 必须是有效的 JSON 对象
-
-- **`run()` 参数 (JSON 格式)**
-  ```json
-  {
-    "input_key": "text",
-    "output_key": "processed_text",
-    "batch_size": 32
-  }
-  ```
-  - 算子运行时参数
-  - 必须是有效的 JSON 对象
-
-**步骤 3: 添加到 Pipeline**
-- 点击"➕ 添加算子到 Pipeline"按钮
-- 算子会被添加到 Pipeline 序列中
-
-**步骤 4: 调整顺序**
-- 在 Pipeline 可视化区域，拖拽算子卡片调整顺序
-- 系统会自动重新编号
-
-**步骤 5: 自动链接**
-- 系统会自动分析算子间的输入输出关系
-- 显示链接状态：
-  - 🔗 **已链接**: 输出键成功匹配到下一个算子的输入
-  - ⚠️ **待处理**: 输入为空或未匹配
-
-### 输出结果
-
-#### 1. 当前 Pipeline (可视化展示)
-- 每个算子显示为卡片，包含：
-  - 步骤编号
-  - 算子名称
-  - `__init__()` 参数预览
-  - `run()` 参数预览
-  - 与上一步的连接状态
-
-#### 2. 当前 Pipeline (JSON 格式)
-```json
-[
-  {
-    "op_name": "TextCleanerOperator",
-    "init_params": {...},
-    "run_params": {...},
-    "_incoming_links": [
-      {
-        "input_key": "text",
-        "value": "raw_text",
-        "output_keys": ["output"]
-      }
-    ]
-  }
-]
-```
-
-#### 3. 生成的代码
-```python
-# 完整的 Pipeline 执行代码
-from dataflow import Dataset
-from dataflow.operators import *
-
-# 加载数据
-dataset = Dataset.load("input.jsonl")
-
-# 执行 Pipeline
-dataset = TextCleanerOperator(...).run(dataset, ...)
-dataset = DeduplicatorOperator(...).run(dataset, ...)
-...
-
-# 保存结果
-dataset.save("output.jsonl")
-```
-
-#### 4. 处理结果数据 (前 100 条)
-```json
-[
-  {"text": "processed text 1", "label": "A"},
-  {"text": "processed text 2", "label": "B"},
-  ...
-]
-```
-
-#### 5. 输出文件路径
-- 处理后数据的保存位置
-
-### 使用步骤
-
-1. 配置 API 信息和输入文件路径
-2. 选择算子分类和具体算子
-3. 编辑 `__init__()` 和 `run()` 参数（JSON 格式）
-4. 点击"➕ 添加算子到 Pipeline"
-5. 重复步骤 2-4 添加更多算子
-6. 拖拽调整算子顺序（可选）
-7. 检查自动链接状态，确保参数正确
-8. 点击"🚀 运行 Pipeline"
-9. 查看生成的代码和执行结果
-
-### 高级技巧
-
-- **清空 Pipeline**: 点击"🗑️ 清空 Pipeline"按钮
-- **参数复用**: 系统会自动将上一个算子的输出键链接到下一个算子的输入
-- **调试**: 如果执行失败，检查日志中的错误信息，调整参数后重试
-
----
-
-## 4. 算子复用/提示词优化
-
-### 功能概述
-PromptAgent 前端，用于生成和优化算子的 Prompt 模板，支持多轮对话式改写和测试。
-
-### 使用场景
-- 为算子创建高质量的 Prompt 模板
-- 优化现有 Prompt 的效果
-- 快速迭代 Prompt 设计
-- 生成测试代码和数据
-
-### 输入参数
-
-#### 运行配置
-- **Chat API Base URL**: LLM 服务地址
-  - 默认：`http://123.129.219.111:3000/v1/`
-- **Chat API Key**: 访问密钥
-- **Model**: 模型名称，默认 `gpt-4o`
-- **Language**: 提示词语言，`zh` (中文) 或 `en` (英文)
-
-#### Prompt 配置
-- **任务描述** (必需)
-  - 详细描述 Prompt 要完成的任务
-  - 示例：`"对用户输入的文本进行情感分析，判断是正面、负面还是中性"`
-  - 示例：`"将产品描述改写为更吸引人的营销文案"`
-
-- **算子名称 (op-name)** (必需)
-  - Prompt 类的名称
-  - 示例：`SentimentAnalysisPrompt`
-  - 示例：`MarketingCopywriterPrompt`
-
-- **输出格式** (可选)
-  - 指定 Prompt 输出的格式
-  - 示例：
-    ```
-    {
-      "sentiment": "positive/negative/neutral",
-      "confidence": 0.95
-    }
-    ```
-
-- **参数列表** (可选)
-  - Prompt 模板需要的参数，用逗号、空格或换行分隔
-  - 示例：`text, language, style`
-  - 示例：
-    ```
-    input_text
-    target_audience
-    tone
-    ```
-
-- **文件输出根路径** (可选)
-  - 保存生成文件的目录
-  - 默认：`./pa_cache`
-
-- **生成后删除测试文件**
-  - 是否在生成后删除测试文件（保留路径占位）
-  - 默认：启用
-
-### 输出结果
-
-#### 1. Prompt 文件路径
-- 生成的 Prompt 模板文件位置
-- 示例：`./pa_cache/prompts/SentimentAnalysisPrompt.py`
-
-#### 2. 测试数据文件路径
-- 自动生成的测试数据文件
-- 示例：`./pa_cache/test_data/test_data.jsonl`
-
-#### 3. 测试代码文件路径
-- 自动生成的测试代码
-- 示例：`./pa_cache/tests/test_prompt.py`
-
-#### 4. 测试数据预览
-```json
-[
-  {"text": "这个产品真不错！", "language": "zh"},
-  {"text": "质量太差了", "language": "zh"},
-  {"text": "还可以吧", "language": "zh"}
-]
-```
-
-#### 5. 测试结果预览
-```json
-[
-  {
-    "input": {"text": "这个产品真不错！"},
-    "output": {
-      "sentiment": "positive",
-      "confidence": 0.92
-    }
-  }
-]
-```
-
-#### 6. Prompt 代码预览
-```python
-from dataflow_agent.promptstemplates import PromptTemplate
-
-class SentimentAnalysisPrompt(PromptTemplate):
-    """情感分析 Prompt 模板"""
-    
-    def __init__(self):
-        super().__init__()
-        self.system_prompt = "你是一个情感分析专家..."
-        self.user_prompt_template = "请分析以下文本的情感：{text}"
-    
-    def format(self, text: str, **kwargs) -> str:
-        return self.user_prompt_template.format(text=text)
-```
-
-#### 7. 测试代码预览
-```python
-import json
-from your_prompt import SentimentAnalysisPrompt
-
-# 加载测试数据
-with open("test_data.jsonl") as f:
-    test_data = [json.loads(line) for line in f]
-
-# 测试 Prompt
-prompt = SentimentAnalysisPrompt()
-for item in test_data:
-    result = prompt.format(**item)
-    print(result)
-```
-
-### 多轮改写功能
-
-在右侧对话区域，您可以：
-
-1. **查看初次生成结果**
-   - Prompt 代码
-   - 测试结果
-
-2. **提出改进建议**
-   - 在对话输入框中描述您希望如何修改
-   - 示例：
-     - `"增加对讽刺语气的识别"`
-     - `"输出格式改为只返回 positive/negative/neutral 字符串"`
-     - `"添加置信度阈值，低于 0.7 时返回 uncertain"`
-
-3. **发送改写指令**
-   - 点击"发送改写指令"按钮
-   - 系统会根据反馈重新生成 Prompt
-
-4. **迭代优化**
-   - 查看更新后的代码和测试结果
-   - 继续提出改进建议
-   - 重复直到满意
-
-5. **清空会话**
-   - 点击"清空会话"按钮重新开始
-
-### 使用步骤
-
-#### 初次生成
-1. 配置 API 信息（URL、Key、模型）
-2. 填写任务描述、算子名称
-3. （可选）指定输出格式和参数列表
-4. 点击"生成 Prompt 模板"按钮
-5. 查看生成的 Prompt 代码和测试结果
-
-#### 多轮优化
-1. 在右侧对话框中输入改进建议
-2. 点击"发送改写指令"
-3. 查看更新后的代码和测试结果
-4. 重复步骤 1-3 直到满意
-
-#### 使用生成的 Prompt
-1. 从"Prompt 文件路径"获取文件位置
-2. 将 Prompt 类导入到您的算子中
-3. 在算子的 `__init__()` 中指定 `prompt_template`
-
----
-
-## 5. Web Search/数据采集
-
-### 功能概述
-从网络（HuggingFace、Kaggle 等平台）自动采集数据集，并转换为统一格式，支持智能搜索、下载和数据清洗。
-
-### 使用场景
-- 快速构建训练数据集
-- 收集特定领域的数据
-- 数据集格式转换
-- 批量下载和处理
-
-### 输入参数
-
-#### 采集配置
-- **目标描述** (必需)
-  - 描述您想要收集的数据类型
-  - 示例：`"收集 Python 代码示例的数据集"`
-  - 示例：`"收集中文对话数据，用于训练聊天机器人"`
-  - 示例：`"收集图像分类数据集，包含猫和狗的图片"`
-
-- **数据类别**
-  - `PT`: 预训练数据（Pre-Training）
-  - `SFT`: 监督微调数据（Supervised Fine-Tuning）
-  - 默认：`SFT`
-
-- **数据集数量上限（每关键词）**
-  - 每个搜索关键词返回的数据集数量
-  - 范围：1-50
-  - 默认：5
-  - 注意：仅用于参考，实际数量可能因搜索结果而异
-
-- **数据集大小范围**
-  - 筛选数据集的大小范围
-  - 选项：
-    - `n<1K`: 小于 1000 条
-    - `1K<n<10K`: 1000-10000 条
-    - `10K<n<100K`: 10000-100000 条
-    - `100K<n<1M`: 100000-1000000 条
-    - `n>1M`: 大于 1000000 条
-  - 默认：`1K<n<10K`
-
-- **下载子任务上限**
-  - 限制最终执行的下载任务数量
-  - 留空表示不限制
-  - 用于控制下载规模和时间
-
-- **最大数据集大小**
-  - 单个数据集的大小上限
-  - 输入数值后选择单位（B/KB/MB/GB/TB）
-  - 留空表示不限制
-
-- **下载目录**
-  - 数据保存的根目录
-  - 默认：`downloaded_data`
-
-- **提示词语言**
-  - `zh`: 中文
-  - `en`: 英文
-  - 默认：`zh`
-
-#### LLM 配置
-- **CHAT_API_URL**: LLM 服务地址
-  - 默认：`http://123.129.219.111:3000/v1/chat/completions`
-- **CHAT_API_KEY**: 访问密钥
-- **CHAT_MODEL**: 模型名称
-  - 默认：`deepseek-chat`
-
-#### 其他环境配置
-- **HF_ENDPOINT**: HuggingFace 镜像地址
-  - 默认：`https://hf-mirror.com`
-- **KAGGLE_USERNAME**: Kaggle 用户名
-- **KAGGLE_KEY**: Kaggle API 密钥
-- **TAVILY_API_KEY**: Tavily 搜索 API 密钥
-
-#### RAG 配置
-- **RAG_EBD_MODEL**: 嵌入模型名称
-  - 默认：`text-embedding-3-large`
-- **RAG_API_URL**: RAG 服务地址
-- **RAG_API_KEY**: RAG API 密钥
-
-#### 高级配置（可折叠）
-
-**网页采集高级配置**
-- **下载任务最大循环次数**: 1-50，默认 10
-  - 控制每个下载任务的最大重试次数
-- **研究阶段最大循环次数**: 1-50，默认 15
-  - research 阶段的最大循环次数，允许访问更多网站
-- **搜索引擎**: `tavily` / `duckduckgo` / `jina`
-  - 默认：`tavily`
-- **使用 Jina Reader**: 是否使用 Jina Reader 提取网页内容
-  - 默认：启用
-  - 优点：快速、结构化（Markdown 格式）
-- **启用 RAG 增强**: 是否使用 RAG 精炼内容
-  - 默认：启用
-- **并行处理页面数**: 1-20，默认 5
-  - 并行处理的页面数量
-  - 建议：3-10（根据网络和机器性能调整）
-- **禁用缓存**: 是否禁用 HuggingFace 和 Kaggle 缓存
-  - 默认：启用
-  - 启用后使用临时目录，下载后自动清理
-- **临时目录**: 自定义临时目录路径
-  - 留空则使用默认临时目录
-
-**数据转换高级配置**
-- **转换模型温度**: 0.0-2.0，默认 0.0
-  - 数据转换时的模型温度参数
-- **转换最大 Token 数**: 512-8192，默认 4096
-  - 数据转换时的最大 token 数
-- **最大采样长度（字符）**: 50-1000，默认 200
-  - 每个字段的最大采样长度
-- **采样记录数量**: 1-10，默认 3
-  - 用于分析的采样记录数量
-
-### 输出结果
-
-#### 1. 执行日志（实时流式输出）
-```
-============================================================
-开始执行网页采集与转换工作流
-============================================================
-目标: 收集 Python 代码示例的数据集
-类别: SFT
-下载目录: downloaded_data
-
-【网页采集配置】
-  - 搜索引擎: tavily
-  - 下载子任务上限: 不限制
-  - 任务最大循环次数: 10
-  - 研究阶段最大循环次数: 15
-  - 使用 Jina Reader: 是
-  - 启用 RAG: 是
-  - 并行页面数: 5
-  - 禁用缓存: 是
-
-【数据转换配置】
-  - 模型温度: 0.0
-  - 最大 Token 数: 4096
-  - 最大采样长度: 200
-  - 采样记录数: 3
-
-数据集大小限制: 不限制
-============================================================
-
-2025-01-23 10:00:00 [INFO] 开始搜索数据集...
-2025-01-23 10:00:05 [INFO] 找到 15 个候选数据集
-2025-01-23 10:00:10 [INFO] 开始下载数据集 1/5...
-2025-01-23 10:01:00 [INFO] 数据集 1 下载完成
-...
-2025-01-23 10:15:00 [INFO] 开始数据转换...
-2025-01-23 10:20:00 [INFO] 数据转换完成
-流程执行完成！
-```
-
-#### 2. 结果摘要
-```json
-{
-  "download_dir": "downloaded_data",
-  "processed_output": "downloaded_data/processed_output",
-  "category": "SFT",
-  "language": "zh",
-  "chat_model": "deepseek-chat",
-  "max_download_subtasks": null,
-  "max_dataset_size_bytes": null,
-  "max_dataset_size_unit": null,
-  "max_dataset_size_value": null
-}
-```
-
-### 输出文件结构
-
-```
-downloaded_data/
-├── raw/                          # 原始下载的数据
-│   ├── dataset_1/
-│   │   ├── data.jsonl
-│   │   └── metadata.json
-│   ├── dataset_2/
-│   └── ...
-└── processed_output/             # 转换后的统一格式数据
-    ├── combined.jsonl           # 合并后的数据
-    ├── train.jsonl              # 训练集（如果分割）
-    ├── validation.jsonl         # 验证集（如果分割）
-    └── metadata.json            # 元数据信息
-```
-
-### 使用步骤
-
-#### 基础使用
-1. 在"目标描述"中详细说明要收集的数据类型
-2. 选择数据类别（PT 或 SFT）
-3. 配置数据集数量和大小限制
-4. 配置 LLM API 信息
-5. （可选）配置 Kaggle、Tavily 等服务的密钥
-6. 点击"开始网页采集与转换"按钮
-7. 实时查看执行日志
-8. 等待完成后查看结果摘要
-9. 在下载目录中查看采集的数据
-
-#### 高级使用
-1. 展开"⚙️ 高级配置"区域
-2. 根据需求调整：
-   - 搜索引擎选择
-   - 并行处理数量
-   - 缓存策略
-   - 数据转换参数
-3. 执行采集任务
-4. 根据日志调整参数优化效果
-
-### 注意事项
-
-1. **API 密钥**
-   - 确保配置了必要的 API 密钥
-   - Tavily 用于搜索，Kaggle 用于下载 Kaggle 数据集
-
-2. **网络环境**
-   - 如果在国内，建议使用 HuggingFace 镜像
-   - 调整并行数量以适应网络带宽
-
-3. **存储空间**
-   - 确保有足够的磁盘空间
-   - 大型数据集可能需要数 GB 空间
-
-4. **执行时间**
-   - 采集过程可能需要较长时间（几分钟到几小时）
-   - 可以通过限制下载任务数量来控制时间
-
-5. **数据质量**
-   - 启用 RAG 增强可以提高数据质量
-   - 调整采样参数以平衡质量和速度
-
----
-
-## 常见问题
-
-### Q1: API 密钥如何获取？
-- **OpenAI/GPT**: 访问 [OpenAI Platform](https://platform.openai.com/)
-- **Tavily**: 访问 [Tavily](https://tavily.com/)
-- **Kaggle**: 访问 [Kaggle Settings](https://www.kaggle.com/settings)
-
-### Q2: 如何选择合适的模型？
-- **快速原型**: `gpt-3.5-turbo`, `deepseek-chat`
-- **高质量输出**: `gpt-4o`, `claude-3-opus`
-- **中文优化**: `qwen-max`, `deepseek-chat`
-
-### Q3: Pipeline 执行失败怎么办？
-1. 检查执行日志中的错误信息
-2. 确认输入数据格式正确
-3. 检查算子参数配置
-4. 启用调试模式自动修复
-5. 查看 Agent 结果了解详细错误
-
-### Q4: 如何提高数据采集质量？
-1. 使用更精确的目标描述
-2. 启用 RAG 增强
-3. 调整数据集大小范围
-4. 增加采样记录数量
-5. 使用更强大的 LLM 模型
-
-### Q5: 生成的代码可以直接使用吗？
-- **管线推荐**: 可以直接运行，但建议先在测试数据上验证
-- **算子编写**: 建议先测试，必要时手动调整
-- **手动编排**: 生成的代码已经过测试，可以直接使用
-- **Prompt 模板**: 建议多轮优化后再用于生产环境
-
----
-
-## 下一步
-
-- 查看 [架构文档](guides/architecture.md) 了解系统设计
-- 查看 [算子编写指南](guides/operator_write.md) 学习自定义算子
-- 查看 [工作流编写教程](tutorials/workflow_write.md) 学习创建工作流
-- 访问 [项目介绍](guides/project_introduction.md) 了解更多功能
-
----
-
-## 技术支持
-
-如有问题或建议，请：
-- 提交 [GitHub Issue](https://github.com/OpenDCAI/Paper2Any/issues)
-- 查看 [FAQ](faq.md)
-- 参考 [贡献指南](contributing.md)
-
-## 附录：Agent 结构化输出（response_schema）配置说明
-
-在很多场景下，我们希望 Agent 不只是返回一段自由文本，而是返回**结构化的 JSON 结果**，方便后续程序消费。  
-DataFlow-Agent 在 `BaseAgentConfig` 中内置了针对 JSON 解析的快捷配置字段：
-
-- `parser_type`: 解析器类型，默认为 `"json"`
-- `response_schema`: 期望的返回结构定义（轻量级 JSON Schema）
-- `response_schema_description`: 对该结构的中文/英文文字说明
-- `response_example`: 一份期望的 JSON 返回示例
-- `required_fields`: 必须出现的字段列表，用于约束模型输出
-
-这些字段可以通过 `create_simple_agent` / `create_react_agent` 等便捷函数传入，也可以自行构造 `SimpleConfig` / `ReactConfig` 后再调用 `create_agent`。
-
-### 1. 基本用法示例：简单模式 Agent
-
-下面的示例中，我们要求 Agent 返回包含 `code` 和 `files` 两个字段的 JSON，其中 `code` 是字符串，`files` 是字符串列表：
-
-```python
-from dataflow_agent.agentroles import create_simple_agent
-
-agent = create_simple_agent(
-    "coder",
-    # 解析器类型设为 json（默认即为 json）
-    parser_type="json",
-    # 期望的返回结构（轻量 JSON Schema）
-    response_schema={
-        "code": "string",
-        "files": ["string"],  # 表示由字符串组成的列表
-        "summary": "string",  # 可选字段，用于描述本次修改
-    },
-    # 对 Schema 的自然语言说明，帮助模型理解每个字段含义
-    response_schema_description=(
-        "请返回代码生成结果。"
-        "code 字段包含完整的代码内容；"
-        "files 是本次修改涉及到的文件路径列表；"
-        "summary 对主要改动进行简要说明。"
-    ),
-    # 一份期望的返回示例，模型会参考该结构生成
-    response_example={
-        "code": "# 写在这里的是完整的 Python 代码 ...",
-        "files": ["dataflow_agent/agentroles/__init__.py"],
-        "summary": "新增了 create_simple_agent 的使用示例。",
-    },
-    # 必须出现的字段
-    required_fields=["code", "files"],
-)
-
-# 后续在你的业务逻辑中，一般会以异步方式调用 agent：
-# result = await agent.execute({"task": "请为我实现一个计算阶乘的函数"})
-# print(result["code"])
-# print(result["files"])
-```
-
-要点说明：
-
-1. **parser_type 建议为 `"json"`**  
-   `response_schema*` 这一组字段是为 JSON 解析场景设计的。当 `parser_type="json"` 时，框架会根据这些配置构建 Prompt 与解析逻辑，尽量保证返回满足你指定的结构。
-
-2. **`response_schema` 是“轻量级 JSON Schema”**  
-   - 推荐使用简单的类型标注，如：
-     - `"string"`, `"number"`, `"boolean"` 等
-     - `["string"]` 表示“字符串列表”
-     - 也可以嵌套字典/列表描述更复杂结构
-   - 不必完全遵循官方 JSON Schema 规范，保持可读性和易理解为主。
-
-3. **`response_schema_description` 与 `response_example` 用于“教模型”**  
-   - `response_schema_description`: 用自然语言解释每个字段含义和要求；
-   - `response_example`: 给出一份“长得像最终结果”的 JSON 示例。  
-   在实践中，这两项对提升结构化输出的稳定性非常有帮助。
-
-4. **`required_fields` 指定“必填字段”**  
-   - `required_fields=["code", "files"]` 表示：无论如何，这两个 key 必须出现在最终 JSON 中；
-   - 这可以配合 ReAct 模式/验证逻辑，用于在缺字段时触发重试或报错（具体行为取决于所用 Agent 策略和解析实现）。
-
-### 2. 在 ReAct 模式中使用 `response_schema`
-
-`create_react_agent` 同样支持以上字段，使用方式几乎一致，只是多了 ReAct 本身的重试与验证能力：
-
-```python
-from dataflow_agent.agentroles import create_react_agent
-
-agent = create_react_agent(
-    "planner",
-    max_retries=3,
-    parser_type="json",
-    response_schema={
-        "plan": ["string"],   # 分步计划，每一步是一句自然语言描述
-        "risks": ["string"],  # 可能的风险点
-    },
-    response_schema_description=(
-        "请返回本次任务的分步计划，以及可能的风险点列表。"
-        "plan 字段是按执行顺序排列的步骤列表，risks 列出需要注意的问题。"
-    ),
-    response_example={
-        "plan": [
-            "分析用户提供的数据源格式。",
-            "根据数据格式选择合适的预处理算子。",
-            "设计并生成完整的 DataFlow Pipeline 代码。"
-        ],
-        "risks": [
-            "数据中可能包含脏数据，需要额外清洗步骤。",
-            "某些算子依赖的第三方库可能尚未安装。"
-        ]
-    },
-    required_fields=["plan"],
-)
-```
-
-在这种模式下：
-
-- 如果模型第一次返回的 JSON 不满足要求（字段缺失/类型不符等），
-- 策略层可以结合验证器（`validators`）和重试机制，对结果进行检查并尝试修正，
-- 从而提高结构化输出的可靠性。
-
-### 3. 直接使用配置类（进阶用法）
-
-如果你希望显式构造配置对象，也可以直接使用 `SimpleConfig` / `ReactConfig` 等，然后调用 `create_agent`：
-
-```python
-from dataflow_agent.agentroles import (
-    SimpleConfig,
-    create_agent,
-)
-
-config = SimpleConfig(
-    model_name="gpt-4o",
-    parser_type="json",
-    response_schema={
-        "title": "string",
-        "outline": ["string"],
-    },
-    response_schema_description="生成一篇技术文章的大纲。",
-    response_example={
-        "title": "如何使用 DataFlow-Agent 构建智能数据处理管线",
-        "outline": [
-            "项目背景介绍",
-            "核心概念与模块划分",
-            "实战示例：从原始数据到可复用算子",
-        ],
-    },
-    required_fields=["title", "outline"],
-)
-
-agent = create_agent("writer", config=config)
-
-# result = await agent.execute({"topic": "DataFlow-Agent 使用实践"})
-# print(result["title"])
-# print(result["outline"])
-```
-
-这种方式在以下场景比较适合：
-
-- 你已经有一套统一的配置管理/注入机制；
-- 希望在不同 Agent 之间重用同一份结构化返回配置；
-- 或者需要在运行时动态调整配置（模型、温度、schema 等）。
+**开始您的Paper2Any之旅吧！** 🎉

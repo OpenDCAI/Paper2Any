@@ -100,7 +100,7 @@ def create_p2fig_image_only_graph() -> GenericGraphBuilder:
     async def figure_desc_generator_node(state: Paper2FigureState) -> Paper2FigureState:
         figure_desc_generator = create_react_agent("figure_desc_generator",
                                                     max_retries=5,
-                                                    model_name="gpt-5.1")
+                                                    model_name=getattr(state.request, "fig_desc_model", "gpt-5.1"))
         state = await figure_desc_generator.execute(state, use_agent=True)
         return state
 

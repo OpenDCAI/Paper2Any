@@ -824,7 +824,7 @@ async def generate_or_edit_and_save_image_async(
     quality: str = "standard",
     style: str = "vivid",
     response_format: str = "b64_json",
-    timeout: int = 1200,
+    timeout: int = 120,
 ) -> str:
     """
     根据模型类型选择不同的API进行图像生成/编辑

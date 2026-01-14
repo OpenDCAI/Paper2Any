@@ -257,7 +257,7 @@ const Pdf2PptPage = () => {
         formData.append('use_ai_edit', 'false');
       }
       
-      const res = await fetch('/api/pdf2ppt/generate', {
+      const res = await fetch('/api/v1/pdf2ppt/generate', {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,

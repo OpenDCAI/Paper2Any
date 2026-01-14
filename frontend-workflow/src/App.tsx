@@ -5,7 +5,7 @@ import Paper2PptPage from './components/Paper2PptPage';
 import Pdf2PptPage from './components/Pdf2PptPage';
 import Image2PptPage from './components/Image2PptPage';
 import Ppt2PolishPage from './components/Ppt2PolishPage';
-// import KnowledgeBasePage from './components/KnowledgeBasePage';
+import KnowledgeBasePage from './components/KnowledgeBasePage';
 import { FilesPage } from './components/FilesPage';
 import { useTranslation } from 'react-i18next';
 import { QuotaDisplay } from './components/QuotaDisplay';
@@ -92,7 +92,7 @@ function App() {
               >
                 {t('app.nav.ppt2polish')}
               </button>
-              {/* <button
+              <button
                 onClick={() => setActivePage('knowledge')}
                 className={`px-3 py-1.5 rounded-full text-sm ${
                   activePage === 'knowledge'
@@ -101,7 +101,7 @@ function App() {
                 }`}
               >
                 {t('app.nav.knowledge')}
-              </button> */}
+              </button>
               <button
                 onClick={() => setActivePage('files')}
                 className={`px-3 py-1.5 rounded-full text-sm ${
@@ -132,7 +132,7 @@ function App() {
           {activePage === 'pdf2ppt' && <Pdf2PptPage />}
           {activePage === 'image2ppt' && <Image2PptPage />}
           {activePage === 'ppt2polish' && <Ppt2PolishPage />}
-          {/* {activePage === 'knowledge' && <KnowledgeBasePage />} */}
+          {activePage === 'knowledge' && <KnowledgeBasePage />}
           {activePage === 'files' && <FilesPage />}
         </div>
       </main>

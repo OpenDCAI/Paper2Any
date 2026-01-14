@@ -119,6 +119,12 @@ class Paper2FigureRequest(BaseModel):
 
     bg_rm_model: str = f"{get_project_root()}/models/RMBG-2.0"
 
+    # 新增模型参数
+    vlm_model: str = "qwen-vl-ocr-2025-11-20"
+    chart_model: str = "gpt-4o"
+    fig_desc_model: str = "gpt-5.1"
+    technical_model: str = "claude-haiku-4-5-20251001"
+
     # ---------------------- 输入类型设置 ----------------------
     input_type: Literal["PDF", "TEXT", "FIGURE"] = "PDF"
     # 指定输入内容的形式：
@@ -244,6 +250,12 @@ class Paper2PPTRequest(BaseModel):
 
     gen_fig_model: str = "gemini-3-pro-image-preview"
     # bg_rm_model: str = f"{get_project_root()}/models/RMBG-2.0"
+    
+    # 新增模型参数
+    vlm_model: str = "qwen-vl-ocr-2025-11-20"
+    chart_model: str = "gpt-4o"
+    fig_desc_model: str = "gpt-5.1"
+    technical_model: str = "claude-haiku-4-5-20251001"
 
     # ---------------------- 输入类型设置 ----------------------
     input_type: Literal["PDF", "TEXT", "PPT", "TOPIC", "FIGURE"] = "PDF"

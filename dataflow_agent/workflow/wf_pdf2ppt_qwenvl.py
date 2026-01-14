@@ -235,7 +235,7 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                     try:
                         agent = create_vlm_agent(
                             name="ImageTextBBoxAgent",
-                            model_name="qwen-vl-ocr-2025-11-20",
+                            model_name=getattr(state.request, "vlm_model", "qwen-vl-ocr-2025-11-20"),
                             chat_api_url=getattr(state.request, "chat_api_url", None),
                             vlm_mode="understanding",
                             additional_params={

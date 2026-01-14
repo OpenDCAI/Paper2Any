@@ -69,7 +69,7 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
       formData.append('model', pptParams.model);
       formData.append('img_gen_model_name', pptParams.gen_fig_model);
 
-      const res = await fetch('/api/pdf2ppt/generate', {
+      const res = await fetch('/api/v1/pdf2ppt/generate', {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
