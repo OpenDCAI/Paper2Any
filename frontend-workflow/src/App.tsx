@@ -8,6 +8,7 @@ import Ppt2PolishPage from './components/Ppt2PolishPage';
 // import KnowledgeBasePage from './components/KnowledgeBasePage';
 import { FilesPage } from './components/FilesPage';
 import { useTranslation } from 'react-i18next';
+import { PricingProvider } from './contexts/PricingContext';
 
 import { UserMenu } from './components/UserMenu';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
@@ -18,7 +19,8 @@ function App() {
   const [activePage, setActivePage] = useState<'paper2figure' | 'paper2ppt' | 'pdf2ppt' | 'image2ppt' | 'ppt2polish' | 'knowledge' | 'files'>('paper2figure');
 
   return (
-    <div className="w-screen h-screen bg-[#0a0a1a] overflow-hidden relative">
+    <PricingProvider>
+      <div className="w-screen h-screen bg-[#0a0a1a] overflow-hidden relative">
       {/* 粒子背景 */}
       <ParticleBackground />
 
@@ -151,6 +153,7 @@ function App() {
         </div>
       </footer>
     </div>
+    </PricingProvider>
   );
 }
 

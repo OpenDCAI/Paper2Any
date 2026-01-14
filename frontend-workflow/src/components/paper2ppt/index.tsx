@@ -272,19 +272,6 @@ const Paper2PptPage = () => {
       return;
     }
 
-    try {
-        // Step 0: Verify LLM Connection first
-        setIsValidating(true);
-        setError(null);
-        await verifyLlmConnection(llmApiUrl, apiKey, model);
-        setIsValidating(false);
-    } catch (err) {
-        setIsValidating(false);
-        const message = err instanceof Error ? err.message : 'API 验证失败';
-        setError(message);
-        return; // Stop execution if validation fails
-    }
-
     setIsUploading(true);
     setError(null);
     setProgress(0);
@@ -342,6 +329,7 @@ const Paper2PptPage = () => {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
+        credentials: 'include',
       });
       
       if (!res.ok) {
@@ -627,6 +615,7 @@ const Paper2PptPage = () => {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
+        credentials: 'include',
       });
       
       if (!res.ok) {
@@ -723,6 +712,7 @@ const Paper2PptPage = () => {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
+        credentials: 'include',
       });
       
       if (!res.ok) {

@@ -317,15 +317,8 @@ const Paper2FigurePage = () => {
       setStageProgress(0);
       // setShowOutputPanel(true);
 
-      if (!llmApiUrl.trim() || !apiKey.trim()) {
-        setError(t('errors.missingApiConfig'));
-        return;
-      }
-
       const formData = new FormData();
       formData.append('img_gen_model_name', model);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
       formData.append('input_type', uploadMode);
       formData.append('invite_code', inviteCode.trim());
       formData.append('graph_type', graphType);
@@ -349,16 +342,11 @@ const Paper2FigurePage = () => {
       }
 
       try {
-        setIsValidating(true);
-        setError(null);
-        await verifyLlmConnection(llmApiUrl, apiKey, model);
-        setIsValidating(false);
-
         setIsLoading(true);
         const res = await fetch(JSON_API, {
           method: 'POST',
-          headers: { 'X-API-Key': API_KEY },
           body: formData,
+          credentials: 'include',
         });
 
         if (!res.ok) {
@@ -428,11 +416,6 @@ const Paper2FigurePage = () => {
     setStageProgress(0);
     // setShowOutputPanel(true);
 
-    if (!llmApiUrl.trim() || !apiKey.trim()) {
-      setError(t('errors.missingApiConfig'));
-      return;
-    }
-
     // 当前 UploadMode 仅支持 'file' | 'text'，无需图片输入
     // 实验数据图 仅支持 file (PDF)
     if (graphType === 'exp_data' && uploadMode !== 'file') {
@@ -442,8 +425,6 @@ const Paper2FigurePage = () => {
 
     const formData = new FormData();
     formData.append('img_gen_model_name', model);
-    formData.append('chat_api_url', llmApiUrl.trim());
-    formData.append('api_key', apiKey.trim());
     formData.append('input_type', uploadMode);
     formData.append('invite_code', inviteCode.trim());
     formData.append('graph_type', graphType);
@@ -476,20 +457,14 @@ const Paper2FigurePage = () => {
     }
 
     try {
-      // Step 0: Verify LLM Connection first
-      setIsValidating(true);
-      setError(null);
-      await verifyLlmConnection(llmApiUrl, apiKey, model);
-      setIsValidating(false);
-
       setIsLoading(true);
 
       if (graphType === 'tech_route') {
         // 技术路线图：调用 JSON 接口，返回 PPT + SVG
         const res = await fetch(JSON_API, {
           method: 'POST',
-          headers: { 'X-API-Key': API_KEY },
           body: formData,
+          credentials: 'include',
         });
 
         if (!res.ok) {
@@ -547,8 +522,8 @@ const Paper2FigurePage = () => {
         // 其他类型：保持原来的 PPTX blob 下载逻辑
         const res = await fetch(BACKEND_API, {
           method: 'POST',
-          headers: { 'X-API-Key': API_KEY },
           body: formData,
+          credentials: 'include',
         });
 
         if (!res.ok) {

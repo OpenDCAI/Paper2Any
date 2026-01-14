@@ -6,6 +6,7 @@ import {
   Info, X
 } from 'lucide-react';
 import QRCodeTooltip from '../QRCodeTooltip';
+import { PricingDisplay } from '../PricingDisplay';
 import DemoCard from './DemoCard';
 import { UploadMode, StyleMode, StylePreset } from './types';
 
@@ -235,6 +236,15 @@ const UploadStep: React.FC<UploadStepProps> = ({
                 max={20}
                 className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
               />
+              <div className="flex items-center justify-between mt-1 text-xs">
+                <span className="text-gray-500">预计费用：</span>
+                <PricingDisplay
+                  service="paper2ppt"
+                  endpoint="pagecontent"
+                  pageCount={pageCount}
+                  className="text-purple-400 font-semibold"
+                />
+              </div>
             </div>
           </div>
 

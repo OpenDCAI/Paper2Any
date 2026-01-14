@@ -8,6 +8,7 @@ import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
+import { PricingDisplay } from './PricingDisplay';
 import QRCodeTooltip from './QRCodeTooltip';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB for images
@@ -149,29 +150,7 @@ const Image2PptPage = () => {
       return;
     }
 
-    if (useAiEdit) {
-      if (!apiKey.trim()) {
-        setError(t('errors.enterKey'));
-        return;
-      }
-      if (!llmApiUrl.trim()) {
-        setError(t('errors.enterUrl'));
-        return;
-      }
-
-      // Step 0: Verify LLM Connection if AI Edit is enabled
-      try {
-        setIsValidating(true);
-        setError(null);
-        await verifyLlmConnection(llmApiUrl, apiKey, 'gpt-4o'); 
-        setIsValidating(false);
-      } catch (err) {
-        setIsValidating(false);
-        const message = err instanceof Error ? err.message : t('errors.apiFail');
-        setError(message);
-        return;
-      }
-    }
+    // API Key 验证已移除，后端会使用环境变量默认值
     
     setIsProcessing(true);
     setError(null);
@@ -218,6 +197,7 @@ const Image2PptPage = () => {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
+        credentials: 'include',
       });
       
       clearInterval(progressInterval);
@@ -437,6 +417,18 @@ const Image2PptPage = () => {
                             </svg>
                           </div>
                         </div>
+                    </div>
+                    
+                    {/* 价格显示 */}
+                    <div className="flex items-center justify-between text-xs px-2 py-2 bg-black/20 rounded-lg border border-white/5">
+                      <span className="text-gray-400">预计费用：</span>
+                      <PricingDisplay
+                        service="image2ppt"
+                        endpoint="generate"
+                        useAI={true}
+                        pageCount={1}
+                        className="text-cyan-400 font-semibold"
+                      />
                     </div>
                   </div>
 

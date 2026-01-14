@@ -4,10 +4,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+from dotenv import load_dotenv
+
+# 加载 .env 文件
+load_dotenv(Path(__file__).parent / ".env")
 
 from fastapi_app.routers import paper2video
 from fastapi_app.routers import paper2any, paper2ppt
-from fastapi_app.routers import pdf2ppt, image2ppt, kb
+from fastapi_app.routers import pdf2ppt, image2ppt, kb, pricing
 from fastapi_app.middleware.api_key import APIKeyMiddleware
 from dataflow_agent.utils import get_project_root
 
@@ -29,14 +33,17 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=[
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    # API key verification for /api/* routes
-    app.add_middleware(APIKeyMiddleware)
+    # API key verification for /api/* routes (disabled)
+    # app.add_middleware(APIKeyMiddleware)
 
     # 路由挂载
     app.include_router(paper2video.router, prefix="/paper2video", tags=["paper2video"])
@@ -50,6 +57,8 @@ def create_app() -> FastAPI:
     app.include_router(image2ppt.router, prefix="/api", tags=["image2ppt"])
     # 知识库接口
     app.include_router(kb.router, prefix="/api", tags=["Knowledge Base"])
+    # 价格配置接口
+    app.include_router(pricing.router, prefix="/api", tags=["Pricing"])
 
     # 挂载静态文件目录（用于提供生成的 PPTX/SVG/PNG 文件）
     project_root = get_project_root()

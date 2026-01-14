@@ -10,6 +10,7 @@ import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
+import { PricingDisplay } from './PricingDisplay';
 import QRCodeTooltip from './QRCodeTooltip';
 
 // ============== 类型定义 ==============
@@ -378,10 +379,7 @@ const Ppt2PolishPage = () => {
     //   return;
     // }
     
-    if (!llmApiUrl.trim() || !apiKey.trim()) {
-      setError(t('errors.config'));
-      return;
-    }
+    // API Key 验证已移除，后端会使用环境变量默认值
 
     if (styleMode === 'preset' && !globalPrompt.trim()) {
       setError(t('errors.prompt'));
@@ -391,19 +389,6 @@ const Ppt2PolishPage = () => {
     if (styleMode === 'reference' && !referenceImage) {
       setError(t('errors.reference'));
       return;
-    }
-
-    try {
-        // Step 0: Verify LLM Connection first
-        setIsValidating(true);
-        setError(null);
-        await verifyLlmConnection(llmApiUrl, apiKey, model);
-        setIsValidating(false);
-    } catch (err) {
-        setIsValidating(false);
-        const message = err instanceof Error ? err.message : 'API 验证失败';
-        setError(message);
-        return; // Stop execution if validation fails
     }
 
     setIsUploading(true);
@@ -455,6 +440,7 @@ const Ppt2PolishPage = () => {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
+        credentials: 'include',
       });
 
       console.log('Response status:', res.status, res.statusText); // 调试信息
@@ -735,6 +721,7 @@ const Ppt2PolishPage = () => {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
+        credentials: 'include',
       });
 
       console.log('Response status:', res.status, res.statusText);
@@ -875,6 +862,7 @@ const Ppt2PolishPage = () => {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
+        credentials: 'include',
       });
       
       if (!res.ok) {
@@ -995,6 +983,7 @@ const Ppt2PolishPage = () => {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
+        credentials: 'include',
       });
       
       if (!res.ok) {
@@ -1283,6 +1272,18 @@ const Ppt2PolishPage = () => {
             </>
           )}
             </div>
+          
+          {/* 价格显示 */}
+          <div className="flex items-center justify-between text-xs px-3 py-2.5 bg-black/20 rounded-lg border border-white/5">
+            <span className="text-gray-400">预计费用：</span>
+            <PricingDisplay
+              service="paper2ppt"
+              endpoint="ppt"
+              showUnitPriceOnly={true}
+              className="text-teal-400 font-semibold"
+            />
+          </div>
+
           <button onClick={handleUploadAndParse} disabled={!selectedFile || isUploading} className="w-full py-3 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold flex items-center justify-center gap-2 transition-all">
             {isUploading ? <><Loader2 size={18} className="animate-spin" /> {t('upload.config.parsing')}</> : <><ArrowRight size={18} /> {t('upload.config.start')}</>}
           </button>

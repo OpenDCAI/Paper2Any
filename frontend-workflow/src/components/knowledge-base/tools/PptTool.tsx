@@ -73,6 +73,7 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
+        credentials: 'include',
       });
 
       if (!res.ok) {

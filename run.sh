@@ -1,8 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# 解析命令行参数
+START_MODEL_SERVERS=true
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --no-model-servers)
+      START_MODEL_SERVERS=false
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1"
+      echo "Usage: $0 [--no-model-servers]"
+      exit 1
+      ;;
+  esac
+done
+
 # 启动模型服务
-bash /data/ziyi/Paper2Any/script/start_model_servers.sh
+if [ "$START_MODEL_SERVERS" = true ]; then
+  echo "Starting model servers..."
+  bash /data/ziyi/Paper2Any/script/start_model_servers.sh
+else
+  echo "Skipping model servers startup"
+fi
 
 # 准备conda环境
 CONDA_BASE="$(conda info --base)"

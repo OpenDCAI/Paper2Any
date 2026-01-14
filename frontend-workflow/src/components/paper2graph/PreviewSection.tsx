@@ -140,6 +140,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                     method: 'POST',
                     headers: { 'X-API-Key': API_KEY },
                     body: formData,
+                    credentials: 'include',
                   });
                   
                   if (!res.ok) throw new Error('重绘失败');
@@ -265,6 +266,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                       method: 'POST',
                       headers: { 'X-API-Key': API_KEY },
                       body: formData,
+                      credentials: 'include',
                     });
                     
                     if (!res.ok) throw new Error('PPT 生成失败');

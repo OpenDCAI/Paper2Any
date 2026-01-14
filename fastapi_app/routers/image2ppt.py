@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 
 from dataflow_agent.logger import get_logger
 from fastapi_app.services.image2ppt_service import Image2PPTService
+from fastapi_app.middleware.billing_decorator import with_hybrid_billing
 
 log = get_logger(__name__)
 
@@ -16,6 +17,7 @@ def get_service() -> Image2PPTService:
     return Image2PPTService()
 
 @router.post("/image2ppt/generate")
+@with_hybrid_billing("image2ppt", "image2ppt")
 async def generate_image2ppt(
     request: Request,
     image_file: UploadFile = File(...),
@@ -42,6 +44,10 @@ async def generate_image2ppt(
         - chat_api_url: LLM API URL（开启 AI 增强时必填）
         - api_key: LLM API Key（开启 AI 增强时必填）
     - 返回：生成的 PPTX 文件（二进制下载）
+    
+    计费方式：
+    - 不使用 AI：基础价格
+    - 使用 AI：基础价格 + (AI单页价格 × page_count)
     """
 
     ppt_path = await service.generate_ppt(

@@ -8,6 +8,7 @@ import { uploadAndSaveFile } from '../services/fileService';
 import { API_KEY } from '../config/api';
 import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
+import { PricingDisplay } from './PricingDisplay';
 import QRCodeTooltip from './QRCodeTooltip';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -102,6 +103,7 @@ const Pdf2PptPage = () => {
   // 配置
   const [inviteCode, setInviteCode] = useState('');
   const [useAiEdit, setUseAiEdit] = useState(false);
+  const [pageCount, setPageCount] = useState(8);
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [genFigModel, setGenFigModel] = useState('gemini-3-pro-image-preview');
@@ -116,6 +118,7 @@ const Pdf2PptPage = () => {
       
       if (saved.inviteCode) setInviteCode(saved.inviteCode);
       if (saved.useAiEdit !== undefined) setUseAiEdit(saved.useAiEdit);
+      if (saved.pageCount) setPageCount(saved.pageCount);
       if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
       if (saved.apiKey) setApiKey(saved.apiKey);
       if (saved.genFigModel) setGenFigModel(saved.genFigModel);
@@ -130,6 +133,7 @@ const Pdf2PptPage = () => {
     const data = {
       inviteCode,
       useAiEdit,
+      pageCount,
       llmApiUrl,
       apiKey,
       genFigModel,
@@ -139,7 +143,7 @@ const Pdf2PptPage = () => {
     } catch (e) {
       console.error('Failed to persist pdf2ppt config', e);
     }
-  }, [inviteCode, useAiEdit, llmApiUrl, apiKey, genFigModel]);
+  }, [inviteCode, useAiEdit, pageCount, llmApiUrl, apiKey, genFigModel]);
 
   const validateDocFile = (file: File): boolean => {
     const ext = file.name.split('.').pop()?.toLowerCase();
@@ -184,29 +188,7 @@ const Pdf2PptPage = () => {
       return;
     }
 
-    if (useAiEdit) {
-      if (!apiKey.trim()) {
-        setError(t('errors.enterKey'));
-        return;
-      }
-      if (!llmApiUrl.trim()) {
-        setError(t('errors.enterUrl'));
-        return;
-      }
-
-      // Step 0: Verify LLM Connection if AI Edit is enabled
-      try {
-        setIsValidating(true);
-        setError(null);
-        await verifyLlmConnection(llmApiUrl, apiKey, 'gpt-4o'); 
-        setIsValidating(false);
-      } catch (err) {
-        setIsValidating(false);
-        const message = err instanceof Error ? err.message : t('errors.apiFail');
-        setError(message);
-        return;
-      }
-    }
+    // API Key 验证已移除，后端会使用环境变量默认值
     
     setIsProcessing(true);
     setError(null);
@@ -239,6 +221,7 @@ const Pdf2PptPage = () => {
       const formData = new FormData();
       formData.append('pdf_file', selectedFile);
       formData.append('invite_code', inviteCode.trim());
+      formData.append('page_count', String(pageCount));
       
       if (useAiEdit) {
         formData.append('use_ai_edit', 'true');
@@ -253,6 +236,7 @@ const Pdf2PptPage = () => {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
+        credentials: 'include',
       });
       
       clearInterval(progressInterval);
@@ -457,28 +441,43 @@ const Pdf2PptPage = () => {
                       className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
                     />
                 </div> */}
+                <div className="p-3 rounded-lg bg-black/20 border border-white/10">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">计费方式</span>
+                    <PricingDisplay
+                      service="pdf2ppt"
+                      endpoint="generate"
+                      useAI={useAiEdit}
+                      showUnitPriceOnly={true}
+                      className="text-sm text-purple-300 font-semibold"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">根据上传的 PDF 实际页数计费</p>
+                </div>
 
                 {/* AI 增强选项开关 */}
-                <div className="mb-4 flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/5">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20">
-                      <Sparkles size={16} className="text-purple-400" />
+                <div className="mb-4 p-3 rounded-xl border border-white/10 bg-white/5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20">
+                        <Sparkles size={16} className="text-purple-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white">{t('config.aiEdit')}</p>
+                        <p className="text-xs text-gray-400">{t('config.aiEditDesc')}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-white">{t('config.aiEdit')}</p>
-                      <p className="text-xs text-gray-400">{t('config.aiEditDesc')}</p>
-                    </div>
+                    <button 
+                      onClick={() => setUseAiEdit(!useAiEdit)}
+                      className="focus:outline-none transition-colors"
+                    >
+                      {useAiEdit ? (
+                        <ToggleRight size={32} className="text-purple-500" />
+                      ) : (
+                        <ToggleLeft size={32} className="text-gray-500" />
+                      )}
+                    </button>
                   </div>
-                  <button 
-                    onClick={() => setUseAiEdit(!useAiEdit)}
-                    className="focus:outline-none transition-colors"
-                  >
-                    {useAiEdit ? (
-                      <ToggleRight size={32} className="text-purple-500" />
-                    ) : (
-                      <ToggleLeft size={32} className="text-gray-500" />
-                    )}
-                  </button>
                 </div>
 
                 {/* AI 增强配置面板 - 仅开启时显示 */}
@@ -503,6 +502,8 @@ const Pdf2PptPage = () => {
                           </div>
                         </div>
                     </div>
+                    
+                    
                   </div>
                 )}
 

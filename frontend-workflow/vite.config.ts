@@ -11,6 +11,13 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        cookieDomainRewrite: {
+          '*': ''
+        },
+      },
+      '/outputs': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
       },
     },
   },

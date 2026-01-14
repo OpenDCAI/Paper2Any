@@ -2,6 +2,7 @@ import React from 'react';
 import { Settings2, ChevronUp, ChevronDown, Loader2, Download, Info, CheckCircle2, AlertCircle, ImageIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import QRCodeTooltip from '../QRCodeTooltip';
+import { PricingDisplay } from '../PricingDisplay';
 import { GraphType, Language, StyleType, FigureComplex } from './types';
 import { GENERATION_STAGES } from './constants';
 
@@ -159,6 +160,16 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
       )}
 
       <div className="mt-auto space-y-2 pt-2">
+        {/* 价格显示 */}
+        <div className="flex items-center justify-between text-xs px-1 py-1">
+          <span className="text-gray-400">预计费用：</span>
+          <PricingDisplay
+            service="paper2figure"
+            endpoint={graphType === 'tech_route' ? 'generate' : graphType === 'model_arch' ? 'generate_json' : 'beamer'}
+            className="text-purple-400 font-semibold"
+          />
+        </div>
+
         <button
           type="button"
           onClick={handleSubmit}

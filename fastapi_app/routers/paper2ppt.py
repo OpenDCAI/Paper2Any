@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
@@ -12,9 +13,19 @@ from fastapi_app.schemas import (
 )
 from fastapi_app.services.paper2ppt_service import Paper2PPTService
 from fastapi_app.utils import validate_invite_code
+from fastapi_app.middleware.billing_decorator import with_billing, with_dynamic_billing
+from fastapi_app.utils.billing_utils import (
+    extract_page_count_from_param,
+    extract_page_count_from_pagecontent,
+    extract_page_count_from_result,
+)
 
 # 注意：prefix 由 main.py 统一加 "/api/paper2ppt"
 router = APIRouter(tags=["paper2ppt"])
+
+# 从环境变量获取默认的 LLM 配置
+DEFAULT_CHAT_API_URL = os.getenv("DF_API_URL", "https://api.apiyi.com/v1")
+DEFAULT_API_KEY = os.getenv("DF_API_KEY", "")
 
 
 def get_service() -> Paper2PPTService:
@@ -26,10 +37,15 @@ def get_service() -> Paper2PPTService:
     response_model=Dict[str, Any],
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
+@with_dynamic_billing(
+    "paper2ppt",
+    "pagecontent",
+    lambda kwargs, result: extract_page_count_from_param(kwargs)
+)
 async def paper2ppt_pagecontent_json(
     request: Request,
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
     invite_code: Optional[str] = Form(None),
     # 输入相关：支持 text/pdf/pptx/topic
     input_type: str = Form(...),  # 'text' | 'pdf' | 'pptx' | 'topic'
@@ -47,12 +63,18 @@ async def paper2ppt_pagecontent_json(
 ):
     """
     只跑 paper2page_content，返回 pagecontent + result_path。
+    
+    计费方式：单页价格 × page_count
     """
     # validate_invite_code(invite_code)
 
+    # 注入默认值
+    final_chat_api_url = chat_api_url or DEFAULT_CHAT_API_URL
+    final_api_key = api_key or DEFAULT_API_KEY
+
     req = PageContentRequest(
-        chat_api_url=chat_api_url,
-        api_key=api_key,
+        chat_api_url=final_chat_api_url,
+        api_key=final_api_key,
         invite_code=invite_code,
         input_type=input_type,
         text=text,
@@ -78,11 +100,16 @@ async def paper2ppt_pagecontent_json(
     response_model=Dict[str, Any],
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
+@with_dynamic_billing(
+    "paper2ppt",
+    "ppt",
+    lambda kwargs, result: extract_page_count_from_pagecontent(kwargs)
+)
 async def paper2ppt_ppt_json(
     request: Request,
     img_gen_model_name: str = Form(...),
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
     invite_code: Optional[str] = Form(None),
     # 控制参数
     style: str = Form(""),
@@ -108,13 +135,21 @@ async def paper2ppt_ppt_json(
     只跑 paper2ppt：
     - get_down=false：生成模式（需要 pagecontent）
     - get_down=true：编辑模式（需要 page_id(0-based) + edit_prompt，pagecontent 可选）
+    
+    计费方式：
+    - 生成模式：单页价格 × pagecontent 页数
+    - 编辑模式：单页价格 × 1（编辑单页）
     """
     # validate_invite_code(invite_code)
 
+    # 注入默认值
+    final_chat_api_url = chat_api_url or DEFAULT_CHAT_API_URL
+    final_api_key = api_key or DEFAULT_API_KEY
+
     req = PPTGenerationRequest(
         img_gen_model_name=img_gen_model_name,
-        chat_api_url=chat_api_url,
-        api_key=api_key,
+        chat_api_url=final_chat_api_url,
+        api_key=final_api_key,
         invite_code=invite_code,
         style=style,
         aspect_ratio=aspect_ratio,
@@ -141,11 +176,16 @@ async def paper2ppt_ppt_json(
     response_model=Dict[str, Any],
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
+@with_dynamic_billing(
+    "paper2ppt",
+    "full",
+    lambda kwargs, result: extract_page_count_from_result(result)
+)
 async def paper2ppt_full_json(
     request: Request,
     img_gen_model_name: str = Form(...),
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
     invite_code: Optional[str] = Form(None),
     # 输入：支持 text/pdf/pptx
     input_type: str = Form(...),  # 'text' | 'pdf' | 'pptx'
@@ -163,13 +203,19 @@ async def paper2ppt_full_json(
     Full pipeline：
     - paper2page_content -> paper2ppt
     - get_down 固定为 False（首次生成）
+    
+    计费方式：单页价格 × 返回结果中的页数
     """
     # validate_invite_code(invite_code)
 
+    # 注入默认值
+    final_chat_api_url = chat_api_url or DEFAULT_CHAT_API_URL
+    final_api_key = api_key or DEFAULT_API_KEY
+
     req = FullPipelineRequest(
         img_gen_model_name=img_gen_model_name,
-        chat_api_url=chat_api_url,
-        api_key=api_key,
+        chat_api_url=final_chat_api_url,
+        api_key=final_api_key,
         invite_code=invite_code,
         input_type=input_type,
         file=None,  # UploadFile 不放进 Pydantic，作为单独参数传给 service

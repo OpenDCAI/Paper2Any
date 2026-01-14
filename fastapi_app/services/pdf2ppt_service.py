@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -12,6 +13,10 @@ from dataflow_agent.utils import get_project_root
 from dataflow_agent.logger import get_logger
 
 log = get_logger(__name__)
+
+# 从环境变量获取默认的 LLM 配置
+DEFAULT_CHAT_API_URL = os.getenv("DF_API_URL", "https://api.apiyi.com/v1")
+DEFAULT_API_KEY = os.getenv("DF_API_KEY", "")
 
 # 控制重任务并发度，防止 GPU / 内存压力过大
 # Keep semaphore at module level or inside service as a class attribute/singleton
@@ -55,13 +60,9 @@ class PDF2PPTService:
         """
         执行 pdf2ppt 的业务逻辑，返回生成的 PPTX 文件路径
         """
-        # 0.5 如果启用 AI 增强，必须校验 API 配置
-        if use_ai_edit:
-            if not chat_api_url or not api_key:
-                raise HTTPException(
-                    status_code=400, 
-                    detail="When use_ai_edit is True, chat_api_url and api_key are required"
-                )
+        # 注入默认值
+        final_chat_api_url = chat_api_url or DEFAULT_CHAT_API_URL
+        final_api_key = api_key or DEFAULT_API_KEY
 
         # 1. 基础参数校验
         if pdf_file is None:
@@ -85,8 +86,8 @@ class PDF2PPTService:
         wf_req = Paper2PPTRequest(
             input_type="PDF",
             input_content=str(abs_pdf_path),
-            chat_api_url=chat_api_url or "",
-            api_key=api_key or "",
+            chat_api_url=final_chat_api_url,
+            api_key=final_api_key,
             model=model,
             gen_fig_model=gen_fig_model,
             language=language,

@@ -53,7 +53,8 @@ export const UploadView = ({ onSuccess }: UploadViewProps) => {
           headers: {
             'X-API-Key': 'df-internal-2024-workflow-key'
           },
-          body: formData
+          body: formData,
+          credentials: 'include',
         });
 
         if (!res.ok) throw new Error('Upload failed');

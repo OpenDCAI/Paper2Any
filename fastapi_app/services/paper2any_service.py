@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import datetime
 import uuid
 from pathlib import Path
@@ -23,6 +24,10 @@ BASE_OUTPUT_DIR = Path("outputs")
 # 全局信号量：控制重任务并发度（排队机制）
 # 保持在 Service 层或模块级别，因为它是全局共享的资源控制
 task_semaphore = asyncio.Semaphore(1)
+
+# 从环境变量获取默认的 LLM 配置
+DEFAULT_CHAT_API_URL = os.getenv("DF_API_URL", "https://api.apiyi.com/v1")
+DEFAULT_API_KEY = os.getenv("DF_API_KEY", "")
 
 
 class Paper2AnyService:
@@ -152,12 +157,15 @@ class Paper2AnyService:
             input_dir, input_type, file, file_kind, text
         )
 
-        # 4. 构造 Request
+        # 4. 构造 Request（如果前端没传 api_key/chat_api_url，使用环境变量默认值）
+        final_chat_api_url = chat_api_url or DEFAULT_CHAT_API_URL
+        final_api_key = api_key or DEFAULT_API_KEY
+        
         p2f_req = Paper2FigureRequest(
             language=language,
-            chat_api_url=chat_api_url,
-            chat_api_key=api_key,
-            api_key=api_key,
+            chat_api_url=final_chat_api_url,
+            chat_api_key=final_api_key,
+            api_key=final_api_key,
             model="gpt-4o",
             gen_fig_model=img_gen_model_name,
             input_type=real_input_type,
@@ -229,12 +237,15 @@ class Paper2AnyService:
             input_dir, input_type, file, file_kind, text
         )
 
-        # 4. 构造 Request
+        # 4. 构造 Request（如果前端没传 api_key/chat_api_url，使用环境变量默认值）
+        final_chat_api_url = chat_api_url or DEFAULT_CHAT_API_URL
+        final_api_key = api_key or DEFAULT_API_KEY
+        
         p2f_req = Paper2FigureRequest(
             language=language,
-            chat_api_url=chat_api_url,
-            chat_api_key=api_key,
-            api_key=api_key,
+            chat_api_url=final_chat_api_url,
+            chat_api_key=final_api_key,
+            api_key=final_api_key,
             model="gpt-4o",
             gen_fig_model=img_gen_model_name,
             input_type=real_input_type,
@@ -251,14 +262,17 @@ class Paper2AnyService:
         async with task_semaphore:
             p2f_resp = await run_paper2figure_wf_api(p2f_req)
 
-        # 6. 构造 URL 响应
-        safe_ppt = _to_outputs_url(p2f_resp.ppt_filename, request)
-        safe_svg = _to_outputs_url(p2f_resp.svg_filename, request) if p2f_resp.svg_filename else ""
-        safe_png = _to_outputs_url(p2f_resp.svg_image_filename, request) if p2f_resp.svg_image_filename else ""
+        # 6. 构造 URL 响应（过滤无效路径）
+        def is_valid_path(path: str) -> bool:
+            return bool(path) and path not in ('.', '..', '') and len(path) > 2
+        
+        safe_ppt = _to_outputs_url(p2f_resp.ppt_filename, request) if is_valid_path(p2f_resp.ppt_filename) else ""
+        safe_svg = _to_outputs_url(p2f_resp.svg_filename, request) if is_valid_path(p2f_resp.svg_filename) else ""
+        safe_png = _to_outputs_url(p2f_resp.svg_image_filename, request) if is_valid_path(p2f_resp.svg_image_filename) else ""
 
         safe_all_files: list[str] = []
         for abs_path in getattr(p2f_resp, "all_output_files", []) or []:
-            if abs_path:
+            if is_valid_path(abs_path):
                 safe_all_files.append(_to_outputs_url(abs_path, request))
 
         return {

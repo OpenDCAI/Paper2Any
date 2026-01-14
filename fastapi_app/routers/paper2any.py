@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile, Request, Body
 from fastapi.responses import FileResponse
 from fastapi_app.schemas import Paper2FigureResponse, VerifyLlmRequest, VerifyLlmResponse
 from fastapi_app.services.paper2any_service import Paper2AnyService
+from fastapi_app.middleware.billing_decorator import with_billing
 from dataflow_agent.logger import get_logger
 
 log = get_logger(__name__)
@@ -40,10 +41,12 @@ async def list_paper2figure_history_files(
 
 
 @router.post("/paper2figure/generate")
+@with_billing("paper2figure", "generate")
 async def generate_paper2figure(
+    request: Request,
     img_gen_model_name: str = Form(...),
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
     input_type: str = Form(...),
     invite_code: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
@@ -81,11 +84,12 @@ async def generate_paper2figure(
 
 
 @router.post("/paper2figure/generate_json", response_model=Paper2FigureResponse)
+@with_billing("paper2figure", "generate_json")
 async def generate_paper2figure_json(
     request: Request,
     img_gen_model_name: str = Form(...),
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
     input_type: str = Form(...),  # 'file' | 'text' | 'image'
     invite_code: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
@@ -122,10 +126,12 @@ async def generate_paper2figure_json(
 
 
 @router.post("/paper2beamer/generate")
+@with_billing("paper2figure", "beamer")
 async def generate_paper2beamer(
+    request: Request,
     model_name: str = Form(...),
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
     input_type: str = Form(...),  # 当前前端固定为 'file'
     invite_code: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),

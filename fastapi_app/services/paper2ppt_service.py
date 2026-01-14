@@ -95,6 +95,7 @@ paper2ppt 业务 Service 层
 """
 
 from pathlib import Path
+import os
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, Request, UploadFile
@@ -117,6 +118,10 @@ log = get_logger(__name__)
 
 PROJECT_ROOT = get_project_root()
 BASE_OUTPUT_DIR = Path("outputs")
+
+# 从环境变量获取默认的 LLM 配置
+DEFAULT_CHAT_API_URL = os.getenv("DF_API_URL", "https://api.apiyi.com/v1")
+DEFAULT_API_KEY = os.getenv("DF_API_KEY", "")
 
 
 class Paper2PPTService:
@@ -169,11 +174,15 @@ class Paper2PPTService:
         # 转换字符串布尔值
         use_long_paper_bool = str(req.use_long_paper).lower() in ("true", "1", "yes")
 
+        # 如果前端没传 api_key/chat_api_url，使用环境变量默认值
+        final_chat_api_url = req.chat_api_url or DEFAULT_CHAT_API_URL
+        final_api_key = req.api_key or DEFAULT_API_KEY
+
         p2ppt_req = Paper2PPTRequest(
             language=req.language,
-            chat_api_url=req.chat_api_url,
-            chat_api_key=req.api_key,
-            api_key=req.api_key,
+            chat_api_url=final_chat_api_url,
+            chat_api_key=final_api_key,
+            api_key=final_api_key,
             model=req.model,
             gen_fig_model="",
             input_type=wf_input_type,
@@ -240,11 +249,15 @@ class Paper2PPTService:
 
         from fastapi_app.schemas import Paper2PPTRequest  # 局部导入避免循环
 
+        # 如果前端没传 api_key/chat_api_url，使用环境变量默认值
+        final_chat_api_url = req.chat_api_url or DEFAULT_CHAT_API_URL
+        final_api_key = req.api_key or DEFAULT_API_KEY
+
         p2ppt_req = Paper2PPTRequest(
             language=req.language,
-            chat_api_url=req.chat_api_url,
-            chat_api_key=req.api_key,
-            api_key=req.api_key,
+            chat_api_url=final_chat_api_url,
+            chat_api_key=final_api_key,
+            api_key=final_api_key,
             model=req.model,
             gen_fig_model=req.img_gen_model_name,
             input_type="PDF",
@@ -300,11 +313,15 @@ class Paper2PPTService:
 
         from fastapi_app.schemas import Paper2PPTRequest  # 局部导入避免循环
 
+        # 如果前端没传 api_key/chat_api_url，使用环境变量默认值
+        final_chat_api_url = req.chat_api_url or DEFAULT_CHAT_API_URL
+        final_api_key = req.api_key or DEFAULT_API_KEY
+
         p2ppt_req = Paper2PPTRequest(
             language=req.language,
-            chat_api_url=req.chat_api_url,
-            chat_api_key=req.api_key,
-            api_key=req.api_key,
+            chat_api_url=final_chat_api_url,
+            chat_api_key=final_api_key,
+            api_key=final_api_key,
             model=req.model,
             gen_fig_model=req.img_gen_model_name,
             input_type=wf_input_type,

@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 
 from dataflow_agent.logger import get_logger
 from fastapi_app.services.pdf2ppt_service import PDF2PPTService
+from fastapi_app.middleware.billing_decorator import with_hybrid_billing
 
 log = get_logger(__name__)
 
@@ -16,6 +17,7 @@ def get_service() -> PDF2PPTService:
     return PDF2PPTService()
 
 @router.post("/pdf2ppt/generate")
+@with_hybrid_billing("pdf2ppt", "pdf2ppt")
 async def generate_pdf2ppt(
     request: Request,
     pdf_file: UploadFile = File(...),
@@ -47,6 +49,10 @@ async def generate_pdf2ppt(
         - style: 风格描述（可选）
         - page_count: 生成页数（可选）
     - 返回：生成的 PPTX 文件（二进制下载）
+    
+    计费方式：
+    - 不使用 AI：基础价格
+    - 使用 AI：基础价格 + (AI单页价格 × page_count)
     """
     # 0. 邀请码校验 (Already commented out in original code, keeping it that way or user might want to uncomment)
     # validate_invite_code(invite_code)

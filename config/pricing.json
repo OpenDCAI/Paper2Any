@@ -1,0 +1,73 @@
+{
+  "version": "1.0",
+  "currency": "光子",
+  "last_updated": "2025-01-14",
+  "pricing": {
+    "paper2figure": {
+      "generate": {
+        "type": "fixed",
+        "price": 0,
+        "description": "停止使用",
+        "unit": "次"
+      },
+      "generate_json": {
+        "type": "fixed",
+        "price": 50,
+        "description": "Paper2Figure JSON",
+        "unit": "次"
+      },
+      "beamer": {
+        "type": "fixed",
+        "price": 15,
+        "description": "Paper2Beamer 生成",
+        "unit": "次"
+      }
+    },
+    "paper2ppt": {
+      "pagecontent": {
+        "type": "per_page",
+        "price_per_page": 5,
+        "description": "Paper2PPT 页面内容生成",
+        "unit": "页",
+        "example": "10 页 = 5 × 10 = 50 积分"
+      },
+      "ppt": {
+        "type": "per_page",
+        "price_per_page": 40,
+        "description": "Paper2PPT 生成",
+        "unit": "页",
+        "note": "编辑单页按 1 页计费",
+        "example": "8 页 = 40 × 8 = 320 积分"
+      },
+      "full": {
+        "type": "per_page",
+        "price_per_page": 0,
+        "description": "Paper2PPT 完整流程",
+        "unit": "页",
+        "note": "停止使用"
+      }
+    },
+    "pdf2ppt": {
+      "generate": {
+        "type": "hybrid",
+        "base_price": 25,
+        "ai_price_per_page": 40,
+        "description": "PDF2PPT 转换",
+        "unit": "页",
+        "note": "不使用 AI：基础价格；使用 AI：基础价格 + AI单页价格 × 页数",
+        "examples": {
+          "without_ai": "不使用 AI = 25 积分",
+          "with_ai_10_pages": "使用 AI (10页) = 25 + 40 × 10 = 425 积分"
+        }
+      }
+    },
+    "image2ppt": {
+      "generate": {
+        "type": "fixed",
+        "price": 25,
+        "description": "Image2PPT 生成",
+        "unit": "次"
+      }
+    }
+  }
+}
