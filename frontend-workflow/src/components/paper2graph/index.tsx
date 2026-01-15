@@ -340,6 +340,7 @@ const Paper2FigurePage = () => {
       formData.append('graph_type', graphType);
       formData.append('style', style);
       formData.append('figure_complex', figureComplex);
+      formData.append('language', language);
 
       if (uploadMode === 'file') {
         if (!selectedFile) {
@@ -700,6 +701,7 @@ const Paper2FigurePage = () => {
             apiKey={apiKey}
             inviteCode={inviteCode}
             figureComplex={figureComplex}
+            language={language}
           />
 
           <ExamplesSection />

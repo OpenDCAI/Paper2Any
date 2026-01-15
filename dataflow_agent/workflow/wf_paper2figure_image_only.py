@@ -77,8 +77,8 @@ def create_p2fig_image_only_graph() -> GenericGraphBuilder:
     def _get_paper_idea(state: Paper2FigureState):
         # 根据请求语言添加指令
         lang = getattr(state.request, "language", "zh")
+        log.critical(f'[image_only]: lang {lang}')
         lang_instruction = ""
-        
         if lang == "zh":
             lang_instruction = "\n\nIMPORTANT: The text content inside the generated figure MUST be in Chinese (Simplified Chinese). Please ensure all labels, titles, and descriptions in the figure description are in Chinese."
         else:

@@ -237,7 +237,7 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                             name="ImageTextBBoxAgent",
                             model_name=getattr(state.request, "vlm_model", "qwen-vl-ocr-2025-11-20"),
                             chat_api_url=getattr(state.request, "chat_api_url", None),
-                            vlm_mode="understanding",
+                            vlm_mode="ocr",
                             additional_params={
                                 "input_image": img_path
                             }
