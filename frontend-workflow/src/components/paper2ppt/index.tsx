@@ -68,7 +68,7 @@ const Paper2PptPage = () => {
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-5.1');
-  const [genFigModel, setGenFigModel] = useState('gemini-2.5-flash-image');
+  const [genFigModel, setGenFigModel] = useState('gemini-3-pro-image-preview');
   const [language, setLanguage] = useState<'zh' | 'en'>('en');
   const [resultPath, setResultPath] = useState<string | null>(null);
 

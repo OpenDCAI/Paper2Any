@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { KnowledgeFile } from './types';
-import { FileText, Image, Video, Link as LinkIcon, Trash2, Search, Filter, X, Eye } from 'lucide-react';
+import { FileText, Image, Video, Link as LinkIcon, Trash2, Search, Filter, X, Eye, Database, Loader2, CheckCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface LibraryViewProps {
@@ -14,7 +14,19 @@ interface LibraryViewProps {
 }
 
 export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, onRefresh, onPreview, onDelete }: LibraryViewProps) => {
+  const [filterType, setFilterType] = useState<'all' | 'embedded'>('all');
+  const [isEmbedding, setIsEmbedding] = useState(false);
   
+  // Embedding Config Modal
+  const [showEmbedConfig, setShowEmbedConfig] = useState(false);
+  const [embedConfig, setEmbedConfig] = useState({
+      api_url: 'https://api.apiyi.com/v1/embeddings',
+      api_key: '',
+      model_name: 'text-embedding-3-small',
+      image_model: 'gemini-2.5-flash',
+      video_model: 'gemini-2.5-flash'
+  });
+
   const handleDelete = async (file: KnowledgeFile, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm(`Delete ${file.name}?`)) return;
@@ -47,12 +59,64 @@ export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, 
       if (error) throw error;
       
       onRefresh();
-      // Clear selection is handled by parent or we should assume parent will clear or we keep selectedIds as is but they are gone.
-      // Ideally we should call a clearSelection callback but we don't have one in props directly, 
-      // but onRefresh will update the list.
     } catch (err) {
       console.error('Bulk delete error:', err);
       alert('Delete failed');
+    }
+  };
+
+  const startEmbeddingProcess = async () => {
+    if (selectedIds.size === 0) return;
+    setShowEmbedConfig(false);
+    setIsEmbedding(true);
+    try {
+        const fileIds = Array.from(selectedIds);
+        
+        // Prepare data for backend
+        const filesToProcess = files
+            .filter(f => selectedIds.has(f.id))
+            .map(f => ({
+                path: f.url,
+                description: f.desc
+            }));
+
+        // Call Real API
+        const res = await fetch('/api/v1/kb/embedding', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': 'df-internal-2024-workflow-key'
+          },
+          body: JSON.stringify({ 
+              files: filesToProcess,
+              api_url: embedConfig.api_url,
+              api_key: embedConfig.api_key,
+              model_name: embedConfig.model_name,
+              image_model: embedConfig.image_model,
+              video_model: embedConfig.video_model
+          })
+        });
+        
+        if (!res.ok) throw new Error("Embedding failed");
+        
+        // Update DB locally to reflect change
+        const { error } = await supabase
+            .from('knowledge_base_files')
+            .update({ is_embedded: true })
+            .in('id', fileIds);
+
+        if (error) throw error;
+
+        await onRefresh();
+        // Switch to embedded view to show results
+        setFilterType('embedded');
+        alert("Files successfully embedded!");
+        
+    } catch (err) {
+        console.error("Embedding error:", err);
+        alert("Failed to start embedding process");
+    } finally {
+        setIsEmbedding(false);
     }
   };
 
@@ -66,8 +130,35 @@ export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, 
     }
   };
 
+  const filteredFiles = files.filter(file => {
+      if (filterType === 'embedded') return file.isEmbedded;
+      return true;
+  });
+
   return (
     <div className="h-full flex flex-col relative">
+      {/* Tabs */}
+      <div className="flex items-center gap-6 mb-6 border-b border-white/10 pb-1">
+          <button 
+            onClick={() => setFilterType('all')}
+            className={`pb-3 text-sm font-medium transition-all relative ${
+                filterType === 'all' ? 'text-white' : 'text-gray-400 hover:text-gray-300'
+            }`}
+          >
+              全部文件
+              {filterType === 'all' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-purple-500 rounded-full" />}
+          </button>
+          <button 
+            onClick={() => setFilterType('embedded')}
+            className={`pb-3 text-sm font-medium transition-all relative ${
+                filterType === 'embedded' ? 'text-white' : 'text-gray-400 hover:text-gray-300'
+            }`}
+          >
+              向量入库文件
+              {filterType === 'embedded' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-purple-500 rounded-full" />}
+          </button>
+      </div>
+
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4 flex-1">
@@ -93,8 +184,8 @@ export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, 
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto pb-20">
-        {files.map(file => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto pb-20 flex-1">
+        {filteredFiles.map(file => (
           <div 
             key={file.id}
             onClick={() => onPreview(file)}
@@ -105,8 +196,11 @@ export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, 
             }`}
           >
             <div className="flex items-start justify-between mb-3">
-              <div className="p-2 bg-black/20 rounded-lg">
+              <div className="p-2 bg-black/20 rounded-lg relative">
                 {getIcon(file.type)}
+                {file.isEmbedded && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border border-[#0a0a1a]" title="Embedded"></div>
+                )}
               </div>
               <div 
                 onClick={(e) => { e.stopPropagation(); onToggleSelect(file.id); }}
@@ -140,6 +234,109 @@ export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, 
           </div>
         ))}
       </div>
+      
+      {/* Bottom Bar for Vector Embedding */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
+          <button
+            onClick={() => setShowEmbedConfig(true)}
+            disabled={selectedIds.size === 0 || isEmbedding}
+            className={`px-6 py-3 rounded-full font-medium shadow-xl backdrop-blur-md border border-white/10 transition-all flex items-center gap-2 ${
+                selectedIds.size > 0 
+                ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:scale-105' 
+                : 'bg-black/40 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+              {isEmbedding ? (
+                  <>
+                    <Loader2 className="animate-spin" size={18} />
+                    Processing...
+                  </>
+              ) : (
+                  <>
+                    <Database size={18} />
+                    向量入库 {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
+                  </>
+              )}
+          </button>
+      </div>
+
+      {/* Config Modal */}
+      {showEmbedConfig && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowEmbedConfig(false)}>
+            <div className="bg-[#0a0a1a] border border-white/10 rounded-xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+                <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
+                    <Database className="text-purple-500" />
+                    Embedding 配置
+                </h3>
+                
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-xs text-gray-400 mb-1">API URL</label>
+                        <input 
+                            type="text" 
+                            value={embedConfig.api_url}
+                            onChange={e => setEmbedConfig({...embedConfig, api_url: e.target.value})}
+                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-purple-500/50 outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs text-gray-400 mb-1">API Key</label>
+                        <input 
+                            type="password" 
+                            value={embedConfig.api_key}
+                            onChange={e => setEmbedConfig({...embedConfig, api_key: e.target.value})}
+                            placeholder="sk-..."
+                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-purple-500/50 outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs text-gray-400 mb-1">Model Name (Embedding)</label>
+                        <input 
+                            type="text" 
+                            value={embedConfig.model_name}
+                            onChange={e => setEmbedConfig({...embedConfig, model_name: e.target.value})}
+                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-purple-500/50 outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs text-gray-400 mb-1">Image Model</label>
+                        <input 
+                            type="text" 
+                            value={embedConfig.image_model}
+                            onChange={e => setEmbedConfig({...embedConfig, image_model: e.target.value})}
+                            placeholder="e.g. gemini-2.5-flash"
+                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-purple-500/50 outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs text-gray-400 mb-1">Video Model</label>
+                        <input 
+                            type="text" 
+                            value={embedConfig.video_model}
+                            onChange={e => setEmbedConfig({...embedConfig, video_model: e.target.value})}
+                            placeholder="e.g. gemini-2.5-flash"
+                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-purple-500/50 outline-none"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                    <button 
+                        onClick={() => setShowEmbedConfig(false)}
+                        className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                    >
+                        取消
+                    </button>
+                    <button 
+                        onClick={startEmbeddingProcess}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                        开始入库
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };
