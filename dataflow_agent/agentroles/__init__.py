@@ -299,7 +299,7 @@ def create_vlm_agent(
     
     Args:
         name: 代理角色名称
-        vlm_mode: VLM模式，可选"understanding"(理解)/"generation"(生成)/"edit"(编辑)，默认"understanding"
+        vlm_mode: VLM模式，可选"understanding"(理解)/"generation"(生成)/"edit"(编辑)/ ocr 识别 / video_understanding ，默认"understanding"
         image_detail: 图像细节级别，可选"low"/"high"/"auto"，默认"auto"
         tool_manager: 工具管理器实例，默认为全局工具管理器
         **kwargs: 配置参数，支持以下参数：

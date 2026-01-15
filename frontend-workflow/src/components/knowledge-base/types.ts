@@ -9,6 +9,7 @@ export interface KnowledgeFile {
   desc?: string;
   size?: string;
   uploadTime: string;
+  isEmbedded?: boolean;
 }
 
 export interface ChatMessage {

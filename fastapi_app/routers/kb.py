@@ -12,6 +12,8 @@ router = APIRouter(prefix="/kb", tags=["Knowledge Base"])
 # We will use relative path 'outputs/kb_data' which resolves to that in the current workspace
 KB_BASE_DIR = Path("outputs/kb_data")
 
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".png", ".jpg", ".jpeg", ".mp4"}
+
 @router.post("/upload")
 async def upload_kb_file(
     file: UploadFile = File(...),
@@ -24,6 +26,14 @@ async def upload_kb_file(
     """
     if not email:
         raise HTTPException(status_code=400, detail="Email is required")
+
+    # Validate file extension
+    file_ext = Path(file.filename).suffix.lower()
+    if file_ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported file type: {file_ext}. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+        )
 
     try:
         # Create user directory if not exists

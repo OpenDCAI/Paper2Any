@@ -50,7 +50,7 @@ class SAMResponse(BaseModel):
     items: List[SAMItemResponse]
 
 @app.post("/predict", response_model=SAMResponse)
-async def predict(req: SAMRequest):
+def predict(req: SAMRequest):
     """
     Run SAM auto segmentation on the given image path.
     """
@@ -109,7 +109,7 @@ async def predict(req: SAMRequest):
             torch.cuda.empty_cache()
 
 @app.post("/free_model")
-async def free_model(checkpoint: str = "sam_b.pt"):
+def free_model(checkpoint: str = "sam_b.pt"):
     try:
         free_sam_model(checkpoint)
         return {"status": "ok", "message": f"Model {checkpoint} freed"}

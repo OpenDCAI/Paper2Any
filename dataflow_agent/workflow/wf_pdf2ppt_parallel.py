@@ -150,7 +150,7 @@ def _run_sam_on_pages(image_paths: List[str], base_dir: str) -> List[Dict[str, A
                 min_area=200,
                 min_score=0.0,
                 iou_threshold=0.4,
-                top_k=25,
+                top_k=15,
                 nms_by="mask",
             )
         except Exception as e:
@@ -163,7 +163,7 @@ def _run_sam_on_pages(image_paths: List[str], base_dir: str) -> List[Dict[str, A
                 min_area=200,
                 min_score=0.0,
                 iou_threshold=0.4,
-                top_k=25,
+                top_k=15,
                 nms_by="mask",
             )
             
