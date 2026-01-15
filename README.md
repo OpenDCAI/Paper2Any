@@ -72,10 +72,13 @@ English | [中文](README.md)
 ## 🔥 News
 
 > [!TIP]
-> 🆕 <strong>2025-12-12 · Paper2Figure Web public beta is live</strong><br>
-> Supports one-click generation of multiple <strong>editable</strong> scientific figures (model architecture diagrams / technical roadmaps / experimental plots)<br>
+> 🆕 <strong>2026-01-14 · Feature Updates & Backend Architecture Upgrade</strong><br>
+> 1. **Feature Updates**: Added **Image2PPT**, optimized **Paper2Figure** interaction, and improved **PDF2PPT** effects.<br>
+> 2. **Standardized API**: Refactored backend interfaces with RESTful `/api/v1/` structure, removing obsolete endpoints for better maintainability.<br>
+> 3. **Dynamic Configuration**: Supported dynamic model selection (e.g., GPT-4o, Qwen-VL) via API parameters, eliminating hardcoded model dependencies.<br>
 > 🌐 Online Demo: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
 
+- 2025-12-12 · Paper2Figure Web public beta is live
 - 2025-10-01 · Released the first version <code>0.1.0</code>
 
 ---
@@ -166,6 +169,10 @@ Paper2Any currently includes the following sub-capabilities:
 <br>
 <img src="static/new_readme/pdf2ppt抠图.png" width="90%"/>
 <br><sub>✨ Intelligent Cutout & Layout Preservation</sub>
+
+<br>
+<img src="static/new_readme/image2PPT.png" width="93%"/>
+<br><sub>✨ Image2PPT</sub>
 
 </div>
 

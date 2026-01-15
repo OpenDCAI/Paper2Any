@@ -457,9 +457,9 @@ const Ppt2PolishPage = () => {
         formData.append('reference_img', referenceImage);
       }
       
-      console.log('Sending request to /api/paper2ppt/pagecontent_json'); // 调试信息
-
-      const res = await fetch('/api/paper2ppt/pagecontent_json', {
+      console.log('Sending request to /api/v1/paper2ppt/page-content'); // 调试信息
+      
+      const res = await fetch('/api/v1/paper2ppt/page-content', {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
@@ -732,14 +732,14 @@ const Ppt2PolishPage = () => {
       formData.append('pagecontent', JSON.stringify(pagecontent));
       
       console.log('Generating initial PPT with pagecontent:', pagecontent);
-      console.log('Request URL: /api/paper2ppt/ppt_json');
+      console.log('Request URL: /api/v1/paper2ppt/generate');
       console.log('Request params:', {
-        result_path: resultPath,
-        get_down: 'false',
-        pagecontent_count: pagecontent.length,
+        img_gen_model_name: genFigModel,
+        chat_api_url: llmApiUrl,
+        // ... 其他参数
       });
 
-      const res = await fetch('/api/paper2ppt/ppt_json', {
+      const res = await fetch('/api/v1/paper2ppt/generate', {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
@@ -879,7 +879,7 @@ const Ppt2PolishPage = () => {
       console.log('pagecontent to send:', pagecontent);
       formData.append('pagecontent', JSON.stringify(pagecontent));
 
-      const res = await fetch('/api/paper2ppt/ppt_json', {
+      const res = await fetch('/api/v1/paper2ppt/generate', {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
@@ -999,7 +999,7 @@ const Ppt2PolishPage = () => {
       }));
       formData.append('pagecontent', JSON.stringify(pagecontent));
 
-      const res = await fetch('/api/paper2ppt/ppt_json', {
+      const res = await fetch('/api/v1/paper2ppt/generate', {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
