@@ -26,7 +26,8 @@ langchain-text-splitters==0.3.11
 
 transformers==4.57.3
 
-numpy<2.0.0
+numpy<2.0.0; python_version < "3.13"
+numpy>=2.1.0; python_version >= "3.13"
 opencv-python-headless
 pillow
 python-pptx
