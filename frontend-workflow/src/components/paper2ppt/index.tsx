@@ -351,9 +351,9 @@ const Paper2PptPage = () => {
         formData.set('style', '');
       }
       
-      console.log(`Sending request to /api/paper2ppt/pagecontent_json with input_type=${uploadMode}`);
+      console.log(`Sending request to /api/v1/paper2ppt/page-content with input_type=${uploadMode}`);
       
-      const res = await fetch('/api/paper2ppt/pagecontent_json', {
+      const res = await fetch('/api/v1/paper2ppt/page-content', {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
@@ -522,7 +522,7 @@ const Paper2PptPage = () => {
       }));
       formData.append('pagecontent', JSON.stringify(pagecontent));
 
-      const res = await fetch('/api/paper2ppt/ppt_json', {
+      const res = await fetch('/api/v1/paper2ppt/generate', {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
@@ -638,7 +638,7 @@ const Paper2PptPage = () => {
       });
       formData.append('pagecontent', JSON.stringify(pagecontent));
 
-      const res = await fetch('/api/paper2ppt/ppt_json', {
+      const res = await fetch('/api/v1/paper2ppt/generate', {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,
@@ -734,7 +734,7 @@ const Paper2PptPage = () => {
       }));
       formData.append('pagecontent', JSON.stringify(pagecontent));
 
-      const res = await fetch('/api/paper2ppt/ppt_json', {
+      const res = await fetch('/api/v1/paper2ppt/generate', {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
         body: formData,

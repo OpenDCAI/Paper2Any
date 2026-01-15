@@ -21,7 +21,7 @@ export async function verifyLlmConnection(
   
   // Use the backend verification endpoint to avoid Mixed Content issues
   // The backend will proxy the request to the LLM API (even if it is HTTP)
-  const verifyUrl = '/api/verify-llm';
+  const verifyUrl = '/api/v1/system/verify-llm';
 
   try {
     const controller = new AbortController();

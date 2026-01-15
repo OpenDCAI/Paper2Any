@@ -77,8 +77,8 @@ def create_p2fig_image_only_graph() -> GenericGraphBuilder:
     def _get_paper_idea(state: Paper2FigureState):
         # 根据请求语言添加指令
         lang = getattr(state.request, "language", "zh")
+        log.critical(f'[image_only]: lang {lang}')
         lang_instruction = ""
-        
         if lang == "zh":
             lang_instruction = "\n\nIMPORTANT: The text content inside the generated figure MUST be in Chinese (Simplified Chinese). Please ensure all labels, titles, and descriptions in the figure description are in Chinese."
         else:
@@ -100,7 +100,7 @@ def create_p2fig_image_only_graph() -> GenericGraphBuilder:
     async def figure_desc_generator_node(state: Paper2FigureState) -> Paper2FigureState:
         figure_desc_generator = create_react_agent("figure_desc_generator",
                                                     max_retries=5,
-                                                    model_name="gpt-5.1")
+                                                    model_name=getattr(state.request, "fig_desc_model", "gpt-5.1"))
         state = await figure_desc_generator.execute(state, use_agent=True)
         return state
 
