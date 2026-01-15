@@ -757,8 +757,8 @@ async def generate_or_edit_and_save_image_async(
     """
     # 根据分辨率动态调整超时时间（仅对 Gemini-3 Pro 生效）
     if _is_gemini_model(model) and is_gemini_3_pro(model):
-        timeout_map = {"1K": 180, "2K": 300, "4K": 360}
-        timeout = timeout_map.get(resolution, 300)
+        timeout_map = {"1K": 40, "2K": 180, "4K": 350}
+        timeout = timeout_map.get(resolution, 180)
     
     log.info(f"aspect_ratio: {aspect_ratio} \n resolution: {resolution} \n use_edit: {use_edit} \n model: {model} \n api_url: {api_url} \n timeout: {timeout} \n api_key: {api_key}")
     # 根据模型类型选择不同的API
@@ -951,7 +951,7 @@ if __name__ == "__main__":
 
     async def _test_123_edit():
         # 准备一张测试图片
-        img_path = "/data/users/liuzhou/dev/DataFlow-Agent/tests/test_01.png"
+        img_path = "/data/users/liuzhou/dev/DataFlow-Agent/outputs/paper2fig/20260115_234734/fig_1768492054.png"
         if not os.path.exists(img_path):
             try:
                 from PIL import Image
@@ -962,14 +962,14 @@ if __name__ == "__main__":
                 print("PIL not installed, skipping image creation. Please ensure test_input.png exists.")
                 return
 
-        API_URL = "http://123.129.219.111:3000/v1"
-        # API_URL= "http://b.apiyi.com:16888/v1"
+        # API_URL = "http://123.129.219.111:3000/v1"
+        API_URL= "http://b.apiyi.com:16888/v1"
         API_KEY = os.getenv("DF_API_KEY", "sk-123456") 
         
         print("\n--- Testing 123 Gemini 3 Pro Edit ---")
         try:
             await generate_or_edit_and_save_image_async(
-                prompt="多啦a梦",
+                prompt="修改成塞伯朋克风格",
                 save_path="./test_output_123.png",
                 api_url=API_URL,
                 api_key=API_KEY,

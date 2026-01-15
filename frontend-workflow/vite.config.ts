@@ -9,8 +9,7 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        // target: 'http://localhost:8000',
-        target: 'http://dcai-paper2any-back.nas.cpolar.cn/',  // FastAPI 后端地址
+        target: 'http://localhost:8000',
         changeOrigin: true,
       },
     },

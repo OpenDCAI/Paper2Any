@@ -265,8 +265,8 @@ const UploadStep: React.FC<UploadStepProps> = ({
                 disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
                 className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
+                <option value="gemini-3-pro-image-preview">Gemini 3 Pro (中文必选)</option>
                 <option value="gemini-2.5-flash-image">Gemini 2.5 (Flash Image)</option>
-                <option value="gemini-3-pro-image-preview">Gemini 3 Pro (中文推荐)</option>
               </select>
               {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
                  <p className="text-[10px] text-gray-500 mt-1">此源仅支持 gemini-3-pro</p>

@@ -173,7 +173,8 @@ def create_p2fig_image_only_graph() -> GenericGraphBuilder:
                 model=model,
                 image_path=image_path,
                 use_edit=True if image_path else False,
-                timeout=60,  # 相比默认 300s，显著收紧单次调用时间
+                timeout=60,
+                resolution='2K'
             )
 
         ok = await _call_image_api_with_retry(_gen_image)

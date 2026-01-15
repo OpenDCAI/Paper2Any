@@ -141,7 +141,7 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
     state.mask_detail_level = 2
 
     # -------- 异步执行 -------- #
-    log.critical(f"[paper2figure] reqlanguage: {req.language} !!!!!!!!\n")
+    log.critical(f"[paper2figure] req language: {req.language} !!!!!!!!\n")
     final_state: Paper2FigureState = await run_workflow(wf_name, state)
 
     # -------- 保存最终 State -------- #

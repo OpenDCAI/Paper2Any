@@ -39,7 +39,7 @@ def encode_image_to_base64(image_path: str) -> Tuple[str, str]:
     读取本地图片并编码为 Base64，同时返回图片格式（jpeg / png）。
     如果图片过大（>3MB），则自动进行压缩/Resize以避免 413 错误。
     """
-    MAX_SIZE = 3 * 1024 * 1024  # 3MB
+    MAX_SIZE = 6 * 1024 * 1024  # 6MB
     MAX_DIM = 2048              # 最大边长 2048
 
     if not os.path.exists(image_path):

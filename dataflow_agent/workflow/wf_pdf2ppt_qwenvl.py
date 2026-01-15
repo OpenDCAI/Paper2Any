@@ -112,33 +112,36 @@ def _ensure_result_path(state: Paper2FigureState) -> str:
     state.result_path = str(base_dir)
     return state.result_path
 
-def _run_sam_on_pages(image_paths: List[str], base_dir: str) -> List[Dict[str, Any]]:
-    results: List[Dict[str, Any]] = []
+def _process_single_sam_page(page_idx: int, img_path: str, base_dir: str) -> Dict[str, Any]:
     sam_ckpt = f"{get_project_root()}/sam_b.pt"
+    log.info(f"[pdf2ppt_qwenvl][SAM] processing page#{page_idx+1}: {img_path}")
+    img_path_obj = Path(img_path)
+    if not img_path_obj.exists():
+        log.warning(f"[pdf2ppt_qwenvl][SAM] page#{page_idx+1} image not found")
+        return {"page_idx": page_idx, "layout_items": []}
 
-    for page_idx, img_path in enumerate(image_paths):
-        img_path_obj = Path(img_path)
-        if not img_path_obj.exists():
-            results.append({"page_idx": page_idx, "layout_items": []})
-            continue
+    out_dir = Path(base_dir) / "layout_items" / f"page_{page_idx+1:03d}"
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-        out_dir = Path(base_dir) / "layout_items" / f"page_{page_idx+1:03d}"
-        out_dir.mkdir(parents=True, exist_ok=True)
-
+    layout_items = []
+    try:
+        # 尝试远程调用，增加显式日志
+        log.info(f"[pdf2ppt_qwenvl][SAM] page#{page_idx+1} calling segment_layout_boxes_server urls={SAM_SERVER_URLS}")
+        layout_items = segment_layout_boxes_server(
+            image_path=str(img_path_obj),
+            output_dir=str(out_dir),
+            server_urls=SAM_SERVER_URLS,
+            checkpoint=sam_ckpt,
+            min_area=200,
+            min_score=0.0,
+            iou_threshold=0.4,
+            top_k=15,
+            nms_by="mask",
+        )
+        log.info(f"[pdf2ppt_qwenvl][SAM] page#{page_idx+1} server returned {len(layout_items)} items")
+    except Exception as e:
+        log.error(f"[pdf2ppt_qwenvl][SAM] page#{page_idx+1} Remote SAM failed: {e}. Fallback to local.")
         try:
-            layout_items = segment_layout_boxes_server(
-                image_path=str(img_path_obj),
-                output_dir=str(out_dir),
-                server_urls=SAM_SERVER_URLS,
-                checkpoint=sam_ckpt,
-                min_area=200,
-                min_score=0.0,
-                iou_threshold=0.4,
-                top_k=25,
-                nms_by="mask",
-            )
-        except Exception as e:
-            log.error(f"[pdf2ppt_qwenvl] Remote SAM failed: {e}. Fallback to local.")
             layout_items = segment_layout_boxes(
                 image_path=str(img_path_obj),
                 output_dir=str(out_dir),
@@ -146,35 +149,65 @@ def _run_sam_on_pages(image_paths: List[str], base_dir: str) -> List[Dict[str, A
                 min_area=200,
                 min_score=0.0,
                 iou_threshold=0.4,
-                top_k=25,
+                top_k=15,
                 nms_by="mask",
             )
-            
-        try:
-            pil_img = Image.open(str(img_path_obj))
-            w, h = pil_img.size
-        except Exception:
-            w, h = 1024, 768
+            log.info(f"[pdf2ppt_qwenvl][SAM] page#{page_idx+1} local SAM returned {len(layout_items)} items")
+        except Exception as e_local:
+             log.error(f"[pdf2ppt_qwenvl][SAM] page#{page_idx+1} Local SAM failed: {e_local}")
+             layout_items = []
+        
+    try:
+        pil_img = Image.open(str(img_path_obj))
+        w, h = pil_img.size
+    except Exception:
+        w, h = 1024, 768
 
-        for it in layout_items:
-            bbox = it.get("bbox")
-            if bbox and len(bbox) == 4:
-                x1n, y1n, x2n, y2n = bbox
-                x1 = int(round(x1n * w))
-                y1 = int(round(y1n * h))
-                x2 = int(round(x2n * w))
-                y2 = int(round(y2n * h))
-                if x2 > x1 and y2 > y1:
-                    it["bbox_px"] = [x1, y1, x2, y2]
+    for it in layout_items:
+        bbox = it.get("bbox")
+        if bbox and len(bbox) == 4:
+            x1n, y1n, x2n, y2n = bbox
+            x1 = int(round(x1n * w))
+            y1 = int(round(y1n * h))
+            x2 = int(round(x2n * w))
+            y2 = int(round(y2n * h))
+            if x2 > x1 and y2 > y1:
+                it["bbox_px"] = [x1, y1, x2, y2]
 
-        results.append({"page_idx": page_idx, "layout_items": layout_items})
+    return {"page_idx": page_idx, "layout_items": layout_items}
 
+def _run_sam_on_pages(image_paths: List[str], base_dir: str) -> List[Dict[str, Any]]:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    results: List[Dict[str, Any]] = []
+    # 限制并发数
+    max_workers = min(len(image_paths), 6)
+    
+    log.info(f"[pdf2ppt_qwenvl][SAM] starting parallel processing with {max_workers} workers")
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_idx = {
+            executor.submit(_process_single_sam_page, idx, path, base_dir): idx 
+            for idx, path in enumerate(image_paths)
+        }
+        
+        for future in as_completed(future_to_idx):
+            try:
+                res = future.result()
+                results.append(res)
+            except Exception as e:
+                idx = future_to_idx[future]
+                log.error(f"[pdf2ppt_qwenvl][SAM] page#{idx+1} task exception: {e}")
+                results.append({"page_idx": idx, "layout_items": []})
+
+    # 清理本地可能加载的模型
+    sam_ckpt = f"{get_project_root()}/sam_b.pt"
     try:
         free_sam_model(checkpoint=sam_ckpt)
     except Exception:
         pass
 
-    return results
+    return sorted(results, key=lambda x: x["page_idx"])
 
 @register("pdf2ppt_qwenvl")
 def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
@@ -352,6 +385,7 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
     async def slides_mineru_node(state: Paper2FigureState) -> Paper2FigureState:
         """MinerU 版面分析 (并行优化)"""
         image_paths: List[str] = getattr(state, "slide_images", []) or []
+        log.info(f"[pdf2ppt_qwenvl][MinerU] start, images={len(image_paths)}")
         if not image_paths:
             return state
 
@@ -364,13 +398,27 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
             try:
                 out_dir = mineru_dir / f"page_{page_idx+1:03d}"
                 out_dir.mkdir(parents=True, exist_ok=True)
+                log.info(f"[pdf2ppt_qwenvl][MinerU] page#{page_idx+1} calling recursive_mineru_layout, port={port}")
 
-                mineru_items = await recursive_mineru_layout(
-                    image_path=str(img_path),
-                    port=port,
-                    max_depth=3,
-                    output_dir=str(out_dir),
-                )
+                # 加超时保护，避免挂死
+                try:
+                    mineru_items = await asyncio.wait_for(
+                        recursive_mineru_layout(
+                            image_path=str(img_path),
+                            port=port,
+                            max_depth=3,
+                            output_dir=str(out_dir),
+                        ),
+                        timeout=120.0,
+                    )
+                except asyncio.TimeoutError:
+                    log.error(f"[pdf2ppt_qwenvl][MinerU] page#{page_idx+1} MinerU timeout (>120s)")
+                    mineru_items = []
+                except Exception as inner_e:
+                    log.error(f"[pdf2ppt_qwenvl][MinerU] page#{page_idx+1} MinerU exception: {inner_e}")
+                    mineru_items = []
+
+                log.info(f"[pdf2ppt_qwenvl][MinerU] page#{page_idx+1} got {len(mineru_items)} blocks")
                 return {
                     "page_idx": page_idx,
                     "blocks": mineru_items,
@@ -386,19 +434,34 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                 }
 
         tasks = [_process_mineru_page(i, p) for i, p in enumerate(image_paths)]
-        results = await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # 过滤异常并打印
+        cleaned_results: List[Dict[str, Any]] = []
+        for r in results:
+            if isinstance(r, Exception):
+                log.error(f"[pdf2ppt_qwenvl][MinerU] task exception: {r}")
+                continue
+            cleaned_results.append(r)
         
         # 按 page_idx 排序确保顺序
-        state.mineru_pages = sorted(results, key=lambda x: x["page_idx"])
+        state.mineru_pages = sorted(cleaned_results, key=lambda x: x["page_idx"])
+        log.info(f"[pdf2ppt_qwenvl][MinerU] done, pages={len(state.mineru_pages)}")
         return state
 
     async def slides_sam_node(state: Paper2FigureState) -> Paper2FigureState:
         """SAM 图标分割"""
         image_paths: List[str] = getattr(state, "slide_images", []) or []
+        log.info(f"[pdf2ppt_qwenvl][SAM] start, images={len(image_paths)}")
         if not image_paths:
             return state
         base_dir = _ensure_result_path(state)
-        sam_pages = await asyncio.to_thread(_run_sam_on_pages, image_paths, base_dir)
+        try:
+            sam_pages = await asyncio.to_thread(_run_sam_on_pages, image_paths, base_dir)
+            log.info(f"[pdf2ppt_qwenvl][SAM] done, pages={len(sam_pages)}")
+        except Exception as e:
+            log.error(f"[pdf2ppt_qwenvl][SAM] SAM processing failed: {e}")
+            sam_pages = []
         state.sam_pages = sam_pages
         return state
 
@@ -454,11 +517,86 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
         state.sam_pages = sam_pages
         return state
 
+    async def slides_inpainting_node(state: Paper2FigureState) -> Paper2FigureState:
+        """AI Inpainting: 填补文字 mask 区域"""
+        vlm_pages = getattr(state, "vlm_pages", []) or []
+        if not vlm_pages:
+            return state
+
+        base_dir = Path(_ensure_result_path(state))
+        
+        # API 配置
+        req_cfg = getattr(state, "request", None) or {}
+        if not isinstance(req_cfg, dict): req_cfg = req_cfg.__dict__ if hasattr(req_cfg, "__dict__") else {}
+        api_key = req_cfg.get("api_key") or os.getenv("DF_API_KEY")
+        api_url = req_cfg.get("chat_api_url") or "https://api.apiyi.com"
+        model_name = req_cfg.get("gen_fig_model") or "gemini-3-pro-image-preview"
+        
+        # 限制并发
+        sem = asyncio.Semaphore(3)
+
+        async def _call_image_api_with_retry(coro_factory, retries=3):
+            for i in range(retries):
+                try:
+                    await coro_factory()
+                    return True
+                except Exception as e:
+                    if i == retries - 1: log.error(f"Image API failed: {e}")
+                    await asyncio.sleep(1)
+            return False
+
+        async def _process_inpainting(pinfo):
+            page_idx = pinfo.get("page_idx", 0)
+            no_text_path = pinfo.get("no_text_path")
+            
+            clean_bg_path = base_dir / "clean_bg" / f"bg_{page_idx+1:03d}.png"
+            clean_bg_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # 将结果路径回写到 pinfo，供后续步骤使用
+            pinfo["clean_bg_path"] = str(clean_bg_path)
+            
+            if state.use_ai_edit and api_key and no_text_path and os.path.exists(no_text_path):
+                ratio_str = "16:9"
+                try:
+                    with Image.open(no_text_path) as tmp_img:
+                        ratio_str = get_closest_aspect_ratio(tmp_img.width, tmp_img.height)
+                except Exception: pass
+                
+                inpainting_prompt = "使用背景颜色，填充图里被mask的白色部分，去掉全部文字！"
+                
+                async with sem:
+                    await _call_image_api_with_retry(
+                        lambda: generate_or_edit_and_save_image_async(
+                            prompt=inpainting_prompt,
+                            save_path=str(clean_bg_path),
+                            api_url=api_url,
+                            api_key=api_key,
+                            model=model_name,
+                            use_edit=True,
+                            image_path=no_text_path,
+                            aspect_ratio=ratio_str,
+                            resolution="2K"
+                        )
+                    )
+            else:
+                # 降级：复制 no_text 图
+                if no_text_path and os.path.exists(no_text_path):
+                     import shutil
+                     try: shutil.copy(no_text_path, clean_bg_path)
+                     except: pass
+
+        tasks = [_process_inpainting(p) for p in vlm_pages]
+        if tasks:
+            log.info(f"[pdf2ppt_qwenvl][Inpainting] starting {len(tasks)} tasks in parallel with VLM flow")
+            await asyncio.gather(*tasks)
+            
+        return state
+
     # --- 并行处理节点 ---
     async def parallel_processing_node(state: Paper2FigureState) -> Paper2FigureState:
         """
         并行执行：
-        1. VLM (OCR)
+        1. VLM (OCR) -> Inpainting
         2. MinerU
         3. SAM + BgRemove
         """
@@ -466,10 +604,11 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
         import time
         start_time = time.time()
         
-        async def vlm_branch():
+        async def vlm_and_inpainting_branch():
             branch_state = copy.copy(state)
-            result = await vlm_recognition_node(branch_state)
-            return ("vlm", result)
+            branch_state = await vlm_recognition_node(branch_state)
+            branch_state = await slides_inpainting_node(branch_state)
+            return ("vlm", branch_state)
         
         async def mineru_branch():
             branch_state = copy.copy(state)
@@ -484,11 +623,13 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
             return ("sam", branch_state)
         
         results = await asyncio.gather(
-            vlm_branch(),
+            vlm_and_inpainting_branch(),
             mineru_branch(),
             sam_branch(),
             return_exceptions=True
         )
+
+        log.info(f"[pdf2ppt_qwenvl] parallel branches returned: {results}")
         
         for r in results:
             if isinstance(r, Exception):
@@ -509,8 +650,7 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
         """
         生成 PPT：
         1. 整合 VLM, MinerU, SAM 结果
-        2. 调用 AI Inpainting (利用 no_text mask 图)
-        3. 渲染页面
+        2. 渲染页面 (Inpainting 已经在上一步并行完成)
         """
         vlm_pages = getattr(state, "vlm_pages", []) or []
         sam_pages = getattr(state, "sam_pages", []) or []
@@ -534,30 +674,6 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
 
         base_dir = Path(_ensure_result_path(state))
 
-        # API helper
-        async def _call_image_api_with_retry(coro_factory, retries=3):
-            for i in range(retries):
-                try:
-                    await coro_factory()
-                    return True
-                except Exception as e:
-                    if i == retries - 1: log.error(f"Image API failed: {e}")
-                    await asyncio.sleep(1)
-            return False
-
-        # --- 准备渲染数据 & AI Inpainting ---
-        pages_render_data = []
-        ai_coroutines = []
-        
-        # 限制并发数为 1 (串行处理) 以避免 413 错误及并发限制
-        sem = asyncio.Semaphore(3)
-        
-        req_cfg = getattr(state, "request", None) or {}
-        if not isinstance(req_cfg, dict): req_cfg = req_cfg.__dict__ if hasattr(req_cfg, "__dict__") else {}
-        api_key = req_cfg.get("api_key") or os.getenv("DF_API_KEY")
-        api_url = req_cfg.get("chat_api_url") or "https://api.apiyi.com"
-        model_name = req_cfg.get("gen_fig_model") or "gemini-3-pro-image-preview"
-
         # 辅助几何函数
         def _bbox_area(bbox): return max(0, bbox[2]-bbox[0]) * max(0, bbox[3]-bbox[1])
         def _get_intersection_area(b1, b2):
@@ -570,8 +686,9 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
         for pinfo in vlm_pages:
             page_idx = pinfo.get("page_idx", 0)
             img_path = pinfo.get("path")
-            no_text_path = pinfo.get("no_text_path")
             vlm_data = pinfo.get("vlm_data", [])
+            # 从 vlm_pages 里获取 clean_bg_path，如果并行步骤成功，这里应该有值
+            clean_bg_path = pinfo.get("clean_bg_path")
 
             if not img_path or not os.path.exists(img_path): continue
 
@@ -580,12 +697,14 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                 w0, h0 = pil_img.size
             except Exception: continue
 
+            scale_x = slide_w_emu / w0
+            scale_y = slide_h_emu / h0
+
             # 1. MinerU Image Zones
             mineru_data = mineru_dict.get(page_idx, {})
             mineru_blocks = mineru_data.get("blocks", [])
             image_zones = []
             
-            # 简化版图片查找逻辑（复用 parallel 版的核心思想）
             sub_images_dir = None
             if mineru_data.get("mineru_output_dir"):
                 try:
@@ -603,13 +722,8 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                     px_bbox = [x1, y1, x2, y2]
                     
                     img_path_found = None
-                    # 尝试从 blk['img_path'] 或 sub_images 或 裁剪
                     if blk.get("img_path") and os.path.exists(blk["img_path"]):
                         img_path_found = blk["img_path"]
-                    elif sub_images_dir:
-                        # 简化匹配：尝试找对应索引
-                        prefix = f"_{idx}_" # 假设文件名含索引，这比较脆弱，降级为裁剪
-                        pass 
                     
                     if not img_path_found:
                         fb_dir = base_dir / "mineru_fallback" / f"p{page_idx}"
@@ -634,7 +748,6 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                 l_bbox = [x1, y1, x2, y2]
                 
                 is_in_image = False
-                # [MODIFIED] Keep all VLM text, even if inside image zones
                 # for z in image_zones:
                 #     if _is_inside(l_bbox, z["bbox"]): 
                 #         is_in_image = True
@@ -664,78 +777,16 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                 
                 final_sam.append(item)
 
-            # 4. AI Inpainting
-            clean_bg_path = base_dir / "clean_bg" / f"bg_{page_idx+1:03d}.png"
-            clean_bg_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # 使用用户指定的 Prompt
-            inpainting_prompt = "使用背景颜色，填充图里被mask的白色部分，去掉全部文字！"
-            
-            if state.use_ai_edit and api_key and no_text_path and os.path.exists(no_text_path):
-                # 动态计算比例
-                ratio_str = "16:9"
-                try:
-                    with Image.open(no_text_path) as tmp_img:
-                        ratio_str = get_closest_aspect_ratio(tmp_img.width, tmp_img.height)
-                except Exception:
-                    pass
-
-                async def _run_ai(
-                    prompt=inpainting_prompt, 
-                    save_path=str(clean_bg_path), 
-                    img_path=no_text_path, 
-                    ratio=ratio_str
-                ):
-                    async with sem:
-                        await _call_image_api_with_retry(
-                            lambda: generate_or_edit_and_save_image_async(
-                                prompt=prompt,
-                                save_path=save_path,
-                                api_url=api_url,
-                                api_key=api_key,
-                                model=model_name,
-                                use_edit=True,
-                                image_path=img_path,  # 传入 no_text 图作为原图进行编辑
-                                aspect_ratio=ratio,   # 动态计算的比例
-                                resolution="2K"       # 默认分辨率
-                            )
-                        )
-                ai_coroutines.append(_run_ai())
-            else:
-                # 降级：直接用 no_text_path (虽然有白块) 或者 原图
-                if no_text_path and os.path.exists(no_text_path):
-                     import shutil
-                     try: shutil.copy(no_text_path, clean_bg_path)
-                     except: pass
-
-            pages_render_data.append({
-                "page_idx": page_idx,
-                "scale_x": slide_w_emu / w0,
-                "scale_y": slide_h_emu / h0,
-                "clean_bg_path": str(clean_bg_path),
-                "image_zones": image_zones,
-                "final_sam": final_sam,
-                "final_text": final_text_lines
-            })
-
-        # Execute AI
-        if ai_coroutines:
-            log.info(f"[pdf2ppt_qwenvl] Executing {len(ai_coroutines)} Inpainting tasks...")
-            await asyncio.gather(*ai_coroutines, return_exceptions=True)
-
-        # 渲染 PPT
-        for p_data in pages_render_data:
-            scale_x = p_data["scale_x"]
-            scale_y = p_data["scale_y"]
+            # 渲染 PPT 页面
             slide = prs.slides.add_slide(prs.slide_layouts[6])
 
             # Background
-            if os.path.exists(p_data["clean_bg_path"]):
-                try: slide.shapes.add_picture(p_data["clean_bg_path"], 0, 0, prs.slide_width, prs.slide_height)
+            if clean_bg_path and os.path.exists(clean_bg_path):
+                try: slide.shapes.add_picture(clean_bg_path, 0, 0, prs.slide_width, prs.slide_height)
                 except: pass
             
             # MinerU Images
-            for z in p_data["image_zones"]:
+            for z in image_zones:
                 if os.path.exists(z["img_path"]):
                     bx = z["bbox"]
                     slide.shapes.add_picture(z["img_path"], 
@@ -743,7 +794,7 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                         ppt_tool.px_to_emu(bx[2]-bx[0], scale_x), ppt_tool.px_to_emu(bx[3]-bx[1], scale_y))
             
             # SAM Icons
-            for s in p_data["final_sam"]:
+            for s in final_sam:
                 path = s.get("fg_png_path") or s.get("png_path")
                 if path and os.path.exists(path):
                     bx = s["bbox_px"]
@@ -752,7 +803,7 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                         ppt_tool.px_to_emu(bx[2]-bx[0], scale_x), ppt_tool.px_to_emu(bx[3]-bx[1], scale_y))
 
             # Text
-            for line in p_data["final_text"]:
+            for line in final_text_lines:
                 bbox, text, _, l_type, raw_pt = line
                 left = ppt_tool.px_to_emu(bbox[0], scale_x)
                 top = ppt_tool.px_to_emu(bbox[1], scale_y)
