@@ -5,19 +5,24 @@ from typing import Any, Dict, List, Optional
 current_file = Path(__file__).resolve()
 PROJDIR = current_file.parent.parent
 
-# `open-dataflow` may pull in heavy deps (e.g. torch/MPI) via its CLI helpers.
-# Make it optional so lightweight deployments (e.g. HF Spaces) can still run
-# Paper2PPT/PPT-Polish workflows without installing those deps.
-try:  # pragma: no cover
-    from dataflow.cli_funcs.paths import DataFlowPath  # type: ignore
+BASE_DIR = PROJDIR
+DATAFLOW_DIR = PROJDIR
+STATICS_DIR = PROJDIR / "static"
 
-    BASE_DIR = DataFlowPath.get_dataflow_dir()
-    DATAFLOW_DIR = BASE_DIR.parent
-    STATICS_DIR = DataFlowPath.get_dataflow_statics_dir()
-except Exception:  # pragma: no cover
-    BASE_DIR = PROJDIR
-    DATAFLOW_DIR = PROJDIR
-    STATICS_DIR = PROJDIR / "static"
+# `open-dataflow` may pull in heavy deps (e.g. torch/MPI) via its CLI helpers.
+# In some environments, importing it can hard-crash the interpreter (SIGABRT),
+# which cannot be handled by try/except. Keep it opt-in.
+if os.getenv("DF_USE_OPEN_DATAFLOW_PATHS", "").strip().lower() in {"1", "true", "yes"}:  # pragma: no cover
+    try:
+        from dataflow.cli_funcs.paths import DataFlowPath  # type: ignore
+
+        BASE_DIR = DataFlowPath.get_dataflow_dir()
+        DATAFLOW_DIR = BASE_DIR.parent
+        STATICS_DIR = DataFlowPath.get_dataflow_statics_dir()
+    except Exception:
+        BASE_DIR = PROJDIR
+        DATAFLOW_DIR = PROJDIR
+        STATICS_DIR = PROJDIR / "static"
 
 from typing_extensions import TypedDict, Annotated
 from langgraph.graph.message import add_messages

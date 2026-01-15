@@ -38,7 +38,12 @@ def _ensure_httpx_proxy_compat() -> None:
 _ensure_httpx_proxy_compat()
 
 import gradio as gr
-from gradio_app.utils.space_paths import get_persistent_outputs_root
+try:
+    # Normal import when running from repo root / as a module.
+    from gradio_app.utils.space_paths import get_persistent_outputs_root
+except ModuleNotFoundError:  # pragma: no cover
+    # Allow `python gradio_app/app.py` (sys.path points at `gradio_app/`).
+    from utils.space_paths import get_persistent_outputs_root  # type: ignore
 
 
 # 标签显示名称映射,如果需要自定义页面名称

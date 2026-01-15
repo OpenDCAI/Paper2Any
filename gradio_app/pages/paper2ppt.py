@@ -10,7 +10,10 @@ import gradio as gr
 
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureRequest, Paper2FigureState
-from gradio_app.utils.space_paths import new_run_dir
+try:
+    from gradio_app.utils.space_paths import new_run_dir
+except ModuleNotFoundError:
+    from utils.space_paths import new_run_dir  # type: ignore
 
 log = get_logger(__name__)
 
@@ -28,6 +31,193 @@ def _safe_json_loads(s: str) -> list[dict]:
             raise gr.Error(f"pagecontent[{i}] 必须是 object(dict)")
         out.append(it)
     return out
+
+
+def _page_title_from_item(item: dict, idx: int) -> str:
+    for k in ["title", "slide_title", "page_title", "heading"]:
+        v = item.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return f"第 {idx + 1} 页"
+
+
+def _page_layout_from_item(item: dict) -> str:
+    for k in ["layout_description", "content", "text", "description", "body"]:
+        v = item.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+        if isinstance(v, list):
+            s = "\n".join(str(x).strip() for x in v if str(x).strip())
+            if s.strip():
+                return s.strip()
+    return ""
+
+
+def _page_bullets_from_item(item: dict) -> str:
+    for k in ["bullets", "bullet_points", "points", "key_points"]:
+        v = item.get(k)
+        if isinstance(v, list):
+            return "\n".join(str(x).strip() for x in v if str(x).strip())
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return ""
+
+
+def _page_asset_ref_from_item(item: dict) -> str:
+    for k in ["asset_ref", "asset", "assetRef"]:
+        v = item.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return ""
+
+
+def _build_pagecontent_outline_md(pages: list[dict]) -> str:
+    if not pages:
+        return "暂无 pagecontent。请先点击「1) 生成 pagecontent」。"
+    lines = ["### pagecontent 概览"]
+    for i, it in enumerate(pages):
+        title = _page_title_from_item(it, i)
+        snippet = _page_layout_from_item(it)
+        snippet = (snippet[:120] + "…") if len(snippet) > 120 else snippet
+        if snippet:
+            lines.append(f"- **{i + 1}. {title}**：{snippet}")
+        else:
+            lines.append(f"- **{i + 1}. {title}**")
+    return "\n".join(lines)
+
+
+def _pc_nav_md(idx: int, total: int) -> str:
+    if total <= 0:
+        return "当前编辑页：—"
+    idx = max(0, min(int(idx), total - 1))
+    return f"当前编辑页：第 **{idx + 1} / {total}** 页"
+
+
+def _pc_render_controls(
+    pages: list[dict],
+    page_idx: int,
+) -> tuple[int, str, str, str, str, str, gr.Button, gr.Button, gr.Number, gr.Button]:
+    total = len(pages or [])
+    if total <= 0:
+        return (
+            0,
+            "",
+            "",
+            "",
+            "",
+            _pc_nav_md(0, 0),
+            gr.update(interactive=False),
+            gr.update(interactive=False),
+            gr.update(value=None, interactive=False, minimum=None, maximum=None, step=1, precision=0),
+            gr.update(interactive=False),
+        )
+
+    idx = max(0, min(int(page_idx or 0), total - 1))
+    it = pages[idx] or {}
+    return (
+        idx,
+        _page_title_from_item(it, idx),
+        _page_layout_from_item(it),
+        _page_bullets_from_item(it),
+        _page_asset_ref_from_item(it),
+        _pc_nav_md(idx, total),
+        gr.update(interactive=(idx > 0)),
+        gr.update(interactive=(idx < total - 1)),
+        gr.update(value=idx + 1, interactive=True, minimum=1, maximum=total, step=1, precision=0),
+        gr.update(interactive=True),
+    )
+
+
+def _pc_prev_next(
+    pages: list[dict],
+    page_idx: int,
+    delta: int,
+) -> tuple[int, str, str, str, str, str, gr.Button, gr.Button, gr.Number, gr.Button]:
+    total = len(pages or [])
+    if total <= 0:
+        return _pc_render_controls([], 0)
+    idx = max(0, min(int(page_idx or 0) + int(delta), total - 1))
+    return _pc_render_controls(pages, idx)
+
+
+def _pc_go_to(
+    pages: list[dict],
+    page_no_1based: float,
+) -> tuple[int, str, str, str, str, str, gr.Button, gr.Button, gr.Number, gr.Button]:
+    total = len(pages or [])
+    if total <= 0:
+        return _pc_render_controls([], 0)
+    if page_no_1based is None:
+        raise gr.Error("请输入要跳转的页码（从 1 开始）。")
+    idx = int(page_no_1based) - 1
+    idx = max(0, min(idx, total - 1))
+    return _pc_render_controls(pages, idx)
+
+
+def _sync_pagecontent_ui(
+    pagecontent_json: str,
+) -> tuple[list[dict], int, str, str, str, str, str, str, gr.Button, gr.Button, gr.Number, gr.Button]:
+    pages = _safe_json_loads(pagecontent_json)
+    outline = _build_pagecontent_outline_md(pages)
+    idx, title, layout, bullets, asset_ref, nav, prev_u, next_u, go_num_u, go_btn_u = _pc_render_controls(pages, 0)
+    return pages, idx, title, layout, bullets, asset_ref, outline, nav, prev_u, next_u, go_num_u, go_btn_u
+
+
+def _parse_bullets(text: str) -> list[str]:
+    out: list[str] = []
+    for raw in (text or "").splitlines():
+        s = raw.strip()
+        if not s:
+            continue
+        if s.startswith(("-", "*")):
+            s = s[1:].strip()
+        if s:
+            out.append(s)
+    return out
+
+
+def _apply_page_edit(
+    pages: list[dict],
+    page_idx: int,
+    title: str,
+    layout_description: str,
+    bullets_text: str,
+    asset_ref: str,
+) -> tuple[list[dict], str, str]:
+    if not pages:
+        raise gr.Error("pagecontent 为空：请先生成 pagecontent。")
+    idx = max(0, min(int(page_idx or 0), len(pages) - 1))
+    it = dict(pages[idx] or {})
+
+    title = (title or "").strip()
+    if title:
+        it["title"] = title
+    else:
+        it.pop("title", None)
+
+    layout_description = (layout_description or "").strip()
+    if layout_description:
+        it["layout_description"] = layout_description
+    else:
+        it.pop("layout_description", None)
+
+    bullets = _parse_bullets(bullets_text)
+    if bullets:
+        it["bullets"] = bullets
+    else:
+        it.pop("bullets", None)
+
+    asset_ref = (asset_ref or "").strip()
+    for k in ["asset_ref", "asset", "assetRef"]:
+        it.pop(k, None)
+    if asset_ref:
+        it["asset_ref"] = asset_ref
+
+    pages = list(pages)
+    pages[idx] = it
+
+    json_out = json.dumps(pages, ensure_ascii=False, indent=2)
+    return pages, json_out, _build_pagecontent_outline_md(pages)
 
 
 def _list_generated_pages(run_dir: str) -> list[str]:
@@ -332,12 +522,32 @@ def create_paper2ppt() -> gr.Blocks:
             btn_generate = gr.Button("2) 生成 PPT (PDF)")
 
         run_dir_out = gr.Textbox(label="result_path (持久化目录)", interactive=False)
-        pagecontent_json = gr.Textbox(label="pagecontent (可编辑 JSON)", lines=14)
+        pagecontent_state = gr.State([])
+        pc_edit_idx_state = gr.State(0)
+
+        with gr.Accordion("📝 pagecontent（按页编辑）", open=True):
+            pagecontent_outline = gr.Markdown(_build_pagecontent_outline_md([]))
+            pc_nav = gr.Markdown(_pc_nav_md(0, 0))
+            with gr.Row():
+                btn_pc_prev = gr.Button("上一页", interactive=False)
+                btn_pc_next = gr.Button("下一页", interactive=False)
+                pc_go_num = gr.Number(label="跳转到页（从 1 开始）", value=None, precision=0, minimum=1, step=1, interactive=False)
+                btn_pc_go = gr.Button("跳转", interactive=False)
+            page_title = gr.Textbox(label="标题 (title)")
+            page_layout = gr.Textbox(label="页面内容 (layout_description)", lines=10, placeholder="用自然语言描述这一页要表达的内容/结构。")
+            page_bullets = gr.Textbox(label="要点 (bullets，每行一条)", lines=6, placeholder="- 要点1\n- 要点2")
+            page_asset_ref = gr.Textbox(label="素材引用 (asset_ref，可选)", placeholder="例如：/data/outputs/.../fig1.png 或 Table 2")
+            with gr.Row():
+                btn_apply_page = gr.Button("应用本页修改")
+                btn_reload_pagecontent = gr.Button("从 JSON 重新加载")
+
+        with gr.Accordion("高级：pagecontent JSON", open=False):
+            pagecontent_json = gr.Textbox(label="pagecontent (JSON)", lines=14)
 
         with gr.Accordion("🖼️ 预览 / 美化", open=True):
             with gr.Row():
-                pdf_download = gr.DownloadButton("下载 PDF", value=None, file_name="paper2ppt.pdf", interactive=False)
-                pages_zip_download = gr.DownloadButton("下载页面 ZIP", value=None, file_name="ppt_pages.zip", interactive=False)
+                pdf_download = gr.DownloadButton("下载 PDF", value=None, interactive=False)
+                pages_zip_download = gr.DownloadButton("下载页面 ZIP", value=None, interactive=False)
 
             gr.Markdown("提示：点击缩略图选择页面；或用“上一页/下一页”浏览。")
             page_info = gr.Markdown(_page_info_md(0, 0))
@@ -364,7 +574,25 @@ def create_paper2ppt() -> gr.Blocks:
             inputs=[input_mode, text, language, chat_api_url, api_key, llm_model, page_count, style, aspect_ratio],
             outputs=[run_dir_out, pagecontent_json],
         )
-        pc_reset_evt = pc_evt.then(
+        pc_ui_evt = pc_evt.then(
+            _sync_pagecontent_ui,
+            inputs=[pagecontent_json],
+            outputs=[
+                pagecontent_state,
+                pc_edit_idx_state,
+                page_title,
+                page_layout,
+                page_bullets,
+                page_asset_ref,
+                pagecontent_outline,
+                pc_nav,
+                btn_pc_prev,
+                btn_pc_next,
+                pc_go_num,
+                btn_pc_go,
+            ],
+        )
+        pc_reset_evt = pc_ui_evt.then(
             lambda: ([], gr.update(value=None, interactive=False), []),
             inputs=[],
             outputs=[gallery, pdf_download, pages_state],
@@ -373,6 +601,93 @@ def create_paper2ppt() -> gr.Blocks:
             _sync_after_pages_updated,
             inputs=[pages_state, page_id, run_dir_out],
             outputs=[page_id, preview_image, page_info, btn_prev, btn_next, pages_zip_download],
+        )
+
+        btn_reload_pagecontent.click(
+            _sync_pagecontent_ui,
+            inputs=[pagecontent_json],
+            outputs=[
+                pagecontent_state,
+                pc_edit_idx_state,
+                page_title,
+                page_layout,
+                page_bullets,
+                page_asset_ref,
+                pagecontent_outline,
+                pc_nav,
+                btn_pc_prev,
+                btn_pc_next,
+                pc_go_num,
+                btn_pc_go,
+            ],
+        )
+        btn_apply_page.click(
+            _apply_page_edit,
+            inputs=[pagecontent_state, pc_edit_idx_state, page_title, page_layout, page_bullets, page_asset_ref],
+            outputs=[pagecontent_state, pagecontent_json, pagecontent_outline],
+        ).then(
+            _pc_render_controls,
+            inputs=[pagecontent_state, pc_edit_idx_state],
+            outputs=[
+                pc_edit_idx_state,
+                page_title,
+                page_layout,
+                page_bullets,
+                page_asset_ref,
+                pc_nav,
+                btn_pc_prev,
+                btn_pc_next,
+                pc_go_num,
+                btn_pc_go,
+            ],
+        )
+        btn_pc_prev.click(
+            lambda pages, idx: _pc_prev_next(pages, idx, -1),
+            inputs=[pagecontent_state, pc_edit_idx_state],
+            outputs=[
+                pc_edit_idx_state,
+                page_title,
+                page_layout,
+                page_bullets,
+                page_asset_ref,
+                pc_nav,
+                btn_pc_prev,
+                btn_pc_next,
+                pc_go_num,
+                btn_pc_go,
+            ],
+        )
+        btn_pc_next.click(
+            lambda pages, idx: _pc_prev_next(pages, idx, +1),
+            inputs=[pagecontent_state, pc_edit_idx_state],
+            outputs=[
+                pc_edit_idx_state,
+                page_title,
+                page_layout,
+                page_bullets,
+                page_asset_ref,
+                pc_nav,
+                btn_pc_prev,
+                btn_pc_next,
+                pc_go_num,
+                btn_pc_go,
+            ],
+        )
+        btn_pc_go.click(
+            _pc_go_to,
+            inputs=[pagecontent_state, pc_go_num],
+            outputs=[
+                pc_edit_idx_state,
+                page_title,
+                page_layout,
+                page_bullets,
+                page_asset_ref,
+                pc_nav,
+                btn_pc_prev,
+                btn_pc_next,
+                pc_go_num,
+                btn_pc_go,
+            ],
         )
 
         gen_evt = btn_generate.click(
