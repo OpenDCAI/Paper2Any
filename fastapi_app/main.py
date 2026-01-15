@@ -75,6 +75,18 @@ def create_app() -> FastAPI:
         name="outputs",
     )
 
+    # 挂载前端静态文件（构建后的 dist 目录）
+    frontend_dist = project_root / "frontend-workflow" / "dist"
+    if frontend_dist.exists():
+        print(f"[INFO] Mounting frontend static files from {frontend_dist}")
+        app.mount(
+            "/",
+            StaticFiles(directory=str(frontend_dist), html=True),
+            name="frontend",
+        )
+    else:
+        print(f"[WARN] Frontend dist not found at {frontend_dist}, skipping frontend mount")
+
     @app.get("/health")
     async def health_check():
         return {"status": "ok"}

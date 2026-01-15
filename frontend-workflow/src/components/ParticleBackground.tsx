@@ -1,50 +1,35 @@
-import { useCallback } from 'react';
-import Particles from '@tsparticles/react';
+import { useEffect, useMemo, useState } from 'react';
+import Particles, { initParticlesEngine } from '@tsparticles/react';
 import { loadSlim } from '@tsparticles/slim';
-import type { Engine } from '@tsparticles/engine';
+import type { ISourceOptions } from '@tsparticles/engine';
 
 const ParticleBackground = () => {
-  const particlesInit = useCallback(async (engine: Engine) => {
-    await loadSlim(engine);
+  const [inited, setInited] = useState(false);
+
+  useEffect(() => {
+    initParticlesEngine(async (engine) => {
+      await loadSlim(engine);
+    }).then(() => setInited(true));
   }, []);
 
-  return (
-    <Particles
-      id="tsparticles"
-      init={particlesInit}
-      options={{
-        background: {
-          color: {
-            value: 'transparent',
-          },
-        },
+  const options = useMemo(
+    () =>
+      ({
+        background: { color: { value: 'transparent' } },
         fpsLimit: 60,
         interactivity: {
           events: {
-            onClick: {
-              enable: true,
-              mode: 'push',
-            },
-            onHover: {
-              enable: true,
-              mode: 'repulse',
-            },
-            resize: true,
+            onClick: { enable: true, mode: 'push' },
+            onHover: { enable: true, mode: 'repulse' },
+            resize: { enable: true, delay: 0 },
           },
           modes: {
-            push: {
-              quantity: 2,
-            },
-            repulse: {
-              distance: 100,
-              duration: 0.4,
-            },
+            push: { quantity: 2 },
+            repulse: { distance: 100, duration: 0.4 },
           },
         },
         particles: {
-          color: {
-            value: ['#0070f3', '#00c8ff', '#3291ff'],
-          },
+          color: { value: ['#0070f3', '#00c8ff', '#3291ff'] },
           links: {
             color: '#0070f3',
             distance: 150,
@@ -55,48 +40,44 @@ const ParticleBackground = () => {
           move: {
             direction: 'none',
             enable: true,
-            outModes: {
-              default: 'bounce',
-            },
+            outModes: { default: 'bounce' },
             random: false,
             speed: 1,
             straight: false,
           },
           number: {
-            density: {
-              enable: true,
-              area: 800,
-            },
+            density: { enable: true, width: 1920, height: 1080 },
             value: 80,
           },
           opacity: {
-            value: 0.5,
-            random: true,
+            value: { min: 0.1, max: 0.6 },
             animation: {
               enable: true,
               speed: 1,
-              minimumValue: 0.1,
               sync: false,
+              startValue: 'random',
             },
           },
-          shape: {
-            type: 'circle',
-          },
+          shape: { type: 'circle' },
           size: {
             value: { min: 1, max: 3 },
-            random: true,
             animation: {
               enable: true,
               speed: 2,
-              minimumValue: 0.5,
               sync: false,
+              startValue: 'random',
             },
           },
         },
         detectRetina: true,
-      }}
-      className="absolute inset-0 -z-10"
-    />
+      } satisfies ISourceOptions),
+    []
+  );
+
+  if (!inited) return null;
+
+  return (
+    <Particles id="tsparticles" options={options} className="absolute inset-0 -z-10" />
   );
 };
 

@@ -20,7 +20,7 @@ done
 # 启动模型服务
 if [ "$START_MODEL_SERVERS" = true ]; then
   echo "Starting model servers..."
-  bash /data/ziyi/Paper2Any/script/start_model_servers.sh
+  bash /data/Paper2Any/script/start_model_servers.sh
 else
   echo "Skipping model servers startup"
 fi
@@ -30,11 +30,11 @@ CONDA_BASE="$(conda info --base)"
 source "$CONDA_BASE/etc/profile.d/conda.sh"
 
 # 启动后端
-(conda activate p2a && cd /data/ziyi/Paper2Any/fastapi_app && uvicorn main:app --host 0.0.0.0 --port 8000 --reload) &
+(conda activate paper2any && cd /data/Paper2Any/fastapi_app && uvicorn main:app --host 0.0.0.0 --port 8000 --reload) &
 BACK_PID=$!
 
 # 启动前端
-(cd /data/ziyi/Paper2Any/frontend-workflow && npm run dev) &
+(cd /data/Paper2Any/frontend-workflow && npm run dev) &
 FRONT_PID=$!
 
 cleanup() {
