@@ -109,7 +109,7 @@ def create_app(page_names: Optional[Set[str]] = None) -> gr.Blocks:
     """根据给定的 page_names（白名单）创建 Gradio Blocks 应用。"""
     pages = load_pages(page_names)
 
-    with gr.Blocks(title="DataFlow Agent Platform", elem_id="app-root") as app:
+    with gr.Blocks(title="Paper2Any Platform", elem_id="app-root") as app:
         # PromptAgent 前端样式注入，不影响其他页面及整体逻辑
         gr.HTML(
             "<style>"
@@ -119,7 +119,7 @@ def create_app(page_names: Optional[Set[str]] = None) -> gr.Blocks:
             "</style>"
         )
 
-        gr.Markdown("# 🌊 DataFlow Agent 多功能平台")
+        gr.Markdown("# 🌊 Paper2Any 多功能平台")
         with gr.Tabs():
             for name, page in pages.items():
                 # 优先使用映射表中的名称，否则使用默认转换

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -43,6 +44,95 @@ def _pdf_path(run_dir: str) -> Optional[str]:
         return None
     p = Path(run_dir) / "paper2ppt.pdf"
     return str(p.resolve()) if p.exists() else None
+
+
+def _page_info_md(page_id: int, total: int) -> str:
+    if total <= 0:
+        return "暂无预览（还没有生成页面图片）。"
+    page_id = max(0, min(int(page_id), total - 1))
+    return f"当前页：第 **{page_id + 1} / {total}** 页（`page_id={page_id}`）"
+
+
+def _make_pages_zip(run_dir: str) -> Optional[str]:
+    if not run_dir:
+        return None
+    img_dir = Path(run_dir) / "ppt_pages"
+    if not img_dir.exists():
+        return None
+
+    pages = sorted(img_dir.glob("page_*.png"))
+    if not pages:
+        return None
+
+    zip_path = (Path(run_dir) / "ppt_pages.zip").resolve()
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for p in pages:
+            zf.write(p, arcname=p.name)
+    return str(zip_path)
+
+
+def _norm_index(idx: Any) -> int:
+    if isinstance(idx, (tuple, list)) and idx:
+        return int(idx[0])
+    return int(idx)
+
+
+def _sync_after_pages_updated(
+    pages: list[str],
+    page_id: int,
+    run_dir: str,
+) -> Tuple[gr.Slider, Optional[str], str, gr.Button, gr.Button, gr.DownloadButton]:
+    total = len(pages or [])
+    if total <= 0:
+        return (
+            gr.update(minimum=0, maximum=0, value=0, step=1, interactive=False),
+            None,
+            _page_info_md(0, 0),
+            gr.update(interactive=False),
+            gr.update(interactive=False),
+            gr.update(value=None, interactive=False),
+        )
+
+    pid = max(0, min(int(page_id or 0), total - 1))
+    zip_path = _make_pages_zip(run_dir)
+    return (
+        gr.update(minimum=0, maximum=total - 1, value=pid, step=1, interactive=True),
+        pages[pid],
+        _page_info_md(pid, total),
+        gr.update(interactive=(pid > 0)),
+        gr.update(interactive=(pid < total - 1)),
+        gr.update(value=zip_path, interactive=bool(zip_path)),
+    )
+
+
+def _on_page_id_change(pages: list[str], page_id: int) -> Tuple[Optional[str], str, gr.Button, gr.Button]:
+    total = len(pages or [])
+    if total <= 0:
+        return None, _page_info_md(0, 0), gr.update(interactive=False), gr.update(interactive=False)
+
+    pid = max(0, min(int(page_id or 0), total - 1))
+    return pages[pid], _page_info_md(pid, total), gr.update(interactive=(pid > 0)), gr.update(interactive=(pid < total - 1))
+
+
+def _on_prev_next(pages: list[str], page_id: int, delta: int) -> Tuple[gr.Slider, Optional[str], str, gr.Button, gr.Button]:
+    total = len(pages or [])
+    if total <= 0:
+        return (
+            gr.update(value=0),
+            None,
+            _page_info_md(0, 0),
+            gr.update(interactive=False),
+            gr.update(interactive=False),
+        )
+
+    pid = max(0, min(int(page_id or 0) + int(delta), total - 1))
+    return (
+        gr.update(value=pid),
+        pages[pid],
+        _page_info_md(pid, total),
+        gr.update(interactive=(pid > 0)),
+        gr.update(interactive=(pid < total - 1)),
+    )
 
 
 async def _run_pagecontent(
@@ -108,7 +198,7 @@ async def _run_generate(
     gen_fig_model: str,
     style: str,
     aspect_ratio: str,
-) -> Tuple[list[str], Optional[str]]:
+) -> Tuple[list[str], Any, list[str]]:
     if not run_dir:
         raise gr.Error("请先生成 pagecontent。")
     if not (gen_fig_model or "").strip():
@@ -137,7 +227,9 @@ async def _run_generate(
     from dataflow_agent.workflow import run_workflow
     await run_workflow("paper2ppt_parallel", state)
 
-    return _list_generated_pages(run_dir), _pdf_path(run_dir)
+    pages = _list_generated_pages(run_dir)
+    pdf = _pdf_path(run_dir)
+    return pages, gr.update(value=pdf, interactive=bool(pdf)), pages
 
 
 async def _run_edit_one(
@@ -151,7 +243,7 @@ async def _run_edit_one(
     gen_fig_model: str,
     style: str,
     aspect_ratio: str,
-) -> list[str]:
+) -> Tuple[list[str], list[str]]:
     if not run_dir:
         raise gr.Error("请先生成一次 PPT（产生 ppt_pages/page_*.png）。")
     if page_id is None or int(page_id) < 0:
@@ -186,10 +278,11 @@ async def _run_edit_one(
 
     from dataflow_agent.workflow import run_workflow
     await run_workflow("paper2ppt_parallel", state)
-    return _list_generated_pages(run_dir)
+    pages = _list_generated_pages(run_dir)
+    return pages, pages
 
 
-async def _run_export(run_dir: str, language: str, chat_api_url: str, api_key: str, llm_model: str, gen_fig_model: str) -> Optional[str]:
+async def _run_export(run_dir: str, language: str, chat_api_url: str, api_key: str, llm_model: str, gen_fig_model: str) -> Any:
     if not run_dir:
         raise gr.Error("请先生成一次 PPT（产生 ppt_pages/page_*.png）。")
     os.environ["DF_API_KEY"] = api_key
@@ -208,7 +301,8 @@ async def _run_export(run_dir: str, language: str, chat_api_url: str, api_key: s
     state.gen_down = True
     from dataflow_agent.workflow import run_workflow
     await run_workflow("paper2ppt_parallel", state)
-    return _pdf_path(run_dir)
+    pdf = _pdf_path(run_dir)
+    return gr.update(value=pdf, interactive=bool(pdf))
 
 
 def create_paper2ppt() -> gr.Blocks:
@@ -241,38 +335,114 @@ def create_paper2ppt() -> gr.Blocks:
         pagecontent_json = gr.Textbox(label="pagecontent (可编辑 JSON)", lines=14)
 
         with gr.Accordion("🖼️ 预览 / 美化", open=True):
-            gallery = gr.Gallery(label="生成页预览 (ppt_pages/page_*.png)", columns=2, height=420)
-            pdf_file = gr.File(label="下载 PDF (paper2ppt.pdf)", type="filepath")
+            with gr.Row():
+                pdf_download = gr.DownloadButton("下载 PDF", value=None, file_name="paper2ppt.pdf", interactive=False)
+                pages_zip_download = gr.DownloadButton("下载页面 ZIP", value=None, file_name="ppt_pages.zip", interactive=False)
+
+            gr.Markdown("提示：点击缩略图选择页面；或用“上一页/下一页”浏览。")
+            page_info = gr.Markdown(_page_info_md(0, 0))
+
+            pages_state = gr.State([])
 
             with gr.Row():
-                page_id = gr.Number(label="page_id (0-based)", value=0, precision=0)
-                edit_prompt = gr.Textbox(label="edit_prompt", placeholder="例如：更简洁、加入公司配色、提升对比度…")
+                preview_image = gr.Image(label="当前页预览", type="filepath", height=520)
+                gallery = gr.Gallery(label="生成页缩略图 (ppt_pages/page_*.png)", columns=2, height=520)
+
+            with gr.Row():
+                btn_prev = gr.Button("上一页", interactive=False)
+                page_id = gr.Slider(label="选择页 (page_id)", minimum=0, maximum=0, step=1, value=0, interactive=False)
+                btn_next = gr.Button("下一页", interactive=False)
+
+            with gr.Row():
+                edit_prompt = gr.Textbox(label="单页编辑提示 (edit_prompt)", placeholder="例如：更简洁、加入公司配色、提升对比度…")
             with gr.Row():
                 btn_edit = gr.Button("3) 单页二次编辑")
                 btn_export = gr.Button("4) 重新导出 PDF")
 
-        btn_pagecontent.click(
+        pc_evt = btn_pagecontent.click(
             _run_pagecontent,
             inputs=[input_mode, text, language, chat_api_url, api_key, llm_model, page_count, style, aspect_ratio],
             outputs=[run_dir_out, pagecontent_json],
         )
-
-        btn_generate.click(
-            _run_generate,
-            inputs=[run_dir_out, pagecontent_json, language, chat_api_url, api_key, llm_model, gen_fig_model, style, aspect_ratio],
-            outputs=[gallery, pdf_file],
+        pc_reset_evt = pc_evt.then(
+            lambda: ([], gr.update(value=None, interactive=False), []),
+            inputs=[],
+            outputs=[gallery, pdf_download, pages_state],
+        )
+        pc_reset_evt.then(
+            _sync_after_pages_updated,
+            inputs=[pages_state, page_id, run_dir_out],
+            outputs=[page_id, preview_image, page_info, btn_prev, btn_next, pages_zip_download],
         )
 
-        btn_edit.click(
+        gen_evt = btn_generate.click(
+            _run_generate,
+            inputs=[run_dir_out, pagecontent_json, language, chat_api_url, api_key, llm_model, gen_fig_model, style, aspect_ratio],
+            outputs=[gallery, pdf_download, pages_state],
+        )
+        gen_evt.then(
+            _sync_after_pages_updated,
+            inputs=[pages_state, page_id, run_dir_out],
+            outputs=[page_id, preview_image, page_info, btn_prev, btn_next, pages_zip_download],
+        )
+
+        edit_evt = btn_edit.click(
             _run_edit_one,
             inputs=[run_dir_out, page_id, edit_prompt, language, chat_api_url, api_key, llm_model, gen_fig_model, style, aspect_ratio],
-            outputs=[gallery],
+            outputs=[gallery, pages_state],
+        )
+        edit_evt.then(
+            _sync_after_pages_updated,
+            inputs=[pages_state, page_id, run_dir_out],
+            outputs=[page_id, preview_image, page_info, btn_prev, btn_next, pages_zip_download],
         )
 
         btn_export.click(
             _run_export,
             inputs=[run_dir_out, language, chat_api_url, api_key, llm_model, gen_fig_model],
-            outputs=[pdf_file],
+            outputs=[pdf_download],
+        )
+
+        page_id.change(
+            _on_page_id_change,
+            inputs=[pages_state, page_id],
+            outputs=[preview_image, page_info, btn_prev, btn_next],
+        )
+        btn_prev.click(
+            lambda pages, pid: _on_prev_next(pages, pid, -1),
+            inputs=[pages_state, page_id],
+            outputs=[page_id, preview_image, page_info, btn_prev, btn_next],
+        )
+        btn_next.click(
+            lambda pages, pid: _on_prev_next(pages, pid, +1),
+            inputs=[pages_state, page_id],
+            outputs=[page_id, preview_image, page_info, btn_prev, btn_next],
+        )
+
+        def _on_gallery_select(pages: list[str], run_dir: str, evt: gr.SelectData):  # type: ignore[name-defined]
+            idx = _norm_index(getattr(evt, "index", 0))
+            total = len(pages or [])
+            if total <= 0:
+                return (
+                    gr.update(value=0, interactive=False),
+                    None,
+                    _page_info_md(0, 0),
+                    gr.update(interactive=False),
+                    gr.update(interactive=False),
+                )
+            pid = max(0, min(int(idx), total - 1))
+            return (
+                gr.update(value=pid),
+                pages[pid],
+                _page_info_md(pid, total),
+                gr.update(interactive=(pid > 0)),
+                gr.update(interactive=(pid < total - 1)),
+            )
+
+        gallery.select(
+            _on_gallery_select,
+            inputs=[pages_state, run_dir_out],
+            outputs=[page_id, preview_image, page_info, btn_prev, btn_next],
         )
 
     return page
