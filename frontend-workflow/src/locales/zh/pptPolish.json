@@ -43,7 +43,7 @@
       "referenceUpload": "点击上传参考图片",
       "start": "开始解析",
       "parsing": "解析中...",
-      "tip": "提示：如果长时间无响应或生成失败，可能是 API 服务商不稳定。建议稍后再试，或尝试更换模型/服务商。"
+      "tip": "提示：本应用采取生成后扣费的机制，请您在生成之前先确认余额足够，防止余额不足导致生成失败"
     }
   },
   "progress": {
@@ -124,6 +124,7 @@
     "quota": "今日配额已用完",
     "validating": "正在验证 API Key 有效性...",
     "serverBusy": "服务器繁忙，请稍后再试",
+    "insufficientBalance": "余额不足，请充值后再试",
     "noResultPath": "缺少 result_path",
     "emptyResult": "解析结果为空",
     "noPages": "没有可美化的页面",

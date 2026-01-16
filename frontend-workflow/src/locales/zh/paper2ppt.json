@@ -69,7 +69,7 @@
         "researching": "深度研究中...",
         "parsing": "解析中..."
       },
-      "tip": "提示：如果长时间无响应或生成失败，可能是 API 服务商不稳定。建议稍后再试，或尝试更换模型/服务商。"
+      "tip": "提示：本应用采取生成后扣费的机制，请您在生成之前先确认余额足够，防止余额不足导致生成失败"
     },
     "progress": {
       "preparing": "正在内容准备...",
@@ -171,6 +171,7 @@
     "enterKey": "请输入 API Key",
     "quotaFull": "今日配额已用完",
     "serverBusy": "服务器繁忙，请稍后再试",
+    "insufficientBalance": "余额不足，请充值后再试",
     "noResultPath": "缺少 result_path",
     "enterPrompt": "请输入重新生成的提示词"
   }

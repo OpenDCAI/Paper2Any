@@ -208,6 +208,8 @@ const Image2PptPage = () => {
           msg = '邀请码不正确或已失效';
         } else if (res.status === 429) {
           msg = '请求过于频繁，请稍后再试';
+        } else if (res.status === 402) {
+          msg = t('errors.insufficientBalance');
         }
         throw new Error(msg);
       }

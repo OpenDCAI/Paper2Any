@@ -324,6 +324,7 @@ const Paper2FigurePage = () => {
       formData.append('graph_type', graphType);
       formData.append('style', style);
       formData.append('figure_complex', figureComplex);
+      formData.append('language', language);
 
       if (uploadMode === 'file') {
         if (!selectedFile) {
@@ -353,6 +354,7 @@ const Paper2FigurePage = () => {
           let msg = t('errors.serverBusy');
           if (res.status === 403) msg = t('errors.inviteInvalid');
           else if (res.status === 429) msg = t('errors.tooManyRequests');
+          else if (res.status === 402) msg = t('errors.insufficientBalance');
           throw new Error(msg);
         }
 
@@ -473,6 +475,8 @@ const Paper2FigurePage = () => {
             msg = t('errors.inviteInvalid');
           } else if (res.status === 429) {
             msg = t('errors.tooManyRequests');
+          } else if (res.status === 402) {
+            msg = t('errors.insufficientBalance');
           }
           throw new Error(msg);
         }
@@ -532,6 +536,8 @@ const Paper2FigurePage = () => {
             msg = t('errors.inviteInvalid');
           } else if (res.status === 429) {
             msg = t('errors.tooManyRequests');
+          } else if (res.status === 402) {
+            msg = t('errors.insufficientBalance');
           }
           throw new Error(msg);
         }

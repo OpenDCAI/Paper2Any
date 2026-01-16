@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ChangeEvent } from 'react';
+ import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { uploadAndSaveFile } from '../../services/fileService';
 import { API_KEY } from '../../config/api';
@@ -338,6 +338,8 @@ const Paper2PptPage = () => {
           msg = '邀请码不正确或已失效';
         } else if (res.status === 429) {
           msg = '请求过于频繁，请稍后再试';
+        } else if (res.status === 402) {
+          msg = '余额不足，请充值后再试';
         }
         throw new Error(msg);
       }
@@ -505,6 +507,8 @@ const Paper2PptPage = () => {
         let msg = '服务器繁忙，请稍后再试';
         if (res.status === 429) {
           msg = '请求过于频繁，请稍后再试';
+        } else if (res.status === 402) {
+          msg = '余额不足，请充值后再试';
         }
         throw new Error(msg);
       }
@@ -622,6 +626,8 @@ const Paper2PptPage = () => {
         let msg = '服务器繁忙，请稍后再试';
         if (res.status === 429) {
           msg = '请求过于频繁，请稍后再试';
+        } else if (res.status === 402) {
+          msg = '余额不足，请充值后再试';
         }
         throw new Error(msg);
       }
@@ -719,6 +725,8 @@ const Paper2PptPage = () => {
         let msg = '服务器繁忙，请稍后再试';
         if (res.status === 429) {
           msg = '请求过于频繁，请稍后再试';
+        } else if (res.status === 402) {
+          msg = '余额不足，请充值后再试';
         }
         throw new Error(msg);
       }

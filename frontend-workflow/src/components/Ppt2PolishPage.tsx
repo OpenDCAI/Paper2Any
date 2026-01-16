@@ -451,6 +451,8 @@ const Ppt2PolishPage = () => {
           msg = '邀请码不正确或已失效';
         } else if (res.status === 429) {
           msg = '请求过于频繁，请稍后再试';
+        } else if (res.status === 402) {
+          msg = t('errors.insufficientBalance');
         }
         throw new Error(msg);
       }
@@ -730,6 +732,8 @@ const Ppt2PolishPage = () => {
         let msg = '服务器繁忙，请稍后再试';
         if (res.status === 429) {
           msg = '请求过于频繁，请稍后再试';
+        } else if (res.status === 402) {
+          msg = t('errors.insufficientBalance');
         }
         throw new Error(msg);
       }
@@ -869,6 +873,8 @@ const Ppt2PolishPage = () => {
         let msg = '服务器繁忙，请稍后再试';
         if (res.status === 429) {
           msg = '请求过于频繁，请稍后再试';
+        } else if (res.status === 402) {
+          msg = t('errors.insufficientBalance');
         }
         throw new Error(msg);
       }
@@ -990,6 +996,8 @@ const Ppt2PolishPage = () => {
         let msg = '服务器繁忙，请稍后再试';
         if (res.status === 429) {
           msg = '请求过于频繁，请稍后再试';
+        } else if (res.status === 402) {
+          msg = t('errors.insufficientBalance');
         }
         throw new Error(msg);
       }
@@ -1206,17 +1214,28 @@ const Ppt2PolishPage = () => {
             <select
               value={genFigModel}
               onChange={(e) => setGenFigModel(e.target.value)}
-              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
+              disabled={language === 'zh'}
+              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
             </select>
+            {language === 'zh' && (
+              <p className="text-[10px] text-gray-500 mt-1">中文仅支持 Gemini 3 Pro</p>
+            )}
           </div>
           
           <div>
             <label className="block text-sm text-gray-300 mb-2">{t('upload.config.language')}</label>
             <select
               value={language}
-              onChange={(e) => setLanguage(e.target.value as 'zh' | 'en')}
+              onChange={(e) => {
+                const newLang = e.target.value as 'zh' | 'en';
+                setLanguage(newLang);
+                // 中文时强制使用 gemini-3-pro-image-preview
+                if (newLang === 'zh') {
+                  setGenFigModel('gemini-3-pro-image-preview');
+                }
+              }}
               className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
             >
               <option value="zh">中文 (zh)</option>

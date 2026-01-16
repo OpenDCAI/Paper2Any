@@ -39,7 +39,7 @@
     "desc": "您的 PPT 文件已准备好下载"
   },
   "footer": {
-    "support": "支持的文件格式：PDF | 最大文件大小：50MB"
+    "support": "支持的文件格式：PDF | 最大文件大小：50MB | 生成之前请先确认余额足够"
   },
   "demo": {
     "title": "示例：从 PDF 到 可编辑 PPTX（文字 + 元素ICON）",
@@ -62,6 +62,7 @@
     "enterKey": "开启 AI 增强时必须输入 API Key",
     "enterUrl": "开启 AI 增强时必须输入 API URL",
     "apiFail": "API 验证失败",
-    "serverBusy": "服务器繁忙，请稍后再试"
+    "serverBusy": "服务器繁忙，请稍后再试",
+    "insufficientBalance": "余额不足，请充值后再试"
   }
 }

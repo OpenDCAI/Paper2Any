@@ -58,7 +58,7 @@
     "buttonIdle": "生成可编辑 PPTX",
     "buttonLoading": "生成中...",
     "hintTitle": "提示",
-    "hintText": "提示：如果长时间无响应或生成失败，可能是 API 服务商不稳定。建议稍后再试，或尝试更换模型/服务商。"
+    "hintText": "提示：本应用采取生成后扣费的机制，请您在生成之前先确认余额足够，防止余额不足导致生成失败。"
   },
   "progress": {
     "stage1": "正在分析论文内容...",
@@ -92,7 +92,8 @@
     "expDataFileOnly": "实验数据图仅支持 PDF 文件输入",
     "inviteInvalid": "邀请码不正确或已失效",
     "tooManyRequests": "请求过于频繁，请稍后再试",
-    "serverBusy": "服务器繁忙，请稍后再试"
+    "serverBusy": "服务器繁忙，请稍后再试",
+    "insufficientBalance": "余额不足，请充值后再试"
   },
   "success": {
     "pptGenerated": "PPTX 已生成，正在下载...",

@@ -92,7 +92,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
             <select
               value={model}
               onChange={e => setModel(e.target.value)}
-              disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
+              disabled={llmApiUrl === 'http://123.129.219.111:3000/v1' || language === 'zh'}
               className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
@@ -100,6 +100,9 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
             </select>
             {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
                <p className="text-[10px] text-gray-500 mt-1">{t('advanced.modelOnlyHint')}</p>
+            )}
+            {language === 'zh' && llmApiUrl !== 'http://123.129.219.111:3000/v1' && (
+               <p className="text-[10px] text-gray-500 mt-1">中文仅支持 Gemini 3 Pro</p>
             )}
           </div>
 
@@ -121,7 +124,14 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                 <label className="block text-xs text-gray-400 mb-1">{t('advanced.languageLabel')}</label>
                 <select
                   value={language}
-                  onChange={e => setLanguage(e.target.value as Language)}
+                  onChange={e => {
+                    const newLang = e.target.value as Language;
+                    setLanguage(newLang);
+                    // 中文时强制使用 gemini-3-pro-image-preview
+                    if (newLang === 'zh') {
+                      setModel('gemini-3-pro-image-preview');
+                    }
+                  }}
                   className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   <option value="zh">{t('advanced.language.zh')}</option>
@@ -134,7 +144,14 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
               <label className="block text-xs text-gray-400 mb-1">{t('advanced.languageLabel')}</label>
               <select
                 value={language}
-                onChange={e => setLanguage(e.target.value as Language)}
+                onChange={e => {
+                  const newLang = e.target.value as Language;
+                  setLanguage(newLang);
+                  // 中文时强制使用 gemini-3-pro-image-preview
+                  if (newLang === 'zh') {
+                    setModel('gemini-3-pro-image-preview');
+                  }
+                }}
                 className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               >
                 <option value="zh">{t('advanced.language.zh')}</option>

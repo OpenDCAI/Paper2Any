@@ -216,7 +216,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
               <select
                 value={genFigModel}
                 onChange={e => setGenFigModel(e.target.value)}
-                disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
+                disabled={llmApiUrl === 'http://123.129.219.111:3000/v1' || language === 'zh'}
                 className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="gemini-2.5-flash-image">Gemini 2.5 (Flash Image)</option>
@@ -224,6 +224,9 @@ const UploadStep: React.FC<UploadStepProps> = ({
               </select>
               {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
                  <p className="text-[10px] text-gray-500 mt-1">此源仅支持 gemini-3-pro</p>
+              )}
+              {language === 'zh' && llmApiUrl !== 'http://123.129.219.111:3000/v1' && (
+                 <p className="text-[10px] text-gray-500 mt-1">中文仅支持 Gemini 3 Pro</p>
               )}
             </div>
             <div>
@@ -273,7 +276,14 @@ const UploadStep: React.FC<UploadStepProps> = ({
               <label className="block text-xs text-gray-400 mb-1">{t('upload.config.language')}</label>
               <select 
                 value={language} 
-                onChange={e => setLanguage(e.target.value as 'zh' | 'en')} 
+                onChange={e => {
+                  const newLang = e.target.value as 'zh' | 'en';
+                  setLanguage(newLang);
+                  // 中文时强制使用 gemini-3-pro-image-preview
+                  if (newLang === 'zh') {
+                    setGenFigModel('gemini-3-pro-image-preview');
+                  }
+                }} 
                 className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
               >
                 <option value="zh">中文</option>
