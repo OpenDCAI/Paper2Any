@@ -59,6 +59,83 @@ def _is_table_asset(asset_ref: Optional[str]) -> bool:
     return s.startswith("table")
 
 
+def _extract_table_definition_from_markdown(full_markdown: str, table_num: str) -> str:
+    """
+    从完整 markdown 中精准提取表格定义（caption + <table>...</table>）。
+
+    策略：搜索 "Table X" 后紧跟 <table> 标签的位置，提取 caption + 表格内容。
+    这样可以避免匹配到论文中对表格的引用处。
+
+    Args:
+        full_markdown: 完整的 markdown 内容
+        table_num: 表格编号，如 "Table 2" 或 "table_2"
+
+    Returns:
+        包含 caption 和表格数据的文本片段，如果找不到则返回空字符串
+    """
+    import re
+
+    if not full_markdown or not table_num:
+        return ""
+
+    # 标准化 table_num: "table_2" -> "2", "Table 2" -> "2"
+    num_match = re.search(r"(\d+)", str(table_num))
+    if not num_match:
+        return ""
+    num = num_match.group(1)
+
+    # 模式：Table X + 任意描述文字 + <table>...</table>
+    # 允许 Table 和数字之间有空格、冒号等
+    pattern = re.compile(
+        rf'(Table\s*{num}[^\n]*\n*.*?<table>.*?</table>)',
+        re.IGNORECASE | re.DOTALL
+    )
+
+    match = pattern.search(full_markdown)
+    if match:
+        return match.group(1)
+
+    # 备选：只找 <table> 标签，向前搜索最近的 "Table X"
+    table_tag_pattern = re.compile(r'<table>.*?</table>', re.IGNORECASE | re.DOTALL)
+    table_ref_pattern = re.compile(rf'Table\s*{num}[^\n]*', re.IGNORECASE)
+
+    for table_match in table_tag_pattern.finditer(full_markdown):
+        # 向前搜索 500 字符内是否有 Table X
+        start_search = max(0, table_match.start() - 500)
+        prefix = full_markdown[start_search:table_match.start()]
+
+        ref_match = table_ref_pattern.search(prefix)
+        if ref_match:
+            # 找到了，提取从 Table X 到 </table> 的内容
+            actual_start = start_search + ref_match.start()
+            return full_markdown[actual_start:table_match.end()]
+
+    return ""
+
+
+def _load_full_markdown_from_mineru(state: Paper2FigureState) -> str:
+    """
+    从 mineru_root 目录加载完整的 markdown 文件（不截断）。
+    """
+    mineru_root = getattr(state, "mineru_root", None)
+    if not mineru_root:
+        return ""
+
+    try:
+        md_dir = Path(mineru_root)
+        if not md_dir.exists():
+            return ""
+
+        md_files = list(md_dir.glob("*.md"))
+        if not md_files:
+            return ""
+
+        return md_files[0].read_text(encoding="utf-8")
+    except Exception as e:
+        log.warning(f"[paper2ppt] 加载完整 markdown 失败: {e}")
+        return ""
+
+
 def _serialize_prompt_dict(d: Dict[str, Any]) -> str:
     """
     把 dict 安全序列化为 prompt 文本（中文不转义）。
@@ -125,6 +202,17 @@ async def _make_prompt_for_structured_page(item: Dict[str, Any], style: str, sta
 
         if not table_img_path:
             state.asset_ref = asset_ref
+
+            # 优化：从完整 markdown 中精准提取表格定义，避免截断问题
+            full_md = _load_full_markdown_from_mineru(state)
+            if full_md:
+                table_content = _extract_table_definition_from_markdown(full_md, asset_ref)
+                if table_content:
+                    state.minueru_output = table_content
+                    log.info(f"[paper2ppt] 精准提取表格内容，长度={len(table_content)}")
+                else:
+                    log.warning(f"[paper2ppt] 未能从 markdown 中找到 {asset_ref} 的定义")
+
             agent = create_react_agent(
                 name="table_extractor",
                 temperature=0.1,
