@@ -3,9 +3,10 @@ import httpx
 from typing import List, Dict, Any, Optional
 
 from dataflow_agent.logger import get_logger
-from dataflow_agent.toolkits.imtool.utils import (
+from dataflow_agent.toolkits.multimodaltool.utils import (
     encode_image_to_base64
 )
+from dataflow_agent.toolkits.multimodaltool.providers import get_provider
 
 log = get_logger(__name__)
 
@@ -37,6 +38,7 @@ async def call_image_understanding_async(
     max_tokens: int = 16384,
     temperature: float = 0.1,
     timeout: int = 120,
+    **kwargs,
 ) -> str:
     """
     调用通用图像理解模型
@@ -77,66 +79,59 @@ async def call_image_understanding_async(
                 ]
             })
 
-    # 3. 发送请求
-    url = f"{api_url.rstrip('/')}/chat/completions"
+    # 3. 使用 Provider 构造请求
+    provider = get_provider(api_url, model)
+    url, payload = provider.build_chat_request(
+        api_url=api_url,
+        model=model,
+        messages=processed_messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        **kwargs
+    )
     
-    payload = {
-        "model": model,
-        "messages": processed_messages,
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-    }
-    
+    # 4. 发送请求
     data = await _post_raw(url, api_key, payload, timeout)
     
-    if "choices" not in data or not data["choices"]:
-        log.error(f"Invalid API response structure: {data}")
-        if "error" in data:
-            raise RuntimeError(f"API Error: {data['error']}")
-        raise RuntimeError(f"Unknown API response format: {data}")
-        
-    return data["choices"][0]["message"]["content"]
+    # 5. 解析响应
+    return provider.parse_chat_response(data)
 
 if __name__ == "__main__":
     import asyncio
-    import argparse
     from dotenv import load_dotenv
-    
-    # Load env vars from .env file if present
+    from PIL import Image
+
     load_dotenv()
+    
+    def create_dummy_image(path: str):
+        if not os.path.exists(path):
+            img = Image.new('RGB', (100, 100), color='green')
+            img.save(path)
+        return path
 
-    async def main():
-        parser = argparse.ArgumentParser(description="Test Image Understanding API")
-        parser.add_argument("--image", required=True, help="Path to image file")
-        parser.add_argument("--model", default="gemini-2.5-flash", help="Model name")
-        parser.add_argument("--api_url", default=os.getenv("DF_API_URL", "https://api.apiyi.com/v1"), help="API URL")
-        parser.add_argument("--api_key", default=os.getenv("DF_API_KEY"), help="API Key")
-        
-        args = parser.parse_args()
-        
-        if not args.api_key:
-            print("Error: API Key is required (via --api_key or DF_API_KEY env var)")
-            return
+    async def _test():
+        API_URL = os.getenv("DF_API_URL", "http://127.0.0.1:3000/v1")
+        API_KEY = os.getenv("DF_API_KEY", "sk-xxx")
+        MODEL = os.getenv("DF_IMG_MODEL", "gemini-2.5-flash") # Use a chat/vision model
 
-        print(f"Testing with image: {args.image}")
-        print(f"Model: {args.model}")
-        print(f"API URL: {args.api_url}")
+        print(f"--- Understanding Config ---")
+        print(f"URL: {API_URL}")
+        print(f"Model: {MODEL}")
+        print(f"----------------------------")
+
+        img_path = create_dummy_image("./test_understanding.png")
         
         try:
+            print("[1] Testing Image Understanding...")
             result = await call_image_understanding_async(
-                model=args.model,
-                messages=[{"role": "user", "content": "Describe this image in detail."}],
-                api_url=args.api_url,
-                api_key=args.api_key,
-                image_path=args.image
+                model=MODEL,
+                messages=[{"role": "user", "content": "What is the dominant color in this image?"}],
+                api_url=API_URL,
+                api_key=API_KEY,
+                image_path=img_path
             )
-            print("\nResult:")
-            print("-" * 40)
-            print(result)
-            print("-" * 40)
+            print(">> Understanding Result:", result)
         except Exception as e:
-            print(f"\nError occurred: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f">> Understanding Failed: {e}")
 
-    asyncio.run(main())
+    asyncio.run(_test())
