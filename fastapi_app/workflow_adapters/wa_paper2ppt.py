@@ -16,7 +16,7 @@ from typing import Any, List
 
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureState
-from dataflow_agent.toolkits.imtool.mineru_tool import _shrink_markdown
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import _shrink_markdown
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.workflow import run_workflow
 

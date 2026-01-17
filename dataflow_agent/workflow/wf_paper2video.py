@@ -27,7 +27,7 @@ from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 from pathlib import Path
 from pdf2image import convert_from_path
-from dataflow_agent.toolkits.imtool.mineru_tool import run_mineru_pdf_extract
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract
 
 log = get_logger(__name__)
 

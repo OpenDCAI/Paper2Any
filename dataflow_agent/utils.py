@@ -33,7 +33,7 @@ from PIL import Image
 import pdfplumber
 import uuid
 
-from dataflow_agent.toolkits.imtool.mineru_tool import run_aio_batch_two_step_extract, run_aio_two_step_extract
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_aio_batch_two_step_extract, run_aio_two_step_extract
 
 def get_project_root() -> Path:
     return Path(__file__).resolve().parent.parent

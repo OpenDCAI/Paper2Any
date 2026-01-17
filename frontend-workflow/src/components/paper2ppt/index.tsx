@@ -291,7 +291,7 @@ const Paper2PptPage = () => {
         // Step 0: Verify LLM Connection first
         setIsValidating(true);
         setError(null);
-        await verifyLlmConnection(llmApiUrl, apiKey, model);
+        await verifyLlmConnection(llmApiUrl, apiKey, 'gpt-4o');
         setIsValidating(false);
     } catch (err) {
         setIsValidating(false);

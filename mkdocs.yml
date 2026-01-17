@@ -15,6 +15,7 @@ nav:
       - Paper2PPT: guides/paper2ppt.md
       - Paper2Video: guides/paper2video.md
       - Paper2Technical: guides/paper2technical.md
+      - 多模态API开发: guides/multimodal_api.md
   - CLI工具: cli.md
   - FAQ: faq.md
   - 贡献指南: contributing.md

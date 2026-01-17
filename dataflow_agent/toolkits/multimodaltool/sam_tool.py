@@ -175,7 +175,7 @@ def free_sam_model(checkpoint: str = "sam_b.pt") -> None:
     显式释放指定 checkpoint 对应的 SAM 模型，并尽量清理 CUDA 显存。
 
     典型用法：
-        from dataflow_agent.toolkits.imtool.sam_tool import free_sam_model
+        from dataflow_agent.toolkits.multimodaltool.sam_tool import free_sam_model
 
         # 在 workflow 正常结束或发生 OOM 后调用
         free_sam_model("/abs/path/to/sam_b.pt")
@@ -1292,7 +1292,7 @@ if __name__ == "__main__":
     Quick manual test entry.
 
     Usage (from repository root, adjust PYTHONPATH accordingly):
-        python -m dataflow_agent.toolkits.imtool.sam_tool
+        python -m dataflow_agent.toolkits.multimodaltool.sam_tool
 
     It will:
     - Load the specified PNG as input.

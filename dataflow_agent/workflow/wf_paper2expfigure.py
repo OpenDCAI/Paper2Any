@@ -41,8 +41,8 @@ from dataflow_agent.utils import (
     extract_text_from_mineru_results,
     execute_matplotlib_code,
 )
-from dataflow_agent.toolkits.imtool.mineru_tool import run_aio_two_step_extract
-from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_aio_two_step_extract
+from dataflow_agent.toolkits.multimodaltool.req_img import generate_or_edit_and_save_image_async
 
 
 log = get_logger(__name__)
