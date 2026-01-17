@@ -13,7 +13,7 @@ project_root = os.path.abspath(os.path.join(current_dir, "../../../"))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from dataflow_agent.toolkits.imtool.sam_tool import run_sam_auto, free_sam_model
+from dataflow_agent.toolkits.multimodaltool.sam_tool import run_sam_auto, free_sam_model
 
 try:
     import torch

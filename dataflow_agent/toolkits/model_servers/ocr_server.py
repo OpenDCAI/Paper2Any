@@ -10,7 +10,7 @@ project_root = os.path.abspath(os.path.join(current_dir, "../../../"))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from dataflow_agent.toolkits.imtool.ppt_tool import paddle_ocr_page_with_layout
+from dataflow_agent.toolkits.multimodaltool.ppt_tool import paddle_ocr_page_with_layout
 
 app = FastAPI(title="OCR Model Server")
 

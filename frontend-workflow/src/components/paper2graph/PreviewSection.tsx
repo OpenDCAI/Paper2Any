@@ -46,6 +46,13 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
   figureComplex,
   language,
 }) => {
+  const [imgError, setImgError] = React.useState(false);
+
+  // 当 previewImgUrl 改变时重置错误状态
+  React.useEffect(() => {
+    setImgError(false);
+  }, [previewImgUrl]);
+
   // 允许 graphStep 为 'done' 时显示，只要 previewImgUrl 存在
   if (graphType !== 'model_arch' || graphStep === 'input' || !previewImgUrl) return null;
   return (
@@ -72,12 +79,29 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
         </a>
       </div>
       
-      <div className="w-full bg-black/40 rounded-xl border border-white/10 flex items-center justify-center overflow-hidden mb-6 p-4">
-        <img
-          src={previewImgUrl}
-          alt="模型结构图预览"
-          className="max-w-full h-auto object-contain max-h-[600px] rounded-lg shadow-2xl"
-        />
+      <div className="w-full bg-black/40 rounded-xl border border-white/10 flex items-center justify-center overflow-hidden mb-6 p-4 min-h-[300px]">
+        {imgError ? (
+          <div className="flex flex-col items-center justify-center text-gray-400 p-4">
+            <ImageIcon size={48} className="mb-4 opacity-50" />
+            <p className="mb-2 font-medium">图片加载失败</p>
+            <p className="text-xs text-gray-500 text-center max-w-md break-all">{previewImgUrl}</p>
+            <a 
+              href={previewImgUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="mt-4 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors"
+            >
+              尝试在新标签页打开
+            </a>
+          </div>
+        ) : (
+          <img
+            src={previewImgUrl}
+            alt="模型结构图预览"
+            className="max-w-full h-auto object-contain max-h-[600px] rounded-lg shadow-2xl"
+            onError={() => setImgError(true)}
+          />
+        )}
       </div>
       
       <div className="flex flex-col md:flex-row gap-4 items-end">

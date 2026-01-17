@@ -1230,7 +1230,7 @@ async def convert_images_dir_to_pdf_and_ppt_api(
         包含已生成文件路径的字典
     """
     import asyncio
-    from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
+    from dataflow_agent.toolkits.multimodaltool.req_img import generate_or_edit_and_save_image_async
     
     image_paths = list_images_in_dir(input_dir)
     if not image_paths:

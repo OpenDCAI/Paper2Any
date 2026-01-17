@@ -150,25 +150,6 @@ Paper2Any/
 └── outputs/                 # 输出目录
 ```
 
----
-
-## 🐳 Docker 部署
-
-使用 Docker 可以快速部署 Paper2Any 服务：
-
-```bash
-# 构建 Docker 镜像
-docker build -t paper2any .
-
-# 运行容器
-docker run -p 7860:7860 paper2any
-```
-
-或者使用 Docker Compose（推荐）：
-
-```bash
-docker-compose up -d
-```
 
 ---
 

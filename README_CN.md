@@ -11,6 +11,8 @@
 
 中文 | [English](README_EN.md)
 
+<a href="https://trendshift.io/repositories/17634" target="_blank"><img src="https://trendshift.io/api/badge/repositories/17634" alt="OpenDCAI%2FPaper2Any | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+
 ✨ **专注论文多模态工作流：从论文 PDF/截图/文本，一键生成模型示意图、技术路线图、实验图和演示文稿** ✨
 
 | 📄 **Universal File Support** &nbsp;|&nbsp; 🎯 **AI-Powered Generation** &nbsp;|&nbsp; 🎨 **Custom Styling** &nbsp;|&nbsp; ⚡ **Lightning Speed** |
