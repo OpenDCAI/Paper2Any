@@ -7,7 +7,7 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "../../stores/authStore";
-import { Mail, Lock, AlertCircle, Loader2, ArrowRight, Sparkles, FileText, Presentation, Palette, Phone, Gift } from "lucide-react";
+import { Mail, Lock, AlertCircle, Loader2, ArrowRight, Sparkles, FileText, Presentation, Palette, Phone } from "lucide-react";
 
 type LoginMethod = "email" | "phone";
 
@@ -31,9 +31,6 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
   const [smsCode, setSmsCode] = useState("");
   const [smsStep, setSmsStep] = useState<"idle" | "sent">("idle");
 
-  // Shared
-  const [inviteCode, setInviteCode] = useState("");
-  const INVITE_CODE_STORAGE_KEY = "paper2any_invite_code";
   
   // 动态文字索引
   const [featureIndex, setFeatureIndex] = useState(0);
@@ -93,25 +90,11 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearError();
-    try {
-      if (inviteCode.trim()) {
-        localStorage.setItem(INVITE_CODE_STORAGE_KEY, inviteCode.trim());
-      }
-    } catch {
-      // ignore
-    }
     await signInWithEmail(email, password);
   };
 
   const handleSendSms = async () => {
     clearError();
-    try {
-      if (inviteCode.trim()) {
-        localStorage.setItem(INVITE_CODE_STORAGE_KEY, inviteCode.trim());
-      }
-    } catch {
-      // ignore
-    }
     await signInWithPhoneOtp(phone);
     setSmsStep("sent");
   };
@@ -253,21 +236,6 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
                 </div>
               )}
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-gray-400 ml-1 flex items-center gap-1">
-                  <Gift size={12} />
-                  邀请码（可选）
-                </label>
-                <input
-                  type="text"
-                  value={inviteCode}
-                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
-                  placeholder="填写邀请码可获奖励"
-                  disabled={loading}
-                />
-              </div>
-
               {smsStep === "idle" ? (
                 <button
                   type="button"
@@ -357,21 +325,6 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
                     disabled={loading}
                   />
                 </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-gray-400 ml-1 flex items-center gap-1">
-                  <Gift size={12} />
-                  邀请码（可选）
-                </label>
-                <input
-                  type="text"
-                  value={inviteCode}
-                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
-                  placeholder="填写邀请码可获奖励"
-                  disabled={loading}
-                />
               </div>
 
               <button
