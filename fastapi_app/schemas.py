@@ -118,7 +118,7 @@ class Paper2FigureRequest(BaseModel):
     # 指定生成图像的长宽比，例如：
     # 1:1（正方形）、16:9（横向宽屏）、9:16（竖屏）、4:3、3:4 以及 21:9 超宽屏。
 
-    invite_code: str = ""
+    email: str = ""
 
     # ---------------------- 重新生成/编辑相关 ----------------------
     edit_prompt: str = ""
@@ -150,7 +150,7 @@ class PageContentRequest(BaseModel):
     """专用于pagecontent生成的请求模型"""
     chat_api_url: str
     api_key: str
-    invite_code: Optional[str] = None
+    email: Optional[str] = None
     input_type: Literal["text", "pdf", "pptx", "topic"]
     file: Optional[Any] = None  # UploadFile 在路由层处理，这里用Any占位
     text: Optional[str] = None
@@ -168,7 +168,7 @@ class PPTGenerationRequest(BaseModel):
     img_gen_model_name: str
     chat_api_url: str
     api_key: str
-    invite_code: Optional[str] = None
+    email: Optional[str] = None
     style: str = ""
     reference_img: Optional[Any] = None
     aspect_ratio: str = "16:9"
@@ -187,7 +187,7 @@ class FullPipelineRequest(BaseModel):
     img_gen_model_name: str
     chat_api_url: str
     api_key: str
-    invite_code: Optional[str] = None
+    email: Optional[str] = None
     input_type: Literal["text", "pdf", "pptx"]
     file: Optional[Any] = None
     text: Optional[str] = None
@@ -236,7 +236,7 @@ class Paper2PPTRequest(BaseModel):
     style: str = " "
     use_long_paper: bool = False # 不使用 长文
 
-    invite_code: str = ""
+    email: str = ""
     # 生成的ppt页数；
     page_count: int = 5
 

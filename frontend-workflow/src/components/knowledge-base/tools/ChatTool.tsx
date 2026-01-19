@@ -28,28 +28,70 @@ export const ChatTool = ({ files, selectedIds }: ChatToolProps) => {
       content: inputMsg,
       time: new Date().toLocaleTimeString()
     };
+    
     setChatMessages(prev => [...prev, userMsg]);
     setInputMsg('');
     setIsChatLoading(true);
 
-    setTimeout(() => {
-      let reply = '';
+    try {
       if (selectedIds.size === 0) {
-        reply = '请先在中间的知识库列表中勾选至少一个文件，我才能基于这些资料回答您的问题。';
-      } else {
-        const selectedNames = files.filter(f => selectedIds.has(f.id)).map(f => f.name).join(', ');
-        reply = `(模拟回复) 我已读取您勾选的资料：[${selectedNames}]。\n针对问题 "${userMsg.content}"，我的回答是……`;
+        const botMsg: ChatMessage = {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: '请先在中间的知识库列表中勾选至少一个文件，我才能基于这些资料回答您的问题。',
+            time: new Date().toLocaleTimeString()
+        };
+        setChatMessages(prev => [...prev, botMsg]);
+        setIsChatLoading(false);
+        return;
       }
 
+      const selectedFiles = files.filter(f => selectedIds.has(f.id)).map(f => f.url);
+      
+      // Construct history for API
+      const history = chatMessages.filter(m => m.id !== 'welcome').map(m => ({
+          role: m.role,
+          content: m.content
+      }));
+
+      const res = await fetch('/api/v1/kb/chat', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+              files: selectedFiles,
+              query: userMsg.content,
+              history: history
+          })
+      });
+
+      if (!res.ok) {
+          throw new Error("Chat request failed");
+      }
+
+      const data = await res.json();
+      
       const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: reply,
+        content: data.answer || "抱歉，我无法回答这个问题。",
         time: new Date().toLocaleTimeString()
       };
       setChatMessages(prev => [...prev, botMsg]);
-      setIsChatLoading(false);
-    }, 1500);
+      
+    } catch (err) {
+      console.error("Chat error:", err);
+      const errorMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: "发生错误，请稍后重试。",
+          time: new Date().toLocaleTimeString()
+      };
+      setChatMessages(prev => [...prev, errorMsg]);
+    } finally {
+        setIsChatLoading(false);
+    }
   };
 
   return (

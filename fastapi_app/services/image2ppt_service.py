@@ -23,13 +23,13 @@ class Image2PPTService:
     def __init__(self):
         pass
 
-    def _create_run_dir(self, invite_code: Optional[str], task_type: str) -> Path:
+    def _create_run_dir(self, email: Optional[str], task_type: str) -> Path:
         """
         为一次 image2ppt 请求创建独立目录：
-            outputs/{invite_code}/{task_type}/{timestamp}/input/
+            outputs/{email or 'default'}/{task_type}/{timestamp}/input/
         """
         ts = int(datetime.utcnow().timestamp())
-        code = invite_code or "default"
+        code = email or "default"
         run_dir = BASE_OUTPUT_DIR / code / task_type / str(ts)
 
         (run_dir / "input").mkdir(parents=True, exist_ok=True)
@@ -40,7 +40,7 @@ class Image2PPTService:
         image_file: UploadFile,
         chat_api_url: Optional[str],
         api_key: Optional[str],
-        invite_code: Optional[str],
+        email: Optional[str],
         use_ai_edit: bool,
         model: str,
         gen_fig_model: str,
@@ -64,7 +64,7 @@ class Image2PPTService:
             raise HTTPException(status_code=400, detail="image_file is required")
 
         # 2. 为本次请求创建独立目录
-        run_dir = self._create_run_dir(invite_code, "image2ppt")
+        run_dir = self._create_run_dir(email, "image2ppt")
         input_dir = run_dir / "input"
 
         original_name = image_file.filename or "uploaded.png"
@@ -89,13 +89,13 @@ class Image2PPTService:
             language=language,
             style=style,
             page_count=page_count,
-            invite_code=invite_code or "",
+            email=email or "",
             use_ai_edit=use_ai_edit,
         )
 
         # 4. 调用 workflow（受信号量保护）
         async with task_semaphore:
-            wf_resp = await run_pdf2ppt_wf_api(wf_req)
+            wf_resp = await run_pdf2ppt_wf_api(wf_req, result_path=run_dir)
 
         # 5. 获取生成的 PPT 路径
         ppt_path = Path(wf_resp.ppt_pptx_path or "")

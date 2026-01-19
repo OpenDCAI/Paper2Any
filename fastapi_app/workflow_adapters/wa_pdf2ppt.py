@@ -25,27 +25,28 @@ from fastapi_app.schemas import Paper2PPTRequest, Paper2PPTResponse
 log = get_logger(__name__)
 
 
-def _ensure_result_path_for_pdf2ppt(invite_code: str | None) -> Path:
+def _ensure_result_path_for_pdf2ppt(email: str | None) -> Path:
     """
     为 pdf2ppt_with_sam workflow 统一一个根输出目录：
-    outputs/{invite_code or 'default'}/pdf2ppt_with_sam/<timestamp>/
+    outputs/{email or 'default'}/pdf2ppt_with_sam/<timestamp>/
     """
     project_root = get_project_root()
     ts = int(time.time())
-    code = invite_code or "default"
+    code = email or "default"
     base_dir = (project_root / "outputs" / code / "pdf2ppt_with_sam" / str(ts)).resolve()
     base_dir.mkdir(parents=True, exist_ok=True)
     return base_dir
 
 
-async def run_pdf2ppt_wf_api(req: Paper2PPTRequest) -> Paper2PPTResponse:
+async def run_pdf2ppt_wf_api(req: Paper2PPTRequest, result_path: Path | None = None) -> Paper2PPTResponse:
     """
     对 pdf2ppt_with_sam workflow 的封装。
 
     入参:
         - req.input_type: 目前预期为 "PDF"
         - req.input_content: PDF 文件路径（上传后保存到本地的路径）
-        - req.invite_code: 用于区分输出目录（可选）
+        - req.email: 用于区分输出目录（可选）
+        - result_path: 指定的输出目录（可选），若提供则覆盖默认生成逻辑
 
     行为:
         - 归一化 PDF 路径
@@ -69,8 +70,11 @@ async def run_pdf2ppt_wf_api(req: Paper2PPTRequest) -> Paper2PPTResponse:
     if not pdf_path.exists() or not pdf_path.is_file():
         raise FileNotFoundError(f"[pdf2ppt] PDF file not found: {pdf_path}")
 
-    # 统一输出根目录，按 invite_code + 时间戳 区分
-    result_root = _ensure_result_path_for_pdf2ppt(getattr(req, "invite_code", None))
+    # 统一输出根目录
+    if result_path:
+        result_root = result_path
+    else:
+        result_root = _ensure_result_path_for_pdf2ppt(getattr(req, "email", None))
 
     # 构造 state/request，传入前端配置的参数
     p2f_req = Paper2FigureRequest(
