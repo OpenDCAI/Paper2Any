@@ -10,7 +10,7 @@ import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "../stores/authStore";
 import { isSupabaseConfigured } from "../lib/supabase";
-import { User, LogOut, ChevronDown, LogIn, Sparkles, Crown, Ticket, FolderOpen, Settings } from "lucide-react";
+import { User, LogOut, ChevronDown, LogIn, Sparkles, Crown, FolderOpen, Settings } from "lucide-react";
 
 interface UserMenuProps {
   onShowFiles?: () => void;
@@ -19,7 +19,7 @@ interface UserMenuProps {
 
 export function UserMenu({ onShowFiles, onShowAccount }: UserMenuProps = {}) {
   const { t } = useTranslation('common');
-  const { user, signOut, claimInviteCode } = useAuthStore();
+  const { user, signOut } = useAuthStore();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -47,13 +47,6 @@ export function UserMenu({ onShowFiles, onShowAccount }: UserMenuProps = {}) {
   const handleSignOut = async () => {
     setOpen(false);
     await signOut();
-  };
-
-  const handleClaimInvite = async () => {
-    setOpen(false);
-    const code = window.prompt("请输入邀请码");
-    if (!code) return;
-    await claimInviteCode(code);
   };
 
   return (
@@ -179,20 +172,6 @@ export function UserMenu({ onShowFiles, onShowAccount }: UserMenuProps = {}) {
                 </div>
                 账户设置
               </button>
-
-              {!isAnonymous && (
-                <>
-                  <button
-                    onClick={handleClaimInvite}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 group"
-                  >
-                    <div className="p-1.5 rounded-md bg-white/5 text-gray-300 group-hover:bg-white/10">
-                      <Ticket size={14} />
-                    </div>
-                    填写邀请码
-                  </button>
-                </>
-              )}
 
               {isAnonymous ? (
                  <button
