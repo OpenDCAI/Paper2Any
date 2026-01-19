@@ -105,6 +105,8 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest, result_path: Path | 
                     log.warning(f"Failed to convert URL to local path: {e}")
 
         state.request.prev_image = image_path_or_url
+        # 修复：同时设置 fig_draft_path，供 wf_paper2expfigure 使用
+        state.fig_draft_path = image_path_or_url
         # 同时也将 input_content 放在 paper_file 或 paper_idea 中作为备用，防止某些地方检查空值
         state.paper_idea = "Image Edit Mode" 
     else:
