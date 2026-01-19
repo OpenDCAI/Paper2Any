@@ -21,7 +21,7 @@
   "upload": {
     "fileDragTitleFile": "Drag PDF here or click to select",
     "fileDragTitleImage": "Drag image here or click to select",
-    "fileHint": "Supports PDF, PNG, JPG and other formats, single file recommended < 20MB.",
+    "fileHint": "Single file recommended < 20MB.",
     "selectFile": "Choose file",
     "textLabel": "Paste abstract, section content or any text you want to turn into PPT",
     "textPlaceholder": "Paste the paper abstract, chapter content, or any text you want to convert to PPTX here (both Chinese and English are supported)...",

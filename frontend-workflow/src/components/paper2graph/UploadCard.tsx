@@ -1,7 +1,8 @@
 import React, { ChangeEvent } from 'react';
-import { FileText, Type, UploadCloud } from 'lucide-react';
+import { FileText, Type, UploadCloud, Network, GitBranch, BarChart3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { UploadMode, GraphType, FileKind } from './types';
+import { IMAGE_EXTENSIONS } from './constants';
 
 interface UploadCardProps {
   graphType: GraphType;
@@ -43,31 +44,57 @@ const UploadCard: React.FC<UploadCardProps> = ({
     return `Unknown file type: ${selectedFile.name}`;
   };
 
+  const graphTypeOptions: { value: GraphType; label: string; icon: React.ReactNode }[] = [
+    { value: 'model_arch', label: t('graphType.model_arch'), icon: <Network size={20} /> },
+    { value: 'tech_route', label: t('graphType.tech_route'), icon: <GitBranch size={20} /> },
+    { value: 'exp_data', label: t('graphType.exp_data'), icon: <BarChart3 size={20} /> },
+  ];
+
+  const getAcceptTypes = () => {
+    if (graphType === 'exp_data') {
+      return '.pdf,' + IMAGE_EXTENSIONS.map(ext => '.' + ext).join(',');
+    }
+    return '.pdf';
+  };
+
   return (
     <div className="glass rounded-xl border border-white/10 p-6 lg:p-8 relative overflow-hidden flex flex-col">
       {/* 装饰背景光 */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50 blur-sm"></div>
 
       <div className="relative">
-        {/* 绘图类型选择 */}
+        {/* 绘图类型选择 (Dynamic Cards) */}
         <div className="mb-6">
           <label className="block text-xs font-medium text-gray-400 mb-2">{t('graphType.label')}</label>
-          <select
-            value={graphType}
-            onChange={e => {
-              const newType = e.target.value as GraphType;
-              setGraphType(newType);
-              // 实验数据图强制使用 file 模式
-              if (newType === 'exp_data') {
-                setUploadMode('file');
-              }
-            }}
-            className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-gray-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-          >
-            <option value="model_arch">{t('graphType.model_arch')}</option>
-            <option value="tech_route">{t('graphType.tech_route')}</option>
-            <option value="exp_data">{t('graphType.exp_data')}</option>
-          </select>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {graphTypeOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  setGraphType(option.value);
+                  if (option.value === 'exp_data') {
+                    setUploadMode('file');
+                  }
+                }}
+                className={`relative group flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-300 overflow-hidden border ${
+                  graphType === option.value
+                    ? 'bg-gradient-to-br from-purple-600 to-pink-500 text-white shadow-lg shadow-purple-500/30 border-white/20 scale-[1.02]'
+                    : 'bg-black/40 text-gray-400 border-white/5 hover:bg-white/5 hover:text-gray-200 hover:border-white/10'
+                }`}
+              >
+                {graphType === option.value && (
+                  <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-shimmer-fast"></div>
+                )}
+                <div className={`mb-2 transition-colors ${graphType === option.value ? 'text-white' : 'text-gray-500 group-hover:text-purple-400'}`}>
+                  {option.icon}
+                </div>
+                <span className="text-xs font-bold tracking-wide text-center leading-tight">
+                  {option.label}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* 上传模式 Tab (炫酷卡片式 - 蓝色系) */}
@@ -122,7 +149,10 @@ const UploadCard: React.FC<UploadCardProps> = ({
             </div>
             <div>
               <p className="text-white font-medium mb-1">
-                {uploadMode === 'file' ? t('upload.fileDragTitleFile') : t('upload.fileDragTitleImage')}
+                {t('upload.fileDragTitleFile')}
+              </p>
+              <p className="text-xs text-blue-300/80 mb-1">
+                 {graphType === 'exp_data' ? '(支持 PDF 或 图片)' : '(仅支持 PDF)'}
               </p>
               <p className="text-sm text-gray-400">
                 {showFileHint()}
@@ -134,7 +164,7 @@ const UploadCard: React.FC<UploadCardProps> = ({
                 type="file"
                 accept={
                   uploadMode === 'file'
-                    ? '.pdf'
+                    ? getAcceptTypes()
                     : undefined
                 }
                 className="hidden"

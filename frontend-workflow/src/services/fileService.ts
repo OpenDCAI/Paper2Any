@@ -5,6 +5,8 @@
  */
 
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import { useAuthStore } from "../stores/authStore";
+import { API_KEY } from "../config/api";
 
 const STORAGE_BUCKET = "user-files";
 
@@ -141,29 +143,34 @@ export async function uploadAndSaveFile(
  * @returns List of file records sorted by created_at desc
  */
 export async function getFileRecords(): Promise<FileRecord[]> {
-  if (!isSupabaseConfigured()) {
-    return [];
-  }
-
+  // 使用后端接口获取本地历史文件
   try {
-    const { data, error } = await supabase
-      .from("user_files")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const user = useAuthStore.getState().user;
+    const email = user?.email;
 
-    if (error) {
-      console.error("[fileService] Failed to get file records:", error);
+    if (!email) {
       return [];
     }
 
-    return (data || []).map((row) => ({
-      id: row.id,
-      file_name: row.file_name,
-      file_size: row.file_size,
-      workflow_type: row.workflow_type,
-      created_at: row.created_at,
-      download_url: row.file_path || undefined,
-    }));
+    const res = await fetch(`/api/v1/paper2figure/history?email=${encodeURIComponent(email)}`, {
+      headers: {
+        'X-API-Key': API_KEY,
+      },
+    });
+    if (!res.ok) {
+        console.error(`[fileService] History API failed: ${res.statusText}`);
+        return [];
+    }
+    
+    const data = await res.json();
+    if (!data.success) {
+        console.error("[fileService] History API returned error", data);
+        return [];
+    }
+    
+    // 后端返回的数据已经匹配 FileRecord 结构 (在后端做过适配)
+    return data.files || [];
+
   } catch (err) {
     console.error("[fileService] Error getting file records:", err);
     return [];
@@ -177,52 +184,20 @@ export async function getFileRecords(): Promise<FileRecord[]> {
  * @returns true if deleted, false otherwise
  */
 export async function deleteFileRecord(fileId: string): Promise<boolean> {
+  // 目前本地文件删除接口尚未实现
+  console.warn("[fileService] Local file deletion not implemented yet.");
+  return false;
+  
+  /* 原 Supabase 删除逻辑暂存
   if (!isSupabaseConfigured()) {
     return false;
   }
 
   try {
-    // First get the file record to find the storage path
-    const { data: record, error: fetchError } = await supabase
-      .from("user_files")
-      .select("file_path")
-      .eq("id", fileId)
-      .single();
-
-    if (fetchError) {
-      console.error("[fileService] Failed to fetch file record:", fetchError);
-      return false;
-    }
-
-    // Delete the file from Storage if it exists
-    if (record?.file_path) {
-      try {
-        // Extract path from URL: https://xxx.supabase.co/storage/v1/object/public/user-files/user_id/filename
-        const url = new URL(record.file_path);
-        const pathMatch = url.pathname.match(/\/storage\/v1\/object\/public\/user-files\/(.+)/);
-        if (pathMatch?.[1]) {
-          await supabase.storage.from(STORAGE_BUCKET).remove([decodeURIComponent(pathMatch[1])]);
-        }
-      } catch (e) {
-        console.warn("[fileService] Failed to delete file from storage:", e);
-        // Continue to delete the record even if storage deletion fails
-      }
-    }
-
-    // Delete the record from user_files table
-    const { error } = await supabase
-      .from("user_files")
-      .delete()
-      .eq("id", fileId);
-
-    if (error) {
-      console.error("[fileService] Failed to delete file record:", error);
-      return false;
-    }
-
-    return true;
+    // ... (original code)
   } catch (err) {
     console.error("[fileService] Error deleting file record:", err);
     return false;
   }
+  */
 }

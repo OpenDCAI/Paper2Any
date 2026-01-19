@@ -100,7 +100,6 @@ const Image2PptPage = () => {
   }, []);
   
   // 配置
-  const [inviteCode, setInviteCode] = useState('');
   // 强制开启 AI 增强
   const useAiEdit = true; 
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
@@ -211,7 +210,7 @@ const Image2PptPage = () => {
     try {
       const formData = new FormData();
       formData.append('image_file', selectedFile);
-      formData.append('invite_code', inviteCode.trim());
+      formData.append('email', user?.email || '');
       
       if (useAiEdit) {
         formData.append('use_ai_edit', 'true');

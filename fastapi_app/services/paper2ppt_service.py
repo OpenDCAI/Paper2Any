@@ -148,7 +148,7 @@ class Paper2PPTService:
         - 从 PDF / PPTX / TEXT / TOPIC 输入中解析出结构化 pagecontent；
         - 只执行解析阶段，不生成最终 PPT。
         """
-        run_dir = self._create_timestamp_run_dir(req.invite_code)
+        run_dir = self._create_timestamp_run_dir(req.email)
         input_dir = run_dir / "input"
         input_dir.mkdir(parents=True, exist_ok=True)
 
@@ -180,7 +180,7 @@ class Paper2PPTService:
             input_content=wf_input_content,
             style=req.style,
             reference_img=str(reference_img_path) if reference_img_path is not None else "",
-            invite_code=req.invite_code or "",
+            email=req.email or "",
             page_count=req.page_count,
             use_long_paper=use_long_paper_bool,
         )
@@ -252,7 +252,7 @@ class Paper2PPTService:
             aspect_ratio=req.aspect_ratio,
             style=req.style,
             ref_img=str(reference_img_path) if reference_img_path else "",
-            invite_code=req.invite_code or "",
+            email=req.email or "",
             all_edited_down=all_edited_down_bool,
         )
 
@@ -287,7 +287,7 @@ class Paper2PPTService:
         request: Request | None,
     ) -> Dict[str, Any]:
         """full pipeline：一次性跑完 pagecontent + ppt。"""
-        run_dir = self._create_timestamp_run_dir(req.invite_code)
+        run_dir = self._create_timestamp_run_dir(req.email)
         input_dir = run_dir / "input"
         input_dir.mkdir(parents=True, exist_ok=True)
 
@@ -311,7 +311,7 @@ class Paper2PPTService:
             input_content=wf_input_content,
             aspect_ratio=req.aspect_ratio,
             style=req.style,
-            invite_code=req.invite_code or "",
+            email=req.email or "",
             use_long_paper=req.use_long_paper,
         )
 
@@ -333,20 +333,21 @@ class Paper2PPTService:
 
     # ---------------- 内部工具方法 ---------------- #
 
-    def _create_timestamp_run_dir(self, invite_code: Optional[str]) -> Path:
-        """根据当前时间戳和邀请码创建本次请求的根输出目录。
+    def _create_timestamp_run_dir(self, email: Optional[str]) -> Path:
+        """根据当前时间戳和邮箱创建本次请求的根输出目录。
 
         目录结构：
-            outputs/{invite_code or 'default'}/paper2ppt/<timestamp>/
+            outputs/{email or 'default'}/paper2ppt/<timestamp>/
 
         说明：
-        - invite_code 为 None 或空字符串时，使用 "default" 作为子目录名；
+        - email 为 None 或空字符串时，使用 "default" 作为子目录名；
         - 始终在 PROJECT_ROOT / outputs 下创建目录，保证和原始实现兼容。
         """
         import time
 
         ts = int(time.time())
-        code = invite_code or "default"
+        # 如果有 email，则使用 email，否则使用 default
+        code = email or "default"
         run_dir = PROJECT_ROOT / BASE_OUTPUT_DIR / code / "paper2ppt" / str(ts)
         run_dir.mkdir(parents=True, exist_ok=True)
         return run_dir
