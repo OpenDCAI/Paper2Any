@@ -93,7 +93,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
 
     if (error) {
-      set({ error: error.message, loading: false });
+      // Translate common error messages to user-friendly Chinese
+      let friendlyError = error.message;
+      if (error.message.toLowerCase().includes("invalid login credentials")) {
+        friendlyError = "邮箱或密码错误，请检查后重试";
+      } else if (error.message.toLowerCase().includes("email not confirmed")) {
+        friendlyError = "邮箱未验证，请查收验证邮件";
+      } else if (error.message.toLowerCase().includes("invalid")) {
+        friendlyError = "登录信息无效，请检查后重试";
+      }
+      set({ error: friendlyError, loading: false });
       return;
     }
 
@@ -220,7 +229,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { error } = await supabase.auth.signInWithOtp({ phone: phoneE164 });
 
     if (error) {
-      set({ error: error.message });
+      // Translate common error messages to user-friendly Chinese
+      let friendlyError = error.message;
+      if (error.message.toLowerCase().includes("sms") || error.message.toLowerCase().includes("phone")) {
+        friendlyError = "发送验证码失败，请检查手机号后重试";
+      } else if (error.message.toLowerCase().includes("rate limit")) {
+        friendlyError = "发送过于频繁，请稍后再试";
+      }
+      set({ error: friendlyError });
       return false;
     }
 
@@ -242,7 +258,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
 
     if (error) {
-      set({ error: error.message, loading: false });
+      // Translate common error messages to user-friendly Chinese
+      let friendlyError = error.message;
+      if (error.message.toLowerCase().includes("token") && error.message.toLowerCase().includes("expired")) {
+        friendlyError = "验证码已过期，请重新获取";
+      } else if (error.message.toLowerCase().includes("invalid")) {
+        friendlyError = "验证码错误，请检查后重试";
+      } else if (error.message.toLowerCase().includes("token")) {
+        friendlyError = "验证码无效或已过期，请重新获取";
+      }
+      set({ error: friendlyError, loading: false });
       return;
     }
 
