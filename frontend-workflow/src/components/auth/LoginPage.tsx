@@ -31,6 +31,7 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
   const [smsCode, setSmsCode] = useState("");
   const [smsStep, setSmsStep] = useState<"idle" | "sent">("idle");
   const [smsSent, setSmsSent] = useState(false);
+  const [sendingSms, setSendingSms] = useState(false);
 
   
   // 动态文字索引
@@ -97,7 +98,9 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
   const handleSendSms = async () => {
     clearError();
     setSmsSent(false);
+    setSendingSms(true);
     const success = await signInWithPhoneOtp(phone);
+    setSendingSms(false);
     if (success) {
       setSmsStep("sent");
       setSmsSent(true);
@@ -231,10 +234,10 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
                   <button
                     type="button"
                     onClick={handleSendSms}
-                    disabled={loading || !phone.trim()}
+                    disabled={sendingSms || !phone.trim()}
                     className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap flex items-center justify-center gap-2 min-w-[120px]"
                   >
-                    {loading && smsStep === "idle" ? (
+                    {sendingSms ? (
                       <>
                         <Loader2 size={18} className="animate-spin" />
                         <span>发送中</span>
@@ -266,7 +269,7 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
                   onChange={(e) => setSmsCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all tracking-widest text-center text-lg"
                   placeholder="输入 6 位验证码"
-                  disabled={loading || smsStep === "idle"}
+                  disabled={sendingSms || loading || smsStep === "idle"}
                   maxLength={6}
                 />
               </div>
