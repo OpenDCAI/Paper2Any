@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuthStore } from "../stores/authStore";
-import { supabase } from "../lib/supabase";
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { getApiSettings, saveApiSettings } from "../services/apiSettingsService";
 import { Ticket, Coins, Key, AlertCircle, Loader2, Copy, CheckCircle2, Settings, Users, History } from "lucide-react";
 
@@ -54,7 +54,7 @@ export function AccountPage() {
 
   // Load profile (invite_code)
   useEffect(() => {
-    if (!userId) {
+    if (!userId || !isSupabaseConfigured()) {
       setLoadingProfile(false);
       return;
     }
@@ -81,7 +81,7 @@ export function AccountPage() {
 
   // Load points balance
   useEffect(() => {
-    if (!userId) {
+    if (!userId || !isSupabaseConfigured()) {
       setLoadingPoints(false);
       return;
     }
@@ -124,7 +124,7 @@ export function AccountPage() {
 
   // Load referral history
   useEffect(() => {
-    if (!userId) {
+    if (!userId || !isSupabaseConfigured()) {
       setLoadingReferrals(false);
       return;
     }
@@ -152,7 +152,7 @@ export function AccountPage() {
 
   // Load points ledger
   useEffect(() => {
-    if (!userId) {
+    if (!userId || !isSupabaseConfigured()) {
       setLoadingLedger(false);
       return;
     }
@@ -179,7 +179,7 @@ export function AccountPage() {
   }, [userId]);
 
   const handleClaimInvite = async () => {
-    if (!inviteCodeInput.trim()) return;
+    if (!inviteCodeInput.trim() || !isSupabaseConfigured()) return;
     setClaiming(true);
     setClaimSuccess(false);
 
