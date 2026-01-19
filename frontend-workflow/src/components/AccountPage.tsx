@@ -159,192 +159,210 @@ export function AccountPage() {
   }
 
   return (
-    <div className="w-full h-full overflow-auto px-6 py-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="w-full h-full overflow-auto px-6 py-8 bg-gradient-to-br from-[#050512] via-[#0a0a1a] to-[#050512]">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="glass-dark rounded-xl border border-white/10 p-6">
-          <h1 className="text-2xl font-bold text-white mb-2">账户设置</h1>
-          <p className="text-gray-400 text-sm">
-            管理您的邀请码、积分余额和 API 配置
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+            👤 我的账户
+          </h1>
+          <p className="text-gray-400">
+            管理您的个人信息、积分和 API 配置
           </p>
         </div>
 
-        {/* Invite Code Card */}
-        <div className="glass-dark rounded-xl border border-white/10 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-purple-500/20">
-              <Ticket size={20} className="text-purple-400" />
+        {/* Two Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - User Info Cards */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* User Info Card */}
+            <div className="glass-dark rounded-xl border border-white/10 p-6 hover:border-purple-500/30 transition-all">
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-2xl font-bold">
+                  {user.email?.charAt(0).toUpperCase() || 'U'}
+                </div>
+                <div>
+                  <p className="text-white font-medium truncate max-w-full">{user.email}</p>
+                  <p className="text-xs text-gray-400 mt-1">PRO MEMBER</p>
+                </div>
+              </div>
             </div>
-            <h2 className="text-lg font-semibold text-white">我的邀请码</h2>
-          </div>
 
-          {loadingProfile ? (
-            <div className="flex items-center gap-2 text-gray-400">
-              <Loader2 size={16} className="animate-spin" />
-              <span className="text-sm">加载中...</span>
+            {/* Invite Code Card */}
+            <div className="glass-dark rounded-xl border border-white/10 p-6 hover:border-purple-500/30 transition-all">
+              <div className="flex items-center gap-2 mb-4">
+                <Ticket size={18} className="text-purple-400" />
+                <h2 className="text-base font-semibold text-white">我的邀请码</h2>
+              </div>
+
+              {loadingProfile ? (
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Loader2 size={16} className="animate-spin" />
+                  <span className="text-sm">加载中...</span>
+                </div>
+              ) : profile?.invite_code ? (
+                <div className="space-y-3">
+                  <code className="block w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white font-mono text-center text-lg tracking-wider">
+                    {profile.invite_code}
+                  </code>
+                  <button
+                    onClick={handleCopyInviteCode}
+                    className="w-full py-2.5 rounded-lg bg-purple-600/80 hover:bg-purple-600 text-white text-sm font-medium flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02]"
+                  >
+                    {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
+                    {copied ? "已复制" : "复制邀请码"}
+                  </button>
+                  <p className="text-xs text-gray-400 text-center">
+                    分享给好友获得奖励
+                  </p>
+                </div>
+              ) : (
+                <p className="text-gray-400 text-sm text-center">暂无邀请码</p>
+              )}
             </div>
-          ) : profile?.invite_code ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <code className="flex-1 px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white font-mono text-lg">
-                  {profile.invite_code}
-                </code>
+
+            {/* Claim Invite Code Card */}
+            <div className="glass-dark rounded-xl border border-white/10 p-6 hover:border-green-500/30 transition-all">
+              <div className="flex items-center gap-2 mb-4">
+                <Ticket size={18} className="text-green-400" />
+                <h2 className="text-base font-semibold text-white">填写邀请码</h2>
+              </div>
+
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={inviteCodeInput}
+                  onChange={(e) => setInviteCodeInput(e.target.value.toUpperCase())}
+                  placeholder="输入邀请码"
+                  className="w-full px-4 py-2.5 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500/50 text-center font-mono tracking-wider"
+                  disabled={claiming}
+                />
+
                 <button
-                  onClick={handleCopyInviteCode}
-                  className="px-4 py-3 rounded-lg bg-purple-600/80 hover:bg-purple-600 text-white flex items-center gap-2 transition-colors"
+                  onClick={handleClaimInvite}
+                  disabled={claiming || !inviteCodeInput.trim()}
+                  className="w-full py-2.5 rounded-lg bg-green-600/80 hover:bg-green-600 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2"
                 >
-                  {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
-                  {copied ? "已复制" : "复制"}
+                  {claiming ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>提交中...</span>
+                    </>
+                  ) : (
+                    <span>领取奖励</span>
+                  )}
                 </button>
+
+                {claimSuccess && (
+                  <div className="flex items-start gap-2 text-xs text-green-300 bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2">
+                    <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+                    <span>邀请码已成功领取！</span>
+                  </div>
+                )}
+
+                {authError && (
+                  <div className="flex items-start gap-2 text-xs text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+                    <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                    <span>{authError}</span>
+                  </div>
+                )}
               </div>
-              <p className="text-xs text-gray-400">
-                分享此邀请码给好友，好友注册后你们都将获得积分奖励
-              </p>
             </div>
-          ) : (
-            <p className="text-gray-400 text-sm">暂无邀请码</p>
-          )}
-        </div>
-
-        {/* Points Balance Card */}
-        <div className="glass-dark rounded-xl border border-white/10 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-yellow-500/20">
-              <Coins size={20} className="text-yellow-400" />
-            </div>
-            <h2 className="text-lg font-semibold text-white">积分余额</h2>
           </div>
 
-          {loadingPoints ? (
-            <div className="flex items-center gap-2 text-gray-400">
-              <Loader2 size={16} className="animate-spin" />
-              <span className="text-sm">加载中...</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-4xl font-bold text-white">
-                {points?.balance ?? 0}
-              </span>
-              <span className="text-gray-400">积分</span>
-            </div>
-          )}
-        </div>
+          {/* Right Column - Functional Areas */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Points Balance Card */}
+            <div className="glass-dark rounded-xl border border-white/10 p-8 hover:border-yellow-500/30 transition-all">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 rounded-lg bg-yellow-500/20">
+                  <Coins size={24} className="text-yellow-400" />
+                </div>
+                <h2 className="text-xl font-semibold text-white">积分余额</h2>
+              </div>
 
-        {/* Claim Invite Code Card */}
-        <div className="glass-dark rounded-xl border border-white/10 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-green-500/20">
-              <Ticket size={20} className="text-green-400" />
-            </div>
-            <h2 className="text-lg font-semibold text-white">填写邀请码</h2>
-          </div>
-
-          <div className="space-y-3">
-            <input
-              type="text"
-              value={inviteCodeInput}
-              onChange={(e) => setInviteCodeInput(e.target.value.toUpperCase())}
-              placeholder="输入邀请码"
-              className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500/50"
-              disabled={claiming}
-            />
-
-            <button
-              onClick={handleClaimInvite}
-              disabled={claiming || !inviteCodeInput.trim()}
-              className="w-full py-3 rounded-lg bg-green-600/80 hover:bg-green-600 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-            >
-              {claiming ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  <span>提交中...</span>
-                </>
+              {loadingPoints ? (
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Loader2 size={20} className="animate-spin" />
+                  <span>加载中...</span>
+                </div>
               ) : (
-                <span>领取奖励</span>
+                <div className="flex items-baseline gap-3">
+                  <span className="text-6xl font-bold bg-gradient-to-r from-yellow-400 via-orange-400 to-yellow-500 bg-clip-text text-transparent">
+                    {points?.balance ?? 0}
+                  </span>
+                  <span className="text-2xl text-gray-400">积分</span>
+                </div>
               )}
-            </button>
+            </div>
 
-            {claimSuccess && (
-              <div className="flex items-start gap-2 text-sm text-green-300 bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2">
-                <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
-                <span>邀请码已成功领取，积分已发放！</span>
+            {/* API Settings Card */}
+            <div className="glass-dark rounded-xl border border-white/10 p-8 hover:border-blue-500/30 transition-all">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 rounded-lg bg-blue-500/20">
+                  <Settings size={24} className="text-blue-400" />
+                </div>
+                <h2 className="text-xl font-semibold text-white">API 配置</h2>
               </div>
-            )}
 
-            {authError && (
-              <div className="flex items-start gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
-                <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                <span>{authError}</span>
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                    API Base URL
+                  </label>
+                  <input
+                    type="text"
+                    value={apiUrl}
+                    onChange={(e) => setApiUrl(e.target.value)}
+                    placeholder="https://api.apiyi.com/v1"
+                    className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                    API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="sk-..."
+                    className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                  />
+                </div>
+
+                <button
+                  onClick={handleSaveSettings}
+                  disabled={savingSettings}
+                  className="w-full py-3 rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white font-medium disabled:opacity-50 transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2"
+                >
+                  {savingSettings ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      <span>保存中...</span>
+                    </>
+                  ) : settingsSaved ? (
+                    <>
+                      <CheckCircle2 size={18} />
+                      <span>已保存</span>
+                    </>
+                  ) : (
+                    <>
+                      <Key size={18} />
+                      <span>保存配置</span>
+                    </>
+                  )}
+                </button>
+
+                <div className="flex items-start gap-2 text-xs text-gray-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-4 py-3">
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                  <p>
+                    API 配置仅保存在当前设备的浏览器本地存储中（明文），不会上传到服务器。
+                    请妥善保管您的 API Key，避免在公共设备上保存。
+                  </p>
+                </div>
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* API Settings Card */}
-        <div className="glass-dark rounded-xl border border-white/10 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-blue-500/20">
-              <Settings size={20} className="text-blue-400" />
-            </div>
-            <h2 className="text-lg font-semibold text-white">API 配置</h2>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">
-                API Base URL
-              </label>
-              <input
-                type="text"
-                value={apiUrl}
-                onChange={(e) => setApiUrl(e.target.value)}
-                placeholder="https://api.apiyi.com/v1"
-                className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">
-                API Key
-              </label>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="sk-..."
-                className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-              />
-            </div>
-
-            <button
-              onClick={handleSaveSettings}
-              disabled={savingSettings}
-              className="w-full py-3 rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white font-medium disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-            >
-              {savingSettings ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  <span>保存中...</span>
-                </>
-              ) : settingsSaved ? (
-                <>
-                  <CheckCircle2 size={16} />
-                  <span>已保存</span>
-                </>
-              ) : (
-                <>
-                  <Key size={16} />
-                  <span>保存配置</span>
-                </>
-              )}
-            </button>
-
-            <div className="flex items-start gap-2 text-xs text-gray-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2">
-              <AlertCircle size={14} className="mt-0.5 shrink-0" />
-              <p>
-                API 配置仅保存在当前设备的浏览器本地存储中（明文），不会上传到服务器。
-                请妥善保管您的 API Key，避免在公共设备上保存。
-              </p>
             </div>
           </div>
         </div>
