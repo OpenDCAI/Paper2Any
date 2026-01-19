@@ -30,13 +30,13 @@ async def verify_llm_connection(
 @router.get("/paper2figure/history")
 async def list_paper2figure_history_files(
     request: Request,
-    invite_code: str,
+    email: str,
     service: Paper2AnyService = Depends(get_service),
 ):
     """
-    根据邀请码，列出该邀请码下面二级子目录中的所有历史输出文件（pptx/png/svg）
+    根据邮箱，列出该用户目录中的所有历史输出文件（pptx/png/svg）
     """
-    return await service.list_history_files(invite_code, request)
+    return await service.list_history_files(email, request)
 
 
 @router.post("/paper2figure/generate")
@@ -45,7 +45,7 @@ async def generate_paper2figure(
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
     input_type: str = Form(...),
-    invite_code: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     file_kind: Optional[str] = Form(None),
     text: Optional[str] = Form(None),
@@ -63,7 +63,7 @@ async def generate_paper2figure(
         chat_api_url=chat_api_url,
         api_key=api_key,
         input_type=input_type,
-        invite_code=invite_code,
+        email=email,
         file=file,
         file_kind=file_kind,
         text=text,
@@ -87,7 +87,7 @@ async def generate_paper2figure_json(
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
     input_type: str = Form(...),  # 'file' | 'text' | 'image'
-    invite_code: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     file_kind: Optional[str] = Form(None),  # 'pdf' | 'image'
     text: Optional[str] = Form(None),
@@ -107,7 +107,7 @@ async def generate_paper2figure_json(
         chat_api_url=chat_api_url,
         api_key=api_key,
         input_type=input_type,
-        invite_code=invite_code,
+        email=email,
         file=file,
         file_kind=file_kind,
         text=text,

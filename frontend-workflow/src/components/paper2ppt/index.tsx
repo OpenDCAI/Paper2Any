@@ -64,7 +64,6 @@ const Paper2PptPage = () => {
   const [showBanner, setShowBanner] = useState(true);
   
   // API 配置状态
-  const [inviteCode, setInviteCode] = useState('');
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-5.1');
@@ -158,7 +157,6 @@ const Paper2PptPage = () => {
       if (saved.globalPrompt) setGlobalPrompt(saved.globalPrompt);
       if (saved.pageCount) setPageCount(saved.pageCount);
       if (saved.useLongPaper !== undefined) setUseLongPaper(saved.useLongPaper);
-      if (saved.inviteCode) setInviteCode(saved.inviteCode);
       if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
       if (saved.apiKey) setApiKey(saved.apiKey);
       if (saved.model) setModel(saved.model);
@@ -180,7 +178,6 @@ const Paper2PptPage = () => {
       globalPrompt,
       pageCount,
       useLongPaper,
-      inviteCode,
       llmApiUrl,
       apiKey,
       model,
@@ -194,7 +191,7 @@ const Paper2PptPage = () => {
     }
   }, [
     uploadMode, textContent, styleMode, stylePreset, globalPrompt, 
-    pageCount, useLongPaper, inviteCode, llmApiUrl, apiKey, 
+    pageCount, useLongPaper, llmApiUrl, apiKey, 
     model, genFigModel, language
   ]);
 
@@ -335,7 +332,7 @@ const Paper2PptPage = () => {
         formData.append('input_type', uploadMode); // 'text' or 'topic'
       }
       
-      formData.append('invite_code', inviteCode.trim());
+      formData.append('email', user?.email || '');
       formData.append('chat_api_url', llmApiUrl.trim());
       formData.append('api_key', apiKey.trim());
       formData.append('model', model);
@@ -510,7 +507,7 @@ const Paper2PptPage = () => {
       formData.append('language', language);
       formData.append('style', globalPrompt || getStyleDescription(stylePreset));
       formData.append('aspect_ratio', '16:9');
-      formData.append('invite_code', inviteCode.trim());
+      formData.append('email', user?.email || '');
       formData.append('result_path', resultPath || '');
       formData.append('get_down', 'false');
 
@@ -616,7 +613,7 @@ const Paper2PptPage = () => {
       formData.append('language', language);
       formData.append('style', globalPrompt || getStyleDescription(stylePreset));
       formData.append('aspect_ratio', '16:9');
-      formData.append('invite_code', inviteCode.trim());
+      formData.append('email', user?.email || '');
       formData.append('result_path', resultPath);
       formData.append('get_down', 'true');
       formData.append('page_id', String(currentSlideIndex));
@@ -721,7 +718,7 @@ const Paper2PptPage = () => {
       formData.append('language', language);
       formData.append('style', globalPrompt || getStyleDescription(stylePreset));
       formData.append('aspect_ratio', '16:9');
-      formData.append('invite_code', inviteCode.trim());
+      formData.append('email', user?.email || '');
       formData.append('result_path', resultPath);
       formData.append('get_down', 'false');
       formData.append('all_edited_down', 'true');

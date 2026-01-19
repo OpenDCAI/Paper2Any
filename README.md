@@ -9,7 +9,7 @@
 [![GitHub Repo](https://img.shields.io/badge/GitHub-OpenDCAI%2FPaper2Any-24292F?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/Paper2Any)
 [![Stars](https://img.shields.io/github/stars/OpenDCAI/Paper2Any?style=flat-square&logo=github&label=Stars&color=F2C94C)](https://github.com/OpenDCAI/Paper2Any/stargazers)
 
-English | [中文](README.md)
+English | [中文](README_CN.md)
 
 <a href="https://trendshift.io/repositories/17634" target="_blank"><img src="https://trendshift.io/api/badge/repositories/17634" alt="OpenDCAI%2FPaper2Any | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
@@ -42,22 +42,6 @@ English | [中文](README.md)
 
 </div>
 
----
-
-## 📢 Roadmap & Split Announcement
-
-> [!IMPORTANT]
-> **This project is undergoing an architectural split to provide a more focused feature experience.**
-
-- **[Paper2Any](https://github.com/OpenDCAI/Paper2Any)** (this repo):
-  - Focuses on paper multimodal workflows (Paper2Figure, Paper2PPT, Paper2Video, etc.).
-  - Provides one-click tools for scientific plotting, PPT generation, and video script assistance for researchers.
-
-- **[DataFlow-Agent](https://github.com/OpenDCAI/DataFlow-Agent)** (new repo):
-  - Focuses on DataFlow operator orchestration and authoring.
-  - Provides a general-purpose multi-agent dataflow processing framework and operator development toolkits.
-
----
 
 ## 📑 Table of Contents
 
@@ -72,6 +56,11 @@ English | [中文](README.md)
 ---
 
 ## 🔥 News
+
+> [!TIP]
+> 🆕 <strong>2026-01-20 · Bug Fixes</strong><br>
+> Fixed bugs in experimental plot generation (image/text) and resolved the missing historical files issue.<br>
+> 🌐 Online Demo: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
 
 > [!TIP]
 > 🆕 <strong>2026-01-14 · Feature Updates & Backend Architecture Upgrade</strong><br>

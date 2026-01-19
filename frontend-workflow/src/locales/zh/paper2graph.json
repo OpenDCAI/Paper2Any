@@ -21,7 +21,7 @@
   "upload": {
     "fileDragTitleFile": "拖拽 PDF 到此处，或点击选择文件",
     "fileDragTitleImage": "拖拽图片到此处，或点击选择文件",
-    "fileHint": "支持 PDF、PNG、JPG 等格式，单个文件建议小于 20MB。",
+    "fileHint": "单个文件建议小于 20MB。",
     "selectFile": "选择文件",
     "textLabel": "粘贴论文摘要、章节内容或任意需要做成 PPT 的文字",
     "textPlaceholder": "在这里粘贴论文的摘要、章节内容，或任意需要转换为 PPTX 的文本（支持中英文）...",

@@ -182,7 +182,6 @@ const Ppt2PolishPage = () => {
   const [showBanner, setShowBanner] = useState(true);
 
   // API 配置状态
-  const [inviteCode, setInviteCode] = useState('');
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-5.1');
@@ -272,7 +271,6 @@ const Ppt2PolishPage = () => {
       if (saved.styleMode) setStyleMode(saved.styleMode);
       if (saved.stylePreset) setStylePreset(saved.stylePreset);
       if (saved.globalPrompt) setGlobalPrompt(saved.globalPrompt);
-      if (saved.inviteCode) setInviteCode(saved.inviteCode);
       if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
       if (saved.apiKey) setApiKey(saved.apiKey);
       if (saved.model) setModel(saved.model);
@@ -290,7 +288,6 @@ const Ppt2PolishPage = () => {
       styleMode,
       stylePreset,
       globalPrompt,
-      inviteCode,
       llmApiUrl,
       apiKey,
       model,
@@ -303,7 +300,7 @@ const Ppt2PolishPage = () => {
       console.error('Failed to persist pptpolish config', e);
     }
   }, [
-    styleMode, stylePreset, globalPrompt, inviteCode, 
+    styleMode, stylePreset, globalPrompt, 
     llmApiUrl, apiKey, model, genFigModel, language
   ]);
 
@@ -373,11 +370,6 @@ const Ppt2PolishPage = () => {
       setError(t('errors.selectFile'));
       return;
     }
-    
-    // if (!inviteCode.trim()) {
-    //   setError('请先输入邀请码');
-    //   return;
-    // }
     
     if (!llmApiUrl.trim() || !apiKey.trim()) {
       setError(t('errors.config'));
@@ -449,7 +441,7 @@ const Ppt2PolishPage = () => {
       formData.append('style', globalPrompt || stylePreset);
       formData.append('gen_fig_model', genFigModel);
       formData.append('page_count', '10'); // 默认值，后端可能会调整
-      formData.append('invite_code', inviteCode.trim());
+      formData.append('email', user?.email || '');
       formData.append('input_type', 'pptx');
       formData.append('file', selectedFile);
       
@@ -726,7 +718,7 @@ const Ppt2PolishPage = () => {
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
       formData.append('aspect_ratio', '16:9');
-      formData.append('invite_code', inviteCode.trim());
+      formData.append('email', user?.email || '');
       formData.append('result_path', currentPath);
       formData.append('get_down', 'false');
       formData.append('pagecontent', JSON.stringify(pagecontent));
@@ -862,7 +854,7 @@ const Ppt2PolishPage = () => {
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
       formData.append('aspect_ratio', '16:9');
-      formData.append('invite_code', inviteCode.trim());
+      formData.append('email', user?.email || '');
       formData.append('result_path', currentPath);
       formData.append('get_down', 'true');
       formData.append('page_id', String(index));
@@ -985,7 +977,7 @@ const Ppt2PolishPage = () => {
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
       formData.append('aspect_ratio', '16:9');
-      formData.append('invite_code', inviteCode.trim());
+      formData.append('email', user?.email || '');
       formData.append('result_path', resultPath);
       formData.append('get_down', 'false');
       formData.append('all_edited_down', 'true');

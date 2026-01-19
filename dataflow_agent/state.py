@@ -373,3 +373,27 @@ class Paper2FigureState(MainState):
     # img2ppt 专用 ==============================
     bbox_result: List[str] = field(default_factory=list)
     vlm_pages: List[Dict[str, Any]] = field(default_factory=list)
+
+# ==================== Intelligent QA 相关 State ====================
+
+@dataclass
+class IntelligentQARequest(MainRequest):
+    """
+    智能问答请求
+    """
+    files: List[str] = field(default_factory=list)  # 文件路径列表
+    query: str = ""  # 用户问题
+    history: List[Dict[str, str]] = field(default_factory=list)  # 历史记录 [{"role": "user", "content": "..."}]
+
+@dataclass
+class IntelligentQAState(MainState):
+    """
+    智能问答状态
+    """
+    request: IntelligentQARequest = field(default_factory=IntelligentQARequest)
+    
+    # 解析后的上下文内容
+    context_content: str = ""
+    
+    # 最终回答
+    answer: str = ""

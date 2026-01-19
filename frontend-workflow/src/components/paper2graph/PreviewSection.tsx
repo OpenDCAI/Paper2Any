@@ -21,7 +21,7 @@ interface PreviewSectionProps {
   model: string;
   llmApiUrl: string;
   apiKey: string;
-  inviteCode: string;
+  email: string;
   figureComplex: FigureComplex;
   language: Language;
 }
@@ -42,7 +42,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
   model,
   llmApiUrl,
   apiKey,
-  inviteCode,
+  email,
   figureComplex,
   language,
 }) => {
@@ -132,7 +132,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                   formData.append('chat_api_url', llmApiUrl.trim());
                   formData.append('api_key', apiKey.trim());
                   formData.append('input_type', 'FIGURE'); // 使用 FIGURE 模式触发
-                  formData.append('invite_code', inviteCode.trim());
+                  formData.append('email', email);
                   formData.append('graph_type', 'model_arch');
                   formData.append('figure_complex', figureComplex);
                   formData.append('language', language);
@@ -265,7 +265,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                     formData.append('chat_api_url', llmApiUrl.trim());
                     formData.append('api_key', apiKey.trim());
                     formData.append('input_type', 'FIGURE'); 
-                    formData.append('invite_code', inviteCode.trim());
+                    formData.append('email', email);
                     formData.append('graph_type', 'model_arch');
                     formData.append('figure_complex', figureComplex);
                     formData.append('language', language);

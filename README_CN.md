@@ -9,7 +9,7 @@
 [![GitHub Repo](https://img.shields.io/badge/GitHub-OpenDCAI%2FPaper2Any-24292F?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/Paper2Any)
 [![Stars](https://img.shields.io/github/stars/OpenDCAI/Paper2Any?style=flat-square&logo=github&label=Stars&color=F2C94C)](https://github.com/OpenDCAI/Paper2Any/stargazers)
 
-中文 | [English](README_EN.md)
+中文 | [English](README.md)
 
 <a href="https://trendshift.io/repositories/17634" target="_blank"><img src="https://trendshift.io/api/badge/repositories/17634" alt="OpenDCAI%2FPaper2Any | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
@@ -42,22 +42,6 @@
 
 </div>
 
----
-
-## 📢 Roadmap & 拆分公告
-
-> [!IMPORTANT]
-> **本项目正在进行架构拆分，以提供更专注的功能体验。**
-
-- **[Paper2Any](https://github.com/OpenDCAI/Paper2Any)** (本仓库)：
-  - 专注于论文多模态工作流（Paper2Figure, Paper2PPT, Paper2Video 等）。
-  - 为科研人员提供一键式绘图、PPT 生成和视频脚本辅助工具。
-
-- **[DataFlow-Agent](https://github.com/OpenDCAI/DataFlow-Agent)** (新仓库)：
-  - 专注于 DataFlow 算子编排和编写。
-  - 提供通用的多智能体数据流处理框架和算子开发工具。
-
----
 
 ## 📑 目录
 
@@ -72,6 +56,11 @@
 ---
 
 ## 🔥 News
+
+> [!TIP]
+> 🆕 <strong>2026-01-20 · Bug 修复</strong><br>
+> 修复了实验数据图生成的图片和文本 bug，并解决了历史文件缺失的问题。<br>
+> 🌐 在线体验：<a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
 
 > [!TIP]
 > 🆕 <strong>2025-12-12 · Paper2Figure 网页端公测上线</strong><br>
