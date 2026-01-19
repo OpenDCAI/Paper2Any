@@ -18,7 +18,6 @@ import {
 import {
   BACKEND_API,
   JSON_API,
-  HISTORY_API,
   IMAGE_EXTENSIONS,
   GENERATION_STAGES,
   MAX_FILE_SIZE,
@@ -78,7 +77,7 @@ const Paper2FigurePage = () => {
   const [svgPath, setSvgPath] = useState<string | null>(null);
   const [svgPreviewPath, setSvgPreviewPath] = useState<string | null>(null);
 
-  // 新增：本次任务所有输出文件 URL 列表 + 是否展示输出面板
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [allOutputFiles, setAllOutputFiles] = useState<string[]>([]);
   // const [showOutputPanel, setShowOutputPanel] = useState(false);
 
