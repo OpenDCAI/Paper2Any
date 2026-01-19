@@ -27,6 +27,10 @@ def _to_outputs_url(abs_path: str, request: Request | None = None) -> str:
     log.info(f"[DEBUG] abs_path: {abs_path}")
 
     p = Path(abs_path)
+    # 如果是相对路径，先转为绝对路径（相对于项目根目录）
+    if not p.is_absolute():
+        p = (project_root / p).resolve()
+
     try:
         rel = p.relative_to(outputs_root)
 
