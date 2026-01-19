@@ -369,6 +369,75 @@ export function AccountPage() {
               )}
             </div>
 
+            {/* API Settings Card */}
+            <div className="glass-dark rounded-xl border border-white/10 p-8 hover:border-blue-500/30 transition-all">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 rounded-lg bg-blue-500/20">
+                  <Settings size={24} className="text-blue-400" />
+                </div>
+                <h2 className="text-xl font-semibold text-white">API 配置</h2>
+              </div>
+
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                    API Base URL
+                  </label>
+                  <input
+                    type="text"
+                    value={apiUrl}
+                    onChange={(e) => setApiUrl(e.target.value)}
+                    placeholder="https://api.apiyi.com/v1"
+                    className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                    API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="sk-..."
+                    className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                  />
+                </div>
+
+                <button
+                  onClick={handleSaveSettings}
+                  disabled={savingSettings}
+                  className="w-full py-3 rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white font-medium disabled:opacity-50 transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2"
+                >
+                  {savingSettings ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      <span>保存中...</span>
+                    </>
+                  ) : settingsSaved ? (
+                    <>
+                      <CheckCircle2 size={18} />
+                      <span>已保存</span>
+                    </>
+                  ) : (
+                    <>
+                      <Key size={18} />
+                      <span>保存配置</span>
+                    </>
+                  )}
+                </button>
+
+                <div className="flex items-start gap-2 text-xs text-gray-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-4 py-3">
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                  <p>
+                    API 配置仅保存在当前设备的浏览器本地存储中（明文），不会上传到服务器。
+                    请妥善保管您的 API Key，避免在公共设备上保存。
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {/* Invite History Card */}
             <div className="glass-dark rounded-xl border border-white/10 p-6 hover:border-purple-500/30 transition-all">
               <div className="flex items-center gap-3 mb-4">
@@ -438,75 +507,6 @@ export function AccountPage() {
               ) : (
                 <p className="text-gray-400 text-sm text-center py-4">暂无积分记录</p>
               )}
-            </div>
-
-            {/* API Settings Card */}
-            <div className="glass-dark rounded-xl border border-white/10 p-8 hover:border-blue-500/30 transition-all">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-lg bg-blue-500/20">
-                  <Settings size={24} className="text-blue-400" />
-                </div>
-                <h2 className="text-xl font-semibold text-white">API 配置</h2>
-              </div>
-
-              <div className="space-y-5">
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">
-                    API Base URL
-                  </label>
-                  <input
-                    type="text"
-                    value={apiUrl}
-                    onChange={(e) => setApiUrl(e.target.value)}
-                    placeholder="https://api.apiyi.com/v1"
-                    className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">
-                    API Key
-                  </label>
-                  <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="sk-..."
-                    className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                  />
-                </div>
-
-                <button
-                  onClick={handleSaveSettings}
-                  disabled={savingSettings}
-                  className="w-full py-3 rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white font-medium disabled:opacity-50 transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2"
-                >
-                  {savingSettings ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      <span>保存中...</span>
-                    </>
-                  ) : settingsSaved ? (
-                    <>
-                      <CheckCircle2 size={18} />
-                      <span>已保存</span>
-                    </>
-                  ) : (
-                    <>
-                      <Key size={18} />
-                      <span>保存配置</span>
-                    </>
-                  )}
-                </button>
-
-                <div className="flex items-start gap-2 text-xs text-gray-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-4 py-3">
-                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                  <p>
-                    API 配置仅保存在当前设备的浏览器本地存储中（明文），不会上传到服务器。
-                    请妥善保管您的 API Key，避免在公共设备上保存。
-                  </p>
-                </div>
-              </div>
             </div>
           </div>
         </div>
