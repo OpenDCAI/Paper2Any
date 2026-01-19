@@ -95,9 +95,9 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
 
   const handleSendSms = async () => {
     clearError();
-    await signInWithPhoneOtp(phone);
+    const success = await signInWithPhoneOtp(phone);
     // Only show verification code input if OTP was sent successfully
-    if (!error) {
+    if (success) {
       setSmsStep("sent");
     }
   };

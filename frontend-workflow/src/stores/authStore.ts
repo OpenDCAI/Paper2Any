@@ -30,7 +30,7 @@ interface AuthState {
   signUpWithEmail: (email: string, password: string) => Promise<{ needsVerification: boolean }>;
   verifyOtp: (email: string, token: string) => Promise<void>;
   resendOtp: (email: string) => Promise<void>;
-  signInWithPhoneOtp: (phone: string) => Promise<void>;
+  signInWithPhoneOtp: (phone: string) => Promise<boolean>;
   verifyPhoneOtp: (phone: string, token: string) => Promise<void>;
   signInWithOAuth: (provider: Provider) => Promise<void>;
   linkOAuthIdentity: (provider: Provider) => Promise<void>;
@@ -212,7 +212,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signInWithPhoneOtp: async (phone) => {
     if (!isSupabaseConfigured()) {
       set({ error: "Supabase is not configured", loading: false });
-      return;
+      return false;
     }
 
     set({ loading: true, error: null });
@@ -221,10 +221,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     if (error) {
       set({ error: error.message, loading: false });
-      return;
+      return false;
     }
 
     set({ loading: false });
+    return true;
   },
 
   verifyPhoneOtp: async (phone, token) => {
