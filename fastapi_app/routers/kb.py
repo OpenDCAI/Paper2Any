@@ -1,8 +1,12 @@
 import os
 import shutil
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from typing import Optional
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
+from typing import Optional, List, Dict, Any
+
+from dataflow_agent.state import IntelligentQARequest, IntelligentQAState
+from dataflow_agent.workflow.wf_intelligent_qa import create_intelligent_qa_graph
+from dataflow_agent.utils import get_project_root
 
 router = APIRouter(prefix="/kb", tags=["Knowledge Base"])
 
@@ -96,4 +100,76 @@ async def delete_kb_file(
             return {"success": False, "message": "File not found"}
             
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/chat")
+async def chat_with_kb(
+    files: List[str] = Body(..., embed=True),
+    query: str = Body(..., embed=True),
+    history: List[Dict[str, str]] = Body([], embed=True),
+    api_url: Optional[str] = Body(None, embed=True),
+    api_key: Optional[str] = Body(None, embed=True),
+    model: str = Body("gpt-4o", embed=True),
+):
+    """
+    Intelligent QA Chat
+    """
+    try:
+        # Normalize file paths (web path -> local absolute path)
+        project_root = get_project_root()
+        local_files = []
+        for f in files:
+            # remove leading /outputs/ if present, or just join
+            # Web path: /outputs/kb_data/...
+            clean_path = f.lstrip('/')
+            p = project_root / clean_path
+            if p.exists():
+                local_files.append(str(p))
+            else:
+                # Try raw path
+                p_raw = Path(f)
+                if p_raw.exists():
+                    local_files.append(str(p_raw))
+        
+        if not local_files:
+             # Just return empty answer or handle logic
+             pass
+
+        # Construct Request
+        req = IntelligentQARequest(
+            files=local_files,
+            query=query,
+            history=history,
+            chat_api_url=api_url or os.getenv("DF_API_URL"),
+            api_key=api_key or os.getenv("DF_API_KEY"),
+            model=model
+        )
+        
+        state = IntelligentQAState(request=req)
+        
+        # Build and Run Graph
+        builder = create_intelligent_qa_graph()
+        graph = builder.compile()
+        
+        result_state = await graph.ainvoke(state)
+        
+        # graph.ainvoke returns the final state dict or state object depending on implementation.
+        # LangGraph usually returns dict. But our GenericGraphBuilder wrapper might return state.
+        # GenericGraphBuilder compile returns a compiled graph.
+        # Let's check typical usage. usually await graph.ainvoke(state) returns dict.
+        
+        answer = ""
+        if isinstance(result_state, dict):
+            answer = result_state.get("answer", "")
+        else:
+            answer = getattr(result_state, "answer", "")
+            
+        return {
+            "success": True,
+            "answer": answer
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

@@ -56,7 +56,6 @@ const Paper2FigurePage = () => {
   const [language, setLanguage] = useState<Language>('zh');
   const [style, setStyle] = useState<StyleType>('cartoon');
   const [figureComplex, setFigureComplex] = useState<FigureComplex>('easy');
-  const [inviteCode, setInviteCode] = useState('');
 
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
@@ -156,7 +155,6 @@ const Paper2FigurePage = () => {
         language?: Language;
         style?: StyleType;
         figureComplex?: FigureComplex;
-        inviteCode?: string;
         llmApiUrl?: string;
         apiKey?: string;
         model?: string;
@@ -168,7 +166,6 @@ const Paper2FigurePage = () => {
       if (saved.language) setLanguage(saved.language);
       if (saved.style) setStyle(saved.style);
       if (saved.figureComplex) setFigureComplex(saved.figureComplex);
-      if (saved.inviteCode) setInviteCode(saved.inviteCode);
       if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
       if (saved.apiKey) setApiKey(saved.apiKey);
       if (saved.model) setModel(saved.model);
@@ -187,7 +184,6 @@ const Paper2FigurePage = () => {
       language,
       style,
       figureComplex,
-      inviteCode,
       llmApiUrl,
       apiKey,
       model,
@@ -197,7 +193,7 @@ const Paper2FigurePage = () => {
     } catch (e) {
       console.error('Failed to persist paper2figure config', e);
     }
-  }, [uploadMode, textContent, graphType, language, style, figureComplex, inviteCode, llmApiUrl, apiKey, model]);
+  }, [uploadMode, textContent, graphType, language, style, figureComplex, llmApiUrl, apiKey, model]);
 
   // 新增：管理生成阶段的定时器
   useEffect(() => {
@@ -262,6 +258,21 @@ const Paper2FigurePage = () => {
       return;
     }
     const kind = detectFileKind(file);
+    if (!kind) {
+      setError('不支持的文件类型');
+      setSelectedFile(null);
+      setFileKind(null);
+      return;
+    }
+
+    // 验证逻辑：只有 exp_data 支持图片，其他仅支持 PDF
+    if (kind === 'image' && graphType !== 'exp_data') {
+      setError('此模式仅支持 PDF 文件');
+      setSelectedFile(null);
+      setFileKind(null);
+      return;
+    }
+
     setSelectedFile(file);
     setFileKind(kind);
     setError(null);
@@ -284,6 +295,21 @@ const Paper2FigurePage = () => {
     }
 
     const kind = detectFileKind(file);
+    if (!kind) {
+      setError('不支持的文件类型');
+      setSelectedFile(null);
+      setFileKind(null);
+      return;
+    }
+
+    // 验证逻辑：只有 exp_data 支持图片，其他仅支持 PDF
+    if (kind === 'image' && graphType !== 'exp_data') {
+      setError('此模式仅支持 PDF 文件');
+      setSelectedFile(null);
+      setFileKind(null);
+      return;
+    }
+
     setSelectedFile(file);
     setFileKind(kind);
     setError(null);
@@ -337,7 +363,7 @@ const Paper2FigurePage = () => {
       formData.append('chat_api_url', llmApiUrl.trim());
       formData.append('api_key', apiKey.trim());
       formData.append('input_type', uploadMode);
-      formData.append('invite_code', inviteCode.trim());
+      formData.append('email', user?.email || '');
       formData.append('graph_type', graphType);
       formData.append('style', style);
       formData.append('figure_complex', figureComplex);
@@ -471,18 +497,13 @@ const Paper2FigurePage = () => {
     }
 
     // 当前 UploadMode 仅支持 'file' | 'text'，无需图片输入
-    // 实验数据图 仅支持 file (PDF)
-    if (graphType === 'exp_data' && uploadMode !== 'file') {
-      setError(t('errors.expDataFileOnly'));
-      return;
-    }
-
+    
     const formData = new FormData();
     formData.append('img_gen_model_name', model);
     formData.append('chat_api_url', llmApiUrl.trim());
     formData.append('api_key', apiKey.trim());
     formData.append('input_type', uploadMode);
-    formData.append('invite_code', inviteCode.trim());
+    formData.append('email', user?.email || '');
     formData.append('graph_type', graphType);
     formData.append('style', style);
 
@@ -644,7 +665,7 @@ const Paper2FigurePage = () => {
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#050512]">
+    <div className="w-full h-full flex flex-col bg-[var(--bg-dark)]">
       <Banner show={showBanner} onClose={() => setShowBanner(false)} stars={stars} />
 
       <div className="flex-1 flex flex-col items-center justify-start px-6 pt-20 pb-10 overflow-auto">
@@ -715,7 +736,7 @@ const Paper2FigurePage = () => {
             model={model}
             llmApiUrl={llmApiUrl}
             apiKey={apiKey}
-            inviteCode={inviteCode}
+            email={user?.email || ''}
             figureComplex={figureComplex}
             language={language}
           />
@@ -743,7 +764,7 @@ const Paper2FigurePage = () => {
           animation: fade-in 0.5s ease-out;
         }
         .gradient-border {
-          background: linear-gradient(135deg, rgba(168, 85, 247, 0.4) 0%, rgba(236, 72, 153, 0.4) 100%);
+          background: linear-gradient(135deg, rgba(0, 112, 243, 0.4) 0%, rgba(0, 200, 255, 0.4) 100%);
           padding: 2px;
           border-radius: 0.75rem;
         }
@@ -752,7 +773,7 @@ const Paper2FigurePage = () => {
           backdrop-filter: blur(10px);
         }
         .glow {
-          box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
+          box-shadow: 0 0 20px rgba(0, 112, 243, 0.3);
         }
         .demo-input-placeholder {
           min-height: 80px;

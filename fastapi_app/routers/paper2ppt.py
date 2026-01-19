@@ -11,7 +11,6 @@ from fastapi_app.schemas import (
     PPTGenerationRequest,
 )
 from fastapi_app.services.paper2ppt_service import Paper2PPTService
-from fastapi_app.utils import validate_invite_code
 
 # 注意：prefix 由 main.py 统一加 "/api/paper2ppt"
 router = APIRouter(tags=["paper2ppt"])
@@ -30,7 +29,7 @@ async def paper2ppt_pagecontent_json(
     request: Request,
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
-    invite_code: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
     # 输入相关：支持 text/pdf/pptx/topic
     input_type: str = Form(...),  # 'text' | 'pdf' | 'pptx' | 'topic'
     file: Optional[UploadFile] = File(None),
@@ -48,12 +47,11 @@ async def paper2ppt_pagecontent_json(
     """
     只跑 paper2page_content，返回 pagecontent + result_path。
     """
-    # validate_invite_code(invite_code)
 
     req = PageContentRequest(
         chat_api_url=chat_api_url,
         api_key=api_key,
-        invite_code=invite_code,
+        email=email,
         input_type=input_type,
         text=text,
         model=model,
@@ -83,7 +81,7 @@ async def paper2ppt_ppt_json(
     img_gen_model_name: str = Form(...),
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
-    invite_code: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
     # 控制参数
     style: str = Form(""),
     reference_img: Optional[UploadFile] = File(None),
@@ -109,13 +107,12 @@ async def paper2ppt_ppt_json(
     - get_down=false：生成模式（需要 pagecontent）
     - get_down=true：编辑模式（需要 page_id(0-based) + edit_prompt，pagecontent 可选）
     """
-    # validate_invite_code(invite_code)
 
     req = PPTGenerationRequest(
         img_gen_model_name=img_gen_model_name,
         chat_api_url=chat_api_url,
         api_key=api_key,
-        invite_code=invite_code,
+        email=email,
         style=style,
         aspect_ratio=aspect_ratio,
         language=language,

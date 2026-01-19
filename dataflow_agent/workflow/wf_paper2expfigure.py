@@ -142,12 +142,16 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         if not hasattr(state, 'temp_data') or state.temp_data is None:
             state.temp_data = {}
         
-        # 确保 result_path 存在
+        # 确保 result_path 存在且为绝对路径
         if not state.result_path:
             output_dir = f"./outputs/paper2expfigure_{uuid.uuid4().hex[:8]}"
             output_path = Path(output_dir)
             output_path.mkdir(parents=True, exist_ok=True)
             state.result_path = str(output_path.absolute())
+        else:
+            # 转换为绝对路径
+            state.result_path = str(Path(state.result_path).resolve())
+            Path(state.result_path).mkdir(parents=True, exist_ok=True)
         
         # 从 request 同步 input_type 到 state
         if hasattr(state.request, 'input_type'):
@@ -247,7 +251,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
             log.error("[text_to_table_image_node] paper_idea (表格文本) 为空")
             return state
         
-        output_path = Path(state.result_path)
+        output_path = Path(state.result_path).resolve()
         table_images_dir = output_path / "table_images"
         table_images_dir.mkdir(parents=True, exist_ok=True)
         
@@ -267,7 +271,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         # 循环处理每个表格
         for idx, segment in enumerate(table_segments):
             table_id = f"table_{idx}"
-            img_path = table_images_dir / f"{table_id}.png"
+            img_path = (table_images_dir / f"{table_id}.png").resolve()
             segment_text = segment.get("text", "")
             caption = segment.get("caption", "")
             
@@ -644,7 +648,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         
         image_paths = [t["image_path"] for t in tables if "image_path" in t]
         
-        output_path = Path(state.result_path)
+        output_path = Path(state.result_path).resolve()
         charts_dir = output_path / "charts"
         charts_dir.mkdir(exist_ok=True)
         
@@ -736,7 +740,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
                 
                 # 5. 执行代码生成图表
                 # 需要将 output_path, headers, rows 注入到代码中
-                chart_path = charts_dir / f"{table_id}.png"
+                chart_path = (charts_dir / f"{table_id}.png").resolve()
                 
                 # 构建完整的可执行代码
                 exec_code = f"""

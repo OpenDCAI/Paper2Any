@@ -101,7 +101,6 @@ const Pdf2PptPage = () => {
   }, []);
   
   // 配置
-  const [inviteCode, setInviteCode] = useState('');
   const [useAiEdit, setUseAiEdit] = useState(false);
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
@@ -115,7 +114,6 @@ const Pdf2PptPage = () => {
       if (!raw) return;
       const saved = JSON.parse(raw);
       
-      if (saved.inviteCode) setInviteCode(saved.inviteCode);
       if (saved.useAiEdit !== undefined) setUseAiEdit(saved.useAiEdit);
       if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
       if (saved.apiKey) setApiKey(saved.apiKey);
@@ -129,7 +127,6 @@ const Pdf2PptPage = () => {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const data = {
-      inviteCode,
       useAiEdit,
       llmApiUrl,
       apiKey,
@@ -140,7 +137,7 @@ const Pdf2PptPage = () => {
     } catch (e) {
       console.error('Failed to persist pdf2ppt config', e);
     }
-  }, [inviteCode, useAiEdit, llmApiUrl, apiKey, genFigModel]);
+  }, [useAiEdit, llmApiUrl, apiKey, genFigModel]);
 
   const validateDocFile = (file: File): boolean => {
     const ext = file.name.split('.').pop()?.toLowerCase();
@@ -246,7 +243,7 @@ const Pdf2PptPage = () => {
     try {
       const formData = new FormData();
       formData.append('pdf_file', selectedFile);
-      formData.append('invite_code', inviteCode.trim());
+      formData.append('email', user?.email || '');
       
       if (useAiEdit) {
         formData.append('use_ai_edit', 'true');
