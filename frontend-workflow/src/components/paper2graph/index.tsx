@@ -497,12 +497,7 @@ const Paper2FigurePage = () => {
     }
 
     // 当前 UploadMode 仅支持 'file' | 'text'，无需图片输入
-    // 实验数据图 仅支持 file (PDF)
-    if (graphType === 'exp_data' && uploadMode !== 'file') {
-      setError(t('errors.expDataFileOnly'));
-      return;
-    }
-
+    
     const formData = new FormData();
     formData.append('img_gen_model_name', model);
     formData.append('chat_api_url', llmApiUrl.trim());
@@ -670,7 +665,7 @@ const Paper2FigurePage = () => {
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#050512]">
+    <div className="w-full h-full flex flex-col bg-[var(--bg-dark)]">
       <Banner show={showBanner} onClose={() => setShowBanner(false)} stars={stars} />
 
       <div className="flex-1 flex flex-col items-center justify-start px-6 pt-20 pb-10 overflow-auto">
@@ -769,7 +764,7 @@ const Paper2FigurePage = () => {
           animation: fade-in 0.5s ease-out;
         }
         .gradient-border {
-          background: linear-gradient(135deg, rgba(168, 85, 247, 0.4) 0%, rgba(236, 72, 153, 0.4) 100%);
+          background: linear-gradient(135deg, rgba(0, 112, 243, 0.4) 0%, rgba(0, 200, 255, 0.4) 100%);
           padding: 2px;
           border-radius: 0.75rem;
         }
@@ -778,7 +773,7 @@ const Paper2FigurePage = () => {
           backdrop-filter: blur(10px);
         }
         .glow {
-          box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
+          box-shadow: 0 0 20px rgba(0, 112, 243, 0.3);
         }
         .demo-input-placeholder {
           min-height: 80px;

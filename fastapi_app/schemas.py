@@ -85,7 +85,6 @@ class Paper2FigureRequest(BaseModel):
 
     gen_fig_model: str = "gemini-3-pro-image-preview"
     # 用于生成插图 / 构图草图的图像模型名称
-    # 模型名和雨茶官网一致
 
     bg_rm_model: str = f"{get_project_root()}/models/RMBG-2.0"
 
