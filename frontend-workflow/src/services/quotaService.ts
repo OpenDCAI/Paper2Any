@@ -68,20 +68,13 @@ export async function checkQuota(userId: string | null, isAnonymous: boolean = f
   const limit = isAuthenticated ? AUTHENTICATED_DAILY_LIMIT : ANONYMOUS_DAILY_LIMIT;
   const userIdentifier = getUserIdentifier(userId);
 
-  // If Supabase is not configured, use local storage
+  // If Supabase is not configured (self-hosted), no quota limits
   if (!isSupabaseConfigured()) {
-    const local = getLocalUsage();
-    const today = getTodayDate();
-
-    // Reset if new day
-    const used = local.date === today ? local.count : 0;
-    const remaining = Math.max(0, limit - used);
-
     return {
-      used,
-      limit,
-      remaining,
-      isAuthenticated,
+      used: 0,
+      limit: Number.MAX_SAFE_INTEGER, // Unlimited
+      remaining: Number.MAX_SAFE_INTEGER,
+      isAuthenticated: false,
     };
   }
 
