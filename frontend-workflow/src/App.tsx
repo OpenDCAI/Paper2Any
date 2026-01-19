@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { PointsDisplay } from './components/PointsDisplay';
 import { UserMenu } from './components/UserMenu';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
-import { Workflow, FolderOpen, User, X } from 'lucide-react';
+import { Workflow, X } from 'lucide-react';
 
 function App() {
   const { t } = useTranslation('common');
@@ -111,21 +111,10 @@ function App() {
             <div className="flex items-center gap-3">
               <LanguageSwitcher />
               <PointsDisplay />
-              <button
-                onClick={() => setShowFilesModal(true)}
-                className="p-2 rounded-lg glass text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
-                title="历史文件"
-              >
-                <FolderOpen size={20} />
-              </button>
-              <button
-                onClick={() => setShowAccountModal(true)}
-                className="p-2 rounded-lg glass text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
-                title="账户设置"
-              >
-                <User size={20} />
-              </button>
-              <UserMenu />
+              <UserMenu 
+                onShowFiles={() => setShowFilesModal(true)}
+                onShowAccount={() => setShowAccountModal(true)}
+              />
             </div>
           </div>
         </div>

@@ -10,9 +10,14 @@ import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "../stores/authStore";
 import { isSupabaseConfigured } from "../lib/supabase";
-import { User, LogOut, ChevronDown, LogIn, Sparkles, Crown, Ticket } from "lucide-react";
+import { User, LogOut, ChevronDown, LogIn, Sparkles, Crown, Ticket, FolderOpen, Settings } from "lucide-react";
 
-export function UserMenu() {
+interface UserMenuProps {
+  onShowFiles?: () => void;
+  onShowAccount?: () => void;
+}
+
+export function UserMenu({ onShowFiles, onShowAccount }: UserMenuProps = {}) {
   const { t } = useTranslation('common');
   const { user, signOut, claimInviteCode } = useAuthStore();
   const [open, setOpen] = useState(false);
@@ -147,6 +152,32 @@ export function UserMenu() {
 
            {/* Actions */}
            <div className="p-2 space-y-1">
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  onShowFiles?.();
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 group"
+              >
+                <div className="p-1.5 rounded-md bg-white/5 text-gray-300 group-hover:bg-white/10">
+                  <FolderOpen size={14} />
+                </div>
+                历史文件
+              </button>
+
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  onShowAccount?.();
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-all duration-200 group"
+              >
+                <div className="p-1.5 rounded-md bg-white/5 text-gray-300 group-hover:bg-white/10">
+                  <Settings size={14} />
+                </div>
+                账户设置
+              </button>
+
               {!isAnonymous && (
                 <>
                   <button
