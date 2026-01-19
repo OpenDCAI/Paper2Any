@@ -116,11 +116,10 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
     graph_type = req.graph_type
 
     if graph_type == "model_arch":
-        # 检查是否为 Step 2 (转 PPT) 还是 Step 1 (预览/编辑)
-        # 如果是 FIGURE 输入，但没有 edit_prompt，说明是转 PPT
         if req.input_type == "FIGURE" and not req.edit_prompt:
             # wf_name = "pdf2ppt_parallel"
-            wf_name = "pdf2ppt_optimized"
+            # wf_name = "pdf2ppt_optimized"
+            wf_name = "pdf2ppt_qwenvl"
             result_root = project_root / "outputs" / req.invite_code / "paper2fig_ppt" / ts
         else:
             # 否则是生成/编辑图片（Step 1）
@@ -142,7 +141,7 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
     state.mask_detail_level = 2
 
     # -------- 异步执行 -------- #
-    log.critical(f"[paper2figure] req: {req} !!!!!!!!\n")
+    log.critical(f"[paper2figure] req language: {req.language} !!!!!!!!\n")
     final_state: Paper2FigureState = await run_workflow(wf_name, state)
 
     # -------- 保存最终 State -------- #

@@ -1,7 +1,7 @@
 import React from 'react';
 import { ImageIcon, MessageSquare, Loader2, RotateCcw, Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { GraphType, FigureComplex } from './types';
+import { GraphType, FigureComplex, Language } from './types';
 import { API_KEY } from '../../config/api';
 import { JSON_API } from './constants';
 
@@ -23,6 +23,7 @@ interface PreviewSectionProps {
   apiKey: string;
   inviteCode: string;
   figureComplex: FigureComplex;
+  language: Language;
 }
 
 const PreviewSection: React.FC<PreviewSectionProps> = ({
@@ -43,27 +44,17 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
   apiKey,
   inviteCode,
   figureComplex,
+  language,
 }) => {
+  const [imgError, setImgError] = React.useState(false);
+
+  // 当 previewImgUrl 改变时重置错误状态
+  React.useEffect(() => {
+    setImgError(false);
+  }, [previewImgUrl]);
+
   // 允许 graphStep 为 'done' 时显示，只要 previewImgUrl 存在
   if (graphType !== 'model_arch' || graphStep === 'input' || !previewImgUrl) return null;
-
-  // 这里的 pptUrl 是从 index.tsx 传下来的，但 PreviewSection 自己没有接收 pptUrl prop
-  // 等等，Props 接口里定义了 setPptUrl，但没有 pptUrl。
-  // 我需要先在 Props 里加上 pptUrl。
-  // 但是 index.tsx 确实传了 ... 吗？
-  // 让我们检查一下 index.tsx 的传参：
-  /*
-  <PreviewSection
-    graphType={graphType}
-    graphStep={graphStep}
-    previewImgUrl={previewImgUrl}
-    setPreviewImgUrl={setPreviewImgUrl}
-    setPptUrl={setPptUrl}
-    ...
-  />
-  */
-  // PreviewSectionProps 接口里缺少 pptUrl。需要加上。
-  
   return (
     <div className="mb-8 glass rounded-xl border border-white/10 p-6 animate-fade-in relative overflow-hidden">
       {/* 装饰光效 */}
@@ -88,12 +79,29 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
         </a>
       </div>
       
-      <div className="w-full bg-black/40 rounded-xl border border-white/10 flex items-center justify-center overflow-hidden mb-6 p-4">
-        <img
-          src={previewImgUrl}
-          alt="模型结构图预览"
-          className="max-w-full h-auto object-contain max-h-[600px] rounded-lg shadow-2xl"
-        />
+      <div className="w-full bg-black/40 rounded-xl border border-white/10 flex items-center justify-center overflow-hidden mb-6 p-4 min-h-[300px]">
+        {imgError ? (
+          <div className="flex flex-col items-center justify-center text-gray-400 p-4">
+            <ImageIcon size={48} className="mb-4 opacity-50" />
+            <p className="mb-2 font-medium">图片加载失败</p>
+            <p className="text-xs text-gray-500 text-center max-w-md break-all">{previewImgUrl}</p>
+            <a 
+              href={previewImgUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="mt-4 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors"
+            >
+              尝试在新标签页打开
+            </a>
+          </div>
+        ) : (
+          <img
+            src={previewImgUrl}
+            alt="模型结构图预览"
+            className="max-w-full h-auto object-contain max-h-[600px] rounded-lg shadow-2xl"
+            onError={() => setImgError(true)}
+          />
+        )}
       </div>
       
       <div className="flex flex-col md:flex-row gap-4 items-end">
@@ -127,6 +135,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                   formData.append('invite_code', inviteCode.trim());
                   formData.append('graph_type', 'model_arch');
                   formData.append('figure_complex', figureComplex);
+                  formData.append('language', language);
                   
                   // 传入上一次的图片路径作为 prev_image
                   // 注意：后端 wa_paper2figure 会在 input_type=FIGURE 且有 edit_prompt 时进入 paper2fig_image_only
@@ -197,16 +206,49 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
             放弃
           </button>
           {graphStep === 'done' && pptUrl ? (
-            <a
-              href={pptUrl}
-              download={`paper2figure_ppt_${Date.now()}.pptx`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={async () => {
+                if (!pptUrl) return;
+                try {
+                  // 如果当前页面是 HTTPS，但资源是 HTTP，尝试升级协议以避免 Mixed Content 错误
+                  let fetchUrl = pptUrl;
+                  if (window.location.protocol === 'https:' && fetchUrl.startsWith('http:')) {
+                    fetchUrl = fetchUrl.replace(/^http:/, 'https:');
+                  }
+
+                  // 简单的加载提示
+                  const btn = document.activeElement as HTMLButtonElement;
+                  const originalText = btn.innerText;
+                  if (btn) btn.innerText = '下载中...';
+
+                  const res = await fetch(fetchUrl);
+                  if (!res.ok) throw new Error('下载失败');
+                  
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `paper2figure_ppt_${Date.now()}.pptx`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                  
+                  if (btn) btn.innerText = originalText;
+                } catch (e) {
+                  console.error('Download failed', e);
+                  alert('下载失败，请尝试手动复制链接或检查网络。');
+                  // 恢复按钮文本
+                  const btn = document.activeElement as HTMLButtonElement;
+                  if (btn && btn.innerText === '下载中...') btn.innerText = '下载 PPT';
+                }
+              }}
               className="px-6 py-3 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 transition-all min-w-[180px]"
             >
               <Download size={18} />
               下载 PPT
-            </a>
+            </button>
           ) : (
             <button
               type="button"
@@ -226,6 +268,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                     formData.append('invite_code', inviteCode.trim());
                     formData.append('graph_type', 'model_arch');
                     formData.append('figure_complex', figureComplex);
+                    formData.append('language', language);
                     formData.append('text', previewImgUrl); // 复用 text 传路径
                     
                     const res = await fetch(JSON_API, {

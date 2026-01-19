@@ -20,11 +20,11 @@ from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register
 from dataflow_agent.agentroles import create_graph_agent, create_react_agent, create_simple_agent
 from dataflow_agent.toolkits.tool_manager import get_tool_manager
-from dataflow_agent.toolkits.imtool.bg_tool import (
+from dataflow_agent.toolkits.multimodaltool.bg_tool import (
     local_tool_for_svg_render,
     local_tool_for_raster_to_svg,
 )
-from dataflow_agent.toolkits.imtool.mineru_tool import svg_to_emf
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import svg_to_emf
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.logger import get_logger
 log = get_logger(__name__)
@@ -193,7 +193,7 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         agent = create_react_agent(
             name="technical_route_desc_generator",
             max_retries=4,
-            model_name="claude-haiku-4-5-20251001",
+            model_name=getattr(state.request, "technical_model", "claude-haiku-4-5-20251001"),
         )
         state = await agent.execute(state=state)
 

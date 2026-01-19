@@ -47,8 +47,8 @@ from dataflow_agent.utils import (
     extract_text_from_mineru_results,
     execute_matplotlib_code,
 )
-from dataflow_agent.toolkits.imtool.mineru_tool import run_aio_two_step_extract
-from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_aio_two_step_extract
+from dataflow_agent.toolkits.multimodaltool.req_img import generate_or_edit_and_save_image_async
 
 
 log = get_logger(__name__)
@@ -532,7 +532,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         
         agent = create_simple_agent(
             name="paper_idea_extractor",
-            model_name="gpt-4o",
+            model_name=getattr(state.request, "chart_model", "gpt-4o"),
             temperature=0.1,
             max_tokens=4096,
             parser_type="json",
@@ -586,7 +586,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
 
                 agent = create_chart_type_recommender(
                     tool_manager=get_tool_manager(),
-                    model_name="gpt-4o",
+                    model_name=getattr(state.request, "chart_model", "gpt-4o"),
                     temperature=0.1,
                     max_tokens=2048,
                     vlm_config=vlm_config
@@ -686,7 +686,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
                 # 调用 Agent
                 chart_code_agent = create_chart_code_generator(
                     tool_manager=get_tool_manager(),
-                    model_name="gpt-4o",
+                    model_name=getattr(state.request, "chart_model", "gpt-4o"),
                     temperature=0.0,
                     max_tokens=4096,
                     vlm_config=vlm_config,

@@ -2,7 +2,7 @@
  * Workflow service - wraps API calls with quota checking and usage recording.
  *
  * Usage:
- *   const result = await callWorkflow('paper2figure', '/api/paper2figure/generate', formData);
+ *   const result = await callWorkflow('paper2figure', '/api/v1/paper2figure/generate', formData);
  *   if (result.error) {
  *     // Handle error (quota exceeded, API error, etc.)
  *   } else {

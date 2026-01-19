@@ -1,17 +1,10 @@
-# DataFlow-Agent项目文档主页
+# Paper2Any 项目文档
 
 <div align="center">
 
-<!-- ![DataFlow-Agent Logo](static/LogoDataFlow_Agentlogo_image_1.png) -->
+**从论文到多模态输出的智能化工作流平台**
 
-智能化数据流处理框架 · 模块化 Agent 编排系统
-
-<!-- [[License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[[Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[[Documentation](https://img.shields.io/badge/docs-mkdocs-green.svg)](https://)
-[[GitHub Stars](https://img.shields.io/github/stars/your-org/DataFlow-Agent.svg)](https://github.com/your-org/DataFlow-Agent)
-
-[快速开始](#快速开始) · [功能特性](#功能特性) · [文档](guides/cli-tool.md) · [贡献指南](#贡献指南) -->
+<!-- ![Paper2Any Logo](static/new_logo_bgrm.png) -->
 
 </div>
 
@@ -19,39 +12,36 @@
 
 ## 💡 项目简介
 
-**DataFlow-Agent** 是一个基于 Python 的智能化数据流处理框架，提供模块化的 Agent 编排、可视化工作流设计和强大的工具管理能力。通过插件式架构和 CLI 脚手架，让开发者能够快速构建、部署和管理复杂的数据处理任务。
+**Paper2Any** 是一个基于深度学习的智能化工作流平台，专注于将学术论文转换为多种形式的输出，包括示意图、PPT、视频、技术报告等。通过集成最新的多模态大模型和计算机视觉技术，Paper2Any 能够自动解析论文内容并生成高质量的视觉和文本输出。
 
 ### 核心优势
 
-- 🎯 **开箱即用**：预置多种 Agent 和 Workflow 模板，零配置快速启动
-- 🔌 **插件化架构**：Agent、Workflow、Tool 自动注册，解耦灵活
-- 🎨 **可视化操作**：基于 Gradio 的 Web 界面，拖拽式流程设计
-- ⚡ **高效开发**：CLI 工具一键生成模板代码，大幅提升开发效率
-- 🔄 **灵活编排**：基于 StateGraph 的工作流引擎，支持复杂业务逻辑
+- 🎯 **多模态输出**：支持从论文生成示意图(Figure)、PPT、视频(Video)、技术报告(Technical Report)等多种格式
+- 🔌 **模块化设计**：基于 DataFlow-Agent 框架，工作流可灵活组合和扩展
+- 🎨 **高质量生成**：集成前沿的视觉生成模型和文本生成模型，确保输出质量
+- ⚡ **高效处理**：支持批量处理和并行计算，快速处理大量论文
+- 🔄 **灵活部署**：提供 Docker 容器化部署和本地部署选项
 
 ---
 
-## ✨ 功能特性
+## ✨ 核心功能
 
-### 🤖 Agent 系统
-- **自动注册机制**：通过 `@register` 装饰器实现 Agent 的自动发现和注册
-- **角色化设计**：支持数据清洗、分析、验证等多种预定义角色
-- **灵活扩展**：继承 `BaseAgent` 快速创建自定义 Agent
+### 📊 Paper2Figure
+从论文中提取关键信息，自动生成高质量的示意图和图表，支持学术演示和论文插图需求。
 
-### 🔄 Workflow 编排
-- **状态图引擎**：基于 StateGraph 的流程控制，支持条件分支和循环
-- **可视化设计**：通过 Gradio 界面拖拽式创建工作流
-- **命名规范**：`wf_*.py` 文件自动识别为 Workflow 模块
+### 📽️ Paper2PPT
+基于论文内容自动生成结构化的 PowerPoint 演示文稿，包括封面、目录、内容页和参考文献页。
 
-### 🛠️ 工具管理
-- **统一注册**：工具函数集中管理，统一调用接口
-- **类型安全**：完善的类型提示和参数验证
-- **易于集成**：支持第三方工具库快速接入
+### 🎬 Paper2Video
+将论文内容转换为讲解视频，自动生成脚本、配音和视觉内容，适合快速了解论文核心思想。
 
-### 🎨 Web 界面
-- **响应式设计**：适配桌面和移动端设备
-- **页面自动发现**：`gradio_app/pages/` 下的页面自动加载
-- **实时交互**：热重载支持，修改代码即时生效
+### 📝 Paper2Technical
+提取论文的技术细节，生成详细的技术报告、方法描述和实现指南。
+
+### 🔧 其他功能
+- **PDF2PPT**：将现有的PDF文件转换为可编辑的PPT演示文稿
+- **Paper2ExpFigure**：为论文生成实验数据图表
+- **Paper2PageContent**：提取论文页面内容，用于知识库构建
 
 ---
 
@@ -60,15 +50,16 @@
 ### 环境要求
 
 - **Python**: 3.10 或更高版本（[下载 Python](https://www.python.org/downloads/)）
-- **操作系统**: Windows / macOS / Linux
-- **依赖管理**: pip 或 conda
+- **操作系统**: Linux (推荐) / Windows / macOS
+- **GPU**: 推荐 NVIDIA GPU（用于视觉生成任务）
+- **内存**: 至少 16GB RAM
 
 ### 安装步骤
 
 #### 1. 克隆仓库
 
 ```bash
-git clone https://github.com/OpenDCAI/Paper2Any
+git clone https://github.com/OpenDCAI/Paper2Any.git
 cd Paper2Any
 ```
 
@@ -80,114 +71,89 @@ python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # 或使用 conda
-conda create -n dataflow python=3.10
-conda activate dataflow
+conda create -n paper2any python=3.10
+conda activate paper2any
 ```
 
 #### 3. 安装依赖
 
 ```bash
+# 安装基础依赖
+pip install -r requirements-base.txt
+
+# 安装开发依赖（可选）
 pip install -r requirements-dev.txt
+
+# 安装Paper2Any包
 pip install -e .
 ```
 
-#### 4. 启动应用
+#### 4. 配置模型服务
+
+某些功能需要运行额外的模型服务。请参考[安装指南](installation.md)的详细说明。
+
+#### 5. 启动应用
 
 ```bash
-# 启动 Web 界面
+# 启动 Gradio Web 界面（推荐用于测试）
 python gradio_app/app.py
 ```
 
-访问 **http://127.0.0.1:7860** 即可使用可视化界面。
+访问 **http://127.0.0.1:7860** 使用可视化界面。
 
----
-
-## 📚 使用示例
-
-### 创建第一个 Agent
-
-使用 CLI 工具快速生成 Agent 模板：
+或者使用 FastAPI 后端：
 
 ```bash
-dfa create --agent_name my_first_agent
+# 启动 FastAPI 后端
+cd fastapi_app
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
-
-生成的代码位于 `dataflow_agent/agentroles/common_agents/my_first_agent_agent.py`：
-
-```python
-from dataflow_agent.agentroles.base_agent import BaseAgent
-from dataflow_agent.agentroles.registry import register
-
-@register("my_first_agent")
-class MyFirstAgent(BaseAgent):
-    """我的第一个 Agent"""
-    
-    @classmethod
-    def create(cls, tool_manager=None, **kwargs):
-        return cls(tool_manager=tool_manager, **kwargs)
-    
-    async def execute(self, state):
-        # 实现你的业务逻辑
-        return state
-```
-
-### 运行 Workflow
-
-```python
-from dataflow_agent.workflow import run_workflow
-
-# 执行预定义的数据验证流程
-result = await run_workflow("data_validation", state={
-    "data": your_data,
-    "config": validation_config
-})
-```
-
-### 添加自定义 Gradio 页面
-
-```bash
-dfa create --gradio_name analytics_dashboard
-```
-
-CLI 会在 `gradio_app/pages/page_analytics_dashboard.py` 中生成脚手架文件，
-你可以在其中实现页面逻辑，重启应用后会自动出现在 Tab 栏。
 
 ---
 
 ## 📖 文档导航
 
-<!-- - **[CLI 工具使用指南](guides/cli-tool.md)** - 学习如何使用命令行工具快速开发
-- **[Agent 开发教程](guides/agent-development.md)** - 深入了解 Agent 的设计与实现
-- **[Workflow 编排指南](guides/workflow-orchestration.md)** - 掌握工作流的构建技巧
-- **[API 参考手册](api-reference/agent-api.md)** - 完整的 API 文档
-- **[常见问题解答](faq.md)** - 快速解决常见问题 -->
+- **[快速开始](quickstart.md)** - 新手入门指南
+- **[安装指南](installation.md)** - 详细安装和配置说明
+- **[功能指南](guides/)** - 各功能模块的详细使用说明
+  - [Paper2Figure](guides/paper2figure.md)
+  - [Paper2PPT](guides/paper2ppt.md)
+  - [Paper2Video](guides/paper2video.md)
+  - [Paper2Technical](guides/paper2technical.md)
+- **[CLI工具](cli.md)** - 命令行工具使用说明
+- **[常见问题解答](faq.md)** - 常见问题解决方法
+- **[贡献指南](contributing.md)** - 参与项目开发的指南
+- **[更新日志](changelog.md)** - 版本更新记录
 
 ---
 
-## 🏗️ 项目架构
+## 🏗️ 系统架构
 
 ```
-DataFlow-Agent/
-├── dataflow_agent/          # 核心业务模块
-│   ├── agentroles/          # Agent 角色定义（自动注册）
-│   ├── workflow/            # Workflow 流程定义（wf_*.py）
-│   ├── promptstemplates/    # 提示词模板库（基于 jinja 的 prompt）
-│   ├── templates/           # CLI 脚手架 jinja 模板（由 dfa create 使用）
-│   ├── toolkits/            # 工具集（文件/算子等工具）
-│   ├── state.py             # State / Request 定义
-│   ├── utils.py             # 通用工具函数
-│   └── ...                  # 其他模块（graphbuilder / llm_callers / parsers / trajectory / resources 等）
-├── gradio_app/             # Gradio Web 应用
-│   ├── app.py             # 主应用入口
-│   └── pages/             # 页面模块（自动发现）
-├── docs/                   # MkDocs 文档源文件
-├── tests/                  # 单元测试与集成测试
-└── script/                 # 开发脚本工具
+Paper2Any/
+├── dataflow_agent/          # 底层工作流引擎
+│   ├── agentroles/          # Agent 角色定义
+│   ├── workflow/            # 工作流定义 (wf_*.py)
+│   ├── toolkits/            # 工具集
+│   └── ...
+├── fastapi_app/             # FastAPI 后端服务
+│   ├── routers/             # API 路由
+│   ├── workflow_adapters/   # 工作流适配器
+│   └── ...
+├── gradio_app/              # Gradio Web 界面
+│   ├── app.py               # 主应用入口
+│   └── pages/               # 页面模块
+├── frontend-workflow/       # 前端界面 (Vite + TypeScript)
+├── script/                  # 运行脚本
+├── docs/                    # 项目文档
+├── tests/                   # 测试文件
+└── outputs/                 # 输出目录
 ```
+
 
 ---
 
-## 🤝 贡献指南
+## 🤝 参与贡献
 
 我们欢迎任何形式的贡献！无论是提交 Bug、提出新功能建议，还是改进文档。
 
@@ -206,20 +172,7 @@ DataFlow-Agent/
 - 更新相关文档（包括 docstring 和 MkDocs 文档）
 - 提交信息清晰描述变更内容
 
-<!-- 详见 [贡献者指南](CONTRIBUTING.md)。 -->
-
----
-
-## 🎯 路线图
-
-- [x] 基础 Agent 注册机制
-- [x] Workflow 编排引擎
-- [x] Gradio Web 界面
-- [x] CLI 脚手架工具
-- [ ] 多模态支持
-- [ ] NL2workflow
-
-<!-- 查看完整 [项目路线图](https://github.com/your-org/DataFlow-Agent/projects)。 -->
+详见 [贡献指南](contributing.md)。
 
 ---
 
@@ -234,9 +187,10 @@ DataFlow-Agent/
 感谢所有为本项目做出贡献的开发者和使用者！
 
 特别鸣谢：
+- [DataFlow-Agent](https://github.com/OpenDCAI/Paper2Any) - 底层工作流框架
+- [Gradio](https://gradio.app/) - 优秀的 Web 界面框架
+- [FastAPI](https://fastapi.tiangolo.com/) - 高性能 API 框架
 - [LangGraph](https://github.com/langchain-ai/langgraph) - 工作流编排灵感来源
-- [Gradio](https://gradio.app/) - 出色的 Web 界面框架
-- [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) - 精美的文档主题
 
 ---
 
@@ -244,7 +198,6 @@ DataFlow-Agent/
 
 - **问题反馈**: [GitHub Issues](https://github.com/OpenDCAI/Paper2Any/issues)
 - **讨论交流**: [GitHub Discussions](https://github.com/OpenDCAI/Paper2Any/discussions)
-<!-- - **邮件联系**: contact@dataflow-agent.com -->
 
 ---
 
@@ -252,6 +205,6 @@ DataFlow-Agent/
 
 **如果这个项目对你有帮助，请给我们一个 ⭐️ Star！**
 
-Made with ❤️ by DataFlow-Agent Team
+Made with ❤️ by Paper2Any Team
 
 </div>

@@ -60,7 +60,8 @@ const Paper2FigurePage = () => {
 
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('gemini-2.5-flash-image-preview');
+  const [model, setModel] = useState('gemini-3-pro-image-preview');
+  // const [model, setModel] = useState('gpt-4o');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -340,6 +341,7 @@ const Paper2FigurePage = () => {
       formData.append('graph_type', graphType);
       formData.append('style', style);
       formData.append('figure_complex', figureComplex);
+      formData.append('language', language);
 
       if (uploadMode === 'file') {
         if (!selectedFile) {
@@ -360,7 +362,7 @@ const Paper2FigurePage = () => {
       try {
         setIsValidating(true);
         setError(null);
-        await verifyLlmConnection(llmApiUrl, apiKey, model);
+        await verifyLlmConnection(llmApiUrl, apiKey, "gpt-4o");
         setIsValidating(false);
 
         setIsLoading(true);
@@ -391,9 +393,8 @@ const Paper2FigurePage = () => {
         }
 
         setAllOutputFiles(data.all_output_files ?? []);
-        setSuccessMessage(t('success.previewGenerated', '模型结构图预览已生成，请确认并转为 PPT'));
-        await recordUsage(user?.id || null, 'paper2figure');
-        refreshQuota();
+        
+        console.log('[Paper2Figure] All output files:', data.all_output_files);
 
         // 选一张主图做预览：优先 fig_*.png，其次最大 png
         let mainImg: string | null = null;
@@ -405,6 +406,22 @@ const Paper2FigurePage = () => {
         } else if (pngs.length > 0) {
           mainImg = pngs[0];
         }
+
+        if (!mainImg) {
+          console.warn('[Paper2Figure] No preview image found in outputs');
+          setError('生成成功，但未能在返回结果中找到预览图片。');
+          setIsLoading(false);
+          return;
+        }
+
+        // 协议自动升级：若当前是 https 但图片是 http，则替换为 https
+        if (typeof window !== 'undefined' && window.location.protocol === 'https:' && mainImg.startsWith('http:')) {
+          mainImg = mainImg.replace(/^http:/, 'https:');
+        }
+
+        setSuccessMessage(t('success.previewGenerated', '模型结构图预览已生成，请确认并转为 PPT'));
+        await recordUsage(user?.id || null, 'paper2figure');
+        refreshQuota();
 
         let pptUrlCandidate: string | null = null;
         if (data.ppt_filename) {
@@ -499,7 +516,7 @@ const Paper2FigurePage = () => {
       // Step 0: Verify LLM Connection first
       setIsValidating(true);
       setError(null);
-      await verifyLlmConnection(llmApiUrl, apiKey, model);
+      await verifyLlmConnection(llmApiUrl, apiKey, "gpt-4o");
       setIsValidating(false);
 
       setIsLoading(true);
@@ -700,6 +717,7 @@ const Paper2FigurePage = () => {
             apiKey={apiKey}
             inviteCode={inviteCode}
             figureComplex={figureComplex}
+            language={language}
           />
 
           <ExamplesSection />
