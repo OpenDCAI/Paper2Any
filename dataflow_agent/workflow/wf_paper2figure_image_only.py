@@ -20,7 +20,7 @@ from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register
 from dataflow_agent.agentroles import create_graph_agent, create_react_agent
-from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
+from dataflow_agent.toolkits.multimodaltool.req_img import generate_or_edit_and_save_image_async
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
 
@@ -77,8 +77,8 @@ def create_p2fig_image_only_graph() -> GenericGraphBuilder:
     def _get_paper_idea(state: Paper2FigureState):
         # 根据请求语言添加指令
         lang = getattr(state.request, "language", "zh")
+        log.critical(f'[image_only]: lang {lang}')
         lang_instruction = ""
-        
         if lang == "zh":
             lang_instruction = "\n\nIMPORTANT: The text content inside the generated figure MUST be in Chinese (Simplified Chinese). Please ensure all labels, titles, and descriptions in the figure description are in Chinese."
         else:
@@ -100,7 +100,7 @@ def create_p2fig_image_only_graph() -> GenericGraphBuilder:
     async def figure_desc_generator_node(state: Paper2FigureState) -> Paper2FigureState:
         figure_desc_generator = create_react_agent("figure_desc_generator",
                                                     max_retries=5,
-                                                    model_name="gpt-5.1")
+                                                    model_name=getattr(state.request, "fig_desc_model", "gpt-5.1"))
         state = await figure_desc_generator.execute(state, use_agent=True)
         return state
 
@@ -173,7 +173,8 @@ def create_p2fig_image_only_graph() -> GenericGraphBuilder:
                 model=model,
                 image_path=image_path,
                 use_edit=True if image_path else False,
-                timeout=60,  # 相比默认 300s，显著收紧单次调用时间
+                timeout=60,
+                resolution='2K'
             )
 
         ok = await _call_image_api_with_retry(_gen_image)

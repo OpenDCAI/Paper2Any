@@ -1,8 +1,8 @@
 import { GenerationStage } from './types';
 
-export const BACKEND_API = '/api/paper2figure/generate';
-export const JSON_API = '/api/paper2figure/generate_json';
-export const HISTORY_API = '/api/paper2figure/history_files';
+export const BACKEND_API = '/api/v1/paper2figure/generate';
+export const JSON_API = '/api/v1/paper2figure/generate-json';
+export const HISTORY_API = '/api/v1/paper2figure/history';
 
 export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'tiff'];
 

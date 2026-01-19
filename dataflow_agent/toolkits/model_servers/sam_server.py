@@ -13,7 +13,7 @@ project_root = os.path.abspath(os.path.join(current_dir, "../../../"))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from dataflow_agent.toolkits.imtool.sam_tool import run_sam_auto, free_sam_model
+from dataflow_agent.toolkits.multimodaltool.sam_tool import run_sam_auto, free_sam_model
 
 try:
     import torch
@@ -50,7 +50,7 @@ class SAMResponse(BaseModel):
     items: List[SAMItemResponse]
 
 @app.post("/predict", response_model=SAMResponse)
-async def predict(req: SAMRequest):
+def predict(req: SAMRequest):
     """
     Run SAM auto segmentation on the given image path.
     """
@@ -109,7 +109,7 @@ async def predict(req: SAMRequest):
             torch.cuda.empty_cache()
 
 @app.post("/free_model")
-async def free_model(checkpoint: str = "sam_b.pt"):
+def free_model(checkpoint: str = "sam_b.pt"):
     try:
         free_sam_model(checkpoint)
         return {"status": "ok", "message": f"Model {checkpoint} freed"}

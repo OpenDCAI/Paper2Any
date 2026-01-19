@@ -16,7 +16,7 @@ from dataflow_agent.agentroles.paper2any_agents.content_expander_agent import cr
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
 
-from dataflow_agent.toolkits.imtool.mineru_tool import run_mineru_pdf_extract
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract
 
 log = get_logger(__name__)
 

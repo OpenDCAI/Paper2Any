@@ -37,11 +37,11 @@ from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.utils import get_project_root
 
 # Tools
-from dataflow_agent.toolkits.imtool.sam_tool import segment_layout_boxes, segment_layout_boxes_server, free_sam_model
-from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove, free_bg_rm_model
-from dataflow_agent.toolkits.imtool.mineru_tool import recursive_mineru_layout
-from dataflow_agent.toolkits.imtool.req_img import gemini_multi_image_edit_async
-from dataflow_agent.toolkits.imtool import ppt_tool
+from dataflow_agent.toolkits.multimodaltool.sam_tool import segment_layout_boxes, segment_layout_boxes_server, free_sam_model
+from dataflow_agent.toolkits.multimodaltool.bg_tool import local_tool_for_bg_remove, free_bg_rm_model
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import recursive_mineru_layout
+from dataflow_agent.toolkits.multimodaltool.req_img import gemini_multi_image_edit_async
+from dataflow_agent.toolkits.multimodaltool import ppt_tool
 
 from pptx import Presentation
 from pptx.util import Inches, Pt
@@ -150,7 +150,7 @@ def _run_sam_on_pages(image_paths: List[str], base_dir: str) -> List[Dict[str, A
                 min_area=200,
                 min_score=0.0,
                 iou_threshold=0.4,
-                top_k=25,
+                top_k=15,
                 nms_by="mask",
             )
         except Exception as e:
@@ -163,7 +163,7 @@ def _run_sam_on_pages(image_paths: List[str], base_dir: str) -> List[Dict[str, A
                 min_area=200,
                 min_score=0.0,
                 iou_threshold=0.4,
-                top_k=25,
+                top_k=15,
                 nms_by="mask",
             )
             

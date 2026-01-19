@@ -4,36 +4,6 @@ from typing import Any, Dict, List, Optional, Literal
 from dataflow_agent.utils import get_project_root
 from pydantic import BaseModel, Field
 
-
-# ============================================================
-# 与 dataflow_agent.state 中 Request / State 的对应关系说明
-# ------------------------------------------------------------
-# 1. 本文件中的 *Request 模型，尽量与 dataflow_agent.state 中
-#    对应的 xxxRequest / xxxState.request 字段保持语义对齐。
-#
-#    - OperatorWriteRequest
-#        ≈ dataflow_agent.state.PromptWritingState.request
-#        （其类型为 DFRequest）
-#
-#    - PipelineRecommendRequest
-#        ≈ dataflow_agent.state.DFRequest
-#
-# 2. 本文件中的 *Response 模型，与前缀相同的 *Request 一一对应：
-#
-#    - OperatorWriteResponse        ↔ OperatorWriteRequest
-#    - PipelineRecommendResponse    ↔ PipelineRecommendRequest
-#
-# 3. 设计原则：
-#    - Request 层：用于 FastAPI 入参，字段含义应与对应 State.request
-#      中的字段保持一致或可直接映射（如 target / language / model /
-#      chat_api_url / need_debug / max_debug_rounds / session_id 等）。
-#    - Response 层：用于 FastAPI 出参，其字段语义应尽量复用
-#      dataflow_agent.state 中 DFState / PromptWritingState 等的字段
-#      （如 matched_ops / execution_result / agent_results 等），
-#      使 API 层与 Agent 层之间的状态转换清晰、可追踪。
-# ============================================================
-
-
 # ===================== 通用基础模型 =====================
 
 
@@ -118,6 +88,12 @@ class Paper2FigureRequest(BaseModel):
     # 模型名和雨茶官网一致
 
     bg_rm_model: str = f"{get_project_root()}/models/RMBG-2.0"
+
+    # 新增模型参数
+    vlm_model: str = "qwen-vl-ocr-2025-11-20"
+    chart_model: str = "gpt-4o"
+    fig_desc_model: str = "gpt-5.1"
+    technical_model: str = "claude-haiku-4-5-20251001"
 
     # ---------------------- 输入类型设置 ----------------------
     input_type: Literal["PDF", "TEXT", "FIGURE"] = "PDF"
@@ -244,6 +220,12 @@ class Paper2PPTRequest(BaseModel):
 
     gen_fig_model: str = "gemini-3-pro-image-preview"
     # bg_rm_model: str = f"{get_project_root()}/models/RMBG-2.0"
+    
+    # 新增模型参数
+    vlm_model: str = "qwen-vl-ocr-2025-11-20"
+    chart_model: str = "gpt-4o"
+    fig_desc_model: str = "gpt-5.1"
+    technical_model: str = "claude-haiku-4-5-20251001"
 
     # ---------------------- 输入类型设置 ----------------------
     input_type: Literal["PDF", "TEXT", "PPT", "TOPIC", "FIGURE"] = "PDF"

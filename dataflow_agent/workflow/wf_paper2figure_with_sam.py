@@ -28,10 +28,10 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 
-from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
-from dataflow_agent.toolkits.imtool.bg_tool import local_tool_for_bg_remove, local_tool_for_raster_to_svg, free_bg_rm_model
-from dataflow_agent.toolkits.imtool.sam_tool import segment_layout_boxes, segment_layout_boxes_server, free_sam_model
-from dataflow_agent.toolkits.imtool.mineru_tool import (
+from dataflow_agent.toolkits.multimodaltool.req_img import generate_or_edit_and_save_image_async
+from dataflow_agent.toolkits.multimodaltool.bg_tool import local_tool_for_bg_remove, local_tool_for_raster_to_svg, free_bg_rm_model
+from dataflow_agent.toolkits.multimodaltool.sam_tool import segment_layout_boxes, segment_layout_boxes_server, free_sam_model
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import (
     svg_to_emf,
     recursive_mineru_layout,
 )
@@ -422,7 +422,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             # 如果 MinerU 只返回了 小于等于 6 个整体元素：按 SAM 布局切子图，再对每个子图单独跑 MinerU，
             # 以便获取该布局块内部的文字和更细粒度元素。底图始终使用 fig_draft_path。
             if len(mineru_items) <= details:
-                from dataflow_agent.toolkits.imtool.mineru_tool import run_aio_two_step_extract
+                from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_aio_two_step_extract
 
                 layout_items = getattr(state, "layout_items", None) or []
                 log.info(f"[figure_mask] mineru_items size = {len(mineru_items)}, 使用 SAM 布局({len(layout_items)} 个)进行二次 MinerU 拆分")
