@@ -211,20 +211,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signInWithPhoneOtp: async (phone) => {
     if (!isSupabaseConfigured()) {
-      set({ error: "Supabase is not configured", loading: false });
+      set({ error: "Supabase is not configured" });
       return false;
     }
 
-    set({ loading: true, error: null });
+    set({ error: null });
     const phoneE164 = normalizePhoneE164China(phone);
     const { error } = await supabase.auth.signInWithOtp({ phone: phoneE164 });
 
     if (error) {
-      set({ error: error.message, loading: false });
+      set({ error: error.message });
       return false;
     }
 
-    set({ loading: false });
     return true;
   },
 
