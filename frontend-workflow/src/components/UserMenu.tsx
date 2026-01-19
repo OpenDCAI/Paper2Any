@@ -37,10 +37,12 @@ export function UserMenu({ onShowFiles, onShowAccount }: UserMenuProps = {}) {
   // Hide when Supabase is not configured or no user
   if (!isSupabaseConfigured() || !user) return null;
 
-  // Check if user is anonymous (no email means anonymous/guest)
-  const isAnonymous = user.is_anonymous || !user.email;
-  const displayName = isAnonymous ? t('userMenu.anonymous') : (user.email?.split('@')[0] || t('userMenu.user'));
-  const fullEmail = user.email || "";
+  // Check if user is anonymous (only check is_anonymous flag)
+  const isAnonymous = user.is_anonymous === true;
+  const displayName = isAnonymous 
+    ? t('userMenu.anonymous') 
+    : (user.email?.split('@')[0] || user.phone?.slice(-4) || t('userMenu.user'));
+  const fullEmail = user.email || user.phone || "";
 
   const handleSignOut = async () => {
     setOpen(false);
