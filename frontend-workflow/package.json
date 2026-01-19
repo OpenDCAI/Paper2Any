@@ -16,7 +16,7 @@
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-i18next": "^16.5.1",
+    "react-i18next": "^16.5.3",
     "reactflow": "^11.10.4",
     "zustand": "^4.4.7"
   },

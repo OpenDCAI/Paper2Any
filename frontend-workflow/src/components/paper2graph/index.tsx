@@ -5,6 +5,7 @@ import { uploadAndSaveFile } from '../../services/fileService';
 import { API_KEY } from '../../config/api';
 import { checkQuota, recordUsage } from '../../services/quotaService';
 import { verifyLlmConnection } from '../../services/llmService';
+import { getApiSettings, saveApiSettings } from '../../services/apiSettingsService';
 
 import {
   UploadMode,
@@ -147,32 +148,42 @@ const Paper2FigurePage = () => {
     if (typeof window === 'undefined') return;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw) as {
-        uploadMode?: UploadMode;
-        textContent?: string;
-        graphType?: GraphType;
-        language?: Language;
-        style?: StyleType;
-        figureComplex?: FigureComplex;
-        llmApiUrl?: string;
-        apiKey?: string;
-        model?: string;
-      };
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          uploadMode?: UploadMode;
+          textContent?: string;
+          graphType?: GraphType;
+          language?: Language;
+          style?: StyleType;
+          figureComplex?: FigureComplex;
+          llmApiUrl?: string;
+          apiKey?: string;
+          model?: string;
+        };
 
-      if (saved.uploadMode) setUploadMode(saved.uploadMode);
-      if (saved.textContent) setTextContent(saved.textContent);
-      if (saved.graphType) setGraphType(saved.graphType);
-      if (saved.language) setLanguage(saved.language);
-      if (saved.style) setStyle(saved.style);
-      if (saved.figureComplex) setFigureComplex(saved.figureComplex);
-      if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
-      if (saved.apiKey) setApiKey(saved.apiKey);
-      if (saved.model) setModel(saved.model);
+        if (saved.uploadMode) setUploadMode(saved.uploadMode);
+        if (saved.textContent) setTextContent(saved.textContent);
+        if (saved.graphType) setGraphType(saved.graphType);
+        if (saved.language) setLanguage(saved.language);
+        if (saved.style) setStyle(saved.style);
+        if (saved.figureComplex) setFigureComplex(saved.figureComplex);
+        if (saved.model) setModel(saved.model);
+
+        // API settings: prioritize user-specific settings from apiSettingsService
+        const userApiSettings = getApiSettings(user?.id || null);
+        if (userApiSettings) {
+          if (userApiSettings.apiUrl) setLlmApiUrl(userApiSettings.apiUrl);
+          if (userApiSettings.apiKey) setApiKey(userApiSettings.apiKey);
+        } else {
+          // Fallback to legacy localStorage
+          if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
+          if (saved.apiKey) setApiKey(saved.apiKey);
+        }
+      }
     } catch (e) {
       console.error('Failed to restore paper2figure config', e);
     }
-  }, []);
+  }, [user?.id]);
 
   // 将配置写入 localStorage
   useEffect(() => {
@@ -190,10 +201,14 @@ const Paper2FigurePage = () => {
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      // Also save API settings to user-specific storage
+      if (user?.id && llmApiUrl && apiKey) {
+        saveApiSettings(user.id, { apiUrl: llmApiUrl, apiKey });
+      }
     } catch (e) {
       console.error('Failed to persist paper2figure config', e);
     }
-  }, [uploadMode, textContent, graphType, language, style, figureComplex, llmApiUrl, apiKey, model]);
+  }, [uploadMode, textContent, graphType, language, style, figureComplex, llmApiUrl, apiKey, model, user?.id]);
 
   // 新增：管理生成阶段的定时器
   useEffect(() => {

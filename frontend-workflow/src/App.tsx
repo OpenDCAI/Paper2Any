@@ -7,15 +7,16 @@ import Image2PptPage from './components/Image2PptPage';
 import Ppt2PolishPage from './components/Ppt2PolishPage';
 // import KnowledgeBasePage from './components/KnowledgeBasePage';
 import { FilesPage } from './components/FilesPage';
+import { AccountPage } from './components/AccountPage';
 import { useTranslation } from 'react-i18next';
-import { QuotaDisplay } from './components/QuotaDisplay';
+import { PointsDisplay } from './components/PointsDisplay';
 import { UserMenu } from './components/UserMenu';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { Workflow } from 'lucide-react';
 
 function App() {
   const { t } = useTranslation('common');
-  const [activePage, setActivePage] = useState<'paper2figure' | 'paper2ppt' | 'pdf2ppt' | 'image2ppt' | 'ppt2polish' | 'knowledge' | 'files'>('paper2figure');
+  const [activePage, setActivePage] = useState<'paper2figure' | 'paper2ppt' | 'pdf2ppt' | 'image2ppt' | 'ppt2polish' | 'knowledge' | 'files' | 'account'>('paper2figure');
 
   return (
     <div className="w-screen h-screen bg-[#0a0a1a] overflow-hidden relative">
@@ -112,12 +113,22 @@ function App() {
               >
                 {t('app.nav.files')}
               </button>
+              <button
+                onClick={() => setActivePage('account')}
+                className={`px-3 py-1.5 rounded-full text-sm ${
+                  activePage === 'account'
+                    ? 'bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow'
+                    : 'glass text-gray-300 hover:bg-white/10'
+                }`}
+              >
+                账户
+              </button>
             </div>
 
             {/* 右侧：配额显示 & 用户菜单 */}
             <div className="flex items-center gap-3">
               <LanguageSwitcher />
-              <QuotaDisplay />
+              <PointsDisplay />
               <UserMenu />
             </div>
           </div>
@@ -134,6 +145,7 @@ function App() {
           {activePage === 'ppt2polish' && <Ppt2PolishPage />}
           {/* {activePage === 'knowledge' && <KnowledgeBasePage />} */}
           {activePage === 'files' && <FilesPage />}
+          {activePage === 'account' && <AccountPage />}
         </div>
       </main>
 

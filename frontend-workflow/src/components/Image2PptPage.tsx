@@ -9,6 +9,7 @@ import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
 import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
+import { getApiSettings, saveApiSettings } from '../services/apiSettingsService';
 import QRCodeTooltip from './QRCodeTooltip';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB for images
@@ -105,6 +106,22 @@ const Image2PptPage = () => {
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [genFigModel, setGenFigModel] = useState('gemini-3-pro-image-preview');
+
+  // Load user-specific API settings
+  useEffect(() => {
+    const userApiSettings = getApiSettings(user?.id || null);
+    if (userApiSettings) {
+      if (userApiSettings.apiUrl) setLlmApiUrl(userApiSettings.apiUrl);
+      if (userApiSettings.apiKey) setApiKey(userApiSettings.apiKey);
+    }
+  }, [user?.id]);
+
+  // Save API settings when changed
+  useEffect(() => {
+    if (user?.id && llmApiUrl && apiKey) {
+      saveApiSettings(user.id, { apiUrl: llmApiUrl, apiKey });
+    }
+  }, [llmApiUrl, apiKey, user?.id]);
 
   const validateImageFile = (file: File): boolean => {
     const validTypes = ['image/jpeg', 'image/png', 'image/jpg'];

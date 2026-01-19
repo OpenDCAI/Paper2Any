@@ -5,6 +5,7 @@ import { API_KEY } from '../../config/api';
 import { checkQuota, recordUsage } from '../../services/quotaService';
 import { verifyLlmConnection } from '../../services/llmService';
 import { useAuthStore } from '../../stores/authStore';
+import { getApiSettings, saveApiSettings } from '../../services/apiSettingsService';
 
 import { Step, SlideOutline, GenerateResult, UploadMode, StyleMode, StylePreset } from './types';
 import { MAX_FILE_SIZE, STORAGE_KEY } from './constants';
@@ -147,25 +148,34 @@ const Paper2PptPage = () => {
     if (typeof window === 'undefined') return;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw);
-      
-      if (saved.uploadMode) setUploadMode(saved.uploadMode);
-      if (saved.textContent) setTextContent(saved.textContent);
-      if (saved.styleMode) setStyleMode(saved.styleMode);
-      if (saved.stylePreset) setStylePreset(saved.stylePreset);
-      if (saved.globalPrompt) setGlobalPrompt(saved.globalPrompt);
-      if (saved.pageCount) setPageCount(saved.pageCount);
-      if (saved.useLongPaper !== undefined) setUseLongPaper(saved.useLongPaper);
-      if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
-      if (saved.apiKey) setApiKey(saved.apiKey);
-      if (saved.model) setModel(saved.model);
-      if (saved.genFigModel) setGenFigModel(saved.genFigModel);
-      if (saved.language) setLanguage(saved.language);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        
+        if (saved.uploadMode) setUploadMode(saved.uploadMode);
+        if (saved.textContent) setTextContent(saved.textContent);
+        if (saved.styleMode) setStyleMode(saved.styleMode);
+        if (saved.stylePreset) setStylePreset(saved.stylePreset);
+        if (saved.globalPrompt) setGlobalPrompt(saved.globalPrompt);
+        if (saved.pageCount) setPageCount(saved.pageCount);
+        if (saved.useLongPaper !== undefined) setUseLongPaper(saved.useLongPaper);
+        if (saved.model) setModel(saved.model);
+        if (saved.genFigModel) setGenFigModel(saved.genFigModel);
+        if (saved.language) setLanguage(saved.language);
+
+        // API settings: prioritize user-specific settings from apiSettingsService
+        const userApiSettings = getApiSettings(user?.id || null);
+        if (userApiSettings) {
+          if (userApiSettings.apiUrl) setLlmApiUrl(userApiSettings.apiUrl);
+          if (userApiSettings.apiKey) setApiKey(userApiSettings.apiKey);
+        } else {
+          if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
+          if (saved.apiKey) setApiKey(saved.apiKey);
+        }
+      }
     } catch (e) {
       console.error('Failed to restore paper2ppt config', e);
     }
-  }, []);
+  }, [user?.id]);
 
   // 将配置写入 localStorage
   useEffect(() => {
@@ -186,13 +196,16 @@ const Paper2PptPage = () => {
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      if (user?.id && llmApiUrl && apiKey) {
+        saveApiSettings(user.id, { apiUrl: llmApiUrl, apiKey });
+      }
     } catch (e) {
       console.error('Failed to persist paper2ppt config', e);
     }
   }, [
     uploadMode, textContent, styleMode, stylePreset, globalPrompt, 
     pageCount, useLongPaper, llmApiUrl, apiKey, 
-    model, genFigModel, language
+    model, genFigModel, language, user?.id
   ]);
 
   // ============== Step 1: 上传处理 ==============
