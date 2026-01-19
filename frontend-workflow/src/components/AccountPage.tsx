@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "../stores/authStore";
 import { supabase } from "../lib/supabase";
 import { getApiSettings, saveApiSettings } from "../services/apiSettingsService";
-import { Ticket, Coins, Key, AlertCircle, Loader2, Copy, CheckCircle2, Settings } from "lucide-react";
+import { Ticket, Coins, Key, AlertCircle, Loader2, Copy, CheckCircle2, Settings, Users, History } from "lucide-react";
 
 interface ProfileData {
   invite_code: string;
@@ -14,6 +14,19 @@ interface ProfileData {
 
 interface PointsBalance {
   balance: number;
+}
+
+interface ReferralRecord {
+  id: string;
+  referred_user_id: string;
+  created_at: string;
+}
+
+interface PointsLedgerRecord {
+  id: string;
+  amount: number;
+  description: string;
+  created_at: string;
 }
 
 export function AccountPage() {
@@ -26,6 +39,10 @@ export function AccountPage() {
   const [claiming, setClaiming] = useState(false);
   const [claimSuccess, setClaimSuccess] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [referrals, setReferrals] = useState<ReferralRecord[]>([]);
+  const [loadingReferrals, setLoadingReferrals] = useState(true);
+  const [pointsLedger, setPointsLedger] = useState<PointsLedgerRecord[]>([]);
+  const [loadingLedger, setLoadingLedger] = useState(true);
 
   // API settings (local storage)
   const [apiUrl, setApiUrl] = useState("");
@@ -103,6 +120,62 @@ export function AccountPage() {
       setApiUrl(settings.apiUrl);
       setApiKey(settings.apiKey);
     }
+  }, [userId]);
+
+  // Load referral history
+  useEffect(() => {
+    if (!userId) {
+      setLoadingReferrals(false);
+      return;
+    }
+
+    const fetchReferrals = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("referrals")
+          .select("id, referred_user_id, created_at")
+          .eq("referrer_user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(10);
+
+        if (error) throw error;
+        setReferrals(data || []);
+      } catch (err) {
+        console.error("[AccountPage] Failed to load referrals:", err);
+      } finally {
+        setLoadingReferrals(false);
+      }
+    };
+
+    fetchReferrals();
+  }, [userId]);
+
+  // Load points ledger
+  useEffect(() => {
+    if (!userId) {
+      setLoadingLedger(false);
+      return;
+    }
+
+    const fetchLedger = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("points_ledger")
+          .select("id, amount, description, created_at")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(20);
+
+        if (error) throw error;
+        setPointsLedger(data || []);
+      } catch (err) {
+        console.error("[AccountPage] Failed to load points ledger:", err);
+      } finally {
+        setLoadingLedger(false);
+      }
+    };
+
+    fetchLedger();
   }, [userId]);
 
   const handleClaimInvite = async () => {
@@ -293,6 +366,77 @@ export function AccountPage() {
                   </span>
                   <span className="text-2xl text-gray-400">积分</span>
                 </div>
+              )}
+            </div>
+
+            {/* Invite History Card */}
+            <div className="glass-dark rounded-xl border border-white/10 p-6 hover:border-purple-500/30 transition-all">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-purple-500/20">
+                  <Users size={20} className="text-purple-400" />
+                </div>
+                <h2 className="text-lg font-semibold text-white">邀请历史</h2>
+              </div>
+
+              {loadingReferrals ? (
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Loader2 size={16} className="animate-spin" />
+                  <span className="text-sm">加载中...</span>
+                </div>
+              ) : referrals.length > 0 ? (
+                <div className="space-y-2">
+                  {referrals.map((ref) => (
+                    <div key={ref.id} className="flex items-center justify-between px-4 py-3 bg-black/20 border border-white/5 rounded-lg hover:bg-white/5 transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
+                          {ref.referred_user_id.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-sm text-white font-mono">{ref.referred_user_id.slice(0, 8)}...</p>
+                          <p className="text-xs text-gray-400">{new Date(ref.created_at).toLocaleDateString('zh-CN')}</p>
+                        </div>
+                      </div>
+                      <CheckCircle2 size={16} className="text-green-400" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-400 text-sm text-center py-4">暂无邀请记录</p>
+              )}
+            </div>
+
+            {/* Points Ledger Card */}
+            <div className="glass-dark rounded-xl border border-white/10 p-6 hover:border-yellow-500/30 transition-all">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-yellow-500/20">
+                  <History size={20} className="text-yellow-400" />
+                </div>
+                <h2 className="text-lg font-semibold text-white">积分记录</h2>
+              </div>
+
+              {loadingLedger ? (
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Loader2 size={16} className="animate-spin" />
+                  <span className="text-sm">加载中...</span>
+                </div>
+              ) : pointsLedger.length > 0 ? (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {pointsLedger.map((record) => (
+                    <div key={record.id} className="flex items-center justify-between px-4 py-3 bg-black/20 border border-white/5 rounded-lg hover:bg-white/5 transition-all">
+                      <div className="flex-1">
+                        <p className="text-sm text-white">{record.description}</p>
+                        <p className="text-xs text-gray-400">{new Date(record.created_at).toLocaleString('zh-CN')}</p>
+                      </div>
+                      <span className={`text-base font-bold ${
+                        record.amount > 0 ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        {record.amount > 0 ? '+' : ''}{record.amount}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-400 text-sm text-center py-4">暂无积分记录</p>
               )}
             </div>
 
