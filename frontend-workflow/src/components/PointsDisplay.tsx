@@ -78,7 +78,7 @@ export function PointsDisplay() {
     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-white/5 border-white/10">
       <Coins size={16} className="text-yellow-400" />
       <span className="text-sm text-gray-300">
-        {points ?? 0} 积分
+        {points ?? 0} 次
       </span>
     </div>
   );

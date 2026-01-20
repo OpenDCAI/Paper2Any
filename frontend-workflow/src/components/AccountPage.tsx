@@ -245,7 +245,7 @@ export function AccountPage() {
             👤 我的账户
           </h1>
           <p className="text-gray-400">
-            管理您的个人信息、积分和 API 配置
+            管理您的个人信息、使用次数和 API 配置
           </p>
         </div>
 
@@ -307,7 +307,7 @@ export function AccountPage() {
                 <div className="relative group">
                   <HelpCircle size={14} className="text-gray-400 cursor-help" />
                   <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block w-48 px-3 py-2 bg-gray-900 border border-white/20 rounded-lg text-xs text-gray-300 shadow-xl z-10">
-                    邀请方和被邀请方都能获得 10 积分
+                    邀请方和被邀请方都能获得 10 次使用机会
                     <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                   </div>
                 </div>
@@ -363,7 +363,7 @@ export function AccountPage() {
                 <div className="p-2 rounded-lg bg-yellow-500/20">
                   <Coins size={24} className="text-yellow-400" />
                 </div>
-                <h2 className="text-xl font-semibold text-white">积分余额</h2>
+                <h2 className="text-xl font-semibold text-white">剩余次数</h2>
               </div>
 
               {loadingPoints ? (
@@ -376,7 +376,7 @@ export function AccountPage() {
                   <span className="text-6xl font-bold bg-gradient-to-r from-yellow-400 via-orange-400 to-yellow-500 bg-clip-text text-transparent">
                     {points?.balance ?? 0}
                   </span>
-                  <span className="text-2xl text-gray-400">积分</span>
+                  <span className="text-2xl text-gray-400">次</span>
                 </div>
               )}
             </div>
@@ -492,7 +492,7 @@ export function AccountPage() {
                 <div className="p-2 rounded-lg bg-yellow-500/20">
                   <History size={20} className="text-yellow-400" />
                 </div>
-                <h2 className="text-lg font-semibold text-white">积分记录</h2>
+                <h2 className="text-lg font-semibold text-white">使用记录</h2>
               </div>
 
               {loadingLedger ? (
@@ -517,7 +517,7 @@ export function AccountPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-400 text-sm text-center py-4">暂无积分记录</p>
+                <p className="text-gray-400 text-sm text-center py-4">暂无使用记录</p>
               )}
             </div>
           </div>
