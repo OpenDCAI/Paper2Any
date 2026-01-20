@@ -369,16 +369,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   claimInviteCode: async (inviteCode) => {
     if (!isSupabaseConfigured()) {
-      set({ error: "Supabase is not configured", loading: false });
+      set({ error: "Supabase is not configured" });
       return;
     }
 
-    set({ loading: true, error: null });
+    set({ error: null });
 
     try {
       await tryClaimInviteCode(inviteCode.trim());
       localStorage.removeItem(INVITE_CODE_STORAGE_KEY);
-      set({ loading: false });
       await get().refreshQuota();
     } catch (e) {
       // If DB isn't ready yet, store locally and retry later.
@@ -387,7 +386,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } catch {
         // ignore
       }
-      set({ error: String(e), loading: false });
+      set({ error: String(e) });
     }
   },
 
