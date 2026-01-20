@@ -10,7 +10,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, UploadFile, File, Form, Request, HTTPException
 from fastapi.responses import FileResponse
 
-from fastapi_app.dependencies import get_current_user, AuthUser
+from fastapi_app.dependencies import get_current_user, get_optional_user, AuthUser
 from dataflow_agent.utils import get_project_root
 
 
