@@ -65,6 +65,7 @@ requests
 termcolor
 uvicorn
 sseclient-py
+supabase
 
 langgraph==0.6.7
 langgraph-checkpoint==2.1.1
