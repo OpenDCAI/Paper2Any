@@ -143,33 +143,55 @@ export async function uploadAndSaveFile(
  * @returns List of file records sorted by created_at desc
  */
 export async function getFileRecords(): Promise<FileRecord[]> {
-  // 使用后端接口获取本地历史文件
   try {
     const user = useAuthStore.getState().user;
     const email = user?.email;
 
-    if (!email) {
+    // 如果有 email，使用后端接口获取本地历史文件
+    if (email) {
+      const res = await fetch(`/api/v1/paper2figure/history?email=${encodeURIComponent(email)}`, {
+        headers: {
+          'X-API-Key': API_KEY,
+        },
+      });
+      if (!res.ok) {
+        console.error(`[fileService] History API failed: ${res.statusText}`);
+        return [];
+      }
+      
+      const data = await res.json();
+      if (!data.success) {
+        console.error("[fileService] History API returned error", data);
+        return [];
+      }
+      
+      return data.files || [];
+    }
+
+    // 如果没有 email（手机号登录），从 Supabase user_files 表查询
+    if (!isSupabaseConfigured() || !user) {
       return [];
     }
 
-    const res = await fetch(`/api/v1/paper2figure/history?email=${encodeURIComponent(email)}`, {
-      headers: {
-        'X-API-Key': API_KEY,
-      },
-    });
-    if (!res.ok) {
-        console.error(`[fileService] History API failed: ${res.statusText}`);
-        return [];
+    const { data, error } = await supabase
+      .from("user_files")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("[fileService] Failed to fetch user_files:", error);
+      return [];
     }
-    
-    const data = await res.json();
-    if (!data.success) {
-        console.error("[fileService] History API returned error", data);
-        return [];
-    }
-    
-    // 后端返回的数据已经匹配 FileRecord 结构 (在后端做过适配)
-    return data.files || [];
+
+    return (data || []).map((record) => ({
+      id: record.id,
+      file_name: record.file_name,
+      file_size: record.file_size,
+      workflow_type: record.workflow_type,
+      created_at: record.created_at,
+      download_url: record.file_path,
+    }));
 
   } catch (err) {
     console.error("[fileService] Error getting file records:", err);
