@@ -101,18 +101,13 @@ export async function checkQuota(userId: string | null, isAnonymous: boolean = f
       };
     }
 
-    // For anonymous users, check daily usage count
+    // For anonymous users, use local storage (cannot query Supabase with non-UUID user_id)
+    const localUsage = getLocalUsage();
     const today = getTodayDate();
-
-    const { count, error } = await supabase
-      .from('usage_records')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userIdentifier)
-      .gte('created_at', `${today}T00:00:00Z`)
-      .lt('created_at', `${today}T23:59:59Z`);
-
-    if (error) {
-      console.error('[quotaService] Failed to check quota:', error);
+    
+    // Reset count if it's a new day
+    if (localUsage.date !== today) {
+      setLocalUsage(today, 0);
       return {
         used: 0,
         limit,
@@ -121,13 +116,10 @@ export async function checkQuota(userId: string | null, isAnonymous: boolean = f
       };
     }
 
-    const used = count || 0;
-    const remaining = Math.max(0, limit - used);
-
     return {
-      used,
+      used: localUsage.count,
       limit,
-      remaining,
+      remaining: Math.max(0, limit - localUsage.count),
       isAuthenticated,
     };
   } catch (err) {
@@ -167,8 +159,8 @@ export async function recordUsage(
   }
 
   try {
-    // For authenticated users (non-fingerprint), deduct 1 point
-    if (userId && !userIdentifier.startsWith('fp_')) {
+    // For authenticated users, deduct 1 point
+    if (userId) {
       const { data, error: rpcError } = await supabase.rpc('deduct_points', {
         p_user_id: userId,
         p_amount: 1,
@@ -185,18 +177,15 @@ export async function recordUsage(
         console.warn('[quotaService] Insufficient points');
         return false;
       }
+      
+      return true;
     }
 
-    // Record usage in usage_records table
-    const { error } = await supabase.from('usage_records').insert({
-      user_id: userIdentifier,
-      workflow_type: workflowType,
-    });
-
-    if (error) {
-      console.error('[quotaService] Failed to record usage:', error);
-      return false;
-    }
+    // For anonymous users, use local storage (cannot insert non-UUID into usage_records)
+    const local = getLocalUsage();
+    const today = getTodayDate();
+    const newCount = local.date === today ? local.count + 1 : 1;
+    setLocalUsage(today, newCount);
 
     return true;
   } catch (err) {
