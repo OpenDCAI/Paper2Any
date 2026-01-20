@@ -47,8 +47,6 @@ const Paper2PptPage = () => {
     layout_description: string;
     key_points: string[];
   }>({ title: '', layout_description: '', key_points: [] });
-  const [outlineFeedback, setOutlineFeedback] = useState('');
-  const [isRefiningOutline, setIsRefiningOutline] = useState(false);
   
   // Step 3: 生成相关状态
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
@@ -486,100 +484,7 @@ const Paper2PptPage = () => {
     setOutlineData(newData.map((s, i) => ({ ...s, pageNum: i + 1 })));
   };
 
-  const handleRefineOutline = async () => {
-    if (isRefiningOutline) return;
-    if (!outlineFeedback.trim()) {
-      setError('请输入修改需求');
-      return;
-    }
-    if (!resultPath) {
-      setError('缺少 result_path，请重新上传文件');
-      return;
-    }
-
-    setError(null);
-    setIsRefiningOutline(true);
-
-    const currentOutline = editingId
-      ? outlineData.map(s =>
-          s.id === editingId
-            ? {
-                ...s,
-                title: editContent.title,
-                layout_description: editContent.layout_description,
-                key_points: editContent.key_points,
-              }
-            : s
-        )
-      : outlineData;
-
-    if (editingId) {
-      setOutlineData(currentOutline);
-      setEditingId(null);
-    }
-
-    const pagecontent = currentOutline.map((slide) => ({
-      title: slide.title,
-      layout_description: slide.layout_description,
-      key_points: slide.key_points,
-      asset_ref: slide.asset_ref,
-    }));
-
-    try {
-      const formData = new FormData();
-      formData.append('outline_feedback', outlineFeedback.trim());
-      formData.append('pagecontent', JSON.stringify(pagecontent));
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
-      formData.append('model', model);
-      formData.append('language', language);
-      formData.append('email', user?.email || '');
-      formData.append('result_path', resultPath);
-
-      const res = await fetch('/api/v1/paper2ppt/outline-refine', {
-        method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
-        body: formData,
-      });
-
-      if (!res.ok) {
-        let msg = '服务器繁忙，请稍后再试';
-        if (res.status === 429) {
-          msg = '请求过于频繁，请稍后再试';
-        }
-        throw new Error(msg);
-      }
-
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error('服务器繁忙，请稍后再试');
-      }
-
-      if (!data.pagecontent || data.pagecontent.length === 0) {
-        throw new Error('AI 调整失败，请重试');
-      }
-
-      const refinedSlides: SlideOutline[] = data.pagecontent.map((item: any, index: number) => ({
-        id: String(index + 1),
-        pageNum: index + 1,
-        title: item.title || `第 ${index + 1} 页`,
-        layout_description: item.layout_description || '',
-        key_points: item.key_points || [],
-        asset_ref: item.asset_ref || null,
-      }));
-
-      setOutlineData(refinedSlides);
-      setOutlineFeedback('');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
-      setError(message);
-    } finally {
-      setIsRefiningOutline(false);
-    }
-  };
-
   const handleConfirmOutline = async () => {
-    if (isRefiningOutline) return;
     setCurrentStep('generate');
     setCurrentSlideIndex(0);
     setIsGenerating(true);
@@ -976,30 +881,26 @@ const Paper2PptPage = () => {
             />
           )}
           
-      {currentStep === 'outline' && (
-        <OutlineStep
-          outlineData={outlineData}
-          editingId={editingId}
-          editContent={editContent}
-          setEditContent={setEditContent}
-          handleEditStart={handleEditStart}
-          handleEditSave={handleEditSave}
-          handleEditCancel={handleEditCancel}
-          handleKeyPointChange={handleKeyPointChange}
-          handleAddKeyPoint={handleAddKeyPoint}
-          handleRemoveKeyPoint={handleRemoveKeyPoint}
-          handleDeleteSlide={handleDeleteSlide}
-          handleAddSlide={handleAddSlide}
-          handleMoveSlide={handleMoveSlide}
-          handleConfirmOutline={handleConfirmOutline}
-          handleRefineOutline={handleRefineOutline}
-          setCurrentStep={setCurrentStep}
-          error={error}
-          outlineFeedback={outlineFeedback}
-          setOutlineFeedback={setOutlineFeedback}
-          isRefiningOutline={isRefiningOutline}
-        />
-      )}
+          {currentStep === 'outline' && (
+            <OutlineStep
+              outlineData={outlineData}
+              editingId={editingId}
+              editContent={editContent}
+              setEditContent={setEditContent}
+              handleEditStart={handleEditStart}
+              handleEditSave={handleEditSave}
+              handleEditCancel={handleEditCancel}
+              handleKeyPointChange={handleKeyPointChange}
+              handleAddKeyPoint={handleAddKeyPoint}
+              handleRemoveKeyPoint={handleRemoveKeyPoint}
+              handleDeleteSlide={handleDeleteSlide}
+              handleAddSlide={handleAddSlide}
+              handleMoveSlide={handleMoveSlide}
+              handleConfirmOutline={handleConfirmOutline}
+              setCurrentStep={setCurrentStep}
+              error={error}
+            />
+          )}
           
           {currentStep === 'generate' && (
             <GenerateStep

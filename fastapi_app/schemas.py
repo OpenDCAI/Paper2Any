@@ -162,18 +162,6 @@ class PageContentRequest(BaseModel):
     use_long_paper: str = "false"
 
 
-class OutlineRefineRequest(BaseModel):
-    """Refine outline based on user feedback without re-parsing input."""
-    chat_api_url: str
-    api_key: str
-    email: Optional[str] = None
-    model: str = "gpt-5.1"
-    language: str = "zh"
-    result_path: Optional[str] = None
-    outline_feedback: str
-    pagecontent: str
-
-
 class PPTGenerationRequest(BaseModel):
     """专用于PPT生成/编辑的请求模型"""
     img_gen_model_name: str

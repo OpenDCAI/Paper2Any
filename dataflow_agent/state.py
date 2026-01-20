@@ -346,7 +346,6 @@ class Paper2FigureState(MainState):
     minueru_output: str = ""
     mineru_root: str = ""
     text_content: str = ""
-    outline_feedback: str = ""
     # 生成的 PPT PDF 路径
     ppt_pdf_path: str = ""
     ppt_pptx_path: str = ""
