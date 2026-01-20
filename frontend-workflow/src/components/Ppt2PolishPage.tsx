@@ -1068,7 +1068,8 @@ const Ppt2PolishPage = () => {
           const fileRes = await fetch(fetchUrl);
           if (fileRes.ok) {
             const fileBlob = await fileRes.blob();
-            const fileName = fileUrl.split('/').pop() || defaultName;
+            // Use defaultName instead of extracting from URL to avoid reserved keywords and special chars
+            const fileName = defaultName;
             console.log('[Ppt2PolishPage] Uploading file to storage:', fileName);
             await uploadAndSaveFile(fileBlob, fileName, 'ppt2polish');
             console.log('[Ppt2PolishPage] File uploaded successfully');
