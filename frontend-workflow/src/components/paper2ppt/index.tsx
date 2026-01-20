@@ -345,7 +345,7 @@ const Paper2PptPage = () => {
         formData.append('input_type', uploadMode); // 'text' or 'topic'
       }
       
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       formData.append('chat_api_url', llmApiUrl.trim());
       formData.append('api_key', apiKey.trim());
       formData.append('model', model);
@@ -520,7 +520,7 @@ const Paper2PptPage = () => {
       formData.append('language', language);
       formData.append('style', globalPrompt || getStyleDescription(stylePreset));
       formData.append('aspect_ratio', '16:9');
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath || '');
       formData.append('get_down', 'false');
 
@@ -626,7 +626,7 @@ const Paper2PptPage = () => {
       formData.append('language', language);
       formData.append('style', globalPrompt || getStyleDescription(stylePreset));
       formData.append('aspect_ratio', '16:9');
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath);
       formData.append('get_down', 'true');
       formData.append('page_id', String(currentSlideIndex));
@@ -731,7 +731,7 @@ const Paper2PptPage = () => {
       formData.append('language', language);
       formData.append('style', globalPrompt || getStyleDescription(stylePreset));
       formData.append('aspect_ratio', '16:9');
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath);
       formData.append('get_down', 'false');
       formData.append('all_edited_down', 'true');

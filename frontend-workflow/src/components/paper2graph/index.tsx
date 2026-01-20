@@ -377,7 +377,7 @@ const Paper2FigurePage = () => {
       formData.append('chat_api_url', llmApiUrl.trim());
       formData.append('api_key', apiKey.trim());
       formData.append('input_type', uploadMode);
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       formData.append('graph_type', graphType);
       formData.append('style', style);
       formData.append('figure_complex', figureComplex);
@@ -750,7 +750,7 @@ const Paper2FigurePage = () => {
             model={model}
             llmApiUrl={llmApiUrl}
             apiKey={apiKey}
-            email={user?.email || ''}
+            email={user?.id || user?.email || ''}
             figureComplex={figureComplex}
             language={language}
           />

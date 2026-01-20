@@ -227,7 +227,7 @@ const Image2PptPage = () => {
     try {
       const formData = new FormData();
       formData.append('image_file', selectedFile);
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       
       if (useAiEdit) {
         formData.append('use_ai_edit', 'true');

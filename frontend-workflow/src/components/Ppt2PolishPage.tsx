@@ -456,7 +456,7 @@ const Ppt2PolishPage = () => {
       formData.append('style', globalPrompt || stylePreset);
       formData.append('gen_fig_model', genFigModel);
       formData.append('page_count', '10'); // 默认值，后端可能会调整
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       formData.append('input_type', 'pptx');
       formData.append('file', selectedFile);
       
@@ -733,7 +733,7 @@ const Ppt2PolishPage = () => {
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
       formData.append('aspect_ratio', '16:9');
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', currentPath);
       formData.append('get_down', 'false');
       formData.append('pagecontent', JSON.stringify(pagecontent));
@@ -869,7 +869,7 @@ const Ppt2PolishPage = () => {
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
       formData.append('aspect_ratio', '16:9');
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', currentPath);
       formData.append('get_down', 'true');
       formData.append('page_id', String(index));
@@ -992,7 +992,7 @@ const Ppt2PolishPage = () => {
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
       formData.append('aspect_ratio', '16:9');
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath);
       formData.append('get_down', 'false');
       formData.append('all_edited_down', 'true');

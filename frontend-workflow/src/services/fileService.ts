@@ -75,7 +75,7 @@ export async function uploadAndSaveFile(
     // Add email if no session (fallback for non-Supabase deployments)
     if (!session) {
       console.warn("[fileService] No authenticated session, using email fallback");
-      // Try to get email from user state (if available)
+      // Try to get user identifier from user state (if available)
       const user = (window as any).__user_email;
       if (user) {
         formData.append('email', user);
