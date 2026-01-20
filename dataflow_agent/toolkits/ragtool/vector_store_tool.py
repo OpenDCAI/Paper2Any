@@ -13,9 +13,9 @@ from typing import List, Dict, Any, Optional, Union
 from PIL import Image
 
 # Import existing tools
-from dataflow_agent.toolkits.imtool.mineru_tool import run_mineru_pdf_extract
-from dataflow_agent.toolkits.imtool.req_videos import call_video_understanding_async
-from dataflow_agent.toolkits.imtool.req_understanding import call_image_understanding_async
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract
+from dataflow_agent.toolkits.multimodaltool.req_videos import call_video_understanding_async
+from dataflow_agent.toolkits.multimodaltool.req_understanding import call_image_understanding_async
 import dataflow_agent.utils as utils
 from dataflow_agent.logger import get_logger
 

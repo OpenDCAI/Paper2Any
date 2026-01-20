@@ -22,7 +22,7 @@ async def generate_pdf2ppt(
     # API 配置 - 如果 use_ai_edit=True 则必填
     chat_api_url: str = Form(None),
     api_key: str = Form(None),
-    invite_code: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
     # 可选配置
     use_ai_edit: bool = Form(False),
     model: str = Form("gpt-4o"),
@@ -55,7 +55,7 @@ async def generate_pdf2ppt(
         pdf_file=pdf_file,
         chat_api_url=chat_api_url,
         api_key=api_key,
-        invite_code=invite_code,
+        email=email,
         use_ai_edit=use_ai_edit,
         model=model,
         gen_fig_model=gen_fig_model,

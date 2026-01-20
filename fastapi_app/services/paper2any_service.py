@@ -71,11 +71,16 @@ class Paper2AnyService:
             log.error(f"LLM Verification failed: {e}")
             return VerifyLlmResponse(success=False, error=str(e))
 
-    async def list_history_files(self, invite_code: str, request: Request) -> Dict[str, Any]:
+    async def list_history_files(self, email: str, request: Request) -> Dict[str, Any]:
         """
         列出历史文件
         """
-        base_dir = PROJECT_ROOT / "outputs" / invite_code
+        if not email:
+             return {
+                "success": True,
+                "files": [],
+            }
+        base_dir = PROJECT_ROOT / "outputs" / email
 
         if not base_dir.exists():
             return {
@@ -83,31 +88,63 @@ class Paper2AnyService:
                 "files": [],
             }
 
-        file_urls: list[str] = []
+        files_data: list[dict] = []
 
-        # 第一层：invite_code/level1
-        for level1 in base_dir.iterdir():
-            if not level1.is_dir():
+        # 递归扫描所有文件
+        for p in base_dir.rglob("*"):
+            if not p.is_file():
+                continue
+            
+            # 排除 input 目录中的文件
+            # 检查路径各部分是否包含 "input"
+            if "input" in p.parts:
                 continue
 
-            # 第二层：invite_code/level1/level2
-            for level2 in level1.iterdir():
-                if level2.is_file():
-                    # 若 level2 直接是文件，也纳入
-                    if level2.suffix.lower() in {".pptx", ".png", ".svg"}:
-                        file_urls.append(_to_outputs_url(str(level2), request))
-                elif level2.is_dir():
-                    # 只取该目录里的直接文件，不再往下递归
-                    for p in level2.iterdir():
-                        if p.is_file() and p.suffix.lower() in {".pptx", ".png", ".svg"}:
-                            file_urls.append(_to_outputs_url(str(p), request))
+            # 只保留特定类型的文件
+            suffix = p.suffix.lower()
+            filename = p.name
+            
+            if suffix in {".pptx", ".pdf", ".png", ".svg"}:
+                # 筛选逻辑优化：
+                # 1. .pptx 都要显示
+                # 2. paper2ppt 开头的文件都要显示 (包含 paper2ppt.pdf, paper2ppt_*.pptx)
+                # 3. fig_ 开头的图片(png, svg)都要显示
+                should_show = False
+                if suffix == ".pptx":
+                    should_show = True
+                elif filename.startswith("paper2ppt"):
+                    should_show = True
+                elif filename.startswith("fig_") and suffix in {".png", ".svg"}:
+                    should_show = True
+                
+                if should_show:
+                    stat = p.stat()
+                    url = _to_outputs_url(str(p), request)
+                    
+                    # 推断 workflow_type: outputs/email/task_type/...
+                    try:
+                        rel = p.relative_to(base_dir)
+                        wf_type = rel.parts[0] if len(rel.parts) > 0 else "unknown"
+                        file_id = str(rel)  # 使用相对路径作为唯一ID
+                    except Exception:
+                        wf_type = "unknown"
+                        file_id = str(p.name) + "_" + str(stat.st_mtime)
 
-        # 排序：按路径字符串倒序，粗略实现“新文件在前”
-        file_urls.sort(reverse=True)
+                    files_data.append({
+                        "id": file_id,
+                        "file_name": p.name,
+                        "file_size": stat.st_size,
+                        "workflow_type": wf_type,
+                        "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                        "download_url": url
+                    })
+
+        # 排序：按修改时间倒序
+        files_data.sort(key=lambda x: x["created_at"], reverse=True)
 
         return {
             "success": True,
-            "files": file_urls,
+            "files": files_data,
         }
 
     async def generate_paper2figure(
@@ -116,7 +153,7 @@ class Paper2AnyService:
         chat_api_url: str,
         api_key: str,
         input_type: str,
-        invite_code: Optional[str],
+        email: Optional[str],
         file: Optional[UploadFile],
         file_kind: Optional[str],
         text: Optional[str],
@@ -145,7 +182,7 @@ class Paper2AnyService:
             raise HTTPException(status_code=400, detail="invalid graph_type")
 
         # 3. 创建目录并保存输入
-        run_dir = self._create_run_dir(task_type)
+        run_dir = self._create_run_dir(task_type, email)
         input_dir = run_dir / "input"
         
         real_input_type, real_input_content = await self._save_and_prepare_input(
@@ -166,12 +203,12 @@ class Paper2AnyService:
             graph_type=graph_type,
             style=style,
             figure_complex=final_figure_complex,
-            invite_code=invite_code or "",
+            email=email or "",
         )
 
         # 5. 执行 workflow
         async with task_semaphore:
-            p2f_resp = await run_paper2figure_wf_api(p2f_req)
+            p2f_resp = await run_paper2figure_wf_api(p2f_req, result_path=run_dir)
 
         # 6. 处理返回路径
         raw_path = Path(p2f_resp.ppt_filename)
@@ -195,7 +232,7 @@ class Paper2AnyService:
         chat_api_url: str,
         api_key: str,
         input_type: str,
-        invite_code: Optional[str],
+        email: Optional[str],
         file: Optional[UploadFile],
         file_kind: Optional[str],
         text: Optional[str],
@@ -222,7 +259,7 @@ class Paper2AnyService:
             raise HTTPException(status_code=400, detail="invalid graph_type")
 
         # 3. 创建目录并保存输入
-        run_dir = self._create_run_dir(task_type)
+        run_dir = self._create_run_dir(task_type, email)
         input_dir = run_dir / "input"
         
         real_input_type, real_input_content = await self._save_and_prepare_input(
@@ -243,13 +280,13 @@ class Paper2AnyService:
             graph_type=graph_type,
             style=style,
             figure_complex=figure_complex,
-            invite_code=invite_code or "",
+            email=email or "",
             edit_prompt=edit_prompt or "",
         )
 
         # 5. 执行 workflow
         async with task_semaphore:
-            p2f_resp = await run_paper2figure_wf_api(p2f_req)
+            p2f_resp = await run_paper2figure_wf_api(p2f_req, result_path=run_dir)
 
         # 6. 构造 URL 响应
         safe_ppt = _to_outputs_url(p2f_resp.ppt_filename, request)
@@ -275,7 +312,7 @@ class Paper2AnyService:
         chat_api_url: str,
         api_key: str,
         input_type: str,
-        invite_code: Optional[str],
+        email: Optional[str],
         file: Optional[UploadFile],
         file_kind: Optional[str],
         language: str,
@@ -293,7 +330,7 @@ class Paper2AnyService:
             raise HTTPException(status_code=400, detail="file_kind must be 'pdf' for paper2beamer")
 
         # 2. 创建目录
-        run_dir = self._create_run_dir("paper2beamer")
+        run_dir = self._create_run_dir("paper2beamer", email)
         input_dir = run_dir / "input"
         
         # 3. 保存输入 PDF
@@ -314,15 +351,6 @@ class Paper2AnyService:
                 img_path="",
                 language=language,
             )
-            # 注意：paper2video_endpoint 实际上是在 router 中定义的，但看起来它像是一个 helper function
-            # 如果它是一个 router endpoint 函数，直接调用可能不合适，但在 python 中它只是个 async 函数。
-            # 检查 paper2video.py 的实现，如果它包含 HTTP 逻辑（如 Form, File 依赖），直接调用会有问题。
-            # 这里原代码直接调用了 paper2video_endpoint(req)，这意味着 paper2video_endpoint 接受 Pydantic model
-            # 而不是 FastAPI 依赖。我们需要确认这一点。
-            # 根据原 routers/paper2any.py: 
-            # from fastapi_app.routers.paper2video import paper2video_endpoint, ...
-            # resp: FeaturePaper2VideoResponse = await paper2video_endpoint(req)
-            # 假设 paper2video_endpoint 是设计为可重用的 service-like 函数。
             resp: FeaturePaper2VideoResponse = await paper2video_endpoint(req)
             
             if not resp.success:
@@ -333,14 +361,21 @@ class Paper2AnyService:
 
     # ---------------- 内部工具方法 ---------------- #
 
-    def _create_run_dir(self, task_type: str) -> Path:
+    def _create_run_dir(self, task_type: str, email: Optional[str] = None) -> Path:
         """
         为一次请求创建独立目录：
-            outputs/{task_type}/{timestamp}_{short_uuid}/
+        - 登录用户 (有 email): outputs/{email}/{task_type}/{timestamp}/
+        - 匿名用户 (无 email): outputs/{task_type}/{timestamp}_{short_uuid}/
         """
         ts = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
-        rid = uuid.uuid4().hex[:6]
-        run_dir = BASE_OUTPUT_DIR / task_type / f"{ts}_{rid}"
+        
+        if email:
+            # 登录用户：邮箱/任务/时间戳
+            run_dir = BASE_OUTPUT_DIR / email / task_type / ts
+        else:
+            # 匿名用户：保持旧逻辑
+            rid = uuid.uuid4().hex[:6]
+            run_dir = BASE_OUTPUT_DIR / task_type / f"{ts}_{rid}"
 
         (run_dir / "input").mkdir(parents=True, exist_ok=True)
         (run_dir / "output").mkdir(parents=True, exist_ok=True)

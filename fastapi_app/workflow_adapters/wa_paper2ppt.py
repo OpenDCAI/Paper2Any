@@ -16,7 +16,7 @@ from typing import Any, List
 
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureState
-from dataflow_agent.toolkits.imtool.mineru_tool import _shrink_markdown
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import _shrink_markdown
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.workflow import run_workflow
 
@@ -38,14 +38,14 @@ def _to_serializable(obj: Any):
     return str(obj)
 
 
-def _ensure_result_path_for_full(invite_code: str | None) -> Path:
+def _ensure_result_path_for_full(email: str | None) -> Path:
     """
     为 full pipeline 统一一个根输出目录：
-    outputs/{invite_code or 'default'}/paper2ppt/<timestamp>/
+    outputs/{email or 'default'}/paper2ppt/<timestamp>/
     """
     project_root = get_project_root()
     ts = int(time.time())
-    code = invite_code or "default"
+    code = email or "default"
     base_dir = (project_root / "outputs" / code / "paper2ppt" / str(ts)).resolve()
     base_dir.mkdir(parents=True, exist_ok=True)
     return base_dir
@@ -115,9 +115,9 @@ async def run_paper2page_content_wf_api(req: Paper2PPTRequest, result_path: Path
         - pagecontent: 解析后的页面内容（结构化列表）
         - result_path: 本次 workflow 使用的统一输出目录
     """
-    # 统一 result_path：若调用方希望自定义，可在 req 中扩展字段；目前统一使用 invite_code 路径
+    # 统一 result_path：若调用方希望自定义，可在 req 中扩展字段；目前统一使用 email 路径
     if result_path is None:
-        result_root = _ensure_result_path_for_full(req.invite_code)
+        result_root = _ensure_result_path_for_full(req.email)
     else:
         result_root = result_path
 
@@ -263,7 +263,7 @@ async def run_paper2ppt_full_pipeline(req: Paper2PPTRequest) -> Paper2PPTRespons
         - result_path
     """
     # 统一输出根目录，两个 workflow 共用
-    result_root = _ensure_result_path_for_full(req.invite_code)
+    result_root = _ensure_result_path_for_full(req.email)
 
     # ---------- 第一步：paper2page_content ----------
     state_pc = _init_state_from_request(req, result_path=result_root)

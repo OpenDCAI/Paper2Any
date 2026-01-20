@@ -52,7 +52,7 @@ def save_final_state_json(
     print(f"final_state 已保存到 {out_path}")
 
 
-async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureResponse:
+async def run_paper2figure_wf_api(req: Paper2FigureRequest, result_path: Path | None = None) -> Paper2FigureResponse:
     """
     根据 graph_type 选择不同 workflow，并拆分输出目录。
 
@@ -61,6 +61,8 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
       - input_type: "PDF" / "TEXT" / "FIGURE"
       - input_content: 文件路径或纯文本
       - graph_type: "model_arch" | "tech_route" | "exp_data"
+    
+    result_path: 可选，指定输出目录。如果未指定，则根据 req.email 生成。
     """
     # -------- 基础路径与输出目录 -------- #
     project_root: Path = get_project_root()
@@ -103,6 +105,8 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
                     log.warning(f"Failed to convert URL to local path: {e}")
 
         state.request.prev_image = image_path_or_url
+        # 修复：同时设置 fig_draft_path，供 wf_paper2expfigure 使用
+        state.fig_draft_path = image_path_or_url
         # 同时也将 input_content 放在 paper_file 或 paper_idea 中作为备用，防止某些地方检查空值
         state.paper_idea = "Image Edit Mode" 
     else:
@@ -114,26 +118,59 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureRespo
     # -------- 按 graph_type 决定 workflow + 输出根目录 -------- #
     ts = time.strftime("%Y%m%d_%H%M%S")
     graph_type = req.graph_type
+    
+    import uuid
+    rid = uuid.uuid4().hex[:6]
 
     if graph_type == "model_arch":
         if req.input_type == "FIGURE" and not req.edit_prompt:
-            # wf_name = "pdf2ppt_parallel"
-            # wf_name = "pdf2ppt_optimized"
             wf_name = "pdf2ppt_qwenvl"
-            result_root = project_root / "outputs" / req.invite_code / "paper2fig_ppt" / ts
+            task_name = "paper2fig_ppt"
         else:
-            # 否则是生成/编辑图片（Step 1）
             wf_name = "paper2fig_image_only"
-            result_root = project_root / "outputs" / req.invite_code / "paper2fig" / ts
+            task_name = "paper2fig"
     elif graph_type == "tech_route":
         wf_name = "paper2technical"
-        result_root = project_root / "outputs" / req.invite_code / "paper2tec" / ts
+        task_name = "paper2tec"
     elif graph_type == "exp_data":
         wf_name = "paper2expfigure"
-        result_root = project_root / "outputs" / req.invite_code / "paper2exp" / ts
+        task_name = "paper2exp"
     else:
         wf_name = "paper2fig_with_sam"
-        result_root = project_root / "outputs" / req.invite_code / "paper2fig" / ts
+        task_name = "paper2fig"
+
+    if result_path:
+        result_root = result_path
+    else:
+        # Fallback: 如果未提供 result_path，则自行计算
+        if req.email:
+            result_root = project_root / "outputs" / req.email / task_name / ts
+        else:
+            # 匿名用户，保持原逻辑 (outputs/{task_name}/{ts})
+            result_root = project_root / "outputs" / task_name / ts
+            
+        if graph_type == "model_arch":
+            if req.input_type == "FIGURE" and not req.edit_prompt:
+                # 覆盖上面的逻辑，因为这里 task_name 变了
+                wf_name = "pdf2ppt_qwenvl"
+                if not result_path: # 只在未指定路径时重新计算
+                    result_root = project_root / "outputs" / (req.email or "") / "paper2fig_ppt" / ts
+            else:
+                wf_name = "paper2fig_image_only"
+                if not result_path:
+                    result_root = project_root / "outputs" / (req.email or "") / "paper2fig" / ts
+        elif graph_type == "tech_route":
+            wf_name = "paper2technical"
+            if not result_path:
+                result_root = project_root / "outputs" / (req.email or "") / "paper2tec" / ts
+        elif graph_type == "exp_data":
+            wf_name = "paper2expfigure"
+            if not result_path:
+                result_root = project_root / "outputs" / (req.email or "") / "paper2exp" / ts
+        else:
+            wf_name = "paper2fig_with_sam"
+            if not result_path:
+                result_root = project_root / "outputs" / (req.email or "") / "paper2fig" / ts
 
     result_root.mkdir(parents=True, exist_ok=True)
     state.result_path = str(result_root)

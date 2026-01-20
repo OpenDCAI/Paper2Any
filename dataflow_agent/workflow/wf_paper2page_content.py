@@ -13,7 +13,7 @@ from dataflow_agent.agentroles import create_react_agent, create_simple_agent
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
 
-from dataflow_agent.toolkits.imtool.mineru_tool import run_mineru_pdf_extract, _shrink_markdown
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract, _shrink_markdown
 
 log = get_logger(__name__)
 

@@ -5,6 +5,7 @@ import subprocess
 import uuid
 from typing import List, Dict, Any, Optional
 from dataflow_agent.logger import get_logger
+from dataflow_agent.toolkits.multimodaltool.providers import get_provider
 
 log = get_logger(__name__)
 
@@ -117,10 +118,10 @@ async def call_video_understanding_async(
     max_tokens: int = 4096,
     temperature: float = 0.2,
     timeout: int = 300, # Video processing might take longer
+    **kwargs,
 ) -> str:
     """
     调用视频理解模型
-    支持 APIYI / Gemini 风格的视频输入 (chat/completions with mime_type)
     """
     b64, mime_type = _encode_video_to_base64(video_path)
     log.info(f"[Video] Encoded video {video_path}, mime={mime_type}, size={len(b64)/1024/1024:.2f}MB")
@@ -135,14 +136,7 @@ async def call_video_understanding_async(
             target_msg = m
             break
             
-    # APIYI format: image_url object + sibling mime_type field?
-    # Docs say:
-    # {
-    #     "type": "image_url",
-    #     "image_url": { "url": "..." },
-    #     "mime_type": "video/mp4"
-    # }
-    
+    # OpenAI Vision Format / Gemini OpenAI-Compat Format
     video_content = {
         "type": "image_url",
         "image_url": {
@@ -169,66 +163,70 @@ async def call_video_understanding_async(
             ]
         })
 
-    # 3. Request
-    url = f"{api_url.rstrip('/')}/chat/completions"
+    # 3. 使用 Provider 构造请求
+    provider = get_provider(api_url, model)
+    url, payload = provider.build_chat_request(
+        api_url=api_url,
+        model=model,
+        messages=processed_messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        **kwargs
+    )
     
-    payload = {
-        "model": model,
-        "messages": processed_messages,
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-    }
-    
+    # 4. 发送请求
     data = await _post_raw(url, api_key, payload, timeout)
     
-    if "choices" not in data or not data["choices"]:
-        log.error(f"Invalid API response structure: {data}")
-        if "error" in data:
-            raise RuntimeError(f"API Error: {data['error']}")
-        raise RuntimeError(f"Unknown API response format: {data}")
-
-    return data["choices"][0]["message"]["content"]
+    # 5. 解析响应
+    return provider.parse_chat_response(data)
 
 if __name__ == "__main__":
     import asyncio
-    import argparse
     from dotenv import load_dotenv
-    
-    # Load env vars from .env file if present
-    load_dotenv()
 
-    async def main():
-        parser = argparse.ArgumentParser(description="Test Video Understanding API")
-        parser.add_argument("--video", required=True, help="Path to video file")
-        parser.add_argument("--model", default="gemini-2.5-flash", help="Model name")
-        parser.add_argument("--api_url", default=os.getenv("DF_API_URL", "https://api.apiyi.com/v1"), help="API URL")
-        parser.add_argument("--api_key", default=os.getenv("DF_API_KEY"), help="API Key")
+    load_dotenv()
+    
+    # 创建一个空的 dummy 视频文件是不容易被 ffmpeg 处理的
+    # 所以视频测试仅当用户提供了有效路径时才尝试，或者尝试查找
+    def find_any_mp4():
+        for root, dirs, files in os.walk("."):
+            for f in files:
+                if f.endswith(".mp4"):
+                    return os.path.join(root, f)
+        return None
+
+    async def _test():
+        API_URL = os.getenv("DF_API_URL", "http://127.0.0.1:3000/v1")
+        API_KEY = os.getenv("DF_API_KEY", "sk-xxx")
+        MODEL = os.getenv("DF_IMG_MODEL", "gemini-2.5-flash") # Use a chat/vision model
+
+        print(f"--- Video Understanding Config ---")
+        print(f"URL: {API_URL}")
+        print(f"Model: {MODEL}")
+        print(f"----------------------------------")
+
+        # 尝试使用环境变量指定视频，否则查找
+        video_path = os.getenv("TEST_VIDEO_PATH")
+        if not video_path:
+            video_path = find_any_mp4()
         
-        args = parser.parse_args()
-        
-        if not args.api_key:
-            print("Error: API Key is required (via --api_key or DF_API_KEY env var)")
+        if not video_path or not os.path.exists(video_path):
+            print("No video found for testing. Set TEST_VIDEO_PATH env var.")
             return
 
-        print(f"Testing with video: {args.video}")
-        print(f"Model: {args.model}")
-        print(f"API URL: {args.api_url}")
+        print(f"Using video: {video_path}")
         
         try:
+            print("[1] Testing Video Understanding...")
             result = await call_video_understanding_async(
-                model=args.model,
-                messages=[{"role": "user", "content": "Analyze this video and describe what is happening."}],
-                api_url=args.api_url,
-                api_key=args.api_key,
-                video_path=args.video
+                model=MODEL,
+                messages=[{"role": "user", "content": "Describe what happens in this video."}],
+                api_url=API_URL,
+                api_key=API_KEY,
+                video_path=video_path
             )
-            print("\nResult:")
-            print("-" * 40)
-            print(result)
-            print("-" * 40)
+            print(">> Video Result:", result)
         except Exception as e:
-            print(f"\nError occurred: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f">> Video Failed: {e}")
 
-    asyncio.run(main())
+    asyncio.run(_test())

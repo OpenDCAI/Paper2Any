@@ -3,11 +3,16 @@ paper2expfigure workflow
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 从 PDF 论文中提取表格并生成统计图的完整工作流
 
+支持三种输入类型：
+- PDF: 从 PDF 论文中提取表格 (完整流程)
+- FIGURE: 直接输入表格图片 (跳过 PDF 解析和 MinerU)
+- TEXT: 输入表格文本，先生成表格图片再处理
+
 工作流程：
 1. PDF → 图片 (pdf_to_images_node)
 2. 图片 → MinerU 识别 (mineru_extract_node)
 3. 提取表格数据 (table_extractor_node)
-4. 提取论文核心思想 (paper_idea_extractor_node)
+4. 提取论文核心思想 (paper_idea_extractor_node) - TEXT/FIGURE 模式跳过
 5. 智能推荐图表类型和生成代码 (code_executor_node)
    - 调用 chart_type_recommender Agent 推荐图表类型
    - 调用 chart_code_generator Agent 生成 matplotlib 代码
@@ -17,6 +22,7 @@ paper2expfigure workflow
 from __future__ import annotations
 import os
 import uuid
+import json
 from pathlib import Path
 from typing import Dict, Any, List
 import asyncio
@@ -41,8 +47,8 @@ from dataflow_agent.utils import (
     extract_text_from_mineru_results,
     execute_matplotlib_code,
 )
-from dataflow_agent.toolkits.imtool.mineru_tool import run_aio_two_step_extract
-from dataflow_agent.toolkits.imtool.req_img import generate_or_edit_and_save_image_async
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_aio_two_step_extract
+from dataflow_agent.toolkits.multimodaltool.req_img import generate_or_edit_and_save_image_async
 
 
 log = get_logger(__name__)
@@ -53,11 +59,16 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
     """
     Paper2ExpFigure Workflow: 从 PDF 提取表格并生成统计图
     
+    支持三种输入模式：
+    - PDF: state.paper_file (完整流程)
+    - FIGURE: state.fig_draft_path (表格图片，跳过 PDF 解析)
+    - TEXT: state.paper_idea (表格文本，先生成图片)
+    
     命令: dfa run --wf paper2expfigure
     """
     builder = GenericGraphBuilder(
         state_model=Paper2FigureState,
-        entry_point="pdf_to_images_node"
+        entry_point="_start_"
     )
 
     # ======================================================================
@@ -102,8 +113,217 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
             return ""
     
     # ==============================================================
+    # 路由函数：根据输入类型决定流程
+    # ==============================================================
+    
+    def _route_by_input_type(state: Paper2FigureState) -> str:
+        """
+        根据 input_type 决定下一个节点
+        """
+        input_type = getattr(state, 'input_type', None) or getattr(state.request, 'input_type', 'PDF')
+        input_type = str(input_type).upper()
+        
+        log.info(f"[_route_by_input_type] input_type = {input_type}")
+        
+        if input_type == "FIGURE":
+            return "figure_input_node"
+        elif input_type == "TEXT":
+            return "text_to_table_image_node"
+        else:  # 默认 PDF
+            return "pdf_to_images_node"
+    
+    # ==============================================================
     # NODES: 工作流节点
     # ==============================================================
+    
+    def _start_(state: Paper2FigureState) -> Paper2FigureState:
+        """起始节点：初始化"""
+        # 确保 temp_data 存在
+        if not hasattr(state, 'temp_data') or state.temp_data is None:
+            state.temp_data = {}
+        
+        # 确保 result_path 存在且为绝对路径
+        if not state.result_path:
+            output_dir = f"./outputs/paper2expfigure_{uuid.uuid4().hex[:8]}"
+            output_path = Path(output_dir)
+            output_path.mkdir(parents=True, exist_ok=True)
+            state.result_path = str(output_path.absolute())
+        else:
+            # 转换为绝对路径
+            state.result_path = str(Path(state.result_path).resolve())
+            Path(state.result_path).mkdir(parents=True, exist_ok=True)
+        
+        # 从 request 同步 input_type 到 state
+        if hasattr(state.request, 'input_type'):
+            state.input_type = state.request.input_type
+        
+        log.info(f"[_start_] result_path = {state.result_path}")
+        log.info(f"[_start_] input_type = {getattr(state, 'input_type', 'PDF')}")
+        
+        return state
+    
+    async def figure_input_node(state: Paper2FigureState) -> Paper2FigureState:
+        """
+        FIGURE 模式入口节点：处理直接输入的表格图片
+        
+        输入：state.fig_draft_path (单个图片路径或逗号分隔的多个路径)
+        输出：构造与 MinerU 兼容的数据结构，直接进入 table_extractor_node
+        """
+        log.info("[figure_input_node] 开始处理表格图片输入...")
+        
+        fig_path = state.fig_draft_path or ""
+        if not fig_path:
+            log.error("[figure_input_node] fig_draft_path 为空")
+            return state
+        
+        # 支持多个图片路径（逗号分隔）
+        image_paths = [p.strip() for p in fig_path.split(",") if p.strip()]
+        
+        output_path = Path(state.result_path)
+        table_images_dir = output_path / "table_images"
+        table_images_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 构造表格数据结构（跳过 MinerU，直接构造 extracted_tables）
+        tables = []
+        valid_image_paths = []
+        
+        for idx, img_path in enumerate(image_paths):
+            img_path = Path(img_path)
+            if not img_path.exists():
+                log.warning(f"[figure_input_node] 图片不存在: {img_path}")
+                continue
+            
+            # 复制图片到输出目录
+            table_id = f"table_{idx}"
+            dest_path = table_images_dir / f"{table_id}.png"
+            
+            try:
+                img = Image.open(img_path)
+                img.save(dest_path)
+                valid_image_paths.append(str(dest_path))
+                
+                # 构造表格信息（没有 MinerU 解析，headers/rows 为空）
+                tables.append({
+                    "table_id": table_id,
+                    "headers": [],
+                    "rows": [],
+                    "caption": f"Table from image: {img_path.name}",
+                    "bbox": [0, 0, 1, 1],
+                    "content": "",
+                    "image_path": str(dest_path),
+                    "page_index": 0,
+                    "page_number": 1,
+                })
+                
+                log.info(f"[figure_input_node] 处理图片 {idx + 1}: {img_path} -> {dest_path}")
+                
+            except Exception as e:
+                log.error(f"[figure_input_node] 处理图片失败 ({img_path}): {e}")
+        
+        state.temp_data['image_paths'] = valid_image_paths
+        state.extracted_tables = tables
+        
+        # FIGURE 模式不需要提取 paper_idea，设置默认值
+        if not state.paper_idea:
+            state.paper_idea = "Direct table image input - no paper context available"
+        
+        log.info(f"[figure_input_node] 完成，共处理 {len(tables)} 个表格图片")
+        return state
+    
+    async def text_to_table_image_node(state: Paper2FigureState) -> Paper2FigureState:
+        """
+        TEXT 模式入口节点：将表格文本转换为表格图片
+        
+        输入：state.paper_idea (表格文本，支持 CSV/Markdown/纯文本/LaTeX 等格式)
+        输出：通过 LLM 生成 matplotlib 代码渲染表格图片，支持多级表头等复杂结构
+        
+        支持多表格：自动识别并分割文本中的多个表格，按 table_0, table_1... 命名
+        """
+        from dataflow_agent.agentroles.paper2any_agents.table_text_renderer import (
+            render_table_from_text,
+            split_tables_from_text,
+        )
+        
+        log.info("[text_to_table_image_node] 开始处理表格文本输入...")
+        
+        table_text = state.paper_idea or ""
+        if not table_text:
+            log.error("[text_to_table_image_node] paper_idea (表格文本) 为空")
+            return state
+        
+        output_path = Path(state.result_path).resolve()
+        table_images_dir = output_path / "table_images"
+        table_images_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 先分割多个表格
+        log.info("[text_to_table_image_node] 分析文本中的表格...")
+        table_segments = await split_tables_from_text(
+            text=table_text,
+            state=state,
+            model_name=state.request.model or "gpt-4o",
+        )
+        
+        log.info(f"[text_to_table_image_node] 识别到 {len(table_segments)} 个表格")
+        
+        tables = []
+        valid_image_paths = []
+        
+        # 循环处理每个表格
+        for idx, segment in enumerate(table_segments):
+            table_id = f"table_{idx}"
+            img_path = (table_images_dir / f"{table_id}.png").resolve()
+            segment_text = segment.get("text", "")
+            caption = segment.get("caption", "")
+            
+            if not segment_text.strip():
+                log.warning(f"[text_to_table_image_node] 表格 {table_id} 文本为空，跳过")
+                continue
+            
+            log.info(f"[text_to_table_image_node] 处理表格 {idx + 1}/{len(table_segments)}: {table_id}")
+            
+            try:
+                # 使用 table_text_renderer agent 渲染表格
+                success, parsed_data = await render_table_from_text(
+                    table_text=segment_text,
+                    output_path=img_path,
+                    state=state,
+                    title=caption,
+                    model_name=state.request.model or "gpt-4o",
+                )
+                
+                if success:
+                    valid_image_paths.append(str(img_path))
+                    
+                    tables.append({
+                        "table_id": table_id,
+                        "headers": parsed_data.get("headers", []),
+                        "rows": parsed_data.get("rows", []),
+                        "caption": caption,
+                        "bbox": [0, 0, 1, 1],
+                        "content": segment_text,
+                        "image_path": str(img_path),
+                        "page_index": 0,
+                        "page_number": 1,
+                        "has_multi_level_header": parsed_data.get("has_multi_level_header", False),
+                    })
+                    
+                    log.info(f"[text_to_table_image_node] 生成表格图片: {img_path}")
+                else:
+                    log.warning(f"[text_to_table_image_node] 表格 {table_id} 渲染失败")
+                
+            except Exception as e:
+                log.error(f"[text_to_table_image_node] 生成表格图片失败: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        state.temp_data['image_paths'] = valid_image_paths
+        state.extracted_tables = tables
+        
+        # TEXT 模式保留原始文本作为 paper_idea 的补充
+        state.paper_idea = f"Table data from text input:\n{table_text}"
+        
+        log.info(f"[text_to_table_image_node] 完成，共生成 {len(tables)} 个表格图片")
+        return state
     
     async def pdf_to_images_node(state: Paper2FigureState) -> Paper2FigureState:
         """
@@ -121,10 +341,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         images = pdf_to_pil_images(pdf_path, dpi=150)
         
         # 创建临时目录保存图片
-        output_dir = state.result_path or f"./outputs/paper2expfigure_{uuid.uuid4().hex[:8]}"
-        output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
-        
+        output_path = Path(state.result_path)
         images_dir = output_path / "images"
         images_dir.mkdir(exist_ok=True)
         
@@ -138,7 +355,6 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         
         # 存储到 state（使用绝对路径）
         state.temp_data['image_paths'] = image_paths
-        state.result_path = str(output_path.absolute())
         
         log.info(f"[pdf_to_images] 完成，共转换 {len(images)} 页")
         return state
@@ -181,7 +397,6 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
                     log.info(f"[mineru_extract] 从 page_{idx} 提取了 {len(items)} 个元素")
                     
                     # 保存每页的识别结果为 JSON 文件（便于调试）
-                    import json
                     result_file = mineru_dir / f"page_{idx}_result.json"
                     with open(result_file, 'w', encoding='utf-8') as f:
                         json.dump(items, f, ensure_ascii=False, indent=2)
@@ -197,7 +412,6 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         
         # 保存所有结果的汇总文件
         if all_items:
-            import json
             summary_file = mineru_dir / "all_results.json"
             with open(summary_file, 'w', encoding='utf-8') as f:
                 json.dump(all_items, f, ensure_ascii=False, indent=2)
@@ -210,7 +424,14 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         """
         节点 3: 提取表格
         从 MinerU 识别结果中提取表格数据，并保存表格区域图片
+        
+        注意：FIGURE/TEXT 模式会跳过此节点（已在入口节点处理）
         """
+        # 如果已经有 extracted_tables（FIGURE/TEXT 模式），跳过
+        if state.extracted_tables:
+            log.info(f"[table_extractor] 已有 {len(state.extracted_tables)} 个表格，跳过提取")
+            return state
+        
         mineru_items = state.temp_data.get('mineru_items', [])
         if not mineru_items:
             log.warning("[table_extractor] 没有 MinerU 结果，跳过")
@@ -260,7 +481,6 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
                 if page_idx is not None and page_idx < len(image_paths):
                     try:
                         # 读取原始图片
-                        from PIL import Image
                         img_path = image_paths[page_idx]
                         img = Image.open(img_path)
                         
@@ -303,7 +523,15 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         """
         节点 4: 提取论文核心思想
         调用 paper_idea_extractor Agent 从论文中提取核心思想
+        
+        注意：FIGURE/TEXT 模式会跳过此节点
         """
+        # 检查是否需要跳过（FIGURE/TEXT 模式已设置 paper_idea）
+        input_type = getattr(state, 'input_type', None) or getattr(state.request, 'input_type', 'PDF')
+        if input_type in ['FIGURE', 'TEXT']:
+            log.info(f"[paper_idea_extractor] {input_type} 模式，跳过论文思想提取")
+            return state
+        
         log.info("[paper_idea_extractor] 开始提取论文核心思想...")
         
         agent = create_simple_agent(
@@ -321,7 +549,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         log.info(f"[paper_idea_extractor] 核心思想预览: {paper_idea[:200]}...")
         
         return state
-    
+
     async def chart_type_recommender_node(state: Paper2FigureState) -> Paper2FigureState:
         """
         节点 5: 智能推荐图表类型
@@ -330,21 +558,25 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         log.info("[chart_type_recommender] 开始智能推荐图表类型...")
         
         tables = state.extracted_tables
+        if not tables:
+            log.warning("[chart_type_recommender] 没有表格数据，跳过")
+            return state
+        
         image_paths = [t["image_path"] for t in tables if "image_path" in t]
         
         # 这里直接用asyncio原生实现了并行，后面可以考虑改成更加符合langgraph的实现，使用Send API
         
         @dataclass
         class ChartTypeRecommenderState:
-            request: Paper2ExpFigureRequest
+            request: Any
             pre_tool_results: Dict[str, Any]
             table: Dict
             chart_type_recommender: Any = None
             agent_results: Dict = field(default_factory=dict)
             chart_configs: Dict = field(default_factory=dict) # 这里存储最终结果：{table_id: chart_config}
         
-        async def task(state: ChartTypeRecommenderState):
-            table = state.table
+        async def task(ctr_state: ChartTypeRecommenderState):
+            table = ctr_state.table
             try:
                 if "image_path" not in table:
                     log.error(f"[chart_type_recommender] 表格缺少图片路径: {table}")
@@ -364,9 +596,9 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
                     vlm_config=vlm_config
                 )
             
-                state = await agent.execute(state=state)
+                ctr_state = await agent.execute(state=ctr_state)
                 
-                result = state.chart_configs
+                result = ctr_state.chart_configs
                 
                 return result
             except Exception as e:
@@ -390,7 +622,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         
         print(f"states: {states}")
         
-        tasks = [task(state) for state in states]
+        tasks = [task(s) for s in states]
         results = await asyncio.gather(*tasks)
         # 过滤掉失败的节点的返回值
         results = [
@@ -416,7 +648,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         
         image_paths = [t["image_path"] for t in tables if "image_path" in t]
         
-        output_path = Path(state.result_path)
+        output_path = Path(state.result_path).resolve()
         charts_dir = output_path / "charts"
         charts_dir.mkdir(exist_ok=True)
         
@@ -431,7 +663,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         
         @dataclass
         class ChartCodeGeneratorState:
-            request: Paper2ExpFigureRequest
+            request: Any
             table: Dict
             result_path: str
             pre_tool_results: Dict[str, Any] = field(default_factory=dict)
@@ -439,11 +671,11 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
             agent_results: Dict = field(default_factory=dict)
             generated_codes: Dict[str, Dict[str, Any]] = field(default_factory=dict)   # 生成的代码列表
         
-        async def task(state: ChartCodeGeneratorState):
-            table = state.table
+        async def task(ccg_state: ChartCodeGeneratorState):
+            table = ccg_state.table
             table_id = table['table_id']
             caption = table.get('caption', '')
-            chart_config = state.pre_tool_results.get("chart_config", {})
+            chart_config = ccg_state.pre_tool_results.get("chart_config", {})
             
             log.info(f"[code_executor] 处理表格: {table_id}")
             
@@ -464,11 +696,11 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
                     vlm_config=vlm_config,
                 )
                 
-                state = await chart_code_agent.execute(state=state)
+                ccg_state = await chart_code_agent.execute(state=ccg_state)
                 
                 # 获取生成的代码
-                if state.generated_codes:
-                    code_entry = state.generated_codes[table_id]  # 获取刚生成的代码
+                if ccg_state.generated_codes:
+                    code_entry = ccg_state.generated_codes[table_id]  # 获取刚生成的代码
                     code = code_entry.get('code', '')
                     description = code_entry.get('description', '')
                     log.info(f"[code_executor] 生成代码长度: {len(code)} 字符")
@@ -478,11 +710,10 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
                     raise Exception(f"chart_code_generator 未返回代码")
                 
                 # 4. 保存中间结果
-                import json
                 intermediate_file = intermediate_dir / f"{table_id}_intermediate.json"
                 intermediate_data = {
                     "table_id": table_id,
-                    "timestamp": str(Path(state.result_path).name),
+                    "timestamp": str(Path(ccg_state.result_path).name),
                     
                     # 表格数据
                     "table_data": {
@@ -509,7 +740,7 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
                 
                 # 5. 执行代码生成图表
                 # 需要将 output_path, headers, rows 注入到代码中
-                chart_path = charts_dir / f"{table_id}.png"
+                chart_path = (charts_dir / f"{table_id}.png").resolve()
                 
                 # 构建完整的可执行代码
                 exec_code = f"""
@@ -550,7 +781,7 @@ output_path = {repr(str(chart_path))}
                 with open(intermediate_file, 'w', encoding='utf-8') as f:
                     json.dump(intermediate_data, f, ensure_ascii=False, indent=2)
                 
-                code = state.generated_codes if state.generated_codes else {}
+                code = ccg_state.generated_codes if ccg_state.generated_codes else {}
                 chart_path = {table_id: chart_path}
                 return (code, chart_path)
             
@@ -559,7 +790,6 @@ output_path = {repr(str(chart_path))}
                 import traceback
                 traceback.print_exc()
                 return [{table_id: None}, {table_id: None}]
-                # raise Exception(f"处理表格 {table_id} 时出错: {e}")
         
         # 过滤掉不适合生成图表的表格，定义匿名函数封装复杂提取逻辑，提高代码可读性
         get_chart_config = lambda x: state.chart_configs.get(x.get("table_id"), {})
@@ -583,7 +813,7 @@ output_path = {repr(str(chart_path))}
             for table in tables if is_suitable(table)
         ]
         
-        tasks = [task(state) for state in states]
+        tasks = [task(s) for s in states]
         generated_results = await asyncio.gather(*tasks)
         generated_code = [result[0] for result in generated_results]
         generated_charts = [result[1] for result in generated_results]
@@ -616,19 +846,23 @@ output_path = {repr(str(chart_path))}
         # 获取生成的图表路径列表，用于分发任务
         chart_paths = state.generated_charts
         
+        if not chart_paths:
+            log.warning("[post_stylize] 没有图表需要风格化，跳过")
+            return state
+        
         save_dir = Path(state.result_path) / Path("stylized_charts")
         save_dir.mkdir(parents=True, exist_ok=True)
         
-        stylize_prompt = f"把这张统计图放大字体，改成{state.request.style}风格，让它更加美观专业"
+        stylize_prompt = f"把这张统计图放大字体，并进行以 {state.request.style} 为主题的风格化，让它更美观，但需要保障数据的准确性，避免恶性的溢出和重叠"
         
-        async def stylize_task(table_id: str, save_dir: str, chart_path: str):
-            save_dir = Path(save_dir)
-            chart_path = Path(chart_path)
-            save_path = save_dir / chart_path.name.replace(".png", "_stylized.png")
+        async def stylize_task(table_id: str, save_dir_path: str, chart_path: str):
+            save_dir_p = Path(save_dir_path)
+            chart_path_p = Path(chart_path)
+            save_path = save_dir_p / chart_path_p.name.replace(".png", "_stylized.png")
             
             log.info(f"[post_stylize] 正在风格化图表: {table_id}")
             
-            log.critical(f"image_path: {chart_path}")
+            log.critical(f"image_path: {chart_path_p}")
             
             try:
                 b64_result = await generate_or_edit_and_save_image_async(
@@ -637,7 +871,7 @@ output_path = {repr(str(chart_path))}
                     api_url=state.request.chat_api_url,
                     api_key=state.request.api_key, 
                     model=state.request.gen_fig_model,
-                    image_path=str(chart_path),
+                    image_path=str(chart_path_p),
                     use_edit=True
                 )
                 
@@ -648,7 +882,7 @@ output_path = {repr(str(chart_path))}
                 log.error(f"[post_stylize] {table_id} 图表风格化出错: {e}")
                 return {table_id: None}
         
-        tasks = [stylize_task(table_id, save_dir, chart_path) for table_id, chart_path in chart_paths.items()]
+        tasks = [stylize_task(table_id, str(save_dir), str(chart_path)) for table_id, chart_path in chart_paths.items()]
         results = await asyncio.gather(*tasks)
         # 过滤掉失败的图表
         results = [
@@ -820,32 +1054,43 @@ output_path = {repr(str(chart_path))}
         log.info(f"[assemble_to_ppt] 完成")
         return state
 
+
     # ==============================================================
     # 注册 nodes / edges
     # ==============================================================
     
-    # 条件路由函数：根据输入类型决定起点
-    
     nodes = {
-        "_start_": lambda state: state,  # 起始节点
+        "_start_": _start_,
         "pdf_to_images_node": pdf_to_images_node,
         "mineru_extract_node": mineru_extract_node,
+        "figure_input_node": figure_input_node,
+        "text_to_table_image_node": text_to_table_image_node,
         "table_extractor_node": table_extractor_node,
         "paper_idea_extractor": paper_idea_extractor,
         "chart_type_recommender_node": chart_type_recommender_node,
         "code_executor_node": code_executor_node,
         "post_stylize_node": post_stylize_node,
         "assemble_to_ppt": assemble_to_ppt,
-        "_end_": lambda state: state,  # 终止节点
+        "_end_": lambda state: state,
     }
     
-    # 边定义：PDF 模式的完整流程
+    # 边定义
     edges = [
-        # PDF 流程s
+        # PDF 流程
         ("pdf_to_images_node", "mineru_extract_node"),
         ("mineru_extract_node", "table_extractor_node"),
+        
+        # FIGURE 流程 - 直接到 chart_type_recommender
+        ("figure_input_node", "chart_type_recommender_node"),
+        
+        # TEXT 流程 - 直接到 chart_type_recommender
+        ("text_to_table_image_node", "chart_type_recommender_node"),
+        
+        # PDF 流程继续
         ("table_extractor_node", "paper_idea_extractor"),
         ("paper_idea_extractor", "chart_type_recommender_node"),
+        
+        # 公共流程
         ("chart_type_recommender_node", "code_executor_node"),
         ("code_executor_node", "post_stylize_node"),
         ("post_stylize_node", "assemble_to_ppt"),
@@ -854,5 +1099,7 @@ output_path = {repr(str(chart_path))}
         ("assemble_to_ppt", "_end_"),
     ]
     
-    builder.add_nodes(nodes).add_edges(edges)
+    # 添加条件路由
+    builder.add_nodes(nodes).add_edges(edges).add_conditional_edge("_start_", _route_by_input_type)
+    
     return builder

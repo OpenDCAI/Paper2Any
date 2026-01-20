@@ -13,11 +13,11 @@ from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.workflow.registry import register
 from dataflow_agent.agentroles import create_react_agent
-from dataflow_agent.toolkits.imtool.req_img import (
+from dataflow_agent.toolkits.multimodaltool.req_img import (
     generate_or_edit_and_save_image_async, 
     gemini_multi_image_edit_async
 )
-from dataflow_agent.toolkits.imtool.ppt_tool import convert_images_dir_to_pdf_and_ppt_api
+from dataflow_agent.toolkits.multimodaltool.ppt_tool import convert_images_dir_to_pdf_and_ppt_api
 
 log = get_logger(__name__)
 

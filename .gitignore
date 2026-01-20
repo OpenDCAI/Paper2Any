@@ -16,8 +16,8 @@ dataflow_agent/tmps/
 dataflow_cache/
 .dfavenv
 .dfavenv/
-dataflow_agent/toolkits/imtool/models/
-dataflow_agent/toolkits/imtool/onnx/
+dataflow_agent/toolkits/multimodaltool/models/
+dataflow_agent/toolkits/multimodaltool/onnx/
 
 # Distribution / packaging
 .Python
