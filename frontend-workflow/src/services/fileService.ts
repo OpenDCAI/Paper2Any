@@ -146,14 +146,17 @@ export async function getFileRecords(): Promise<FileRecord[]> {
       headers['Authorization'] = `Bearer ${session.access_token}`;
     }
 
-    // Build URL with email parameter if no session
+    // Build URL with email parameter as fallback
+    // Backend will use JWT token first, then fall back to email parameter
     let url = '/api/v1/files/history';
-    if (!session) {
-      console.warn("[fileService] No authenticated session, using email fallback");
-      const user = (window as any).__user_email;
-      if (user) {
-        url += `?email=${encodeURIComponent(user)}`;
-      }
+    
+    // Always add user identifier as query parameter for backend compatibility
+    // Backend prioritizes JWT token, but this ensures fallback works
+    if (session?.user) {
+      // For authenticated users, use email if available, otherwise use user ID
+      // This handles both email and phone number users
+      const userIdentifier = session.user.email || session.user.id;
+      url += `?email=${encodeURIComponent(userIdentifier)}`;
     }
 
     // Use unified backend API
