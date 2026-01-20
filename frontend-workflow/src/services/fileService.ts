@@ -4,11 +4,8 @@
  * Uploads files to Storage and saves metadata to user_files table.
  */
 
-import { supabase, isSupabaseConfigured } from "../lib/supabase";
-import { useAuthStore } from "../stores/authStore";
+import { supabase } from "../lib/supabase";
 import { API_KEY } from "../config/api";
-
-const STORAGE_BUCKET = "user-files";
 
 export interface FileRecord {
   id?: string;
@@ -61,75 +58,55 @@ export async function uploadAndSaveFile(
   fileName: string,
   workflowType: string
 ): Promise<FileRecord | null> {
-  if (!isSupabaseConfigured()) {
-    console.warn("[fileService] Supabase not configured, skipping file upload");
-    return null;
-  }
-
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    // Get JWT token from Supabase
+    const { data: { session } } = await supabase.auth.getSession();
 
-    if (!user) {
-      console.warn("[fileService] No authenticated user, skipping file upload");
+    if (!session) {
+      console.warn("[fileService] No authenticated session, skipping file upload");
       return null;
     }
 
-    // Sanitize filename to avoid Supabase Storage errors
+    // Sanitize filename to avoid special characters
     const sanitizedFileName = sanitizeFileName(fileName, workflowType);
     console.log(`[fileService] Original filename: ${fileName}`);
     console.log(`[fileService] Sanitized filename: ${sanitizedFileName}`);
 
-    // Generate unique file path: user_id/timestamp_filename
-    const timestamp = Date.now();
-    const filePath = `${user.id}/${timestamp}_${sanitizedFileName}`;
+    // Create FormData for file upload
+    const formData = new FormData();
+    formData.append('file', blob, sanitizedFileName);
+    formData.append('workflow_type', workflowType);
 
-    // Upload to Supabase Storage
-    const { error: uploadError } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(filePath, blob, {
-        contentType: blob.type || "application/octet-stream",
-        upsert: false,
-      });
+    // Upload to backend with JWT authentication
+    const response = await fetch('/api/v1/files/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'X-API-Key': API_KEY,
+      },
+      body: formData,
+    });
 
-    if (uploadError) {
-      console.error("[fileService] Failed to upload file:", uploadError);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[fileService] Failed to upload file:", errorText);
       return null;
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from(STORAGE_BUCKET)
-      .getPublicUrl(filePath);
+    const data = await response.json();
 
-    const downloadUrl = urlData.publicUrl;
-
-    // Save record to user_files table
-    const { data, error } = await supabase
-      .from("user_files")
-      .insert({
-        user_id: user.id,
-        file_name: fileName,
-        file_size: blob.size,
-        workflow_type: workflowType,
-        file_path: downloadUrl,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("[fileService] Failed to save file record:", error);
-      // Try to delete uploaded file on failure
-      await supabase.storage.from(STORAGE_BUCKET).remove([filePath]);
+    if (!data.success) {
+      console.error("[fileService] Upload failed:", data);
       return null;
     }
 
     return {
-      id: data.id,
+      id: data.file_path, // Use file path as ID
       file_name: data.file_name,
       file_size: data.file_size,
       workflow_type: data.workflow_type,
       created_at: data.created_at,
-      download_url: downloadUrl,
+      download_url: data.file_path, // Backend will serve via /outputs
     };
   } catch (err) {
     console.error("[fileService] Error uploading file:", err);
@@ -144,54 +121,34 @@ export async function uploadAndSaveFile(
  */
 export async function getFileRecords(): Promise<FileRecord[]> {
   try {
-    const user = useAuthStore.getState().user;
-    const email = user?.email;
+    // Get JWT token from Supabase
+    const { data: { session } } = await supabase.auth.getSession();
 
-    // 如果有 email，使用后端接口获取本地历史文件
-    if (email) {
-      const res = await fetch(`/api/v1/paper2figure/history?email=${encodeURIComponent(email)}`, {
-        headers: {
-          'X-API-Key': API_KEY,
-        },
-      });
-      if (!res.ok) {
-        console.error(`[fileService] History API failed: ${res.statusText}`);
-        return [];
-      }
-      
-      const data = await res.json();
-      if (!data.success) {
-        console.error("[fileService] History API returned error", data);
-        return [];
-      }
-      
-      return data.files || [];
-    }
-
-    // 如果没有 email（手机号登录），从 Supabase user_files 表查询
-    if (!isSupabaseConfigured() || !user) {
+    if (!session) {
+      console.warn("[fileService] No authenticated session, cannot fetch file records");
       return [];
     }
 
-    const { data, error } = await supabase
-      .from("user_files")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+    // Use unified backend API with JWT authentication
+    const res = await fetch('/api/v1/files/history', {
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'X-API-Key': API_KEY,
+      },
+    });
 
-    if (error) {
-      console.error("[fileService] Failed to fetch user_files:", error);
+    if (!res.ok) {
+      console.error(`[fileService] History API failed: ${res.statusText}`);
       return [];
     }
-
-    return (data || []).map((record) => ({
-      id: record.id,
-      file_name: record.file_name,
-      file_size: record.file_size,
-      workflow_type: record.workflow_type,
-      created_at: record.created_at,
-      download_url: record.file_path,
-    }));
+    
+    const data = await res.json();
+    if (!data.success) {
+      console.error("[fileService] History API returned error", data);
+      return [];
+    }
+    
+    return data.files || [];
 
   } catch (err) {
     console.error("[fileService] Error getting file records:", err);
