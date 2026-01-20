@@ -183,11 +183,13 @@ export function AccountPage() {
     setClaiming(true);
     setClaimSuccess(false);
 
-    await claimInviteCode(inviteCodeInput.trim());
-
-    if (!authError) {
+    try {
+      await claimInviteCode(inviteCodeInput.trim());
+      
+      // Only show success if no error was thrown
       setClaimSuccess(true);
       setInviteCodeInput("");
+      
       // Refresh points
       if (userId) {
         const { data } = await supabase
@@ -197,9 +199,12 @@ export function AccountPage() {
           .single();
         if (data) setPoints(data);
       }
+    } catch (err) {
+      // Error is already set in authStore, just don't show success
+      console.error("[AccountPage] Failed to claim invite code:", err);
+    } finally {
+      setClaiming(false);
     }
-
-    setClaiming(false);
   };
 
   const handleCopyInviteCode = () => {

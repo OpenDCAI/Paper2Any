@@ -369,8 +369,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   claimInviteCode: async (inviteCode) => {
     if (!isSupabaseConfigured()) {
-      set({ error: "Supabase is not configured" });
-      return;
+      const error = "Supabase is not configured";
+      set({ error });
+      throw new Error(error);
     }
 
     set({ error: null });
@@ -386,7 +387,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } catch {
         // ignore
       }
-      set({ error: String(e) });
+      const errorMsg = String(e);
+      set({ error: errorMsg });
+      throw e; // Re-throw so caller can handle it
     }
   },
 
