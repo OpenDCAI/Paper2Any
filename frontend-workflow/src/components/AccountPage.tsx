@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "../stores/authStore";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { getApiSettings, saveApiSettings } from "../services/apiSettingsService";
-import { Ticket, Coins, Key, AlertCircle, Loader2, Copy, CheckCircle2, Settings, Users, History } from "lucide-react";
+import { Ticket, Coins, Key, AlertCircle, Loader2, Copy, CheckCircle2, Settings, Users, History, HelpCircle } from "lucide-react";
 
 interface ProfileData {
   invite_code: string;
@@ -304,6 +304,13 @@ export function AccountPage() {
               <div className="flex items-center gap-2 mb-4">
                 <Ticket size={18} className="text-green-400" />
                 <h2 className="text-base font-semibold text-white">填写邀请码</h2>
+                <div className="relative group">
+                  <HelpCircle size={14} className="text-gray-400 cursor-help" />
+                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block w-48 px-3 py-2 bg-gray-900 border border-white/20 rounded-lg text-xs text-gray-300 shadow-xl z-10">
+                    邀请方和被邀请方都能获得 10 积分
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-3">
