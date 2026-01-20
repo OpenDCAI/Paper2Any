@@ -13,8 +13,8 @@ from supabase import create_client, Client
 _supabase_client: Optional[Client] = None
 
 
-def get_supabase_client() -> Client:
-    """Get or create Supabase client."""
+def get_supabase_client() -> Optional[Client]:
+    """Get or create Supabase client. Returns None if not configured."""
     global _supabase_client
     
     if _supabase_client is None:
@@ -22,9 +22,7 @@ def get_supabase_client() -> Client:
         supabase_key = os.getenv("SUPABASE_ANON_KEY")
         
         if not supabase_url or not supabase_key:
-            raise RuntimeError(
-                "Supabase not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables."
-            )
+            return None
         
         _supabase_client = create_client(supabase_url, supabase_key)
     
@@ -56,8 +54,16 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> AuthU
         AuthUser object with user information
         
     Raises:
-        HTTPException: If token is invalid or missing
+        HTTPException: If token is invalid or missing or Supabase not configured
     """
+    # Check if Supabase is configured
+    supabase = get_supabase_client()
+    if not supabase:
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication service not configured"
+        )
+    
     if not authorization:
         raise HTTPException(
             status_code=401,
@@ -73,8 +79,6 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> AuthU
     token = authorization.split(" ", 1)[1]
     
     try:
-        supabase = get_supabase_client()
-        
         # Verify token and get user
         response = supabase.auth.get_user(token)
         
@@ -103,10 +107,15 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> AuthU
 
 async def get_optional_user(authorization: Optional[str] = Header(None)) -> Optional[AuthUser]:
     """
-    Optional authentication - returns None if no token provided.
+    Optional authentication - returns None if no token provided or Supabase not configured.
     
     Useful for endpoints that work both with and without authentication.
     """
+    # If Supabase is not configured, skip authentication
+    supabase = get_supabase_client()
+    if not supabase:
+        return None
+    
     if not authorization:
         return None
     

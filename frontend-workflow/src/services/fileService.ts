@@ -59,13 +59,8 @@ export async function uploadAndSaveFile(
   workflowType: string
 ): Promise<FileRecord | null> {
   try {
-    // Get JWT token from Supabase
+    // Get JWT token from Supabase (if configured)
     const { data: { session } } = await supabase.auth.getSession();
-
-    if (!session) {
-      console.warn("[fileService] No authenticated session, skipping file upload");
-      return null;
-    }
 
     // Sanitize filename to avoid special characters
     const sanitizedFileName = sanitizeFileName(fileName, workflowType);
@@ -77,13 +72,30 @@ export async function uploadAndSaveFile(
     formData.append('file', blob, sanitizedFileName);
     formData.append('workflow_type', workflowType);
 
-    // Upload to backend with JWT authentication
+    // Add email if no session (fallback for non-Supabase deployments)
+    if (!session) {
+      console.warn("[fileService] No authenticated session, using email fallback");
+      // Try to get email from user state (if available)
+      const user = (window as any).__user_email;
+      if (user) {
+        formData.append('email', user);
+      }
+    }
+
+    // Prepare headers
+    const headers: Record<string, string> = {
+      'X-API-Key': API_KEY,
+    };
+
+    // Add JWT token if available
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+
+    // Upload to backend
     const response = await fetch('/api/v1/files/upload', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'X-API-Key': API_KEY,
-      },
+      headers,
       body: formData,
     });
 
@@ -121,20 +133,32 @@ export async function uploadAndSaveFile(
  */
 export async function getFileRecords(): Promise<FileRecord[]> {
   try {
-    // Get JWT token from Supabase
+    // Get JWT token from Supabase (if configured)
     const { data: { session } } = await supabase.auth.getSession();
 
-    if (!session) {
-      console.warn("[fileService] No authenticated session, cannot fetch file records");
-      return [];
+    // Prepare headers
+    const headers: Record<string, string> = {
+      'X-API-Key': API_KEY,
+    };
+
+    // Add JWT token if available
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
     }
 
-    // Use unified backend API with JWT authentication
-    const res = await fetch('/api/v1/files/history', {
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'X-API-Key': API_KEY,
-      },
+    // Build URL with email parameter if no session
+    let url = '/api/v1/files/history';
+    if (!session) {
+      console.warn("[fileService] No authenticated session, using email fallback");
+      const user = (window as any).__user_email;
+      if (user) {
+        url += `?email=${encodeURIComponent(user)}`;
+      }
+    }
+
+    // Use unified backend API
+    const res = await fetch(url, {
+      headers,
     });
 
     if (!res.ok) {

@@ -31,7 +31,8 @@ def _to_outputs_url(abs_path: str, request: Request) -> str:
 async def upload_file(
     file: UploadFile = File(...),
     workflow_type: str = Form(...),
-    user: AuthUser = Depends(get_current_user),
+    email: Optional[str] = Form(None),
+    user: Optional[AuthUser] = Depends(get_optional_user),
 ) -> Dict[str, Any]:
     """
     Upload a file to local storage.
@@ -39,14 +40,21 @@ async def upload_file(
     Args:
         file: File to upload
         workflow_type: Type of workflow (e.g., 'paper2ppt', 'ppt2polish')
-        user: Authenticated user (from JWT token)
+        email: User email (fallback when JWT not available)
+        user: Authenticated user (from JWT token, optional)
         
     Returns:
         File metadata including download URL
     """
     try:
-        # Use email as directory name if available, otherwise use user_id
-        user_dir = user.email or user.id
+        # Determine user directory: JWT user > email parameter > "default"
+        if user:
+            user_dir = user.email or user.id
+        elif email:
+            user_dir = email
+        else:
+            user_dir = "default"
+        
         timestamp = int(datetime.now().timestamp() * 1000)
         
         # Create directory structure: outputs/{user_dir}/{workflow_type}/{timestamp}/
@@ -77,21 +85,29 @@ async def upload_file(
 @router.get("/history")
 async def get_file_history(
     request: Request,
-    user: AuthUser = Depends(get_current_user),
+    email: Optional[str] = None,
+    user: Optional[AuthUser] = Depends(get_optional_user),
 ) -> Dict[str, Any]:
     """
     Get file history for authenticated user.
     
     Args:
         request: FastAPI request object (for URL generation)
-        user: Authenticated user (from JWT token)
+        email: User email (fallback when JWT not available)
+        user: Authenticated user (from JWT token, optional)
         
     Returns:
         List of file records
     """
     try:
-        # Use email as directory name if available, otherwise use user_id
-        user_dir = user.email or user.id
+        # Determine user directory: JWT user > email parameter > "default"
+        if user:
+            user_dir = user.email or user.id
+        elif email:
+            user_dir = email
+        else:
+            user_dir = "default"
+        
         base_dir = PROJECT_ROOT / "outputs" / user_dir
         
         if not base_dir.exists():
