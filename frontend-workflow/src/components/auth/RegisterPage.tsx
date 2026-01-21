@@ -19,6 +19,9 @@ export function RegisterPage({ onSwitchToLogin, footer }: Props) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+
+  const [inviteCode, setInviteCode] = useState("");
+  const INVITE_CODE_STORAGE_KEY = "paper2any_invite_code";
   
   // 动态文字索引
   const [featureIndex, setFeatureIndex] = useState(0);
@@ -72,6 +75,14 @@ export function RegisterPage({ onSwitchToLogin, footer }: Props) {
     e.preventDefault();
     clearError();
     setLocalError(null);
+
+    try {
+      if (inviteCode.trim()) {
+        localStorage.setItem(INVITE_CODE_STORAGE_KEY, inviteCode.trim());
+      }
+    } catch {
+      // ignore
+    }
 
     // Client-side validation
     if (password !== confirmPassword) {
@@ -177,6 +188,18 @@ export function RegisterPage({ onSwitchToLogin, footer }: Props) {
                   disabled={loading}
                 />
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-gray-400 ml-1">邀请码（可选）</label>
+              <input
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-pink-500/50 focus:border-pink-500/50 transition-all"
+                placeholder="填写邀请码可获奖励"
+                disabled={loading}
+              />
             </div>
 
             <div className="space-y-1.5">

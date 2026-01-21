@@ -1,13 +1,15 @@
 /**
  * Login page component.
  *
- * Email/password authentication form using Supabase Auth.
+ * Tab-based login with email/password and phone OTP options.
  */
 
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "../../stores/authStore";
-import { Mail, Lock, AlertCircle, Loader2, ArrowRight, Sparkles, FileText, Presentation, Palette } from "lucide-react";
+import { Mail, Lock, AlertCircle, Loader2, ArrowRight, Sparkles, FileText, Presentation, Palette, Phone, CheckCircle2 } from "lucide-react";
+
+type LoginMethod = "email" | "phone";
 
 interface Props {
   onSwitchToRegister: () => void;
@@ -16,8 +18,21 @@ interface Props {
 
 export function LoginPage({ onSwitchToRegister, footer }: Props) {
   const { t } = useTranslation('login');
+  
+  // Tab state
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>("phone");
+  
+  // Email login
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  // Phone login
+  const [phone, setPhone] = useState("");
+  const [smsCode, setSmsCode] = useState("");
+  const [smsStep, setSmsStep] = useState<"idle" | "sent">("idle");
+  const [smsSent, setSmsSent] = useState(false);
+  const [sendingSms, setSendingSms] = useState(false);
+
   
   // 动态文字索引
   const [featureIndex, setFeatureIndex] = useState(0);
@@ -65,12 +80,36 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
     return () => clearInterval(interval);
   }, []);
 
-  const { signInWithEmail, loading, error, clearError } = useAuthStore();
+  const {
+    signInWithEmail,
+    signInWithPhoneOtp,
+    verifyPhoneOtp,
+    loading,
+    error,
+    clearError,
+  } = useAuthStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearError();
     await signInWithEmail(email, password);
+  };
+
+  const handleSendSms = async () => {
+    clearError();
+    setSmsSent(false);
+    setSendingSms(true);
+    const success = await signInWithPhoneOtp(phone);
+    setSendingSms(false);
+    if (success) {
+      setSmsStep("sent");
+      setSmsSent(true);
+    }
+  };
+
+  const handleVerifySms = async () => {
+    clearError();
+    await verifyPhoneOtp(phone, smsCode);
   };
 
   return (
@@ -132,7 +171,7 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
           </div>
 
           <h2 className="text-2xl font-bold text-white mb-2">{t('welcome')}</h2>
-          <p className="text-gray-400 mb-8 text-sm">{t('loginSubtitle')}</p>
+          <p className="text-gray-400 mb-6 text-sm">{t('loginSubtitle')}</p>
 
           {error && (
             <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3 text-red-300 animate-in fade-in slide-in-from-top-2">
@@ -141,64 +180,180 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-gray-400 ml-1">{t('emailLabel')}</label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="text-gray-500 group-focus-within:text-purple-400 transition-colors" size={18} />
-                </div>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
-                  placeholder={t('emailPlaceholder')}
-                  required
-                  disabled={loading}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center ml-1">
-                <label className="block text-xs font-medium text-gray-400">{t('passwordLabel')}</label>
-                {/* <a href="#" className="text-xs text-purple-400 hover:text-purple-300 transition-colors">忘记密码？</a> */}
-              </div>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="text-gray-500 group-focus-within:text-purple-400 transition-colors" size={18} />
-                </div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
-                  placeholder={t('passwordPlaceholder')}
-                  required
-                  disabled={loading}
-                />
-              </div>
-            </div>
-
+          {/* Tab 切换 */}
+          <div className="flex mb-6 p-1 bg-white/5 rounded-xl">
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-purple-900/30 flex items-center justify-center gap-2 mt-4"
+              type="button"
+              onClick={() => setLoginMethod("phone")}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                loginMethod === "phone"
+                  ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg"
+                  : "text-gray-400 hover:text-white"
+              }`}
             >
-              {loading ? (
-                <>
-                  <Loader2 size={20} className="animate-spin" />
-                  <span>{t('loggingIn')}</span>
-                </>
-              ) : (
-                <>
-                  <span>{t('loginButton')}</span>
-                  <ArrowRight size={18} />
-                </>
-              )}
+              <Phone size={16} />
+              <span>手机号登录</span>
             </button>
-          </form>
+            <button
+              type="button"
+              onClick={() => setLoginMethod("email")}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                loginMethod === "email"
+                  ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              <Mail size={16} />
+              <span>邮箱登录</span>
+            </button>
+          </div>
+
+          {/* 手机号登录表单 */}
+          {loginMethod === "phone" && (
+            <div className="space-y-4">
+              {/* 第一行：手机号 + 发送按钮 */}
+              <div className="flex gap-3">
+                <div className="flex-1 space-y-1.5">
+                  <label className="block text-xs font-medium text-gray-400 ml-1">手机号</label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Phone className="text-gray-500 group-focus-within:text-purple-400 transition-colors" size={18} />
+                    </div>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
+                      placeholder="输入手机号"
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-transparent ml-1">-</label>
+                  <button
+                    type="button"
+                    onClick={handleSendSms}
+                    disabled={sendingSms || !phone.trim()}
+                    className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap flex items-center justify-center gap-2 min-w-[120px]"
+                  >
+                    {sendingSms ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        <span>发送中</span>
+                      </>
+                    ) : smsStep === "sent" ? (
+                      <span>重新发送</span>
+                    ) : (
+                      <span>发送验证码</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* 发送成功提示 */}
+              {smsSent && (
+                <div className="flex items-center gap-2 text-sm text-green-300 bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2">
+                  <CheckCircle2 size={16} className="shrink-0" />
+                  <span>验证码已发送，请查收短信</span>
+                </div>
+              )}
+
+              {/* 第二行：验证码输入框（始终显示） */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-gray-400 ml-1">验证码</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={smsCode}
+                  onChange={(e) => setSmsCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all tracking-widest text-center text-lg"
+                  placeholder="输入 6 位验证码"
+                  disabled={sendingSms || loading || smsStep === "idle"}
+                  maxLength={6}
+                />
+              </div>
+
+              {/* 登录按钮 */}
+              <button
+                type="button"
+                onClick={handleVerifySms}
+                disabled={loading || smsCode.trim().length < 4 || smsStep === "idle"}
+                className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-purple-900/30 flex items-center justify-center gap-2"
+              >
+                {loading && smsStep === "sent" ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin" />
+                    <span>登录中...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>登录</span>
+                    <ArrowRight size={18} />
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* 邮箱登录表单 */}
+          {loginMethod === "email" && (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-gray-400 ml-1">{t('emailLabel')}</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className="text-gray-500 group-focus-within:text-purple-400 transition-colors" size={18} />
+                  </div>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
+                    placeholder={t('emailPlaceholder')}
+                    required
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-gray-400 ml-1">{t('passwordLabel')}</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="text-gray-500 group-focus-within:text-purple-400 transition-colors" size={18} />
+                  </div>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
+                    placeholder={t('passwordPlaceholder')}
+                    required
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-purple-900/30 flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin" />
+                    <span>{t('loggingIn')}</span>
+                  </>
+                ) : (
+                  <>
+                    <span>{t('loginButton')}</span>
+                    <ArrowRight size={18} />
+                  </>
+                )}
+              </button>
+            </form>
+          )}
 
           <div className="mt-8 text-center">
             <p className="text-gray-400 text-sm">

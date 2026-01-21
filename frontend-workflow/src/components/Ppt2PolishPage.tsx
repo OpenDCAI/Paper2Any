@@ -11,6 +11,7 @@ import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
 import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
+import { getApiSettings, saveApiSettings } from '../services/apiSettingsService';
 import QRCodeTooltip from './QRCodeTooltip';
 
 // ============== 类型定义 ==============
@@ -265,21 +266,31 @@ const Ppt2PolishPage = () => {
     if (typeof window === 'undefined') return;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw);
-      
-      if (saved.styleMode) setStyleMode(saved.styleMode);
-      if (saved.stylePreset) setStylePreset(saved.stylePreset);
-      if (saved.globalPrompt) setGlobalPrompt(saved.globalPrompt);
-      if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
-      if (saved.apiKey) setApiKey(saved.apiKey);
-      if (saved.model) setModel(saved.model);
-      if (saved.genFigModel) setGenFigModel(saved.genFigModel);
-      if (saved.language) setLanguage(saved.language);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        
+        if (saved.styleMode) setStyleMode(saved.styleMode);
+        if (saved.stylePreset) setStylePreset(saved.stylePreset);
+        if (saved.globalPrompt) setGlobalPrompt(saved.globalPrompt);
+        if (saved.model) setModel(saved.model);
+        if (saved.genFigModel) setGenFigModel(saved.genFigModel);
+        if (saved.language) setLanguage(saved.language);
+
+        // API settings: prioritize user-specific settings from apiSettingsService
+        const userApiSettings = getApiSettings(user?.id || null);
+        if (userApiSettings) {
+          if (userApiSettings.apiUrl) setLlmApiUrl(userApiSettings.apiUrl);
+          if (userApiSettings.apiKey) setApiKey(userApiSettings.apiKey);
+        } else {
+          // Fallback to legacy localStorage
+          if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
+          if (saved.apiKey) setApiKey(saved.apiKey);
+        }
+      }
     } catch (e) {
       console.error('Failed to restore pptpolish config', e);
     }
-  }, []);
+  }, [user?.id]);
 
   // 将配置写入 localStorage
   useEffect(() => {
@@ -296,12 +307,16 @@ const Ppt2PolishPage = () => {
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      // Also save API settings to user-specific storage
+      if (user?.id && llmApiUrl && apiKey) {
+        saveApiSettings(user.id, { apiUrl: llmApiUrl, apiKey });
+      }
     } catch (e) {
       console.error('Failed to persist pptpolish config', e);
     }
   }, [
     styleMode, stylePreset, globalPrompt, 
-    llmApiUrl, apiKey, model, genFigModel, language
+    llmApiUrl, apiKey, model, genFigModel, language, user?.id
   ]);
 
   // ============== Step 1: 上传处理 ==============
@@ -441,7 +456,7 @@ const Ppt2PolishPage = () => {
       formData.append('style', globalPrompt || stylePreset);
       formData.append('gen_fig_model', genFigModel);
       formData.append('page_count', '10'); // 默认值，后端可能会调整
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       formData.append('input_type', 'pptx');
       formData.append('file', selectedFile);
       
@@ -718,7 +733,7 @@ const Ppt2PolishPage = () => {
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
       formData.append('aspect_ratio', '16:9');
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', currentPath);
       formData.append('get_down', 'false');
       formData.append('pagecontent', JSON.stringify(pagecontent));
@@ -854,7 +869,7 @@ const Ppt2PolishPage = () => {
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
       formData.append('aspect_ratio', '16:9');
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', currentPath);
       formData.append('get_down', 'true');
       formData.append('page_id', String(index));
@@ -977,7 +992,7 @@ const Ppt2PolishPage = () => {
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
       formData.append('aspect_ratio', '16:9');
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath);
       formData.append('get_down', 'false');
       formData.append('all_edited_down', 'true');
@@ -1053,7 +1068,8 @@ const Ppt2PolishPage = () => {
           const fileRes = await fetch(fetchUrl);
           if (fileRes.ok) {
             const fileBlob = await fileRes.blob();
-            const fileName = fileUrl.split('/').pop() || defaultName;
+            // Use defaultName instead of extracting from URL to avoid reserved keywords and special chars
+            const fileName = defaultName;
             console.log('[Ppt2PolishPage] Uploading file to storage:', fileName);
             await uploadAndSaveFile(fileBlob, fileName, 'ppt2polish');
             console.log('[Ppt2PolishPage] File uploaded successfully');
