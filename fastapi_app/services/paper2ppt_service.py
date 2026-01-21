@@ -101,12 +101,14 @@ from fastapi import HTTPException, Request, UploadFile
 
 from fastapi_app.schemas import (
     FullPipelineRequest,
+    OutlineRefineRequest,
     PageContentRequest,
     PPTGenerationRequest,
 )
 from fastapi_app.utils import _from_outputs_url, _to_outputs_url
 from fastapi_app.workflow_adapters.wa_paper2ppt import (
     run_paper2page_content_wf_api,
+    run_paper2page_content_refine_wf_api,
     run_paper2ppt_full_pipeline,
     run_paper2ppt_wf_api,
 )
@@ -186,6 +188,57 @@ class Paper2PPTService:
         )
 
         resp_model = await run_paper2page_content_wf_api(p2ppt_req, result_path=run_dir)
+
+        resp_dict = resp_model.model_dump()
+        if request is not None:
+            resp_dict["all_output_files"] = self._collect_output_files_as_urls(resp_model.result_path, request)
+        else:
+            resp_dict["all_output_files"] = []
+
+        return resp_dict
+
+    async def refine_outline(
+        self,
+        req: OutlineRefineRequest,
+        request: Request | None,
+    ) -> Dict[str, Any]:
+        """Refine outline based on feedback without re-parsing input."""
+        if not req.outline_feedback.strip():
+            raise HTTPException(status_code=400, detail="outline_feedback is required")
+
+        pc = self._parse_pagecontent_json(req.pagecontent)
+        if not pc:
+            raise HTTPException(status_code=400, detail="pagecontent is required")
+
+        from fastapi_app.schemas import Paper2PPTRequest
+
+        p2ppt_req = Paper2PPTRequest(
+            language=req.language,
+            chat_api_url=req.chat_api_url,
+            chat_api_key=req.api_key,
+            api_key=req.api_key,
+            model=req.model,
+            gen_fig_model="",
+            input_type="TEXT",
+            input_content="",
+            style="",
+            email=req.email or "",
+            page_count=len(pc),
+        )
+
+        result_root: Path | None = None
+        if req.result_path:
+            base_dir = Path(req.result_path)
+            if not base_dir.is_absolute():
+                base_dir = PROJECT_ROOT / base_dir
+            result_root = base_dir.resolve()
+
+        resp_model = await run_paper2page_content_refine_wf_api(
+            p2ppt_req,
+            pagecontent=pc,
+            outline_feedback=req.outline_feedback,
+            result_path=result_root,
+        )
 
         resp_dict = resp_model.model_dump()
         if request is not None:

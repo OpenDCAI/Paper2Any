@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi_app.schemas import (
     ErrorResponse,
     FullPipelineRequest,
+    OutlineRefineRequest,
     PageContentRequest,
     PPTGenerationRequest,
 )
@@ -130,4 +131,36 @@ async def paper2ppt_ppt_json(
         reference_img=reference_img,
         request=request,
     )
+    return data
+
+
+@router.post(
+    "/paper2ppt/outline-refine",
+    response_model=Dict[str, Any],
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def paper2ppt_outline_refine(
+    request: Request,
+    outline_feedback: str = Form(...),
+    pagecontent: str = Form(...),
+    chat_api_url: str = Form(...),
+    api_key: str = Form(...),
+    email: Optional[str] = Form(None),
+    model: str = Form("gpt-5.1"),
+    language: str = Form("zh"),
+    result_path: Optional[str] = Form(None),
+    service: Paper2PPTService = Depends(get_service),
+):
+    """Refine existing outline based on feedback, without re-parsing input."""
+    req = OutlineRefineRequest(
+        chat_api_url=chat_api_url,
+        api_key=api_key,
+        email=email,
+        model=model,
+        language=language,
+        result_path=result_path,
+        outline_feedback=outline_feedback,
+        pagecontent=pagecontent,
+    )
+    data = await service.refine_outline(req=req, request=request)
     return data

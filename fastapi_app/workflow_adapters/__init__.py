@@ -16,6 +16,7 @@ from .wa_paper2video import run_paper_to_video_api
 from .wa_paper2figure import run_paper2figure_wf_api
 from .wa_paper2ppt import (
     run_paper2page_content_wf_api,
+    run_paper2page_content_refine_wf_api,
     run_paper2ppt_wf_api,
     run_paper2ppt_full_pipeline,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "run_paper_to_video_api",
     "run_paper2figure_wf_api",
     "run_paper2page_content_wf_api",
+    "run_paper2page_content_refine_wf_api",
     "run_paper2ppt_wf_api",
     "run_paper2ppt_full_pipeline",
 ]
