@@ -283,3 +283,6 @@ dev-debug.log
 .taskmaster/
 
 script/optimize_readme_assets.py
+
+# Personal notes
+iphone.md

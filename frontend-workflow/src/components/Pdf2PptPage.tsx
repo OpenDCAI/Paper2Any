@@ -9,6 +9,7 @@ import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
 import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
+import { getApiSettings, saveApiSettings } from '../services/apiSettingsService';
 import QRCodeTooltip from './QRCodeTooltip';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -111,17 +112,26 @@ const Pdf2PptPage = () => {
     if (typeof window === 'undefined') return;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw);
-      
-      if (saved.useAiEdit !== undefined) setUseAiEdit(saved.useAiEdit);
-      if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
-      if (saved.apiKey) setApiKey(saved.apiKey);
-      if (saved.genFigModel) setGenFigModel(saved.genFigModel);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        
+        if (saved.useAiEdit !== undefined) setUseAiEdit(saved.useAiEdit);
+        if (saved.genFigModel) setGenFigModel(saved.genFigModel);
+
+        // API settings: prioritize user-specific settings from apiSettingsService
+        const userApiSettings = getApiSettings(user?.id || null);
+        if (userApiSettings) {
+          if (userApiSettings.apiUrl) setLlmApiUrl(userApiSettings.apiUrl);
+          if (userApiSettings.apiKey) setApiKey(userApiSettings.apiKey);
+        } else {
+          if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
+          if (saved.apiKey) setApiKey(saved.apiKey);
+        }
+      }
     } catch (e) {
       console.error('Failed to restore pdf2ppt config', e);
     }
-  }, []);
+  }, [user?.id]);
 
   // 将配置写入 localStorage
   useEffect(() => {
@@ -134,10 +144,13 @@ const Pdf2PptPage = () => {
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      if (user?.id && llmApiUrl && apiKey) {
+        saveApiSettings(user.id, { apiUrl: llmApiUrl, apiKey });
+      }
     } catch (e) {
       console.error('Failed to persist pdf2ppt config', e);
     }
-  }, [useAiEdit, llmApiUrl, apiKey, genFigModel]);
+  }, [useAiEdit, llmApiUrl, apiKey, genFigModel, user?.id]);
 
   const validateDocFile = (file: File): boolean => {
     const ext = file.name.split('.').pop()?.toLowerCase();
@@ -243,7 +256,7 @@ const Pdf2PptPage = () => {
     try {
       const formData = new FormData();
       formData.append('pdf_file', selectedFile);
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       
       if (useAiEdit) {
         formData.append('use_ai_edit', 'true');
