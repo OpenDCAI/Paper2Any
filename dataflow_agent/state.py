@@ -396,5 +396,8 @@ class IntelligentQAState(MainState):
     # 解析后的上下文内容
     context_content: str = ""
     
+    # 新增: 存储每个文件的分析结果
+    file_analyses: List[Dict[str, Any]] = field(default_factory=list)
+    
     # 最终回答
     answer: str = ""

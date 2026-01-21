@@ -159,14 +159,19 @@ async def chat_with_kb(
         # Let's check typical usage. usually await graph.ainvoke(state) returns dict.
         
         answer = ""
+        file_analyses = []
+        
         if isinstance(result_state, dict):
             answer = result_state.get("answer", "")
+            file_analyses = result_state.get("file_analyses", [])
         else:
             answer = getattr(result_state, "answer", "")
+            file_analyses = getattr(result_state, "file_analyses", [])
             
         return {
             "success": True,
-            "answer": answer
+            "answer": answer,
+            "file_analyses": file_analyses
         }
 
     except Exception as e:

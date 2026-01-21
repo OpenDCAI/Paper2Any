@@ -1,7 +1,12 @@
 """
-OutlineRefineAgent
+QaAgent agent
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Refines an existing PPT outline based on user feedback.
+生成时间: 2026-01-21 18:15:51
+生成位置: dataflow_agent/agentroles/common_agents/qa_agent_agent.py
+
+本文件由 `dfa create --agent_name qa_agent` 自动生成。
+1. 填写 prompt-template 名称
+2. 根据需要完成 get_task_prompt_params / update_state_result
 """
 
 from __future__ import annotations
@@ -16,68 +21,68 @@ from dataflow_agent.agentroles.cores.registry import register
 
 log = get_logger(__name__)
 
+# ----------------------------------------------------------------------
+# Agent Definition
+# ----------------------------------------------------------------------
+@register("qa_agent")
+class QaAgent(BaseAgent):
+    """TODO: 描述 qa_agent 的职责"""
 
-@register("outline_refine_agent")
-class OutlineRefineAgent(BaseAgent):
-    """Refine existing outline content while keeping page order and count."""
-
+    # ---------- 工厂 ----------
     @classmethod
     def create(cls, tool_manager: Optional[ToolManager] = None, **kwargs):
         return cls(tool_manager=tool_manager, **kwargs)
 
+    # ---------- 基本配置 ----------
     @property
     def role_name(self) -> str:  # noqa: D401
-        return "outline_refine_agent"
+        return "qa_agent"
 
     @property
     def system_prompt_template_name(self) -> str:
-        return "system_prompt_for_outline_refine_agent"
+        # TODO: 修改为真实的模板 id
+        return "system_prompt_for_qa_agent"
 
     @property
     def task_prompt_template_name(self) -> str:
-        return "task_prompt_for_outline_refine_agent"
+        # TODO: 修改为真实的模板 id
+        return "task_prompt_for_qa_agent"
 
+    # ---------- Prompt 参数 ----------
     def get_task_prompt_params(self, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
+        """根据前置工具结果构造 prompt 参数
+        提示词中的占位符：
         return {
-            "pagecontent": pre_tool_results.get("pagecontent", "[]"),
-            "outline_feedback": pre_tool_results.get("outline_feedback", ""),
-            "minueru_output": pre_tool_results.get("minueru_output", ""),
-            "text_content": pre_tool_results.get("text_content", ""),
-            "page_count": self.state.request.page_count,
-            "language": self.state.request.language,
+            'text2img_prompt': pre_tool_results.get('prompt', ''),
+            'image_size': pre_tool_results.get('size', '512x512'),
+            'num_images': pre_tool_results.get('num_images', 1),
         }
-
-    def get_default_pre_tool_results(self) -> Dict[str, Any]:
+        """
+        # TODO: 按需补充
         return {}
 
+    def get_default_pre_tool_results(self) -> Dict[str, Any]:
+        """若调用方未显式传入，返回默认前置工具结果"""
+        return {}
+
+    # ---------- 结果写回 ----------
     def update_state_result(
         self,
         state: MainState,
         result: Dict[str, Any],
         pre_tool_results: Dict[str, Any],
     ):
-        original = pre_tool_results.get("pagecontent_raw")
-        if not isinstance(original, list):
-            original = getattr(state, "pagecontent", []) or []
+        """将推理结果写回 MainState，可按需重写"""
 
-        if not isinstance(result, list):
-            log.warning("[outline_refine_agent] Invalid result, fallback to original pagecontent.")
-            state.pagecontent = original
-            super().update_state_result(state, original, pre_tool_results)
-            return
+        state.xx = result
 
-        merged_pages = []
-        for item in result:
-            if isinstance(item, dict):
-                merged = item.copy()
-                merged_pages.append(merged)
-
-        state.pagecontent = merged_pages
-        log.info(f"[outline_refine_agent] refined {len(merged_pages)} pages")
-        super().update_state_result(state, merged_pages, pre_tool_results)
+        super().update_state_result(state, result, pre_tool_results)
 
 
-async def outline_refine_agent(
+# ----------------------------------------------------------------------
+# Helper APIs
+# ----------------------------------------------------------------------
+async def qa_agent(
     state: MainState,
     model_name: Optional[str] = None,
     tool_manager: Optional[ToolManager] = None,
@@ -93,8 +98,28 @@ async def outline_refine_agent(
     use_agent: bool = False,
     **kwargs,
 ) -> MainState:
-    """Async entry for outline_refine_agent."""
-    agent = OutlineRefineAgent(
+    """qa_agent 的异步入口
+    
+    Args:
+        state: 主状态对象
+        model_name: 模型名称，如 "gpt-4"
+        tool_manager: 工具管理器实例
+        temperature: 采样温度，控制随机性 (0.0-1.0)
+        max_tokens: 最大生成token数
+        tool_mode: 工具调用模式 ("auto", "none", "required")
+        react_mode: 是否启用ReAct推理模式
+        react_max_retries: ReAct模式下最大重试次数
+        parser_type: 解析器类型 ("json", "xml", "text")，这个允许你在提示词中定义LLM不同的返回，xml还是json，还是直出；
+        parser_config: 解析器配置字典（如XML的root_tag）
+        use_vlm: 是否使用视觉语言模型，使用了视觉模型，其余的参数失效；
+        vlm_config: VLM配置字典
+        use_agent: 是否使用agent模式
+        **kwargs: 其他传递给execute的参数
+        
+    Returns:
+        更新后的MainState对象
+    """
+    agent = QaAgent(
         tool_manager=tool_manager,
         model_name=model_name,
         temperature=temperature,
@@ -110,7 +135,7 @@ async def outline_refine_agent(
     return await agent.execute(state, use_agent=use_agent, **kwargs)
 
 
-def create_outline_refine_agent(
+def create_qa_agent(
     tool_manager: Optional[ToolManager] = None,
     model_name: Optional[str] = None,
     temperature: float = 0.0,
@@ -123,8 +148,8 @@ def create_outline_refine_agent(
     use_vlm: bool = False,
     vlm_config: Optional[Dict[str, Any]] = None,
     **kwargs,
-) -> OutlineRefineAgent:
-    return OutlineRefineAgent.create(
+) -> QaAgent:
+    return QaAgent.create(
         tool_manager=tool_manager,
         model_name=model_name,
         temperature=temperature,

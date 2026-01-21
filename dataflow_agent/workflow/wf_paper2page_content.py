@@ -244,10 +244,10 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         """
         outline_refine_agent: refine existing outline based on user feedback.
         """
-        agent = create_simple_agent(
+        agent = create_react_agent(
             name="outline_refine_agent",
-            temperature=0.1,
             parser_type="json",
+            max_retries=5
         )
         state = await agent.execute(state=state)
         return state

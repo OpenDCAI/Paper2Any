@@ -137,7 +137,8 @@ async def _make_prompt_for_structured_page(item: Dict[str, Any], style: str, sta
             log.critical(f'[table_img_path 表格图像路径]:   {table_img_path}')
 
         if not table_img_path:
-            raise ValueError(f"[paper2ppt] 表格提取失败，未得到 table_img_path。asset_ref={asset_ref}")
+            log.warning(f"[paper2ppt] 表格提取失败 (asset_ref={asset_ref})，降级为 Text2Img 模式生成页面。")
+            return base, None, False
 
         image_path = _resolve_asset_path(table_img_path, state)
         if not image_path or not os.path.exists(image_path):
