@@ -9,7 +9,7 @@ from dataflow_agent.workflow.registry import register
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import IntelligentQAState, MainState
-from dataflow_agent.agentroles import create_vlm_agent, create_qa_agent
+from dataflow_agent.agentroles import create_vlm_agent
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.promptstemplates.resources.pt_qa_agent_repo import QaAgent as QaAgentPrompts
 
