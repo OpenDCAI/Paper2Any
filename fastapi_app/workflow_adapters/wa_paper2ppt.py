@@ -100,7 +100,7 @@ def _init_state_from_request(
 
     # 统一 result_path（如果调用方显式指定，则优先使用）
     if result_path is not None:
-        state.result_path = str(result_path)
+        state.result_path = str(Path(result_path).resolve())
 
     return state
 

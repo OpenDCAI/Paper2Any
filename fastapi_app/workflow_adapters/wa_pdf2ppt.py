@@ -91,7 +91,7 @@ async def run_pdf2ppt_wf_api(req: Paper2PPTRequest, result_path: Path | None = N
         request=p2f_req,
     )
     state.pdf_file = str(pdf_path)
-    state.result_path = str(result_root)
+    state.result_path = str(result_root.resolve())
     state.use_ai_edit = req.use_ai_edit
     log.critical(f"[pdf2ppt 是否使用AI： ] state.use_ai_edit = {state.use_ai_edit}")
 

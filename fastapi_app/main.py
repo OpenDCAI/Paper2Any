@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pathlib import Path
 
 from fastapi_app.routers import paper2video
 from fastapi_app.routers import paper2any, paper2ppt
