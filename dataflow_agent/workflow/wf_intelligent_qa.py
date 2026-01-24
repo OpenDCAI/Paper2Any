@@ -9,9 +9,10 @@ from dataflow_agent.workflow.registry import register
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import IntelligentQAState, MainState
-from dataflow_agent.agentroles import create_vlm_agent
+from dataflow_agent.agentroles import create_vlm_agent, create_simple_agent
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.promptstemplates.resources.pt_qa_agent_repo import QaAgent as QaAgentPrompts
+from langchain_core.messages import HumanMessage
 
 log = get_logger(__name__)
 
@@ -124,7 +125,7 @@ def create_intelligent_qa_graph() -> GenericGraphBuilder:
                     file_type = "media"
                     # For media, raw_content comes from VLM understanding
                     # We will do analysis directly here using VLM Agent
-                    pass
+                    raw_content = "[Media file - will be analyzed by VLM]"
                 
                 else:
                     file_type = "text"
@@ -137,78 +138,80 @@ def create_intelligent_qa_graph() -> GenericGraphBuilder:
                 # ==========================
                 # 2. Analysis Phase (Parallel LLM Call)
                 # ==========================
-                
-                if file_type == "media":
-                    pass
 
-                
+                if file_type == "media":
                     # Use VLM Agent for Media
-                    # vlm_mode = "understanding"
-                    # input_key = "input_image"
-                    # if suffix in [".mp4", ".mov", ".avi"]:
-                    #      vlm_mode = "video_understanding"
-                    #      input_key = "input_video"
-                    
-                    # # Create VLM Agent
-                    # agent = create_vlm_agent(
-                    #     name=f"vlm_analyzer_{filename}",
-                    #     vlm_mode=vlm_mode,
-                    #     model_name="gemini-2.5-flash", 
-                    #     chat_api_url=state.request.chat_api_url,
-                    #     additional_params={input_key: file_path}
-                    # )
-                    
-                    # # Construct Prompt for VLM
-                    # # We ask it to describe AND relate to user query
-                    # vlm_prompt = f"Please analyze this media content. User Question: {state.request.query}. Describe relevant details."
-                    
-                    # from langchain_core.messages import HumanMessage
-                    # temp_state = MainState(request=state.request)
-                    # temp_state.messages = [HumanMessage(content=vlm_prompt)]
-                    
-                    # res_state = await agent.execute(temp_state)
-                    
-                    # if res_state.messages and res_state.messages[-1].type == "ai":
-                    #      analysis_result = res_state.messages[-1].content
-                    #      raw_content = "[Media Content Processed by VLM]"
-                    # else:
-                    #      analysis_result = "[VLM returned no content]"
+                    vlm_mode = "understanding"
+                    input_key = "input_image"
+                    if suffix in [".mp4", ".mov", ".avi"]:
+                        vlm_mode = "video_understanding"
+                        input_key = "input_video"
+
+                    try:
+                        # Create VLM Agent
+                        agent = create_vlm_agent(
+                            name=f"vlm_analyzer_{filename}",
+                            vlm_mode=vlm_mode,
+                            model_name="gemini-2.5-flash",
+                            chat_api_url=state.request.chat_api_url,
+                            additional_params={input_key: file_path}
+                        )
+
+                        # Construct Prompt for VLM
+                        # We ask it to describe AND relate to user query
+                        vlm_prompt = f"Please analyze this media content. User Question: {state.request.query}. Describe relevant details."
+
+                        temp_state = MainState(request=state.request)
+                        temp_state.messages = [HumanMessage(content=vlm_prompt)]
+
+                        res_state = await agent.execute(temp_state)
+
+                        if res_state.messages and res_state.messages[-1].type == "ai":
+                            analysis_result = res_state.messages[-1].content
+                            raw_content = "[Media Content Processed by VLM]"
+                        else:
+                            analysis_result = "[VLM returned no content]"
+                    except Exception as e:
+                        log.error(f"VLM analysis failed for {filename}: {e}")
+                        analysis_result = f"[VLM Analysis Error: {e}]"
 
                 else:
-                    # Use QA Agent for Text
+                    # Use Simple Agent for Text
                     # Only if content is not empty or error
                     if raw_content and not raw_content.startswith("[Error"):
-                        pass
-                        
-                    #     # Prepare Prompt
-                    #     # Limit raw_content size to avoid context overflow if huge (simple truncation)
-                    #     truncated_content = raw_content[:50000] # 50k char limit rough guard
-                        
-                    #     analysis_prompt = QaAgentPrompts.file_analysis_prompt.format(
-                    #         filename=filename,
-                    #         file_type=file_type,
-                    #         content=truncated_content,
-                    #         query=state.request.query
-                    #     )
-                        
-                    #     agent = create_qa_agent(
-                    #         model_name=state.request.model,
-                    #         chat_api_url=state.request.chat_api_url,
-                    #         temperature=0.3
-                    #     )
-                        
-                    #     from langchain_core.messages import HumanMessage
-                    #     temp_state = MainState(request=state.request)
-                    #     temp_state.messages = [HumanMessage(content=analysis_prompt)]
-                        
-                    #     res_state = await agent.execute(temp_state)
-                        
-                    #     if res_state.messages and res_state.messages[-1].type == "ai":
-                    #         analysis_result = res_state.messages[-1].content
-                    #     else:
-                    #         analysis_result = "[LLM Analysis Failed]"
-                    # else:
-                    #     analysis_result = raw_content # Pass through error or empty
+                        try:
+                            # Prepare Prompt
+                            # Limit raw_content size to avoid context overflow if huge (simple truncation)
+                            truncated_content = raw_content[:50000]  # 50k char limit rough guard
+
+                            analysis_prompt = QaAgentPrompts.file_analysis_prompt.format(
+                                filename=filename,
+                                file_type=file_type,
+                                content=truncated_content,
+                                query=state.request.query
+                            )
+
+                            agent = create_simple_agent(
+                                name=f"text_analyzer_{filename}",
+                                model_name=state.request.model,
+                                chat_api_url=state.request.chat_api_url,
+                                temperature=0.3
+                            )
+
+                            temp_state = MainState(request=state.request)
+                            temp_state.messages = [HumanMessage(content=analysis_prompt)]
+
+                            res_state = await agent.execute(temp_state)
+
+                            if res_state.messages and res_state.messages[-1].type == "ai":
+                                analysis_result = res_state.messages[-1].content
+                            else:
+                                analysis_result = "[LLM Analysis Failed]"
+                        except Exception as e:
+                            log.error(f"Text analysis failed for {filename}: {e}")
+                            analysis_result = f"[Text Analysis Error: {e}]"
+                    else:
+                        analysis_result = raw_content  # Pass through error or empty
 
             except Exception as e:
                  analysis_result = f"[Analysis Error: {e}]"

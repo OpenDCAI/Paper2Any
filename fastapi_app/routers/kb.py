@@ -1,13 +1,17 @@
 import os
 import shutil
+import time
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
 from typing import Optional, List, Dict, Any
 
-from dataflow_agent.state import IntelligentQARequest, IntelligentQAState
+from dataflow_agent.state import IntelligentQARequest, IntelligentQAState, KBPodcastRequest, KBPodcastState
 from dataflow_agent.workflow.wf_intelligent_qa import create_intelligent_qa_graph
+from dataflow_agent.workflow.wf_kb_podcast import create_kb_podcast_graph
 from dataflow_agent.utils import get_project_root
 from fastapi_app.config import settings
+from fastapi_app.schemas import Paper2PPTRequest
+from fastapi_app.workflow_adapters.wa_paper2ppt import run_paper2ppt_full_pipeline
 
 router = APIRouter(prefix="/kb", tags=["Knowledge Base"])
 
@@ -172,6 +176,161 @@ async def chat_with_kb(
             "success": True,
             "answer": answer,
             "file_analyses": file_analyses
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/generate-ppt")
+async def generate_ppt_from_kb(
+    file_path: str = Body(..., embed=True),
+    user_id: str = Body(..., embed=True),
+    email: str = Body(..., embed=True),
+    api_url: str = Body(..., embed=True),
+    api_key: str = Body(..., embed=True),
+    style: str = Body("modern", embed=True),
+    language: str = Body("zh", embed=True),
+    page_count: int = Body(10, embed=True),
+    model: str = Body("gpt-4o", embed=True),
+    gen_fig_model: str = Body("gemini-2.5-flash-image", embed=True),
+):
+    """
+    Generate PPT from knowledge base file (non-interactive)
+    """
+    try:
+        # Normalize file path
+        project_root = get_project_root()
+        clean_path = file_path.lstrip('/')
+        local_file_path = project_root / clean_path
+
+        if not local_file_path.exists():
+            # Try raw path
+            local_file_path = Path(file_path)
+            if not local_file_path.exists():
+                raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+
+        # Create output directory
+        ts = int(time.time())
+        output_dir = project_root / "outputs" / "kb_outputs" / email / f"{ts}_ppt"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Prepare request
+        ppt_req = Paper2PPTRequest(
+            input_type="PDF",
+            input_content=str(local_file_path),
+            email=email,
+            chat_api_url=api_url,
+            api_key=api_key,
+            style=style,
+            language=language,
+            page_count=page_count,
+            model=model,
+            img_gen_model_name=gen_fig_model,
+            aspect_ratio="16:9",
+            use_long_paper=False
+        )
+
+        # Run workflow
+        result = await run_paper2ppt_full_pipeline(ppt_req, result_path=output_dir)
+
+        # Extract output paths
+        pdf_path = ""
+        pptx_path = ""
+        if hasattr(result, 'ppt_pdf_path'):
+            pdf_path = result.ppt_pdf_path
+        if hasattr(result, 'ppt_pptx_path'):
+            pptx_path = result.ppt_pptx_path
+
+        return {
+            "success": True,
+            "result_path": str(output_dir),
+            "pdf_path": pdf_path,
+            "pptx_path": pptx_path,
+            "output_file_id": f"kb_ppt_{ts}"
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/generate-podcast")
+async def generate_podcast_from_kb(
+    file_paths: List[str] = Body(..., embed=True),
+    user_id: str = Body(..., embed=True),
+    email: str = Body(..., embed=True),
+    api_url: str = Body(..., embed=True),
+    api_key: str = Body(..., embed=True),
+    model: str = Body("gpt-4o", embed=True),
+    tts_model: str = Body("gemini-2.5-pro-preview-tts", embed=True),
+    voice_name: str = Body("Kore", embed=True),
+    language: str = Body("zh", embed=True),
+):
+    """
+    Generate podcast from knowledge base files
+    """
+    try:
+        # Normalize file paths
+        project_root = get_project_root()
+        local_file_paths = []
+
+        for f in file_paths:
+            clean_path = f.lstrip('/')
+            local_path = project_root / clean_path
+
+            if not local_path.exists():
+                local_path = Path(f)
+                if not local_path.exists():
+                    raise HTTPException(status_code=404, detail=f"File not found: {f}")
+
+            local_file_paths.append(str(local_path))
+
+        if not local_file_paths:
+            raise HTTPException(status_code=400, detail="No valid files provided")
+
+        # Prepare request
+        podcast_req = KBPodcastRequest(
+            files=local_file_paths,
+            chat_api_url=api_url,
+            api_key=api_key,
+            model=model,
+            tts_model=tts_model,
+            voice_name=voice_name,
+            language=language
+        )
+        podcast_req.email = email
+
+        state = KBPodcastState(request=podcast_req)
+
+        # Build and run graph
+        builder = create_kb_podcast_graph()
+        graph = builder.compile()
+
+        result_state = await graph.ainvoke(state)
+
+        # Extract results
+        audio_path = ""
+        script_path = ""
+        result_path = ""
+
+        if isinstance(result_state, dict):
+            audio_path = result_state.get("audio_path", "")
+            result_path = result_state.get("result_path", "")
+        else:
+            audio_path = getattr(result_state, "audio_path", "")
+            result_path = getattr(result_state, "result_path", "")
+
+        if result_path:
+            script_path = str(Path(result_path) / "script.txt")
+
+        return {
+            "success": True,
+            "result_path": result_path,
+            "audio_path": audio_path,
+            "script_path": script_path,
+            "output_file_id": f"kb_podcast_{int(time.time())}"
         }
 
     except Exception as e:
