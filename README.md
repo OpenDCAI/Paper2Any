@@ -241,25 +241,81 @@ export MINERU_DEVICES="0,1,2,3" # Optional: MinerU task GPU resource pool
 > [!TIP]
 > 📚 **For detailed configuration guide**, see [Configuration Guide](docs/guides/configuration.md) for step-by-step instructions on configuring models, environment variables, and starting services.
 
-#### 4. Configure Supabase (Required for Frontend & Backend)
+#### 4. Configure Environment Files (Optional)
 
-Create a `.env` file under the `frontend-workflow` directory and fill in the following configuration:
+<details>
+<summary><strong>📝 Click to expand: Detailed .env Configuration Guide</strong></summary>
+
+Paper2Any uses two `.env` files for configuration. **Both are optional** - you can run the application without them using default settings.
+
+##### Step 1: Copy Example Files
 
 ```bash
-# frontend-workflow/.env
+# Copy backend environment file
+cp fastapi_app/.env.example fastapi_app/.env
 
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-# Backend
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-SUPABASE_JWT_SECRET=your_jwt_secret
-
-# Application Settings
-DAILY_WORKFLOW_LIMIT=10
+# Copy frontend environment file
+cp frontend-workflow/.env.example frontend-workflow/.env
 ```
+
+##### Step 2: Backend Configuration (`fastapi_app/.env`)
+
+**Supabase (Optional)** - Only needed if you want user authentication and cloud storage:
+```bash
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+**Model Configuration** - Customize which models to use for different workflows:
+```bash
+# Default LLM API URL
+DEFAULT_LLM_API_URL=http://123.129.219.111:3000/v1/
+
+# Workflow-level defaults
+PAPER2PPT_DEFAULT_MODEL=gpt-5.1
+PAPER2PPT_DEFAULT_IMAGE_MODEL=gemini-3-pro-image-preview
+PDF2PPT_DEFAULT_MODEL=gpt-4o
+# ... see .env.example for full list
+```
+
+##### Step 3: Frontend Configuration (`frontend-workflow/.env`)
+
+**LLM Provider Configuration** - Controls the API endpoint dropdown in the UI:
+```bash
+# Default API URL shown in the UI
+VITE_DEFAULT_LLM_API_URL=https://api.apiyi.com/v1
+
+# Available API URLs in the dropdown (comma-separated)
+VITE_LLM_API_URLS=https://api.apiyi.com/v1,http://b.apiyi.com:16888/v1,http://123.129.219.111:3000/v1
+```
+
+**What happens when you modify `VITE_LLM_API_URLS`:**
+- The frontend will display a **dropdown menu** with all URLs you specify
+- Users can select different API endpoints without manually typing URLs
+- Useful for switching between OpenAI, local models, or custom API gateways
+
+**Supabase (Optional)** - Uncomment these lines if you want user authentication:
+```bash
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_JWT_SECRET=your-jwt-secret
+```
+
+##### Running Without Supabase
+
+If you skip Supabase configuration:
+- ✅ All core features work normally
+- ✅ CLI scripts work without any configuration
+- ❌ No user authentication or quotas
+- ❌ No cloud file storage
+
+</details>
+
+> [!NOTE]
+> **Quick Start:** You can skip the `.env` configuration entirely and use CLI scripts directly with `--api-key` parameter. See [CLI Scripts](#️-cli-scripts-command-line-interface) section below.
+
+---
 
 <details>
 <summary><strong>Advanced Configuration: Local Model Service Load Balancing</strong></summary>

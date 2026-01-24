@@ -226,25 +226,81 @@ export DF_API_URL=xxx  # 可选：如需使用第三方 API 中转站
 export MINERU_DEVICES="0,1,2,3" # 可选：MinerU 任务 GPU 资源池
 ```
 
-#### 4. 配置 Supabase (前后端必需)
+#### 4. 配置环境文件（可选）
 
-在 `frontend-workflow` 目录下创建 `.env` 文件并填入以下配置：
+<details>
+<summary><strong>📝 点击展开：详细的 .env 配置指南</strong></summary>
+
+Paper2Any 使用两个 `.env` 文件进行配置。**两者都是可选的** - 您可以使用默认设置运行应用程序。
+
+##### 步骤 1：复制示例文件
 
 ```bash
-# frontend-workflow/.env
+# 复制后端环境文件
+cp fastapi_app/.env.example fastapi_app/.env
 
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-# Backend
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-SUPABASE_JWT_SECRET=your_jwt_secret
-
-# Application Settings
-DAILY_WORKFLOW_LIMIT=10
+# 复制前端环境文件
+cp frontend-workflow/.env.example frontend-workflow/.env
 ```
+
+##### 步骤 2：后端配置（`fastapi_app/.env`）
+
+**Supabase（可选）** - 仅在需要用户认证和云存储时配置：
+```bash
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+**模型配置** - 自定义不同工作流使用的模型：
+```bash
+# 默认 LLM API 地址
+DEFAULT_LLM_API_URL=http://123.129.219.111:3000/v1/
+
+# 工作流级别默认值
+PAPER2PPT_DEFAULT_MODEL=gpt-5.1
+PAPER2PPT_DEFAULT_IMAGE_MODEL=gemini-3-pro-image-preview
+PDF2PPT_DEFAULT_MODEL=gpt-4o
+# ... 完整列表请查看 .env.example
+```
+
+##### 步骤 3：前端配置（`frontend-workflow/.env`）
+
+**LLM 提供商配置** - 控制 UI 中的 API 端点下拉菜单：
+```bash
+# UI 中显示的默认 API 地址
+VITE_DEFAULT_LLM_API_URL=https://api.apiyi.com/v1
+
+# 下拉菜单中的可用 API 地址（逗号分隔）
+VITE_LLM_API_URLS=https://api.apiyi.com/v1,http://b.apiyi.com:16888/v1,http://123.129.219.111:3000/v1
+```
+
+**修改 `VITE_LLM_API_URLS` 后的效果：**
+- 前端会显示一个**下拉菜单**，包含您指定的所有 URL
+- 用户可以选择不同的 API 端点，无需手动输入 URL
+- 适用于在 OpenAI、本地模型或自定义 API 网关之间切换
+
+**Supabase（可选）** - 如需用户认证，取消注释这些行：
+```bash
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_JWT_SECRET=your-jwt-secret
+```
+
+##### 不配置 Supabase 的情况
+
+如果跳过 Supabase 配置：
+- ✅ 所有核心功能正常工作
+- ✅ CLI 脚本无需任何配置即可使用
+- ❌ 无用户认证或配额限制
+- ❌ 无云文件存储
+
+</details>
+
+> [!NOTE]
+> **快速开始：** 您可以完全跳过 `.env` 配置，直接使用 CLI 脚本并通过 `--api-key` 参数传递密钥。详见下方 [CLI 脚本](#️-cli-脚本命令行界面) 部分。
+
+---
 
 <details>
 <summary><strong>高级配置：本地模型服务负载均衡</strong></summary>
