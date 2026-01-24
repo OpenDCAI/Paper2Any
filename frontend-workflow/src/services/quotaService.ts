@@ -10,7 +10,6 @@
  */
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { getUserIdentifier } from './fingerprintService';
 
 // Quota limits
 const ANONYMOUS_DAILY_LIMIT = 15;
@@ -66,7 +65,6 @@ export async function checkQuota(userId: string | null, isAnonymous: boolean = f
   // A user is authenticated (non-anonymous) only if they have a userId AND are not anonymous
   const isAuthenticated = Boolean(userId) && !isAnonymous;
   const limit = isAuthenticated ? AUTHENTICATED_DAILY_LIMIT : ANONYMOUS_DAILY_LIMIT;
-  const userIdentifier = getUserIdentifier(userId);
 
   // If Supabase is not configured (self-hosted), no quota limits
   if (!isSupabaseConfigured()) {
@@ -79,19 +77,37 @@ export async function checkQuota(userId: string | null, isAnonymous: boolean = f
   }
 
   try {
-    // For authenticated users, check points balance instead of daily usage
+    // For authenticated users, check and grant daily usage, then return balance
     if (isAuthenticated && userId) {
-      const { data: balanceData, error: balanceError } = await supabase
-        .from('points_balance')
-        .select('balance')
-        .eq('user_id', userId)
-        .single();
+      // Call RPC to check and grant daily usage (if eligible)
+      const { data: newBalance, error: rpcError } = await supabase.rpc(
+        'check_and_grant_daily_usage',
+        { p_user_id: userId }
+      );
 
-      if (balanceError && balanceError.code !== 'PGRST116') {
-        console.error('[quotaService] Failed to check points balance:', balanceError);
+      if (rpcError) {
+        console.error('[quotaService] Failed to check/grant daily usage:', rpcError);
+        // Fallback: query balance directly
+        const { data: balanceData, error: balanceError } = await supabase
+          .from('points_balance')
+          .select('balance')
+          .eq('user_id', userId)
+          .single();
+
+        if (balanceError && balanceError.code !== 'PGRST116') {
+          console.error('[quotaService] Failed to check points balance:', balanceError);
+        }
+
+        const balance = balanceData?.balance || 0;
+        return {
+          used: 0,
+          limit: balance,
+          remaining: balance,
+          isAuthenticated,
+        };
       }
 
-      const balance = balanceData?.balance || 0;
+      const balance = newBalance || 0;
 
       return {
         used: 0, // Not applicable for points-based system
@@ -144,8 +160,6 @@ export async function recordUsage(
   userId: string | null,
   workflowType: string
 ): Promise<boolean> {
-  const userIdentifier = getUserIdentifier(userId);
-
   // If Supabase is not configured, use local storage
   if (!isSupabaseConfigured()) {
     const local = getLocalUsage();

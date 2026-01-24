@@ -1,799 +1,380 @@
+-- ==============================================================================
+-- Paper2Any Supabase Schema Setup Script
+--
+-- This script sets up the necessary tables, views, functions, triggers,
+-- storage buckets, and security policies for the Paper2Any application.
+--
+-- INSTRUCTIONS:
+-- 1. Go to your Supabase Project Dashboard: https://supabase.com/dashboard
+-- 2. Navigate to the "SQL Editor" section.
+-- 3. Click "New query", paste this entire script, and click "Run".
+--
+-- Last Updated: 2025-01-22 (synced from production database)
+-- ==============================================================================
 
+-- ==============================================================================
+-- Table: usage_records
+-- Tracks API/Workflow usage for quota management.
+-- ==============================================================================
 
+CREATE TABLE IF NOT EXISTS public.usage_records (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    workflow_type TEXT NOT NULL,
+    called_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
+-- Enable Row Level Security
+ALTER TABLE public.usage_records ENABLE ROW LEVEL SECURITY;
 
+-- Policy: Allow users to insert their own usage records
+CREATE POLICY "Allow creation of usage records"
+ON public.usage_records
+FOR INSERT
+WITH CHECK (true);
 
-COMMENT ON SCHEMA "public" IS 'standard public schema';
+-- Policy: Allow users to view their own usage records
+CREATE POLICY "Allow users to view their own usage"
+ON public.usage_records
+FOR SELECT
+USING (auth.uid() = user_id);
 
+-- ==============================================================================
+-- Table: user_files
+-- Stores metadata for generated files.
+-- ==============================================================================
 
+CREATE TABLE IF NOT EXISTS public.user_files (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    file_name TEXT NOT NULL,
+    file_size BIGINT,
+    workflow_type TEXT,
+    file_path TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-CREATE EXTENSION IF NOT EXISTS "pg_graphql" WITH SCHEMA "graphql";
+-- Enable Row Level Security
+ALTER TABLE public.user_files ENABLE ROW LEVEL SECURITY;
 
+-- Add index for performance
+CREATE INDEX IF NOT EXISTS idx_user_files_user_id ON public.user_files(user_id);
 
+-- Policy: Users can only see their own files
+CREATE POLICY "Users can view own files"
+ON public.user_files
+FOR SELECT
+USING (auth.uid() = user_id);
 
+-- Policy: Users can insert their own files
+CREATE POLICY "Users can upload own files"
+ON public.user_files
+FOR INSERT
+WITH CHECK (auth.uid() = user_id);
 
+-- Policy: Users can delete their own files
+CREATE POLICY "Users can delete own files"
+ON public.user_files
+FOR DELETE
+USING (auth.uid() = user_id);
 
+-- ==============================================================================
+-- Table: profiles
+-- Stores user profiles with invite codes.
+-- ==============================================================================
 
-CREATE EXTENSION IF NOT EXISTS "pg_stat_statements" WITH SCHEMA "extensions";
+CREATE TABLE IF NOT EXISTS public.profiles (
+    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    invite_code TEXT UNIQUE NOT NULL DEFAULT upper(substr(md5(random()::text), 1, 8)),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
+-- Enable Row Level Security
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
+-- Policy: Users can view own profile
+CREATE POLICY "Users can view own profile"
+ON public.profiles
+FOR SELECT
+USING (auth.uid() = user_id);
 
+-- ==============================================================================
+-- Table: referrals
+-- Tracks who invited whom.
+-- ==============================================================================
 
+CREATE TABLE IF NOT EXISTS public.referrals (
+    id BIGSERIAL PRIMARY KEY,
+    inviter_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    invitee_user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+    invite_code TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
+-- Enable Row Level Security
+ALTER TABLE public.referrals ENABLE ROW LEVEL SECURITY;
 
-CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA "extensions";
+-- Policy: Users can view own referrals
+CREATE POLICY "Users can view own referrals"
+ON public.referrals
+FOR SELECT
+USING (auth.uid() = inviter_user_id OR auth.uid() = invitee_user_id);
 
+-- ==============================================================================
+-- Table: points_ledger
+-- Records all points (usage count) transactions.
+-- ==============================================================================
 
+CREATE TABLE IF NOT EXISTS public.points_ledger (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    points INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    event_key TEXT UNIQUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
+-- Enable Row Level Security
+ALTER TABLE public.points_ledger ENABLE ROW LEVEL SECURITY;
 
+-- Policy: Users can view own points
+CREATE POLICY "Users can view own points"
+ON public.points_ledger
+FOR SELECT
+USING (auth.uid() = user_id);
 
+-- ==============================================================================
+-- View: points_balance
+-- Calculates current balance per user.
+-- ==============================================================================
 
-CREATE EXTENSION IF NOT EXISTS "supabase_vault" WITH SCHEMA "vault";
+CREATE OR REPLACE VIEW public.points_balance AS
+SELECT 
+    user_id,
+    COALESCE(SUM(points), 0)::INTEGER AS balance
+FROM public.points_ledger
+GROUP BY user_id;
 
+-- ==============================================================================
+-- Function: handle_new_user
+-- Trigger function to create profile and award signup bonus.
+-- ==============================================================================
 
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.profiles (user_id)
+    VALUES (NEW.id)
+    ON CONFLICT (user_id) DO NOTHING;
+    
+    -- Award signup bonus: 20 usage counts
+    INSERT INTO public.points_ledger (user_id, points, reason, event_key)
+    VALUES (NEW.id, 20, 'signup_bonus', 'signup_bonus_' || NEW.id::text)
+    ON CONFLICT (event_key) DO NOTHING;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Trigger: on_auth_user_created
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- ==============================================================================
+-- Function: apply_invite_code
+-- Claims invite code and awards points to both parties.
+-- ==============================================================================
 
-
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
-
-
-
-
-
-
-CREATE OR REPLACE FUNCTION "public"."apply_invite_code"("p_code" "text") RETURNS json
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    AS $$
+CREATE OR REPLACE FUNCTION public.apply_invite_code(p_code TEXT)
+RETURNS JSON AS $$
 DECLARE
-  v_inviter_id UUID;
-  v_invitee_id UUID := auth.uid();
-  v_existing_referral BIGINT;
-  v_inviter_points INTEGER := 10;
-  v_invitee_points INTEGER := 10;
+    v_inviter_id UUID;
+    v_invitee_id UUID := auth.uid();
+    v_existing_referral BIGINT;
+    v_inviter_points INTEGER := 10;
+    v_invitee_points INTEGER := 10;
 BEGIN
-  -- Check if user is logged in
-  IF v_invitee_id IS NULL THEN
-    RETURN json_build_object('success', false, 'error', 'not_authenticated');
-  END IF;
+    -- Check if user is logged in
+    IF v_invitee_id IS NULL THEN
+        RETURN json_build_object('success', false, 'error', 'not_authenticated');
+    END IF;
 
-  -- Check if already claimed an invite code
-  SELECT id INTO v_existing_referral
-  FROM public.referrals
-  WHERE invitee_user_id = v_invitee_id;
-  
-  IF v_existing_referral IS NOT NULL THEN
-    RETURN json_build_object('success', false, 'error', 'already_claimed');
-  END IF;
+    -- Check if already claimed an invite code
+    SELECT id INTO v_existing_referral
+    FROM public.referrals
+    WHERE invitee_user_id = v_invitee_id;
+    
+    IF v_existing_referral IS NOT NULL THEN
+        RETURN json_build_object('success', false, 'error', 'already_claimed');
+    END IF;
 
-  -- Find inviter by invite code
-  SELECT user_id INTO v_inviter_id
-  FROM public.profiles
-  WHERE invite_code = UPPER(p_code);
+    -- Find inviter by invite code
+    SELECT user_id INTO v_inviter_id
+    FROM public.profiles
+    WHERE invite_code = UPPER(p_code);
 
-  IF v_inviter_id IS NULL THEN
-    RETURN json_build_object('success', false, 'error', 'invalid_code');
-  END IF;
+    IF v_inviter_id IS NULL THEN
+        RETURN json_build_object('success', false, 'error', 'invalid_code');
+    END IF;
 
-  -- Cannot invite yourself
-  IF v_inviter_id = v_invitee_id THEN
-    RETURN json_build_object('success', false, 'error', 'self_invite');
-  END IF;
+    -- Cannot invite yourself
+    IF v_inviter_id = v_invitee_id THEN
+        RETURN json_build_object('success', false, 'error', 'self_invite');
+    END IF;
 
-  -- Create referral record
-  INSERT INTO public.referrals (inviter_user_id, invitee_user_id, invite_code)
-  VALUES (v_inviter_id, v_invitee_id, UPPER(p_code));
+    -- Create referral record
+    INSERT INTO public.referrals (inviter_user_id, invitee_user_id, invite_code)
+    VALUES (v_inviter_id, v_invitee_id, UPPER(p_code));
 
-  -- Award points to inviter with event_key
-  INSERT INTO public.points_ledger (user_id, points, reason, event_key)
-  VALUES (v_inviter_id, v_inviter_points, 'referral_inviter', 'referral_inviter_' || v_inviter_id::text || '_' || v_invitee_id::text);
+    -- Award points to inviter
+    INSERT INTO public.points_ledger (user_id, points, reason, event_key)
+    VALUES (v_inviter_id, v_inviter_points, 'referral_inviter', 
+            'referral_inviter_' || v_inviter_id::text || '_' || v_invitee_id::text);
 
-  -- Award points to invitee with event_key
-  INSERT INTO public.points_ledger (user_id, points, reason, event_key)
-  VALUES (v_invitee_id, v_invitee_points, 'referral_invitee', 'referral_invitee_' || v_invitee_id::text);
+    -- Award points to invitee
+    INSERT INTO public.points_ledger (user_id, points, reason, event_key)
+    VALUES (v_invitee_id, v_invitee_points, 'referral_invitee', 
+            'referral_invitee_' || v_invitee_id::text);
 
-  RETURN json_build_object('success', true, 'inviter_id', v_inviter_id);
+    RETURN json_build_object('success', true, 'inviter_id', v_inviter_id);
 END;
-$$;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
+GRANT EXECUTE ON FUNCTION public.apply_invite_code(TEXT) TO authenticated;
 
-ALTER FUNCTION "public"."apply_invite_code"("p_code" "text") OWNER TO "postgres";
+-- ==============================================================================
+-- Function: deduct_points
+-- Deducts points from user balance.
+-- ==============================================================================
 
-
-CREATE OR REPLACE FUNCTION "public"."deduct_points"("p_user_id" "uuid", "p_amount" integer, "p_reason" "text") RETURNS boolean
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    AS $$
+CREATE OR REPLACE FUNCTION public.deduct_points(
+    p_user_id UUID,
+    p_amount INTEGER,
+    p_reason TEXT
+) RETURNS BOOLEAN AS $$
 DECLARE
-  v_current_balance INTEGER;
-  v_event_key TEXT;
+    v_current_balance INTEGER;
+    v_event_key TEXT;
 BEGIN
-  -- Get current balance
-  SELECT balance INTO v_current_balance
-  FROM public.points_balance
-  WHERE user_id = p_user_id;
-  
-  -- If no balance record exists, user has 0 points
-  IF v_current_balance IS NULL THEN
-    v_current_balance := 0;
-  END IF;
-  
-  -- Check if user has enough points
-  IF v_current_balance < p_amount THEN
-    RETURN FALSE;
-  END IF;
-  
-  -- Generate unique event_key using timestamp
-  v_event_key := p_reason || '_' || p_user_id::text || '_' || extract(epoch from now())::text;
-  
-  -- Deduct points by inserting negative ledger entry
-  INSERT INTO public.points_ledger (user_id, points, reason, event_key)
-  VALUES (p_user_id, -p_amount, p_reason, v_event_key);
-  
-  RETURN TRUE;
+    -- Get current balance
+    SELECT balance INTO v_current_balance
+    FROM public.points_balance
+    WHERE user_id = p_user_id;
+    
+    -- If no balance record exists, user has 0 points
+    IF v_current_balance IS NULL THEN
+        v_current_balance := 0;
+    END IF;
+    
+    -- Check if user has enough points
+    IF v_current_balance < p_amount THEN
+        RETURN FALSE;
+    END IF;
+    
+    -- Generate unique event_key using timestamp
+    v_event_key := p_reason || '_' || p_user_id::text || '_' || extract(epoch from now())::text;
+    
+    -- Deduct points by inserting negative ledger entry
+    INSERT INTO public.points_ledger (user_id, points, reason, event_key)
+    VALUES (p_user_id, -p_amount, p_reason, v_event_key);
+    
+    RETURN TRUE;
 END;
-$$;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
+GRANT EXECUTE ON FUNCTION public.deduct_points(UUID, INTEGER, TEXT) TO authenticated;
 
-ALTER FUNCTION "public"."deduct_points"("p_user_id" "uuid", "p_amount" integer, "p_reason" "text") OWNER TO "postgres";
+-- ==============================================================================
+-- Function: check_and_grant_daily_usage
+-- Grants 10 daily usage counts if user balance <= 30.
+-- ==============================================================================
 
-
-CREATE OR REPLACE FUNCTION "public"."generate_invite_code"() RETURNS "text"
-    LANGUAGE "plpgsql"
-    AS $$
-declare
-  raw text;
-begin
-  -- Use extensions schema for gen_random_bytes
-  raw := encode(extensions.gen_random_bytes(10), 'hex');
-  return upper(substr(raw, 1, 10));
-end;
-$$;
-
-
-ALTER FUNCTION "public"."generate_invite_code"() OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."handle_new_user"() RETURNS "trigger"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    AS $$
+CREATE OR REPLACE FUNCTION public.check_and_grant_daily_usage(p_user_id UUID)
+RETURNS INTEGER AS $$
+DECLARE
+    v_balance INTEGER;
+    v_event_key TEXT;
 BEGIN
-  INSERT INTO public.profiles (user_id)
-  VALUES (NEW.id)
-  ON CONFLICT (user_id) DO NOTHING;
-  
-  -- Award signup bonus points with event_key
-  INSERT INTO public.points_ledger (user_id, points, reason, event_key)
-  VALUES (NEW.id, 20, 'signup_bonus', 'signup_bonus_' || NEW.id::text)
-  ON CONFLICT (event_key) DO NOTHING;
-  
-  RETURN NEW;
+    -- Get current balance from view
+    SELECT balance INTO v_balance
+    FROM public.points_balance
+    WHERE user_id = p_user_id;
+    
+    -- If no balance record exists, user has 0 points
+    IF v_balance IS NULL THEN
+        v_balance := 0;
+    END IF;
+    
+    -- Check if balance > 30, no daily grant
+    IF v_balance > 30 THEN
+        RETURN v_balance;
+    END IF;
+    
+    -- Generate event_key for today's grant (idempotency)
+    v_event_key := 'daily_grant_' || CURRENT_DATE::text || '_' || p_user_id::text;
+    
+    -- Grant 10 usage counts (idempotent insert using event_key)
+    INSERT INTO public.points_ledger (user_id, points, reason, event_key)
+    VALUES (p_user_id, 10, 'daily_grant', v_event_key)
+    ON CONFLICT (event_key) DO NOTHING;
+    
+    -- Return new balance (recalculate from view)
+    SELECT balance INTO v_balance
+    FROM public.points_balance
+    WHERE user_id = p_user_id;
+    
+    RETURN COALESCE(v_balance, 0);
 END;
-$$;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
+GRANT EXECUTE ON FUNCTION public.check_and_grant_daily_usage(UUID) TO authenticated;
 
-ALTER FUNCTION "public"."handle_new_user"() OWNER TO "postgres";
+COMMENT ON FUNCTION public.check_and_grant_daily_usage IS 
+'Grants 10 daily usage counts if user balance <= 30. Idempotent - safe to call multiple times per day.';
 
+-- ==============================================================================
+-- Storage Bucket: user-files
+-- Stores the actual binary files (PDFs, PPTs, Images).
+-- ==============================================================================
 
-CREATE OR REPLACE FUNCTION "public"."handle_new_user_create_profile"() RETURNS "trigger"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
-    AS $$
-declare
-  code text;
-begin
-  -- Skip anonymous users (their id is not a valid UUID or is_anonymous is true)
-  IF new.is_anonymous = true THEN
-    return new;
-  END IF;
+-- Create the bucket if it doesn't exist
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('user-files', 'user-files', true)
+ON CONFLICT (id) DO NOTHING;
 
-  -- Retry a few times in case of rare unique collision
-  for i in 1..10 loop
-    code := public.generate_invite_code();
-    begin
-      insert into public.profiles(user_id, invite_code)
-      values (new.id, code);
-      exit;
-    exception when unique_violation then
-      -- retry
-    end;
-  end loop;
-
-  return new;
-end;
-$$;
-
-
-ALTER FUNCTION "public"."handle_new_user_create_profile"() OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."set_updated_at"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$;
-
-
-ALTER FUNCTION "public"."set_updated_at"() OWNER TO "postgres";
-
-SET default_tablespace = '';
-
-SET default_table_access_method = "heap";
-
-
-CREATE TABLE IF NOT EXISTS "public"."points_ledger" (
-    "id" bigint NOT NULL,
-    "user_id" "uuid" NOT NULL,
-    "points" integer NOT NULL,
-    "reason" "text" NOT NULL,
-    "event_key" "text" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+-- Policy: Allow authenticated users to upload files to their own folder
+CREATE POLICY "Authenticated users can upload files"
+ON storage.objects
+FOR INSERT
+TO authenticated
+WITH CHECK (
+    bucket_id = 'user-files' AND
+    (storage.foldername(name))[1] = auth.uid()::text
 );
 
-
-ALTER TABLE "public"."points_ledger" OWNER TO "postgres";
-
-
-CREATE OR REPLACE VIEW "public"."points_balance" WITH ("security_invoker"='true') AS
- SELECT "user_id",
-    COALESCE("sum"("points"), (0)::bigint) AS "balance"
-   FROM "public"."points_ledger"
-  GROUP BY "user_id";
-
-
-ALTER VIEW "public"."points_balance" OWNER TO "postgres";
-
-
-CREATE SEQUENCE IF NOT EXISTS "public"."points_ledger_id_seq"
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER SEQUENCE "public"."points_ledger_id_seq" OWNER TO "postgres";
-
-
-ALTER SEQUENCE "public"."points_ledger_id_seq" OWNED BY "public"."points_ledger"."id";
-
-
-
-CREATE TABLE IF NOT EXISTS "public"."profiles" (
-    "user_id" "uuid" NOT NULL,
-    "invite_code" "text" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+-- Policy: Users can view/download their own files
+CREATE POLICY "Users can view own files"
+ON storage.objects
+FOR SELECT
+TO authenticated
+USING (
+    bucket_id = 'user-files' AND
+    (storage.foldername(name))[1] = auth.uid()::text
 );
 
-
-ALTER TABLE "public"."profiles" OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "public"."referrals" (
-    "id" bigint NOT NULL,
-    "inviter_user_id" "uuid" NOT NULL,
-    "invitee_user_id" "uuid" NOT NULL,
-    "invite_code" "text" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+-- Policy: Users can delete their own files
+CREATE POLICY "Users can delete own files"
+ON storage.objects
+FOR DELETE
+TO authenticated
+USING (
+    bucket_id = 'user-files' AND
+    (storage.foldername(name))[1] = auth.uid()::text
 );
 
-
-ALTER TABLE "public"."referrals" OWNER TO "postgres";
-
-
-CREATE SEQUENCE IF NOT EXISTS "public"."referrals_id_seq"
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER SEQUENCE "public"."referrals_id_seq" OWNER TO "postgres";
-
-
-ALTER SEQUENCE "public"."referrals_id_seq" OWNED BY "public"."referrals"."id";
-
-
-
-CREATE TABLE IF NOT EXISTS "public"."usage_records" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "user_id" "uuid" NOT NULL,
-    "workflow_type" "text" NOT NULL,
-    "called_at" timestamp with time zone DEFAULT "now"()
-);
-
-
-ALTER TABLE "public"."usage_records" OWNER TO "postgres";
-
-
-COMMENT ON TABLE "public"."usage_records" IS 'Tracks workflow API calls per user for daily rate limiting';
-
-
-
-CREATE TABLE IF NOT EXISTS "public"."user_files" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "user_id" "uuid" NOT NULL,
-    "file_path" "text" NOT NULL,
-    "file_name" "text" NOT NULL,
-    "file_size" bigint,
-    "workflow_type" "text",
-    "created_at" timestamp with time zone DEFAULT "now"()
-);
-
-
-ALTER TABLE "public"."user_files" OWNER TO "postgres";
-
-
-COMMENT ON TABLE "public"."user_files" IS 'Tracks files generated by workflows and stored in Supabase Storage';
-
-
-
-ALTER TABLE ONLY "public"."points_ledger" ALTER COLUMN "id" SET DEFAULT "nextval"('"public"."points_ledger_id_seq"'::"regclass");
-
-
-
-ALTER TABLE ONLY "public"."referrals" ALTER COLUMN "id" SET DEFAULT "nextval"('"public"."referrals_id_seq"'::"regclass");
-
-
-
-ALTER TABLE ONLY "public"."points_ledger"
-    ADD CONSTRAINT "points_ledger_event_key_key" UNIQUE ("event_key");
-
-
-
-ALTER TABLE ONLY "public"."points_ledger"
-    ADD CONSTRAINT "points_ledger_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "public"."profiles"
-    ADD CONSTRAINT "profiles_invite_code_key" UNIQUE ("invite_code");
-
-
-
-ALTER TABLE ONLY "public"."profiles"
-    ADD CONSTRAINT "profiles_pkey" PRIMARY KEY ("user_id");
-
-
-
-ALTER TABLE ONLY "public"."referrals"
-    ADD CONSTRAINT "referrals_invitee_user_id_key" UNIQUE ("invitee_user_id");
-
-
-
-ALTER TABLE ONLY "public"."referrals"
-    ADD CONSTRAINT "referrals_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "public"."usage_records"
-    ADD CONSTRAINT "usage_records_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "public"."user_files"
-    ADD CONSTRAINT "user_files_pkey" PRIMARY KEY ("id");
-
-
-
-CREATE INDEX "idx_usage_records_user_called" ON "public"."usage_records" USING "btree" ("user_id", "called_at");
-
-
-
-CREATE INDEX "idx_user_files_user_id" ON "public"."user_files" USING "btree" ("user_id", "created_at" DESC);
-
-
-
-CREATE OR REPLACE TRIGGER "profiles_set_updated_at" BEFORE UPDATE ON "public"."profiles" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
-
-
-
-ALTER TABLE ONLY "public"."points_ledger"
-    ADD CONSTRAINT "points_ledger_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."profiles"
-    ADD CONSTRAINT "profiles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."referrals"
-    ADD CONSTRAINT "referrals_invitee_user_id_fkey" FOREIGN KEY ("invitee_user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."referrals"
-    ADD CONSTRAINT "referrals_inviter_user_id_fkey" FOREIGN KEY ("inviter_user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."usage_records"
-    ADD CONSTRAINT "usage_records_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."user_files"
-    ADD CONSTRAINT "user_files_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
-
-
-
-CREATE POLICY "Users insert own usage" ON "public"."usage_records" FOR INSERT WITH CHECK (("auth"."uid"() = "user_id"));
-
-
-
-CREATE POLICY "Users manage own files" ON "public"."user_files" USING (("auth"."uid"() = "user_id")) WITH CHECK (("auth"."uid"() = "user_id"));
-
-
-
-CREATE POLICY "Users read own usage" ON "public"."usage_records" FOR SELECT USING (("auth"."uid"() = "user_id"));
-
-
-
-ALTER TABLE "public"."points_ledger" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "points_select_own" ON "public"."points_ledger" FOR SELECT USING (("auth"."uid"() = "user_id"));
-
-
-
-ALTER TABLE "public"."profiles" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "profiles_select_own" ON "public"."profiles" FOR SELECT USING (("auth"."uid"() = "user_id"));
-
-
-
-CREATE POLICY "profiles_update_own" ON "public"."profiles" FOR UPDATE USING (("auth"."uid"() = "user_id"));
-
-
-
-ALTER TABLE "public"."referrals" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "referrals_select_related" ON "public"."referrals" FOR SELECT USING ((("auth"."uid"() = "inviter_user_id") OR ("auth"."uid"() = "invitee_user_id")));
-
-
-
-ALTER TABLE "public"."usage_records" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."user_files" ENABLE ROW LEVEL SECURITY;
-
-
-
-
-ALTER PUBLICATION "supabase_realtime" OWNER TO "postgres";
-
-
-GRANT USAGE ON SCHEMA "public" TO "postgres";
-GRANT USAGE ON SCHEMA "public" TO "anon";
-GRANT USAGE ON SCHEMA "public" TO "authenticated";
-GRANT USAGE ON SCHEMA "public" TO "service_role";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-GRANT ALL ON FUNCTION "public"."apply_invite_code"("p_code" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."apply_invite_code"("p_code" "text") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."apply_invite_code"("p_code" "text") TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."deduct_points"("p_user_id" "uuid", "p_amount" integer, "p_reason" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."deduct_points"("p_user_id" "uuid", "p_amount" integer, "p_reason" "text") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."deduct_points"("p_user_id" "uuid", "p_amount" integer, "p_reason" "text") TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."generate_invite_code"() TO "anon";
-GRANT ALL ON FUNCTION "public"."generate_invite_code"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."generate_invite_code"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "anon";
-GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."handle_new_user_create_profile"() TO "anon";
-GRANT ALL ON FUNCTION "public"."handle_new_user_create_profile"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."handle_new_user_create_profile"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "anon";
-GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "service_role";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-GRANT ALL ON TABLE "public"."points_ledger" TO "anon";
-GRANT ALL ON TABLE "public"."points_ledger" TO "authenticated";
-GRANT ALL ON TABLE "public"."points_ledger" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."points_balance" TO "anon";
-GRANT ALL ON TABLE "public"."points_balance" TO "authenticated";
-GRANT ALL ON TABLE "public"."points_balance" TO "service_role";
-
-
-
-GRANT ALL ON SEQUENCE "public"."points_ledger_id_seq" TO "anon";
-GRANT ALL ON SEQUENCE "public"."points_ledger_id_seq" TO "authenticated";
-GRANT ALL ON SEQUENCE "public"."points_ledger_id_seq" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."profiles" TO "anon";
-GRANT ALL ON TABLE "public"."profiles" TO "authenticated";
-GRANT ALL ON TABLE "public"."profiles" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."referrals" TO "anon";
-GRANT ALL ON TABLE "public"."referrals" TO "authenticated";
-GRANT ALL ON TABLE "public"."referrals" TO "service_role";
-
-
-
-GRANT ALL ON SEQUENCE "public"."referrals_id_seq" TO "anon";
-GRANT ALL ON SEQUENCE "public"."referrals_id_seq" TO "authenticated";
-GRANT ALL ON SEQUENCE "public"."referrals_id_seq" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."usage_records" TO "anon";
-GRANT ALL ON TABLE "public"."usage_records" TO "authenticated";
-GRANT ALL ON TABLE "public"."usage_records" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."user_files" TO "anon";
-GRANT ALL ON TABLE "public"."user_files" TO "authenticated";
-GRANT ALL ON TABLE "public"."user_files" TO "service_role";
-
-
-
-
-
-
-
-
-
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "postgres";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "anon";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "authenticated";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "service_role";
-
-
-
-
-
-
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "postgres";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "anon";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "authenticated";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "service_role";
-
-
-
-
-
-
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "postgres";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "anon";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "authenticated";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+-- ==============================================================================
+-- Done!
+-- ==============================================================================

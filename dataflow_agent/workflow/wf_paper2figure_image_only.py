@@ -131,12 +131,12 @@ def create_p2fig_image_only_graph() -> GenericGraphBuilder:
             f"safe_prompt_len={len(safe_prompt or '')}"
         )
 
-        result_root = Path(_ensure_result_path(state))
+        result_root = Path(_ensure_result_path(state)).resolve()
         result_root.mkdir(parents=True, exist_ok=True)
 
         # 1) Generate Content Image
         fig_name = f"fig_{int(time.time())}.png"
-        save_path = str(result_root / fig_name)
+        save_path = str((result_root / fig_name).resolve())
 
         api_url = state.request.chat_api_url
         api_key = state.request.chat_api_key or os.getenv("DF_API_KEY")
