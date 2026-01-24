@@ -7,6 +7,7 @@ import { useAuthStore } from "../stores/authStore";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { getApiSettings, saveApiSettings } from "../services/apiSettingsService";
 import { Ticket, Coins, Key, AlertCircle, Loader2, Copy, CheckCircle2, Settings, Users, History, HelpCircle } from "lucide-react";
+import { API_URL_OPTIONS } from "../config/api";
 
 interface ProfileData {
   invite_code: string;
@@ -395,13 +396,15 @@ export function AccountPage() {
                   <label className="block text-sm font-medium text-gray-400 mb-2">
                     API Base URL
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={apiUrl}
                     onChange={(e) => setApiUrl(e.target.value)}
-                    placeholder="https://api.apiyi.com/v1"
                     className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                  />
+                  >
+                    {API_URL_OPTIONS.map((url: string) => (
+                      <option key={url} value={url}>{url}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>

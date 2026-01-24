@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import QRCodeTooltip from '../QRCodeTooltip';
 import { GraphType, Language, StyleType, FigureComplex } from './types';
 import { GENERATION_STAGES } from './constants';
+import { API_URL_OPTIONS } from '../../config/api';
 
 interface SettingsCardProps {
   showAdvanced: boolean;
@@ -100,9 +101,9 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                 }}
                 className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               >
-                <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
-                <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
-                <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
+                {API_URL_OPTIONS.map((url: string) => (
+                  <option key={url} value={url}>{url}</option>
+                ))}
               </select>
               <QRCodeTooltip>
                 <a

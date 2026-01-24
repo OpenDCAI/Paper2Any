@@ -5,7 +5,7 @@ import {
   AlertCircle, Github, Star, X, FileText, ArrowRight, Key, Globe, ToggleLeft, ToggleRight, Sparkles, Image, MessageSquare, Copy, Info
 } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
-import { API_KEY } from '../config/api';
+import { API_KEY, API_URL_OPTIONS } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
 import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
@@ -514,8 +514,9 @@ const Pdf2PptPage = () => {
                           onChange={e => setLlmApiUrl(e.target.value)}
                           className="flex-1 rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
                         >
-                          <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
-                          <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
+                          {API_URL_OPTIONS.map((url: string) => (
+                            <option key={url} value={url}>{url}</option>
+                          ))}
                         </select>
                         <QRCodeTooltip>
                         <a

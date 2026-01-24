@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Literal
 from dataflow_agent.utils import get_project_root
 from pydantic import BaseModel, Field
+from fastapi_app.config import settings
 
 # ===================== 通用基础模型 =====================
 
@@ -23,8 +24,8 @@ class ErrorResponse(BaseModel):
 
 
 class FeaturePaper2VideoRequest(BaseModel):
-    model: str = "gpt-4o",
-    chat_api_url: str = "http://123.129.219.111:3000/v1/",
+    model: str = settings.PAPER2VIDEO_DEFAULT_MODEL,
+    chat_api_url: str = settings.DEFAULT_LLM_API_URL,
     api_key: str = "",
     pdf_path: str = "",
     img_path: str = "",
@@ -42,7 +43,7 @@ class FeaturePaper2VideoResponse(BaseModel):
 class VerifyLlmRequest(BaseModel):
     api_url: str
     api_key: str
-    model: str = "gpt-4o"
+    model: str = settings.MODEL_GPT_4O
 
 
 class VerifyLlmResponse(BaseModel):
@@ -67,7 +68,7 @@ class Paper2FigureRequest(BaseModel):
     language: str = "en"
     # 工作流内部有角色会访问 state.request.language
 
-    chat_api_url: str = "http://123.129.219.111:3000/v1/"
+    chat_api_url: str = settings.DEFAULT_LLM_API_URL
     # 与大模型交互使用的 API URL
 
     # ---------------------- 图类型 & 难度设置 ----------------------
@@ -80,19 +81,19 @@ class Paper2FigureRequest(BaseModel):
     api_key: str = ""
     # 如果使用第三方外部 API（如 OpenAI），在此填写外部 API Key；为空则使用内部服务
 
-    model: str = "gpt-4o"
+    model: str = settings.PAPER2FIGURE_TEXT_MODEL
     # 用于执行理解、抽象、描述生成的文本模型名称
 
-    gen_fig_model: str = "gemini-3-pro-image-preview"
+    gen_fig_model: str = settings.PAPER2FIGURE_IMAGE_MODEL
     # 用于生成插图 / 构图草图的图像模型名称
 
     bg_rm_model: str = f"{get_project_root()}/models/RMBG-2.0"
 
     # 新增模型参数
-    vlm_model: str = "qwen-vl-ocr-2025-11-20"
-    chart_model: str = "gpt-4o"
-    fig_desc_model: str = "gpt-5.1"
-    technical_model: str = "claude-haiku-4-5-20251001"
+    vlm_model: str = settings.PAPER2FIGURE_VLM_MODEL
+    chart_model: str = settings.PAPER2FIGURE_CHART_MODEL
+    fig_desc_model: str = settings.PAPER2FIGURE_DESC_MODEL
+    technical_model: str = settings.PAPER2FIGURE_TECHNICAL_MODEL
 
     # ---------------------- 输入类型设置 ----------------------
     input_type: Literal["PDF", "TEXT", "FIGURE"] = "PDF"
@@ -153,7 +154,7 @@ class PageContentRequest(BaseModel):
     input_type: Literal["text", "pdf", "pptx", "topic"]
     file: Optional[Any] = None  # UploadFile 在路由层处理，这里用Any占位
     text: Optional[str] = None
-    model: str = "gpt-5.1"
+    model: str = settings.PAPER2PPT_OUTLINE_MODEL
     language: str = "zh"
     style: str = ""
     reference_img: Optional[Any] = None
@@ -167,7 +168,7 @@ class OutlineRefineRequest(BaseModel):
     chat_api_url: str
     api_key: str
     email: Optional[str] = None
-    model: str = "gpt-5.1"
+    model: str = settings.PAPER2PPT_OUTLINE_MODEL
     language: str = "zh"
     result_path: Optional[str] = None
     outline_feedback: str
@@ -184,7 +185,7 @@ class PPTGenerationRequest(BaseModel):
     reference_img: Optional[Any] = None
     aspect_ratio: str = "16:9"
     language: str = "en"
-    model: str = "gpt-5.1"
+    model: str = settings.PAPER2PPT_CONTENT_MODEL
     get_down: str = "false"
     all_edited_down: str = "false"
     result_path: str
@@ -205,7 +206,7 @@ class FullPipelineRequest(BaseModel):
     language: str = "zh"
     aspect_ratio: str = "16:9"
     style: str = ""
-    model: str = "gpt-5.1"
+    model: str = settings.PAPER2PPT_DEFAULT_MODEL
     use_long_paper: str = "false"
 
 
@@ -219,24 +220,24 @@ class Paper2PPTRequest(BaseModel):
 
     # ---------------------- 基础 LLM 设置 ----------------------
     language: str = "en"
-    chat_api_url: str = "http://123.129.219.111:3000/v1/"
+    chat_api_url: str = settings.DEFAULT_LLM_API_URL
 
     # ---------------------- 图类型 & 难度设置 ----------------------
     chat_api_key: str = "fill the key"
     api_key: str = ""
     # 用于对话的模型
-    model: str = "gpt-5.1"
+    model: str = settings.PAPER2PPT_DEFAULT_MODEL
 
     ref_img : str = ""
 
-    gen_fig_model: str = "gemini-3-pro-image-preview"
+    gen_fig_model: str = settings.PAPER2PPT_IMAGE_GEN_MODEL
     # bg_rm_model: str = f"{get_project_root()}/models/RMBG-2.0"
-    
+
     # 新增模型参数
-    vlm_model: str = "qwen-vl-ocr-2025-11-20"
-    chart_model: str = "gpt-4o"
-    fig_desc_model: str = "gpt-5.1"
-    technical_model: str = "claude-haiku-4-5-20251001"
+    vlm_model: str = settings.PAPER2PPT_VLM_MODEL
+    chart_model: str = settings.PAPER2PPT_CHART_MODEL
+    fig_desc_model: str = settings.PAPER2PPT_DESC_MODEL
+    technical_model: str = settings.PAPER2PPT_TECHNICAL_MODEL
 
     # ---------------------- 输入类型设置 ----------------------
     input_type: Literal["PDF", "TEXT", "PPT", "TOPIC", "FIGURE"] = "PDF"

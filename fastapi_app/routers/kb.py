@@ -7,12 +7,12 @@ from typing import Optional, List, Dict, Any
 from dataflow_agent.state import IntelligentQARequest, IntelligentQAState
 from dataflow_agent.workflow.wf_intelligent_qa import create_intelligent_qa_graph
 from dataflow_agent.utils import get_project_root
+from fastapi_app.config import settings
 
 router = APIRouter(prefix="/kb", tags=["Knowledge Base"])
 
 # Base directory for storing KB files
 # Use absolute path as requested by user or relative to project root
-# User requested: /data/users/liuzhou/online/Paper2Any/outputs/kb_data
 # We will use relative path 'outputs/kb_data' which resolves to that in the current workspace
 KB_BASE_DIR = Path("outputs/kb_data")
 
@@ -109,7 +109,7 @@ async def chat_with_kb(
     history: List[Dict[str, str]] = Body([], embed=True),
     api_url: Optional[str] = Body(None, embed=True),
     api_key: Optional[str] = Body(None, embed=True),
-    model: str = Body("gpt-4o", embed=True),
+    model: str = Body(settings.KB_CHAT_MODEL, embed=True),
 ):
     """
     Intelligent QA Chat

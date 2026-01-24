@@ -16,6 +16,9 @@
 -- Table: usage_records
 -- Tracks API/Workflow usage for quota management.
 -- ==============================================================================
+DROP POLICY IF EXISTS "Authenticated users can upload files" ON storage.objects;
+DROP POLICY IF EXISTS "Users can view own files" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete own files" ON storage.objects;
 
 CREATE TABLE IF NOT EXISTS public.usage_records (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

@@ -61,13 +61,13 @@ const Paper2PptPage = () => {
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
-  
+
   // 通用状态
   const [error, setError] = useState<string | null>(null);
   const [showBanner, setShowBanner] = useState(true);
-  
-  // API 配置状态
-  const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
+
+  // API 配置状态 - 从环境变量读取默认值
+  const [llmApiUrl, setLlmApiUrl] = useState(import.meta.env.VITE_DEFAULT_LLM_API_URL || 'https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-5.1');
   const [genFigModel, setGenFigModel] = useState('gemini-3-pro-image-preview');
@@ -205,10 +205,23 @@ const Paper2PptPage = () => {
       console.error('Failed to persist paper2ppt config', e);
     }
   }, [
-    uploadMode, textContent, styleMode, stylePreset, globalPrompt, 
-    pageCount, useLongPaper, llmApiUrl, apiKey, 
+    uploadMode, textContent, styleMode, stylePreset, globalPrompt,
+    pageCount, useLongPaper, llmApiUrl, apiKey,
     model, genFigModel, language, user?.id
   ]);
+
+  // 自动加载版本历史
+  useEffect(() => {
+    if (currentStep === 'generate' && currentSlideIndex >= 0 && generateResults[currentSlideIndex]) {
+      const currentResult = generateResults[currentSlideIndex];
+      // 如果版本历史为空且页面已生成，则自动加载版本历史
+      if (currentResult.versionHistory.length === 0 && currentResult.afterImage) {
+        console.log(`[Paper2PptPage] 自动加载页面 ${currentSlideIndex} 的版本历史`);
+        fetchVersionHistory(currentSlideIndex);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep, currentSlideIndex]); // 移除 generateResults 依赖，避免无限循环
 
   // ============== Step 1: 上传处理 ==============
   const validateDocFile = (file: File): boolean => {
@@ -603,6 +616,8 @@ const Paper2PptPage = () => {
       beforeImage: '',
       afterImage: '',
       status: 'processing' as const,
+      versionHistory: [],
+      currentVersionIndex: -1,
     }));
     setGenerateResults(results);
     
@@ -689,6 +704,108 @@ const Paper2PptPage = () => {
     }
   };
 
+  // ============== 版本历史相关函数 ==============
+  const convertToHttpUrl = (path: string): string => {
+    // 如果已经是HTTP URL，直接返回
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    }
+
+    // 如果是文件系统路径，转换为HTTP URL
+    // 例如：/data/users/.../outputs/xxx/yyy.png -> http://localhost:9090/outputs/xxx/yyy.png
+    const outputsIndex = path.indexOf('/outputs/');
+    if (outputsIndex !== -1) {
+      const relativePath = path.substring(outputsIndex);
+      // 使用当前页面的协议和主机
+      const baseUrl = window.location.origin.replace(':3005', ':9090');
+      return `${baseUrl}${relativePath}`;
+    }
+
+    // 如果无法转换，返回原路径
+    console.warn('[convertToHttpUrl] 无法转换路径:', path);
+    return path;
+  };
+
+  const fetchVersionHistory = async (pageIndex: number) => {
+    if (!resultPath) return;
+
+    try {
+      const encodedPath = btoa(resultPath);
+      const res = await fetch(
+        `/api/v1/paper2ppt/version-history/${encodedPath}/${pageIndex}`,
+        { headers: { 'X-API-Key': API_KEY } }
+      );
+
+      if (!res.ok) return;
+
+      const data = await res.json();
+      if (data.success && data.versions) {
+        setGenerateResults(prev => prev.map((result, idx) =>
+          idx === pageIndex
+            ? {
+                ...result,
+                versionHistory: data.versions.map((v: any) => ({
+                  versionNumber: v.version,
+                  imageUrl: convertToHttpUrl(v.imageUrl), // 转换文件系统路径为HTTP URL
+                  prompt: v.prompt,
+                  timestamp: v.timestamp,
+                  isCurrentVersion: v.version === data.versions.length
+                })),
+                currentVersionIndex: data.versions.length - 1
+              }
+            : result
+        ));
+      }
+    } catch (err) {
+      console.error('Failed to fetch version history:', err);
+    }
+  };
+
+  const handleRevertToVersion = async (versionNumber: number) => {
+    if (!resultPath) {
+      setError('缺少 result_path');
+      return;
+    }
+
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('result_path', resultPath);
+      formData.append('page_id', String(currentSlideIndex));
+      formData.append('target_version', String(versionNumber));
+
+      const res = await fetch('/api/v1/paper2ppt/revert-version', {
+        method: 'POST',
+        headers: { 'X-API-Key': API_KEY },
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error('恢复版本失败');
+
+      const data = await res.json();
+
+      if (data.success) {
+        const updatedResults = [...generateResults];
+        updatedResults[currentSlideIndex] = {
+          ...updatedResults[currentSlideIndex],
+          afterImage: data.currentImageUrl + '?t=' + Date.now(),
+          currentVersionIndex: versionNumber - 1,
+        };
+        setGenerateResults(updatedResults);
+
+        // 不需要重新获取版本历史，因为版本历史不会改变
+        // 只是切换了当前显示的版本
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '恢复版本失败';
+      setError(message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   // ============== Step 3: 重新生成单页 ==============
   const handleRegenerateSlide = async () => {
     if (!resultPath) {
@@ -733,6 +850,7 @@ const Paper2PptPage = () => {
         if (result?.afterImage) {
           generatedPath = result.afterImage;
         }
+        console.log(`[handleRegenerateSlide] 页面${idx}: afterImage=${result?.afterImage}, generatedPath=${generatedPath}`);
         return {
           title: slide.title,
           layout_description: slide.layout_description,
@@ -741,6 +859,12 @@ const Paper2PptPage = () => {
           generated_img_path: generatedPath || undefined,
         };
       });
+      console.log(`[handleRegenerateSlide] 当前编辑页面: ${currentSlideIndex}`);
+      console.log(`[handleRegenerateSlide] 完整pagecontent:`, JSON.stringify(pagecontent.map((p, i) => ({
+        idx: i,
+        title: p.title,
+        generated_img_path: p.generated_img_path
+      })), null, 2));
       formData.append('pagecontent', JSON.stringify(pagecontent));
 
       const res = await fetch('/api/v1/paper2ppt/generate', {
@@ -775,14 +899,17 @@ const Paper2PptPage = () => {
         }
       }
       
-      updatedResults[currentSlideIndex] = { 
-        ...updatedResults[currentSlideIndex], 
+      updatedResults[currentSlideIndex] = {
+        ...updatedResults[currentSlideIndex],
         afterImage,
         status: 'done',
       };
       setGenerateResults([...updatedResults]);
       setSlidePrompt('');
-      
+
+      // 获取更新的版本历史
+      await fetchVersionHistory(currentSlideIndex);
+
     } catch (err) {
       const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
@@ -1027,6 +1154,7 @@ const Paper2PptPage = () => {
               handleConfirmSlide={handleConfirmSlide}
               setCurrentStep={setCurrentStep}
               error={error}
+              handleRevertToVersion={handleRevertToVersion}
             />
           )}
           

@@ -13,6 +13,8 @@ import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
 import { getApiSettings, saveApiSettings } from '../services/apiSettingsService';
 import QRCodeTooltip from './QRCodeTooltip';
+import { API_URL_OPTIONS } from '../config/api';
+import VersionHistory from './paper2ppt/VersionHistory';
 
 // ============== 类型定义 ==============
 type Step = 'upload' | 'beautify' | 'complete';
@@ -37,12 +39,23 @@ interface SlideOutline {
   asset_ref: string | null;    // 资源引用（图片路径或 null）
 }
 
+// 版本历史类型定义
+interface ImageVersion {
+  versionNumber: number;
+  imageUrl: string;
+  prompt: string;
+  timestamp: number;
+  isCurrentVersion?: boolean;
+}
+
 interface BeautifyResult {
   slideId: string;
   beforeImage: string;
   afterImage: string;
   status: 'pending' | 'processing' | 'done';
   userPrompt?: string;
+  versionHistory: ImageVersion[];
+  currentVersionIndex: number;
 }
 
 // ============== 假数据模拟 ==============
@@ -315,9 +328,22 @@ const Ppt2PolishPage = () => {
       console.error('Failed to persist pptpolish config', e);
     }
   }, [
-    styleMode, stylePreset, globalPrompt, 
+    styleMode, stylePreset, globalPrompt,
     llmApiUrl, apiKey, model, genFigModel, language, user?.id
   ]);
+
+  // 自动加载版本历史
+  useEffect(() => {
+    if (currentStep === 'beautify' && currentSlideIndex >= 0 && beautifyResults[currentSlideIndex]) {
+      const currentResult = beautifyResults[currentSlideIndex];
+      // 如果版本历史为空且页面已生成，则自动加载版本历史
+      if (currentResult.versionHistory.length === 0 && currentResult.afterImage) {
+        console.log(`[Ppt2PolishPage] 自动加载页面 ${currentSlideIndex} 的版本历史`);
+        fetchVersionHistory(currentSlideIndex);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep, currentSlideIndex]); // 移除 beautifyResults 依赖，避免无限循环
 
   // ============== Step 1: 上传处理 ==============
   const validateDocFile = (file: File): boolean => {
@@ -552,6 +578,8 @@ const Ppt2PolishPage = () => {
         beforeImage: slide.asset_ref || '',
         afterImage: '',
         status: 'pending',
+        versionHistory: [],
+        currentVersionIndex: 0,
       }));
       setBeautifyResults(results);
       setCurrentSlideIndex(0);
@@ -681,6 +709,8 @@ const Ppt2PolishPage = () => {
       beforeImage: slide.asset_ref || '',  // 确保使用真实的图片路径
       afterImage: '', // 初始为空，等待批量生成
       status: 'pending',
+      versionHistory: [],
+      currentVersionIndex: 0,
     }));
     setBeautifyResults(results);
     setCurrentSlideIndex(0);
@@ -932,13 +962,16 @@ const Ppt2PolishPage = () => {
       
       console.log('最终使用的图片 URL:', pageImageUrl);
       
-      updatedResults[index] = { 
-        ...updatedResults[index], 
+      updatedResults[index] = {
+        ...updatedResults[index],
         status: 'done',
         afterImage: pageImageUrl || updatedResults[index].afterImage,
         userPrompt: slidePrompt || undefined,
       };
     setBeautifyResults(updatedResults);
+
+    // 获取更新的版本历史
+    await fetchVersionHistory(index);
     } catch (err) {
       const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
@@ -963,13 +996,90 @@ const Ppt2PolishPage = () => {
 
   const handleRegenerateSlide = async () => {
     const updatedResults = [...beautifyResults];
-    updatedResults[currentSlideIndex] = { 
-      ...updatedResults[currentSlideIndex], 
+    updatedResults[currentSlideIndex] = {
+      ...updatedResults[currentSlideIndex],
       userPrompt: slidePrompt,
       status: 'pending'
     };
     setBeautifyResults(updatedResults);
     await startBeautifyCurrentSlide(updatedResults, currentSlideIndex);
+  };
+
+  // ============== 版本历史管理 ==============
+  const fetchVersionHistory = async (pageIndex: number) => {
+    if (!resultPath) return;
+
+    try {
+      const encodedPath = btoa(resultPath);
+      const res = await fetch(
+        `/api/v1/paper2ppt/version-history/${encodedPath}/${pageIndex}`,
+        { headers: { 'X-API-Key': API_KEY } }
+      );
+
+      if (!res.ok) return;
+
+      const data = await res.json();
+      if (data.success && data.versions) {
+        setBeautifyResults(prev => prev.map((result, idx) =>
+          idx === pageIndex
+            ? {
+                ...result,
+                versionHistory: data.versions.map((v: any) => ({
+                  versionNumber: v.version,
+                  imageUrl: v.imageUrl,
+                  prompt: v.prompt,
+                  timestamp: v.timestamp,
+                })),
+                currentVersionIndex: data.versions.length - 1
+              }
+            : result
+        ));
+      }
+    } catch (err) {
+      console.error('Failed to fetch version history:', err);
+    }
+  };
+
+  const handleRevertToVersion = async (versionNumber: number) => {
+    if (!resultPath) {
+      setError('缺少 result_path');
+      return;
+    }
+
+    setIsBeautifying(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('result_path', resultPath);
+      formData.append('page_id', String(currentSlideIndex));
+      formData.append('target_version', String(versionNumber));
+
+      const res = await fetch('/api/v1/paper2ppt/revert-version', {
+        method: 'POST',
+        headers: { 'X-API-Key': API_KEY },
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error('恢复版本失败');
+
+      const data = await res.json();
+
+      if (data.success) {
+        const updatedResults = [...beautifyResults];
+        updatedResults[currentSlideIndex] = {
+          ...updatedResults[currentSlideIndex],
+          afterImage: data.currentImageUrl + '?t=' + Date.now(),
+          currentVersionIndex: versionNumber - 1,
+        };
+        setBeautifyResults(updatedResults);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '恢复版本失败';
+      setError(message);
+    } finally {
+      setIsBeautifying(false);
+    }
   };
 
   // ============== Step 4: 完成下载处理 ==============
@@ -1223,21 +1333,21 @@ const Ppt2PolishPage = () => {
           <div>
             <label className="block text-sm text-gray-300 mb-2">{t('upload.config.apiUrl')}</label>
             <div className="flex items-center gap-2">
-              <select
-                value={llmApiUrl}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setLlmApiUrl(val);
-                  if (val === 'http://123.129.219.111:3000/v1') {
-                    setGenFigModel('gemini-3-pro-image-preview');
-                  }
-                }}
-                className="flex-1 rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
-              >
-                <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
-                <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
-                <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
-              </select>
+                        <select 
+                          value={llmApiUrl} 
+                          onChange={e => {
+                            const val = e.target.value;
+                            setLlmApiUrl(val);
+                            if (val.includes('123.129.219.111')) {
+                              setGenFigModel('gemini-3-pro-image-preview');
+                            }
+                          }}
+                          className="flex-1 rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
+                        >
+                          {API_URL_OPTIONS.map((url: string) => (
+                            <option key={url} value={url}>{url}</option>
+                          ))}
+                        </select>
               <QRCodeTooltip>
                 <a
                   href={llmApiUrl === 'http://123.129.219.111:3000/v1' ? "http://123.129.219.111:3000" : "https://api.apiyi.com/register/?aff_code=TbrD"}
@@ -1614,6 +1724,17 @@ const Ppt2PolishPage = () => {
             </div>
           </div>
         </div>
+
+        {/* 版本历史组件 */}
+        {currentResult?.versionHistory && currentResult.versionHistory.length > 0 && (
+          <VersionHistory
+            versions={currentResult.versionHistory}
+            currentVersionIndex={currentResult.currentVersionIndex}
+            onRevert={handleRevertToVersion}
+            isGenerating={isBeautifying}
+          />
+        )}
+
         <div className="glass rounded-xl border border-white/10 p-4 mb-6">
           <div className="flex items-center gap-3"><MessageSquare size={18} className="text-teal-400" /><input type="text" value={slidePrompt} onChange={(e) => setSlidePrompt(e.target.value)} placeholder={t('beautify.regeneratePlaceholder')} className="flex-1 bg-transparent border-none outline-none text-white text-sm placeholder:text-gray-500" /><button onClick={handleRegenerateSlide} disabled={isBeautifying || !slidePrompt.trim()} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 text-sm flex items-center gap-2 disabled:opacity-50 transition-all"><RefreshCw size={14} /> {t('beautify.regenerate')}</button></div>
         </div>

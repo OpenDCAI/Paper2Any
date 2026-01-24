@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Presentation, Loader2, CheckCircle2, X } from 'lucide-react';
-import { API_KEY } from '../../../config/api';
+import { API_KEY, API_URL_OPTIONS } from '../../../config/api';
 import { KnowledgeFile } from '../types';
 
 interface PptToolProps {
@@ -149,14 +149,14 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
                   ...prev, 
                   api_url: val,
                   // Auto-switch gen model if using specific endpoint
-                  gen_fig_model: val === 'http://123.129.219.111:3000/v1' ? 'gemini-3-pro-image-preview' : prev.gen_fig_model
+                  gen_fig_model: val.includes('123.129.219.111') ? 'gemini-3-pro-image-preview' : prev.gen_fig_model
                 }));
               }}
               className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-purple-500"
             >
-              <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
-              <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
-              <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
+              {API_URL_OPTIONS.map((url: string) => (
+                <option key={url} value={url}>{url}</option>
+              ))}
             </select>
           </div>
 

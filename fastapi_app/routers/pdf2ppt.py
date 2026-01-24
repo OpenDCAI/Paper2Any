@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 
 from dataflow_agent.logger import get_logger
 from fastapi_app.services.pdf2ppt_service import PDF2PPTService
+from fastapi_app.config import settings
 
 log = get_logger(__name__)
 
@@ -25,8 +26,8 @@ async def generate_pdf2ppt(
     email: Optional[str] = Form(None),
     # 可选配置
     use_ai_edit: bool = Form(False),
-    model: str = Form("gpt-4o"),
-    gen_fig_model: str = Form("gemini-2.5-flash-image"),
+    model: str = Form(settings.PDF2PPT_DEFAULT_MODEL),
+    gen_fig_model: str = Form(settings.PDF2PPT_DEFAULT_IMAGE_MODEL),
     language: str = Form("zh"),
     style: str = Form("现代简约风格"),
     page_count: int = Form(8),

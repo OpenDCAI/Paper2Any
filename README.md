@@ -58,6 +58,11 @@ English | [中文](README_CN.md)
 ## 🔥 News
 
 > [!TIP]
+> 🆕 <strong>2026-01-25 · New Features</strong><br>
+> Added **AI-assisted outline editing**, **three-layer model configuration system** for flexible model selection, and **user points management** with daily quota allocation.<br>
+> 🌐 Online Demo: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
+
+> [!TIP]
 > 🆕 <strong>2026-01-20 · Bug Fixes</strong><br>
 > Fixed bugs in experimental plot generation (image/text) and resolved the missing historical files issue.<br>
 > 🌐 Online Demo: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
@@ -132,6 +137,14 @@ Paper2Any currently includes the following sub-capabilities:
 <br><br>
 <img src="static/new_readme/paper2ppt-表格提取功能.png" width="90%"/>
 <br><sub>✨ Intelligent Table Extraction & Insertion</sub>
+
+<br><br>
+<img src="static/new_readme/AI辅助编辑outline.png" width="90%"/>
+<br><sub>✨ AI-Assisted Outline Editing</sub>
+
+<br><br>
+<img src="static/new_readme/历史版本管理.png" width="90%"/>
+<br><sub>✨ Version History Management</sub>
 
 </div>
 
@@ -224,6 +237,9 @@ export DF_API_KEY=your_api_key_here
 export DF_API_URL=xxx  # Optional: if you need a third-party API gateway
 export MINERU_DEVICES="0,1,2,3" # Optional: MinerU task GPU resource pool
 ```
+
+> [!TIP]
+> 📚 **For detailed configuration guide**, see [Configuration Guide](docs/guides/configuration.md) for step-by-step instructions on configuring models, environment variables, and starting services.
 
 #### 4. Configure Supabase (Required for Frontend & Backend)
 
@@ -383,16 +399,6 @@ vllm serve opendatalab/MinerU2.5-2509-1.2B `
   --enforce-eager
 ```
 
-> [!TIP]
-> **Paper2Figure Web Beta Instructions**
-> 
-> If you do not want to deploy both frontend and backend for now, you can try the core capabilities via local scripts:
-> - `python script/run_paper2figure.py`: model architecture diagram generation
-> - `python script/run_paper2expfigure.py`: experimental plot generation
-> - `python script/run_paper2technical.py`: technical roadmap generation
-> - `python script/run_paper2ppt.py`: paper to editable PPT
-> - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`: PDF2PPT (layout preserved + editable content)
-
 ---
 
 ### Launch Application
@@ -412,11 +418,127 @@ npm run dev
 
 Visit `http://localhost:3000`.
 
-> [!TIP]
-> If you do not want to deploy frontend/backend for now, you can try the core features via local scripts:
-> - `python script/run_paper2figure.py`: model architecture diagram generation
-> - `python script/run_paper2ppt.py`: paper to PPT
-> - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`: PDF to PPT
+---
+
+### 🖥️ CLI Scripts (Command-Line Interface)
+
+Paper2Any provides standalone CLI scripts that accept command-line parameters for direct workflow execution without requiring the web frontend/backend.
+
+#### Environment Variables
+
+Configure API access via environment variables (optional):
+
+```bash
+export DF_API_URL=https://api.openai.com/v1  # LLM API URL
+export DF_API_KEY=sk-xxx                      # API key
+export DF_MODEL=gpt-4o                        # Default model
+```
+
+#### Available CLI Scripts
+
+**1. Paper2Figure CLI** - Generate scientific figures (3 types)
+
+```bash
+# Generate model architecture diagram from PDF
+python script/run_paper2figure_cli.py \
+  --input paper.pdf \
+  --graph-type model_arch \
+  --api-key sk-xxx
+
+# Generate technical roadmap from text
+python script/run_paper2figure_cli.py \
+  --input "Transformer architecture with attention mechanism" \
+  --input-type TEXT \
+  --graph-type tech_route
+
+# Generate experimental data visualization
+python script/run_paper2figure_cli.py \
+  --input paper.pdf \
+  --graph-type exp_data
+```
+
+**Graph types:** `model_arch` (model architecture), `tech_route` (technical roadmap), `exp_data` (experimental plots)
+
+**2. Paper2PPT CLI** - Convert papers to PPT presentations
+
+```bash
+# Basic usage
+python script/run_paper2ppt_cli.py \
+  --input paper.pdf \
+  --api-key sk-xxx \
+  --page-count 15
+
+# With custom style
+python script/run_paper2ppt_cli.py \
+  --input paper.pdf \
+  --style "Academic style; English; Modern design" \
+  --language en
+```
+
+**3. PDF2PPT CLI** - One-click PDF to editable PPT
+
+```bash
+# Basic conversion (no AI enhancement)
+python script/run_pdf2ppt_cli.py --input slides.pdf
+
+# With AI enhancement
+python script/run_pdf2ppt_cli.py \
+  --input slides.pdf \
+  --use-ai-edit \
+  --api-key sk-xxx
+```
+
+**4. Image2PPT CLI** - Convert images to editable PPT
+
+```bash
+# Basic conversion
+python script/run_image2ppt_cli.py --input screenshot.png
+
+# With AI enhancement
+python script/run_image2ppt_cli.py \
+  --input diagram.jpg \
+  --use-ai-edit \
+  --api-key sk-xxx
+```
+
+**5. PPT2Polish CLI** - Beautify existing PPT files
+
+```bash
+# Basic beautification
+python script/run_ppt2polish_cli.py \
+  --input old_presentation.pptx \
+  --style "Academic style, clean and elegant" \
+  --api-key sk-xxx
+
+# With reference image for style consistency
+python script/run_ppt2polish_cli.py \
+  --input old_presentation.pptx \
+  --style "Modern minimalist style" \
+  --ref-img reference_style.png \
+  --api-key sk-xxx
+```
+
+> [!NOTE]
+> **System Requirements for PPT2Polish:**
+> - LibreOffice: `sudo apt-get install libreoffice` (Ubuntu/Debian)
+> - pdf2image: `pip install pdf2image`
+> - poppler-utils: `sudo apt-get install poppler-utils`
+
+#### Common Options
+
+All CLI scripts support these common options:
+
+- `--api-url URL` - LLM API URL (default: from `DF_API_URL` env var)
+- `--api-key KEY` - API key (default: from `DF_API_KEY` env var)
+- `--model NAME` - Text model name (default: varies by script)
+- `--output-dir DIR` - Custom output directory (default: `outputs/cli/{script_name}/{timestamp}`)
+- `--help` - Show detailed help message
+
+For complete parameter documentation, run any script with `--help`:
+
+```bash
+python script/run_paper2figure_cli.py --help
+```
 
 ---
 

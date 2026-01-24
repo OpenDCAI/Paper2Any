@@ -57,7 +57,7 @@ const Paper2FigurePage = () => {
   const [style, setStyle] = useState<StyleType>('cartoon');
   const [figureComplex, setFigureComplex] = useState<FigureComplex>('easy');
 
-  const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
+  const [llmApiUrl, setLlmApiUrl] = useState(import.meta.env.VITE_DEFAULT_LLM_API_URL || 'https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gemini-3-pro-image-preview');
   // const [model, setModel] = useState('gpt-4o');

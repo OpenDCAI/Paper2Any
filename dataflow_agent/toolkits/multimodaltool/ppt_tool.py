@@ -1231,11 +1231,17 @@ async def convert_images_dir_to_pdf_and_ppt_api(
     """
     import asyncio
     from dataflow_agent.toolkits.multimodaltool.req_img import generate_or_edit_and_save_image_async
-    
+
     image_paths = list_images_in_dir(input_dir)
+
+    # 过滤掉版本化的历史文件（如 page_000_v001.png），只保留当前版本（page_000.png）
+    # 版本化文件的命名模式：page_XXX_vYYY.png
+    version_pattern = re.compile(r'_v\d+\.(png|jpg|jpeg|bmp|tif|tiff)$', re.IGNORECASE)
+    image_paths = [p for p in image_paths if not version_pattern.search(os.path.basename(p))]
+
     if not image_paths:
         raise ValueError(f"No images found in {input_dir!r}")
-    
+
     result: Dict[str, Optional[str]] = {"pdf": None, "pptx": None}
     
     # 生成 PDF

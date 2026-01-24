@@ -32,7 +32,7 @@ async def run_paper2page_content_pipeline_pdf() -> Paper2FigureState:
     req.page_count = 6
     req.chat_api_url = "https://api.apiyi.com/v1"
     req.style = "花里胡哨风格"
-    req.ref_img = "/data/users/liuzhou/online/Paper2Any/tests/cat_icon.png"
+    req.ref_img = f"{get_project_root()}/tests/cat_icon.png"
 
     req.gen_fig_model = "gemini-3-pro-image-preview"
 # gemini-3-pro-image-preview 
@@ -66,7 +66,7 @@ Mechanical Recycling: Processing plastics through sorting, cleaning, and reproce
 
 Recent cost-benefit analyses provide insights into the economic viability of these solutions. For instance, a study by Agori et al. (2024) in Ughelli, Nigeria, evaluated four mitigation strategies over a 0.5-year horizon at a $1 0 \%$ discount rate:
 
-![](/data/users/liuzhou/online/Paper2Any/outputs/paper2page_content/1767785456/2512.16676v1/auto/images/ba397b4c85a1c1bd0022e9dd145db42f9ab3f956df48273d92694b3cad820a48.jpg)  
+![]({get_project_root()}/outputs/paper2page_content/1767785456/2512.16676v1/auto/images/ba397b4c85a1c1bd0022e9dd145db42f9ab3f956df48273d92694b3cad820a48.jpg)  
 Cost-Benefit Analysis of Plastic Waste Management Strategies in Ugheli, Nigeria   
 Collection & recycling shows highest returns among evaluated interventions
 

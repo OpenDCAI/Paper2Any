@@ -4,6 +4,7 @@ import {
   ArrowLeft, CheckCircle2, AlertCircle
 } from 'lucide-react';
 import { SlideOutline, GenerateResult, Step } from './types';
+import VersionHistory from './VersionHistory';
 
 interface GenerateStepProps {
   outlineData: SlideOutline[];
@@ -17,6 +18,7 @@ interface GenerateStepProps {
   handleConfirmSlide: () => void;
   setCurrentStep: (step: Step) => void;
   error: string | null;
+  handleRevertToVersion: (versionNumber: number) => void;
 }
 
 const GenerateStep: React.FC<GenerateStepProps> = ({
@@ -30,7 +32,8 @@ const GenerateStep: React.FC<GenerateStepProps> = ({
   handleRegenerateSlide,
   handleConfirmSlide,
   setCurrentStep,
-  error
+  error,
+  handleRevertToVersion
 }) => {
   const currentSlide = outlineData[currentSlideIndex];
   const currentResult = generateResults[currentSlideIndex];
@@ -88,6 +91,15 @@ const GenerateStep: React.FC<GenerateStepProps> = ({
           </div>
         </div>
       </div>
+
+      {currentResult?.versionHistory && currentResult.versionHistory.length > 0 && (
+        <VersionHistory
+          versions={currentResult.versionHistory}
+          currentVersionIndex={currentResult.currentVersionIndex}
+          onRevert={handleRevertToVersion}
+          isGenerating={isGenerating}
+        />
+      )}
 
       <div className="glass rounded-xl border border-white/10 p-4 mb-6">
         <div className="flex items-center gap-3">
