@@ -243,6 +243,8 @@ class Paper2AnyService:
         edit_prompt: Optional[str] = None,
         tech_route_palette: str = "",
         tech_route_template: str = "",
+        reference_image: Optional[UploadFile] = None,
+        tech_route_edit_prompt: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         执行 paper2figure 生成，返回 JSON 响应数据（包含 URL）。
@@ -263,10 +265,22 @@ class Paper2AnyService:
         # 3. 创建目录并保存输入
         run_dir = self._create_run_dir(task_type, email)
         input_dir = run_dir / "input"
-        
+
         real_input_type, real_input_content = await self._save_and_prepare_input(
             input_dir, input_type, file, file_kind, text
         )
+
+        # 3.1 保存参考图（如果有）
+        reference_image_path = ""
+        if reference_image and graph_type == "tech_route":
+            ref_img_dir = run_dir / "reference"
+            ref_img_dir.mkdir(parents=True, exist_ok=True)
+            ref_filename = reference_image.filename or "reference.png"
+            ref_img_path = ref_img_dir / ref_filename
+            ref_content = await reference_image.read()
+            ref_img_path.write_bytes(ref_content)
+            reference_image_path = str(ref_img_path)
+            log.info(f"[paper2figure] Saved reference image: {reference_image_path}")
 
         # 4. 构造 Request
         p2f_req = Paper2FigureRequest(
@@ -286,6 +300,8 @@ class Paper2AnyService:
             edit_prompt=edit_prompt or "",
             tech_route_palette=tech_route_palette or "",
             tech_route_template=tech_route_template or "",
+            reference_image_path=reference_image_path,
+            tech_route_edit_prompt=tech_route_edit_prompt or "",
         )
 
         # 5. 执行 workflow
@@ -293,7 +309,7 @@ class Paper2AnyService:
             p2f_resp = await run_paper2figure_wf_api(p2f_req, result_path=run_dir)
 
         # 6. 构造 URL 响应
-        safe_ppt = _to_outputs_url(p2f_resp.ppt_filename, request)
+        safe_ppt = _to_outputs_url(p2f_resp.ppt_filename, request) if p2f_resp.ppt_filename else ""
         safe_svg = _to_outputs_url(p2f_resp.svg_filename, request) if p2f_resp.svg_filename else ""
         safe_png = _to_outputs_url(p2f_resp.svg_image_filename, request) if p2f_resp.svg_image_filename else ""
         safe_svg_bw = _to_outputs_url(p2f_resp.svg_bw_filename, request) if p2f_resp.svg_bw_filename else ""

@@ -220,38 +220,49 @@ SVG 内容设计规范（在不影响 JSON 解析的前提下，兼顾复杂度�
 # ------------------------------------------------------------------ #
 class TechnicalRouteBWSvgGenerator:
     system_prompt_for_technical_route_bw_svg_generator = """
-你是技术路线图 SVG 生成器。请严格输出 JSON：
+You are a Technical Route SVG Generator. Output strictly in JSON format:
 {"svg_code": "<svg ...>...</svg>"}
 
-硬性要求：
-1) 仅输出一个 JSON 对象，不要任何额外文本或 Markdown。
-2) SVG 必须包含 viewBox；width/height 建议写 "100%".
-3) 只生成黑白/灰度版本：fill 与 stroke 只能使用 black/white/gray。
-4) **我已为你提供了一份模板SVG代码**，请仔细分析该模板的整体结构、层级布局、节点形状、箭头风格和排版方式，生成的SVG要参考该模板的设计风格，但允许根据实际内容适当调整节点数量和位置。
-5) 若提供 validation_feedback，请修复其中问题。
+STRICT REQUIREMENTS:
+1) Output only a JSON object, no extra text or Markdown.
+2) SVG must include viewBox; width/height should be "100%".
+3) Generate black/white/grayscale version only: fill and stroke can only use black/white/gray.
+4) I have provided a template SVG code. Analyze its structure, layout, node shapes, arrow styles, and follow its design style while adjusting node count and positions as needed.
+5) If validation_feedback is provided, fix the issues mentioned.
+6) **CRITICAL LANGUAGE REQUIREMENT**: The text content in SVG must be in the language specified by the user. If user specifies "EN" or "English", ALL text labels must be in English. If user specifies "ZH" or "Chinese", ALL text labels must be in Chinese.
+7) **CRITICAL FONT REQUIREMENT**:
+   - If generating Chinese text, you MUST use Chinese-friendly fonts in ALL text elements
+   - Use: font-family="Noto Sans CJK SC, Microsoft YaHei, SimHei, SimSun, sans-serif"
+   - NEVER use Arial, Helvetica, Times, or Courier for Chinese text
+   - Apply this font-family attribute to EVERY <text> element containing Chinese characters
 """
 
     task_prompt_for_technical_route_bw_svg_generator = """
-**重要提示**：我已为你提供了一份技术路线图模板SVG代码，请先仔细分析这份模板代码的：
-- 整体布局结构（自上而下/自左而右）
-- 阶段划分方式（如何分组和分层）
-- 节点形状和尺寸（rect、circle等元素的使用）
-- 箭头粗细和样式（line、path、marker的定义）
-- 文字位置和大小（text元素的坐标和字号）
-- viewBox和坐标系统
-然后基于该模板风格生成新的SVG。
+**IMPORTANT**: I have provided a template SVG code. Please analyze:
+- Overall layout structure (top-to-bottom / left-to-right)
+- Stage division (grouping and layering)
+- Node shapes and sizes (rect, circle elements)
+- Arrow thickness and styles (line, path, marker definitions)
+- Text positions and sizes (text element coordinates and font sizes)
+- viewBox and coordinate system
+Then generate a new SVG based on this template style.
 
-**模板SVG代码**：
+**Template SVG Code**:
 {template_svg_code}
 
-**论文内容（paper_idea）**：
+**Paper Content (paper_idea)**:
 {paper_idea}
 
-**校验反馈（若有）**：
+**Validation Feedback (if any)**:
 {validation_feedback}
 
-请参考上述模板SVG的布局结构生成技术路线图 SVG，文本语言为：{lang}。
-仅输出 JSON {"svg_code": "..."}。
+**OUTPUT LANGUAGE: {lang}**
+CRITICAL: ALL text labels in the SVG MUST be written in {lang}.
+- If {lang} is "EN" or "English": Use English for ALL text (e.g., "Data Processing", "Model Training", "Feature Extraction")
+- If {lang} is "ZH" or "Chinese": Use Chinese for ALL text (e.g., "数据处理", "模型训练", "特征提取")
+DO NOT mix languages. Every single text element must follow this language requirement.
+
+Output only JSON {{"svg_code": "..."}}.
 """
 
 
@@ -277,10 +288,13 @@ class TechnicalRouteColorizeSvg:
 色卡配置（JSON）：
 {palette_json}
 
+彩色模板参考（可选，用于了解配色风格）：
+{color_template_svg}
+
 校验反馈（若有）：
 {validation_feedback}
 
-请完成上色并输出 JSON {"svg_code": "..."}。
+请参考彩色模板的配色风格，完成上色并输出 JSON {"svg_code": "..."}。
 """
 
     # ------------------------------------------------------------------ #

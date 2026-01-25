@@ -77,6 +77,7 @@ class AppSettings(BaseSettings):
     PAPER2FIGURE_VLM_MODEL: str = "qwen-vl-ocr-2025-11-20"
     PAPER2FIGURE_CHART_MODEL: str = "gpt-4o"
     PAPER2FIGURE_DESC_MODEL: str = "gpt-5.1"
+    PAPER2FIGURE_REF_IMG_DESC_MODEL: str = "gpt-4o"
     PAPER2FIGURE_TECHNICAL_MODEL: str = "claude-haiku-4-5-20251001"
 
     class Config:

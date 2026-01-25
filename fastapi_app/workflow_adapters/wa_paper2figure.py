@@ -178,8 +178,21 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest, result_path: Path | 
     log.info(f"[paper2figure] result_path: {state.result_path}")
     state.mask_detail_level = 2
 
+    # -------- 技术路线图参考图和二次编辑 -------- #
+    if graph_type == "tech_route":
+        # 传递参考图路径到 workflow
+        if req.reference_image_path:
+            state.temp_data["reference_image_path"] = req.reference_image_path
+            log.info(f"[paper2figure] Reference image: {req.reference_image_path}")
+
+        # 传递二次编辑提示词到 workflow
+        if req.tech_route_edit_prompt:
+            state.temp_data["tech_route_edit_prompt"] = req.tech_route_edit_prompt
+            log.info(f"[paper2figure] Tech route edit prompt: {req.tech_route_edit_prompt}")
+
     # -------- 异步执行 -------- #
     log.critical(f"[paper2figure] req language: {req.language} !!!!!!!!\n")
+    log.critical(f"[paper2figure] req tech_route_palette: '{req.tech_route_palette}' !!!!!!!!\n")
     final_state: Paper2FigureState = await run_workflow(wf_name, state)
 
     # -------- 保存最终 State -------- #

@@ -98,6 +98,8 @@ async def generate_paper2figure_json(
     edit_prompt: Optional[str] = Form(None),
     tech_route_palette: str = Form(""),
     tech_route_template: str = Form(""),
+    reference_image: Optional[UploadFile] = File(None),
+    tech_route_edit_prompt: Optional[str] = Form(None),
     service: Paper2AnyService = Depends(get_service),
 ):
     """
@@ -120,6 +122,8 @@ async def generate_paper2figure_json(
         edit_prompt=edit_prompt,
         tech_route_palette=tech_route_palette,
         tech_route_template=tech_route_template,
+        reference_image=reference_image,
+        tech_route_edit_prompt=tech_route_edit_prompt,
     )
     
     return Paper2FigureResponse(**resp_data)

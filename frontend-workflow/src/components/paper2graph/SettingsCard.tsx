@@ -1,5 +1,5 @@
-import React from 'react';
-import { Settings2, ChevronUp, ChevronDown, Loader2, Download, Info, CheckCircle2, AlertCircle, ImageIcon } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Settings2, ChevronUp, ChevronDown, Loader2, Download, Info, CheckCircle2, AlertCircle, ImageIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import QRCodeTooltip from '../QRCodeTooltip';
 import { GraphType, Language, StyleType, FigureComplex } from './types';
@@ -35,6 +35,10 @@ interface SettingsCardProps {
   svgColorPath: string | null;
   techRoutePalette: string;
   setTechRoutePalette: (palette: string) => void;
+  referenceImage: File | null;
+  setReferenceImage: (file: File | null) => void;
+  referenceImagePreview: string | null;
+  setReferenceImagePreview: (url: string | null) => void;
   isValidating: boolean;
   error: string | null;
   successMessage: string | null;
@@ -69,12 +73,31 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
   svgColorPath,
   techRoutePalette,
   setTechRoutePalette,
+  referenceImage,
+  setReferenceImage,
+  referenceImagePreview,
+  setReferenceImagePreview,
   isValidating,
   error,
   successMessage,
 }) => {
   const { t } = useTranslation('paper2graph');
   const selectedPalette = TECH_ROUTE_PALETTES.find(p => p.id === techRoutePalette) || TECH_ROUTE_PALETTES[0];
+
+  // 配色方案下拉框状态
+  const [paletteDropdownOpen, setPaletteDropdownOpen] = useState(false);
+  const paletteDropdownRef = useRef<HTMLDivElement>(null);
+
+  // 点击外部关闭下拉框
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (paletteDropdownRef.current && !paletteDropdownRef.current.contains(event.target as Node)) {
+        setPaletteDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
     <div className="glass rounded-xl border border-white/10 p-5 flex flex-col gap-4 text-sm">
@@ -145,11 +168,16 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
             <select
               value={model}
               onChange={e => setModel(e.target.value)}
-              disabled={llmApiUrl === 'http://123.129.219.111:3000/v1' || graphType === 'tech_route'}
+              disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
               className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {graphType === 'tech_route' ? (
-                <option value="gpt-5.2-high">gpt-5.2-high (固定)</option>
+                <>
+                  <option value="gpt-5.2-medium">gpt-5.2-medium（默认）</option>
+                  <option value="gemini-3-pro-preview">gemini-3-pro</option>
+                  <option value="claude-sonnet-4-5-20250929">claude-sonnet-4</option>
+                  <option value="claude-haiku-4-5-20251001">claude-haiku</option>
+                </>
               ) : (
                 <>
                   <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
@@ -159,9 +187,6 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
             </select>
             {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
                <p className="text-[10px] text-gray-500 mt-1">{t('advanced.modelOnlyHint')}</p>
-            )}
-            {graphType === 'tech_route' && (
-               <p className="text-[10px] text-gray-500 mt-1">技术路线图固定使用 gpt-5.2-high 模型（高思考模式）</p>
             )}
           </div>
 
@@ -205,46 +230,135 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
             </div>
           )}
 
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">{t('advanced.styleLabel')}</label>
-            <select
-              value={style}
-              onChange={e => setStyle(e.target.value as StyleType)}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="cartoon">{t('advanced.style.cartoon')}</option>
-              {graphType !== 'exp_data' && <option value="realistic">{t('advanced.style.realistic')}</option>}
-              {graphType === 'exp_data' && <option value="Low Poly 3D">{t('advanced.style.lowPoly')}</option>}
-              {graphType === 'exp_data' && <option value="blocky LEGO aesthetic">{t('advanced.style.lego')}</option>}
-            </select>
-          </div>
-
-          {graphType === 'tech_route' && (
+          {/* 技术路线图不显示风格选择 */}
+          {graphType !== 'tech_route' && (
             <div>
-              <label className="block text-xs text-gray-400 mb-1">{t('techRoute.paletteLabel')}</label>
+              <label className="block text-xs text-gray-400 mb-1">{t('advanced.styleLabel')}</label>
               <select
-                value={techRoutePalette}
-                onChange={e => setTechRoutePalette(e.target.value)}
+                value={style}
+                onChange={e => setStyle(e.target.value as StyleType)}
                 className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               >
-                {TECH_ROUTE_PALETTES.map(palette => (
-                  <option key={palette.id || 'none'} value={palette.id}>
-                    {palette.label}
-                  </option>
-                ))}
+                <option value="cartoon">{t('advanced.style.cartoon')}</option>
+                {graphType !== 'exp_data' && <option value="realistic">{t('advanced.style.realistic')}</option>}
+                {graphType === 'exp_data' && <option value="Low Poly 3D">{t('advanced.style.lowPoly')}</option>}
+                {graphType === 'exp_data' && <option value="blocky LEGO aesthetic">{t('advanced.style.lego')}</option>}
               </select>
-              {selectedPalette.colors.length > 0 && (
-                <div className="mt-2 flex items-center gap-1.5">
-                  {selectedPalette.colors.map(color => (
-                    <span
-                      key={color}
-                      className="w-4 h-4 rounded-full border border-white/20"
-                      style={{ backgroundColor: color }}
-                      title={color}
-                    />
+            </div>
+          )}
+
+          {graphType === 'tech_route' && (
+            <div ref={paletteDropdownRef} className="relative">
+              <label className="block text-xs text-gray-400 mb-1">{t('techRoute.paletteLabel')}</label>
+              {/* 自定义下拉框触发器 */}
+              <button
+                type="button"
+                onClick={() => setPaletteDropdownOpen(!paletteDropdownOpen)}
+                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <span>{selectedPalette.label}</span>
+                  {selectedPalette.colors.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      {selectedPalette.colors.map(color => (
+                        <span
+                          key={color}
+                          className="w-3 h-3 rounded-full border border-white/20"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <ChevronDown size={14} className={`transition-transform ${paletteDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {/* 下拉选项列表 */}
+              {paletteDropdownOpen && (
+                <div className="absolute z-50 w-full mt-1 rounded-lg border border-white/10 bg-gray-900 shadow-lg max-h-48 overflow-y-auto">
+                  {TECH_ROUTE_PALETTES.map(palette => (
+                    <button
+                      key={palette.id || 'none'}
+                      type="button"
+                      onClick={() => {
+                        setTechRoutePalette(palette.id);
+                        setPaletteDropdownOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 text-xs text-left flex items-center gap-2 hover:bg-white/10 transition-colors ${
+                        techRoutePalette === palette.id ? 'bg-primary-500/20 text-primary-300' : 'text-gray-200'
+                      }`}
+                    >
+                      <span className="flex-shrink-0">{palette.label}</span>
+                      {palette.colors.length > 0 && (
+                        <div className="flex items-center gap-1 ml-auto">
+                          {palette.colors.map(color => (
+                            <span
+                              key={color}
+                              className="w-3 h-3 rounded-full border border-white/20"
+                              style={{ backgroundColor: color }}
+                              title={color}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </button>
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* 技术路线图参考图上传 */}
+          {graphType === 'tech_route' && (
+            <div className="mt-3">
+              <label className="block text-xs text-gray-400 mb-1">参考图（可选）</label>
+              <div className="border border-dashed border-white/20 rounded-lg p-3">
+                {referenceImagePreview ? (
+                  <div className="relative">
+                    <img
+                      src={referenceImagePreview}
+                      alt="参考图预览"
+                      className="max-h-32 rounded mx-auto"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReferenceImage(null);
+                        setReferenceImagePreview(null);
+                      }}
+                      className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 rounded-full p-1 transition-colors"
+                    >
+                      <X size={12} className="text-white" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center cursor-pointer py-2">
+                    <ImageIcon size={24} className="text-gray-500 mb-1" />
+                    <span className="text-xs text-gray-500">点击上传参考图</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          // 验证文件类型，拒绝 SVG
+                          const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+                          if (!allowedTypes.includes(file.type)) {
+                            alert('仅支持 PNG、JPG、WebP 格式的图片，不支持 SVG 格式');
+                            e.target.value = ''; // 清空文件选择
+                            return;
+                          }
+                          setReferenceImage(file);
+                          setReferenceImagePreview(URL.createObjectURL(file));
+                        }
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+              <p className="text-[10px] text-gray-500 mt-1">
+                上传参考图后，AI将分析其布局风格生成类似的技术路线图
+              </p>
             </div>
           )}
         </div>
@@ -352,10 +466,23 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
               <>
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     const bwPath = svgBwPath || svgPath;
                     if (!bwPath) return;
-                    window.open(bwPath, '_blank');
+                    try {
+                      const response = await fetch(bwPath);
+                      const blob = await response.blob();
+                      const blobUrl = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = blobUrl;
+                      a.download = bwPath.split('/').pop() || 'technical_route_bw.svg';
+                      document.body.appendChild(a);
+                      a.click();
+                      a.remove();
+                      URL.revokeObjectURL(blobUrl);
+                    } catch {
+                      window.open(bwPath, '_blank');
+                    }
                   }}
                   className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-sky-400/60 text-sky-300 text-xs py-2 bg-sky-500/10 hover:bg-sky-500/20 transition-colors"
                 >
@@ -375,8 +502,21 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
               <>
                 <button
                   type="button"
-                  onClick={() => {
-                    window.open(svgColorPath, '_blank');
+                  onClick={async () => {
+                    try {
+                      const response = await fetch(svgColorPath);
+                      const blob = await response.blob();
+                      const blobUrl = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = blobUrl;
+                      a.download = svgColorPath.split('/').pop() || 'technical_route_color.svg';
+                      document.body.appendChild(a);
+                      a.click();
+                      a.remove();
+                      URL.revokeObjectURL(blobUrl);
+                    } catch {
+                      window.open(svgColorPath, '_blank');
+                    }
                   }}
                   className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-amber-400/60 text-amber-300 text-xs py-2 bg-amber-500/10 hover:bg-amber-500/20 transition-colors"
                 >

@@ -91,6 +91,7 @@ class Paper2FigureRequest(BaseModel):
 
     # 新增模型参数
     vlm_model: str = settings.PAPER2FIGURE_VLM_MODEL
+    tec_vlm_desc_model: str = settings.PAPER2FIGURE_REF_IMG_DESC_MODEL
     chart_model: str = settings.PAPER2FIGURE_CHART_MODEL
     fig_desc_model: str = settings.PAPER2FIGURE_DESC_MODEL
     technical_model: str = settings.PAPER2FIGURE_TECHNICAL_MODEL
@@ -128,6 +129,13 @@ class Paper2FigureRequest(BaseModel):
 
     prev_image: str = ""
     # 上一次生成的图片路径（用于 image-to-image 或 edit 模式）
+
+    # ---------------------- 技术路线图参考图相关 ----------------------
+    reference_image_path: str = ""
+    # 参考图路径（用于 VLM 理解后生成类似风格的技术路线图）
+
+    tech_route_edit_prompt: str = ""
+    # 技术路线图二次编辑提示词
 
     # ---------------------- 兼容 dict 风格访问 ----------------------
     def get(self, key: str, default=None):

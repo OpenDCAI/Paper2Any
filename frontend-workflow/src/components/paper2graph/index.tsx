@@ -29,6 +29,7 @@ import Header from './Header';
 import UploadCard from './UploadCard';
 import SettingsCard from './SettingsCard';
 import PreviewSection from './PreviewSection';
+import TechRoutePreviewSection from './TechRoutePreviewSection';
 import ExamplesSection from './ExamplesSection';
 
 function detectFileKind(file: File): FileKind {
@@ -80,6 +81,15 @@ const Paper2FigurePage = () => {
   const [svgColorPath, setSvgColorPath] = useState<string | null>(null);
   const [techRoutePalette, setTechRoutePalette] = useState<string>('');
 
+  // 技术路线图参考图
+  const [referenceImage, setReferenceImage] = useState<File | null>(null);
+  const [referenceImagePreview, setReferenceImagePreview] = useState<string | null>(null);
+
+  // 技术路线图预览和编辑
+  const [techRouteStep, setTechRouteStep] = useState<'input' | 'preview' | 'done'>('input');
+  const [techRouteEditPrompt, setTechRouteEditPrompt] = useState('');
+  const [techRouteSvgPreview, setTechRouteSvgPreview] = useState<string | null>(null);
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [allOutputFiles, setAllOutputFiles] = useState<string[]>([]);
   // const [showOutputPanel, setShowOutputPanel] = useState(false);
@@ -94,6 +104,15 @@ const Paper2FigurePage = () => {
   // 新增：生成阶段状态
   const [currentStage, setCurrentStage] = useState(0);
   const [stageProgress, setStageProgress] = useState(0);
+
+  // 当图类型变化时，自动切换为对应的默认模型
+  useEffect(() => {
+    if (graphType === 'tech_route') {
+      setModel('gpt-5.2-medium');
+    } else {
+      setModel('gemini-3-pro-image-preview');
+    }
+  }, [graphType]);
 
   useEffect(() => {
     const fetchStars = async () => {
@@ -182,8 +201,8 @@ const Paper2FigurePage = () => {
           if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
           if (saved.apiKey) setApiKey(saved.apiKey);
         }
+        if (saved.techRoutePalette !== undefined) setTechRoutePalette(saved.techRoutePalette);
       }
-      if (saved.techRoutePalette !== undefined) setTechRoutePalette(saved.techRoutePalette);
     } catch (e) {
       console.error('Failed to restore paper2figure config', e);
     }
@@ -386,14 +405,10 @@ const Paper2FigurePage = () => {
       formData.append('api_key', apiKey.trim());
       formData.append('input_type', uploadMode);
       formData.append('email', user?.id || user?.email || '');
-    formData.append('graph_type', graphType);
-    formData.append('style', style);
-    formData.append('figure_complex', figureComplex);
-    formData.append('language', language);
-    if (graphType === 'tech_route') {
-      formData.append('tech_route_palette', techRoutePalette);
-      formData.append('tech_route_template', 'temp.png');
-    }
+      formData.append('graph_type', graphType);
+      formData.append('style', style);
+      formData.append('figure_complex', figureComplex);
+      formData.append('language', language);
 
       if (uploadMode === 'file') {
         if (!selectedFile) {
@@ -479,6 +494,7 @@ const Paper2FigurePage = () => {
         await recordUsage(user?.id || null, 'paper2figure');
         refreshQuota();
 
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         let pptUrlCandidate: string | null = null;
         if (data.ppt_filename) {
           pptUrlCandidate = data.ppt_filename;
@@ -539,11 +555,17 @@ const Paper2FigurePage = () => {
     formData.append('graph_type', graphType);
     formData.append('style', style);
 
-    // 使用全局 i18n 语言作为后端语言参数
-    const backendLanguage = i18n.language && i18n.language.startsWith('zh') ? 'zh' : 'en';
+    // 其他图（tech_route / exp_data）：使用用户选择的语言配置
+    formData.append('language', language);
 
-    // 其他图（tech_route / exp_data）：使用语言配置，不传绘图难度
-    formData.append('language', backendLanguage);
+    // 技术路线图：传递配色方案
+    if (graphType === 'tech_route') {
+      formData.append('tech_route_palette', techRoutePalette);
+      // 添加参考图（如果有）
+      if (referenceImage) {
+        formData.append('reference_image', referenceImage);
+      }
+    }
 
     if (uploadMode === 'file') {
       if (!selectedFile) {
@@ -617,6 +639,13 @@ const Paper2FigurePage = () => {
         setSvgColorPath(data.svg_color_filename ?? null);
         setAllOutputFiles(data.all_output_files ?? []);
         setSuccessMessage(t('success.techRouteGenerated'));
+
+        // 设置技术路线图预览
+        const svgPreview = data.svg_color_image_filename || data.svg_bw_image_filename || data.svg_image_filename;
+        if (svgPreview) {
+          setTechRouteSvgPreview(svgPreview);
+          setTechRouteStep('preview');
+        }
 
         // Record usage
         await recordUsage(user?.id || null, 'paper2figure');
@@ -756,6 +785,10 @@ const Paper2FigurePage = () => {
               svgColorPath={svgColorPath}
               techRoutePalette={techRoutePalette}
               setTechRoutePalette={setTechRoutePalette}
+              referenceImage={referenceImage}
+              setReferenceImage={setReferenceImage}
+              referenceImagePreview={referenceImagePreview}
+              setReferenceImagePreview={setReferenceImagePreview}
               isValidating={isValidating}
               error={error}
               successMessage={successMessage}
@@ -781,6 +814,14 @@ const Paper2FigurePage = () => {
             email={user?.id || user?.email || ''}
             figureComplex={figureComplex}
             language={language}
+          />
+
+          <TechRoutePreviewSection
+            graphType={graphType}
+            techRouteStep={techRouteStep}
+            svgPreviewUrl={techRouteSvgPreview}
+            svgBwPath={svgBwPath}
+            svgColorPath={svgColorPath}
           />
 
           <ExamplesSection />
