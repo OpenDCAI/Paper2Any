@@ -74,7 +74,8 @@
     "pptDownload": "下载技术路线图 PPT：{{filename}}",
     "pptCopyHintTitle": "如果下载失败，请复制下面链接到浏览器地址栏打开：",
     "svgDownload": "下载 SVG 源文件：{{filename}}",
-    "svgPreviewTitle": "SVG 预览（PNG 渲染图）"
+    "svgPreviewTitle": "SVG 预览（PNG 渲染图）",
+    "paletteLabel": "配色方案"
   },
   "validating": {
     "apiKey": "正在验证 API Key 有效性..."

@@ -197,15 +197,27 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest, result_path: Path | 
     # 默认空字符串，避免 None 影响前端
     svg_filename = ""
     svg_image_filename = ""
+    svg_bw_filename = ""
+    svg_bw_image_filename = ""
+    svg_color_filename = ""
+    svg_color_image_filename = ""
 
     try:
         # final_state 可能是 State 或 dict，两种方式都考虑
         if isinstance(final_state, dict):
             svg_filename = str(final_state.get("svg_file_path", "") or "")
             svg_image_filename = str(final_state.get("svg_img_path", "") or "")
+            svg_bw_filename = str(final_state.get("svg_bw_file_path", "") or "") or svg_filename
+            svg_bw_image_filename = str(final_state.get("svg_bw_img_path", "") or "") or svg_image_filename
+            svg_color_filename = str(final_state.get("svg_color_file_path", "") or "")
+            svg_color_image_filename = str(final_state.get("svg_color_img_path", "") or "")
         else:
             svg_filename = str(getattr(final_state, "svg_file_path", "") or "")
             svg_image_filename = str(getattr(final_state, "svg_img_path", "") or "")
+            svg_bw_filename = str(getattr(final_state, "svg_bw_file_path", "") or "") or svg_filename
+            svg_bw_image_filename = str(getattr(final_state, "svg_bw_img_path", "") or "") or svg_image_filename
+            svg_color_filename = str(getattr(final_state, "svg_color_file_path", "") or "")
+            svg_color_image_filename = str(getattr(final_state, "svg_color_img_path", "") or "")
     except Exception as e:  # pragma: no cover - 仅日志兜底
         log.warning(f"[paper2figure] 提取 SVG 路径失败: {e}")
         svg_filename = ""
@@ -227,5 +239,9 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest, result_path: Path | 
         ppt_filename=ppt_filename,
         svg_filename=svg_filename,
         svg_image_filename=svg_image_filename,
+        svg_bw_filename=svg_bw_filename,
+        svg_bw_image_filename=svg_bw_image_filename,
+        svg_color_filename=svg_color_filename,
+        svg_color_image_filename=svg_color_image_filename,
         all_output_files=all_output_files,
     )

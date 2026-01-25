@@ -214,6 +214,75 @@ SVG 内容设计规范（在不影响 JSON 解析的前提下，兼顾复杂度�
 请严格遵守上述 JSON 输出要求，仅返回包含 svg_code 的 JSON 对象。
 """
 
+
+# ------------------------------------------------------------------ #
+# 3. Technical Route BW SVG Generator (template-based)
+# ------------------------------------------------------------------ #
+class TechnicalRouteBWSvgGenerator:
+    system_prompt_for_technical_route_bw_svg_generator = """
+你是技术路线图 SVG 生成器。请严格输出 JSON：
+{"svg_code": "<svg ...>...</svg>"}
+
+硬性要求：
+1) 仅输出一个 JSON 对象，不要任何额外文本或 Markdown。
+2) SVG 必须包含 viewBox；width/height 建议写 "100%".
+3) 只生成黑白/灰度版本：fill 与 stroke 只能使用 black/white/gray。
+4) **我已为你提供了一份模板SVG代码**，请仔细分析该模板的整体结构、层级布局、节点形状、箭头风格和排版方式，生成的SVG要参考该模板的设计风格，但允许根据实际内容适当调整节点数量和位置。
+5) 若提供 validation_feedback，请修复其中问题。
+"""
+
+    task_prompt_for_technical_route_bw_svg_generator = """
+**重要提示**：我已为你提供了一份技术路线图模板SVG代码，请先仔细分析这份模板代码的：
+- 整体布局结构（自上而下/自左而右）
+- 阶段划分方式（如何分组和分层）
+- 节点形状和尺寸（rect、circle等元素的使用）
+- 箭头粗细和样式（line、path、marker的定义）
+- 文字位置和大小（text元素的坐标和字号）
+- viewBox和坐标系统
+然后基于该模板风格生成新的SVG。
+
+**模板SVG代码**：
+{template_svg_code}
+
+**论文内容（paper_idea）**：
+{paper_idea}
+
+**校验反馈（若有）**：
+{validation_feedback}
+
+请参考上述模板SVG的布局结构生成技术路线图 SVG，文本语言为：{lang}。
+仅输出 JSON {"svg_code": "..."}。
+"""
+
+
+# ------------------------------------------------------------------ #
+# 4. Technical Route Colorize SVG (palette-based)
+# ------------------------------------------------------------------ #
+class TechnicalRouteColorizeSvg:
+    system_prompt_for_technical_route_colorize_svg = """
+你是 SVG 上色器。输入是一份黑白 SVG 和色卡配置。
+
+输出要求：
+1) 仅输出一个 JSON 对象：{"svg_code": "<svg ...>...</svg>"}。
+2) 不改变任何几何结构/坐标/path d/文字内容，只允许修改 fill/stroke/style/class。
+3) 同类型或同层级内容使用同一颜色。
+4) 颜色仅从色卡提供的 colors/level_colors/arrow_color/text_color 中选择。
+5) 若提供 validation_feedback，请修复其中问题。
+"""
+
+    task_prompt_for_technical_route_colorize_svg = """
+黑白 SVG：
+{bw_svg_code}
+
+色卡配置（JSON）：
+{palette_json}
+
+校验反馈（若有）：
+{validation_feedback}
+
+请完成上色并输出 JSON {"svg_code": "..."}。
+"""
+
     # ------------------------------------------------------------------ #
     # 2. SvgBgCleaner - svg_bg_cleaner 相关提示词
     # ------------------------------------------------------------------ #
