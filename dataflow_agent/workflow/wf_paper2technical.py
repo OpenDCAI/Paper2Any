@@ -18,7 +18,7 @@ import re
 from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register
-from dataflow_agent.agentroles import create_graph_agent, create_react_agent, create_simple_agent
+from dataflow_agent.agentroles import create_simple_agent
 from dataflow_agent.toolkits.tool_manager import get_tool_manager
 from dataflow_agent.toolkits.multimodaltool.bg_tool import (
     local_tool_for_svg_render,
@@ -47,6 +47,159 @@ def _ensure_result_path(state: Paper2FigureState) -> str:
     base_dir.mkdir(parents=True, exist_ok=True)
     state.result_path = str(base_dir)
     return state.result_path
+
+
+def _extract_svg_from_react_md(md_path: Path) -> str:
+    """
+    从 React 组件的 .md 文件中提取纯 SVG 代码。
+
+    输入的 .md 文件包含 React 组件代码,其中嵌入了 SVG。
+    此函数提取 <svg>...</svg> 部分,并将 React 语法转换为纯 SVG。
+    """
+    if not md_path.exists():
+        log.warning(f"模板文件不存在: {md_path}")
+        return ""
+
+    try:
+        content = md_path.read_text(encoding="utf-8")
+
+        # 查找 <svg 开始标签
+        svg_start = content.find("<svg")
+        if svg_start == -1:
+            log.warning(f"未在文件中找到 <svg 标签: {md_path}")
+            return ""
+
+        # 查找对应的 </svg> 结束标签
+        svg_end = content.rfind("</svg>")
+        if svg_end == -1:
+            log.warning(f"未在文件中找到 </svg> 标签: {md_path}")
+            return ""
+
+        svg_end += len("</svg>")
+        svg_code = content[svg_start:svg_end]
+
+        # 清理 React 特有语法:
+        # 1. 将 className 替换为 class
+        svg_code = svg_code.replace('className="', 'class="')
+
+        # 2. 将 JSX 驼峰命名属性转换为 SVG 连字符命名
+        # 注意：某些属性在 SVG 中必须保持驼峰命名（如 markerWidth, markerHeight, viewBox 等）
+        jsx_to_svg_attrs = {
+            'strokeWidth': 'stroke-width',
+            'strokeDasharray': 'stroke-dasharray',
+            'strokeLinecap': 'stroke-linecap',
+            'strokeLinejoin': 'stroke-linejoin',
+            'strokeOpacity': 'stroke-opacity',
+            'fillOpacity': 'fill-opacity',
+            'textAnchor': 'text-anchor',
+            'fontWeight': 'font-weight',
+            'fontSize': 'font-size',
+            'fontFamily': 'font-family',
+            # markerWidth 和 markerHeight 应该保持驼峰命名，不转换
+            'markerEnd': 'marker-end',
+            'markerStart': 'marker-start',
+            'markerMid': 'marker-mid',
+            'clipPath': 'clip-path',
+        }
+        for jsx_attr, svg_attr in jsx_to_svg_attrs.items():
+            svg_code = svg_code.replace(f'{jsx_attr}=', f'{svg_attr}=')
+
+        # 3. 将 {colors.xxx} 这样的变量引用替换为实际颜色值
+        colors_match = re.search(r'const colors = \{([^}]+)\}', content, re.DOTALL)
+        if colors_match:
+            colors_def = colors_match.group(1)
+            # 解析颜色定义
+            color_map = {}
+            for line in colors_def.split('\n'):
+                match = re.search(r'(\w+):\s*"([^"]+)"', line)
+                if match:
+                    color_map[match.group(1)] = match.group(2)
+
+            # 替换 {colors.xxx} 为实际颜色值
+            for key, value in color_map.items():
+                svg_code = svg_code.replace(f'{{colors.{key}}}', value)
+
+        # 4. 移除 React 注释 {/* ... */}
+        svg_code = re.sub(r'\{/\*.*?\*/\}', '', svg_code, flags=re.DOTALL)
+
+        # 5. 转义 XML 特殊字符（在文本内容中）
+        # 注意：只转义 text 元素内的 &，不转义已经是实体引用的部分
+        # 使用负向前瞻确保不会重复转义已经转义的内容
+        svg_code = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#)', '&amp;', svg_code)
+
+        return svg_code.strip()
+
+    except Exception as e:
+        log.error(f"提取 SVG 代码失败: {e}")
+        return ""
+
+
+def _get_template_svg_code(state: Paper2FigureState) -> str:
+    """
+    根据语言选择合适的 SVG 模板代码。
+
+    - 中文: 使用 SVG_template_ZN_gray.md
+    - 英文: 使用 SVG_template_EN_gray.md
+
+    返回纯 SVG 代码字符串。
+    """
+    root = get_project_root()
+    lang = getattr(getattr(state, "request", None), "language", "EN")
+
+    # 根据语言选择模板文件
+    if lang.upper() in ["ZH", "CN", "CHINESE", "中文"]:
+        template_file = root / "SVG_template_ZN_gray.md"
+    else:
+        template_file = root / "SVG_template_EN_gray.md"
+
+    svg_code = _extract_svg_from_react_md(template_file)
+
+    if not svg_code:
+        log.warning(f"无法从模板文件提取 SVG 代码,使用空字符串")
+
+    return svg_code
+
+
+def _get_palette_config(state: Paper2FigureState) -> dict | None:
+    """
+    根据 request.tech_route_palette 返回色卡配置；未选择则返回 None。
+    """
+    palette_name = getattr(getattr(state, "request", None), "tech_route_palette", "") or ""
+    if not palette_name:
+        return None
+
+    palettes = {
+        "academic_blue": {
+            "name": "academic_blue",
+            "colors": ["#1F6FEB", "#60A5FA", "#A7C7FF", "#0B3D91"],
+            "level_colors": ["#A7C7FF", "#60A5FA", "#1F6FEB", "#0B3D91"],
+            "arrow_color": "#0B3D91",
+            "text_color": "#0B3D91",
+        },
+        "teal_orange": {
+            "name": "teal_orange",
+            "colors": ["#0F766E", "#14B8A6", "#F59E0B", "#FB923C"],
+            "level_colors": ["#14B8A6", "#0F766E", "#F59E0B", "#FB923C"],
+            "arrow_color": "#0F766E",
+            "text_color": "#0F766E",
+        },
+        "slate_rose": {
+            "name": "slate_rose",
+            "colors": ["#334155", "#64748B", "#F43F5E", "#FCA5A5"],
+            "level_colors": ["#64748B", "#334155", "#FCA5A5", "#F43F5E"],
+            "arrow_color": "#334155",
+            "text_color": "#334155",
+        },
+        "indigo_amber": {
+            "name": "indigo_amber",
+            "colors": ["#4338CA", "#6366F1", "#F59E0B", "#FCD34D"],
+            "level_colors": ["#6366F1", "#4338CA", "#FCD34D", "#F59E0B"],
+            "arrow_color": "#4338CA",
+            "text_color": "#4338CA",
+        },
+    }
+
+    return palettes.get(palette_name)
 
 
 @register("paper2technical")
@@ -108,20 +261,35 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         log.info("paper_content 提取完成")
         return final_text
 
-    @builder.pre_tool("paper_idea", "technical_route_desc_generator")
-    def _get_paper_idea(state: Paper2FigureState):
-        """
-        前置工具: 为 technical_route_desc_generator 节点暴露论文的核心想法摘要。
-
-        - 在 PDF 模式下，该摘要由 paper_idea_extractor 节点写入 state.paper_idea。
-        - 在 TEXT 模式下，可以直接由调用方事先把概要写入 state.paper_idea。
-        """
+    @builder.pre_tool("paper_idea", "technical_route_bw_svg_generator")
+    def _get_bw_paper_idea(state: Paper2FigureState):
         return state.paper_idea or ""
 
-    @builder.pre_tool("style", "technical_route_desc_generator")
-    def _get_paper_idea(state: Paper2FigureState):
+    @builder.pre_tool("template_svg_code", "technical_route_bw_svg_generator")
+    def _get_template_svg(state: Paper2FigureState):
+        """
+        前置工具: 提供 SVG 模板代码给黑白技术路线图生成器。
 
-        return state.request.style or ""
+        - 作用: 根据语言选择合适的 SVG 模板,供 agent 参考其结构和布局。
+        - 输出: 纯 SVG 代码字符串。
+        """
+        return _get_template_svg_code(state)
+
+    @builder.pre_tool("validation_feedback", "technical_route_bw_svg_generator")
+    def _get_bw_feedback(state: Paper2FigureState):
+        return state.temp_data.get("validation_feedback", "") if hasattr(state, "temp_data") else ""
+
+    @builder.pre_tool("validation_feedback", "technical_route_colorize_svg")
+    def _get_color_feedback(state: Paper2FigureState):
+        return state.temp_data.get("validation_feedback", "") if hasattr(state, "temp_data") else ""
+
+    @builder.pre_tool("bw_svg_code", "technical_route_colorize_svg")
+    def _get_bw_svg_code(state: Paper2FigureState):
+        return state.figure_tec_svg_bw_content or ""
+
+    @builder.pre_tool("palette_json", "technical_route_colorize_svg")
+    def _get_palette_json(state: Paper2FigureState):
+        return state.temp_data.get("palette_json", "") if hasattr(state, "temp_data") else ""
 
     # ----------------------------------------------------------------------
 
@@ -176,68 +344,181 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         return svg_code[: idx + 1] + style_block + svg_code[idx + 1 :]
 
 
-    async def technical_route_desc_generator_node(state: Paper2FigureState) -> Paper2FigureState:
-        """
-        节点 2: 技术路线图描述生成器
+    def _extract_svg_fragment(svg_code: str) -> str:
+        if not svg_code:
+            return ""
+        text = svg_code.strip()
+        if text.startswith("```"):
+            lines = [line for line in text.splitlines() if line.strip("`").strip()]
+            for i, line in enumerate(lines):
+                if "<svg" in line or "<SVG" in line or "<Svg" in line:
+                    text = "\n".join(lines[i:])
+                    break
+        start = text.find("<svg")
+        end = text.rfind("</svg>")
+        if start == -1 or end == -1:
+            return text
+        end += len("</svg>")
+        return text[start:end].strip()
 
-        - 根据论文摘要（PDF 模式）或用户直接提供的文本描述（TEXT 模式），
-          生成“技术路线/实验流程”的结构化自然语言描述或 JSON。
-        - 典型内容包括: 各阶段实验步骤、模块之间的依赖关系、输入输出数据流等。
+    def _validate_svg_renderable(svg_code: str, output_path: str) -> tuple[bool, str]:
+        import xml.etree.ElementTree as ET
 
-        输入:
-            - PDF 模式: state.paper_idea 由 paper_idea_extractor 填充
-            - TEXT 模式: 可以事先把文本写入 state.paper_idea 或其他字段
-        输出:
-            - 建议: 在 agent 内把结果存到 state.fig_desc 或 state.agent_results["technical_route_desc_generator"]
+        if not svg_code:
+            return False, "svg_code 为空"
+        fragment = _extract_svg_fragment(svg_code)
+        if "<svg" not in fragment and "<SVG" not in fragment:
+            return False, "未检测到 <svg> 根标签"
+        if "viewBox" not in fragment and "viewbox" not in fragment:
+            return False, "缺少 viewBox 属性"
+        try:
+            ET.fromstring(fragment)
+        except Exception as e:
+            return False, f"SVG XML 解析失败: {e}"
+
+        try:
+            local_tool_for_svg_render(
+                {
+                    "svg_code": fragment,
+                    "output_path": output_path,
+                }
+            )
+        except Exception as e:
+            return False, f"SVG 渲染失败: {e}"
+
+        return True, ""
+
+    async def technical_route_bw_svg_generator_node(state: Paper2FigureState) -> Paper2FigureState:
         """
-        agent = create_react_agent(
-            name="technical_route_desc_generator",
-            max_retries=4,
-            model_name=getattr(state.request, "technical_model", "claude-haiku-4-5-20251001"),
+        黑白技术路线图生成（参考模板 SVG 代码）。
+        不再使用 VLM 图片输入,而是将 SVG 模板代码作为文本输入。
+        失败时在节点内做渲染校验重试。
+        """
+        from dataflow_agent.agentroles.paper2any_agents.technical_route_bw_svg_generator import (
+            create_technical_route_bw_svg_generator,
         )
-        state = await agent.execute(state=state)
 
-        # --------------------------------------------------------------
-        # 将 LLM 生成的 SVG 源码渲染为实际图像文件，并写入统一的 result_path 目录
-        # --------------------------------------------------------------
-        svg_code = getattr(state, "figure_tec_svg_content", None)
-        if svg_code:
-            # 日志：是否包含中文
-            if _svg_has_cjk(svg_code):
-                log.info("technical_route_desc_generator_node: 检测到 SVG 中包含中文字符")
+        base_dir = Path(_ensure_result_path(state))
+        base_dir.mkdir(parents=True, exist_ok=True)
 
-            # 如果 SVG 未显式指定 font-family，则注入一组中文友好的字体
+        max_retries = 3
+        last_error = ""
+
+        for attempt in range(max_retries):
+            if not hasattr(state, "temp_data"):
+                state.temp_data = {}
+            state.temp_data["validation_feedback"] = last_error
+
+            agent = create_technical_route_bw_svg_generator(
+                model_name="gpt-5.2-medium",
+                temperature=0.0,
+                max_tokens=16384,  # 增加到16K以支持完整的SVG代码输出
+                parser_type="json",
+            )
+
+            state = await agent.execute(state=state)
+            svg_code = getattr(state, "figure_tec_svg_bw_content", None)
+            if not svg_code:
+                last_error = "缺少 svg_code"
+                continue
+
             svg_code = _inject_chinese_font(svg_code)
+            validate_path = str((base_dir / f"technical_route_bw_validate_{attempt}.png").resolve())
+            ok, err = _validate_svg_renderable(svg_code, validate_path)
+            if ok:
+                # 输出落盘
+                timestamp = int(time.time())
+                svg_output_path = str((base_dir / f"technical_route_bw_{timestamp}.svg").resolve())
+                png_output_path = str((base_dir / f"technical_route_bw_{timestamp}.png").resolve())
+                try:
+                    Path(svg_output_path).write_text(svg_code, encoding="utf-8")
+                    png_path = local_tool_for_svg_render(
+                        {
+                            "svg_code": svg_code,
+                            "output_path": png_output_path,
+                        }
+                    )
+                    state.svg_bw_file_path = svg_output_path
+                    state.svg_bw_img_path = png_path
+                    state.svg_file_path = svg_output_path
+                    state.svg_img_path = png_path
+                    state.figure_tec_svg_content = svg_code
+                    log.critical(f"[state.svg_bw_img_path]: {state.svg_bw_img_path}")
+                    log.critical(f"[state.svg_bw_file_path]: {state.svg_bw_file_path}")
+                    return state
+                except Exception as e:
+                    last_error = f"SVG 落盘/渲染失败: {e}"
+                    continue
 
-            # 确保本次 workflow 的根输出目录已确定
-            base_dir = Path(_ensure_result_path(state))
-            base_dir.mkdir(parents=True, exist_ok=True)
+            last_error = err
 
-            timestamp = int(time.time())
-            # 同时输出 SVG 源码文件和 PNG 位图
-            svg_output_path = str((base_dir / f"technical_route_{timestamp}.svg").resolve())
-            png_output_path = str((base_dir / f"technical_route_{timestamp}.png").resolve())
+        log.error(f"technical_route_bw_svg_generator_node: 重试失败: {last_error}")
+        return state
 
-            try:
-                # 1) 保存 SVG 源码到 .svg 文件
-                Path(svg_output_path).write_text(svg_code, encoding="utf-8")
-                state.svg_file_path = svg_output_path
+    async def technical_route_colorize_svg_node(state: Paper2FigureState) -> Paper2FigureState:
+        """
+        彩色技术路线图生成：仅基于黑白 SVG + 色卡。
+        """
+        from dataflow_agent.agentroles.paper2any_agents.technical_route_colorize_svg_agent import (
+            create_technical_route_colorize_svg_agent,
+        )
 
-                # 2) 渲染 PNG 供 MinerU 使用
-                png_path = local_tool_for_svg_render(
-                    {
-                        "svg_code": svg_code,
-                        "output_path": png_output_path,
-                    }
-                )
-                # 将最终图像路径写回 state.svg_img_path
-                state.svg_img_path = png_path
-                log.critical(f"[state.svg_img_path]: {state.svg_img_path}")
-                log.critical(f"[state.svg_file_path]: {state.svg_file_path}")
-            except Exception as e:
-                # 渲染或写文件失败时仅记录日志，避免打断整体 workflow
-                log.error(f"technical_route_desc_generator_node: SVG 落盘/渲染失败: {e}")
+        base_dir = Path(_ensure_result_path(state))
+        base_dir.mkdir(parents=True, exist_ok=True)
 
+        palette_cfg = _get_palette_config(state)
+        if not palette_cfg:
+            return state
+
+        if not hasattr(state, "temp_data"):
+            state.temp_data = {}
+        state.temp_data["palette_json"] = json.dumps(palette_cfg, ensure_ascii=False)
+
+        max_retries = 3
+        last_error = ""
+        for attempt in range(max_retries):
+            state.temp_data["validation_feedback"] = last_error
+
+            agent = create_technical_route_colorize_svg_agent(
+                model_name="gpt-5.2-medium",
+                temperature=0.0,
+                max_tokens=16384,  # 增加到16K以支持完整的SVG代码输出
+                parser_type="json",
+            )
+            state = await agent.execute(state=state)
+
+            svg_code = getattr(state, "figure_tec_svg_color_content", None)
+            if not svg_code:
+                last_error = "缺少 svg_code"
+                continue
+
+            svg_code = _inject_chinese_font(svg_code)
+            validate_path = str((base_dir / f"technical_route_color_validate_{attempt}.png").resolve())
+            ok, err = _validate_svg_renderable(svg_code, validate_path)
+            if ok:
+                timestamp = int(time.time())
+                svg_output_path = str((base_dir / f"technical_route_color_{timestamp}.svg").resolve())
+                png_output_path = str((base_dir / f"technical_route_color_{timestamp}.png").resolve())
+                try:
+                    Path(svg_output_path).write_text(svg_code, encoding="utf-8")
+                    png_path = local_tool_for_svg_render(
+                        {
+                            "svg_code": svg_code,
+                            "output_path": png_output_path,
+                        }
+                    )
+                    state.svg_color_file_path = svg_output_path
+                    state.svg_color_img_path = png_path
+                    log.critical(f"[state.svg_color_img_path]: {state.svg_color_img_path}")
+                    log.critical(f"[state.svg_color_file_path]: {state.svg_color_file_path}")
+                    return state
+                except Exception as e:
+                    last_error = f"SVG 落盘/渲染失败: {e}"
+                    continue
+
+            last_error = err
+
+        log.error(f"technical_route_colorize_svg_node: 重试失败: {last_error}")
         return state
 
     async def technical_ppt_generator_node(state: Paper2FigureState) -> Paper2FigureState:
@@ -275,8 +556,9 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
             # ------------------------------------------------------------------
             slide = prs.slides.add_slide(blank_slide_layout)
 
-            svg_path = getattr(state, "svg_file_path", None)
             png_path = getattr(state, "svg_img_path", None)
+            color_png_path = getattr(state, "svg_color_img_path", None)
+            palette_selected = bool(getattr(getattr(state, "request", None), "tech_route_palette", ""))
 
             def _insert_picture(pic_path: str) -> bool:
                 """通用插图函数：按 80% 宽度缩放并居中。"""
@@ -301,13 +583,14 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
             # 直接使用 PNG（位图）插入 PPT
             inserted = False
 
-            if png_path:
+            final_png = color_png_path if palette_selected and color_png_path else png_path
+            if final_png:
                 try:
-                    ok = _insert_picture(png_path)
+                    ok = _insert_picture(final_png)
                     if ok:
                         log.info(
                             "technical_ppt_generator_node: 使用 PNG 插入技术路线图成功: %s",
-                            png_path,
+                            final_png,
                         )
                     else:
                         log.error(
@@ -319,7 +602,7 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
                         e,
                     )
 
-            if (not inserted) and (not png_path):
+            if (not inserted) and (not final_png):
                 log.warning(
                     "technical_ppt_generator_node: svg_file_path / svg_img_path 均为空，"
                     "第一页将为空白"
@@ -357,7 +640,7 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
 
         - input_type == "PDF"  : 从 PDF 中抽取论文想法，先走 paper_idea_extractor
         - input_type == "TEXT" : 直接使用调用方提供的文本描述，跳过 PDF 抽取，
-                                 从 technical_route_desc_generator 开始
+                                 从 technical_route_bw_svg_generator 开始
         其他值:
         - 认为是不合法输入，直接结束工作流。
         """
@@ -366,8 +649,8 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
             log.critical("paper2technical: 进入 PDF 流程 (paper_idea_extractor)")
             return "paper_idea_extractor"
         elif input_type == "TEXT":
-            log.critical("paper2technical: 进入 TEXT 流程 (technical_route_desc_generator)")
-            return "technical_route_desc_generator"
+            log.critical("paper2technical: 进入 TEXT 流程 (technical_route_bw_svg_generator)")
+            return "technical_route_bw_svg_generator"
         else:
             log.error(f"paper2technical: Invalid input type: {input_type}")
             return "_end_"
@@ -384,7 +667,8 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
     nodes = {
         "_start_": _init_result_path,
         "paper_idea_extractor": paper_idea_extractor_node,
-        "technical_route_desc_generator": technical_route_desc_generator_node,
+        "technical_route_bw_svg_generator": technical_route_bw_svg_generator_node,
+        "technical_route_colorize_svg": technical_route_colorize_svg_node,
         "technical_ppt_generator": technical_ppt_generator_node,
         "_end_": lambda state: state,  # 终止节点
     }
@@ -393,12 +677,19 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
     # EDGES  (从节点 A 指向节点 B)
     # ------------------------------------------------------------------
     edges = [
-        # PDF 流程: 先抽想法，再生成技术路线描述
-        ("paper_idea_extractor", "technical_route_desc_generator"),
-        # PDF/TEXT 后续流程共用: 描述 -> PPT
-        ("technical_route_desc_generator", "technical_ppt_generator"),
+        # PDF 流程: 先抽想法，再生成黑白技术路线
+        ("paper_idea_extractor", "technical_route_bw_svg_generator"),
+        # 生成黑白后，如有配色则上色，否则直接进 PPT
+        ("technical_route_colorize_svg", "technical_ppt_generator"),
         ("technical_ppt_generator", "_end_"),
     ]
 
+    def _route_after_bw(state: Paper2FigureState) -> str:
+        palette = getattr(getattr(state, "request", None), "tech_route_palette", "") or ""
+        if palette:
+            return "technical_route_colorize_svg"
+        return "technical_ppt_generator"
+
     builder.add_nodes(nodes).add_edges(edges).add_conditional_edge("_start_", set_entry_node)
+    builder.add_conditional_edge("technical_route_bw_svg_generator", _route_after_bw)
     return builder

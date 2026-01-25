@@ -74,7 +74,8 @@
     "pptDownload": "Download technical roadmap PPT: {{filename}}",
     "pptCopyHintTitle": "If download fails, copy the link below into your browser:",
     "svgDownload": "Download SVG source file: {{filename}}",
-    "svgPreviewTitle": "SVG preview (PNG rendering)"
+    "svgPreviewTitle": "SVG preview (PNG rendering)",
+    "paletteLabel": "Color palette"
   },
   "validating": {
     "apiKey": "Validating API Key..."

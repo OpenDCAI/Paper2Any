@@ -3,7 +3,7 @@ import { Settings2, ChevronUp, ChevronDown, Loader2, Download, Info, CheckCircle
 import { useTranslation } from 'react-i18next';
 import QRCodeTooltip from '../QRCodeTooltip';
 import { GraphType, Language, StyleType, FigureComplex } from './types';
-import { GENERATION_STAGES } from './constants';
+import { GENERATION_STAGES, TECH_ROUTE_PALETTES } from './constants';
 import { API_URL_OPTIONS } from '../../config/api';
 
 interface SettingsCardProps {
@@ -31,6 +31,10 @@ interface SettingsCardProps {
   pptPath: string | null;
   svgPath: string | null;
   svgPreviewPath: string | null;
+  svgBwPath: string | null;
+  svgColorPath: string | null;
+  techRoutePalette: string;
+  setTechRoutePalette: (palette: string) => void;
   isValidating: boolean;
   error: string | null;
   successMessage: string | null;
@@ -61,11 +65,16 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
   pptPath,
   svgPath,
   svgPreviewPath,
+  svgBwPath,
+  svgColorPath,
+  techRoutePalette,
+  setTechRoutePalette,
   isValidating,
   error,
   successMessage,
 }) => {
   const { t } = useTranslation('paper2graph');
+  const selectedPalette = TECH_ROUTE_PALETTES.find(p => p.id === techRoutePalette) || TECH_ROUTE_PALETTES[0];
 
   return (
     <div className="glass rounded-xl border border-white/10 p-5 flex flex-col gap-4 text-sm">
@@ -136,14 +145,23 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
             <select
               value={model}
               onChange={e => setModel(e.target.value)}
-              disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
+              disabled={llmApiUrl === 'http://123.129.219.111:3000/v1' || graphType === 'tech_route'}
               className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
-              <option value="gemini-2.5-flash-image-preview">gemini-2.5-flash-image-preview</option>
+              {graphType === 'tech_route' ? (
+                <option value="gpt-5.2-high">gpt-5.2-high (固定)</option>
+              ) : (
+                <>
+                  <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview</option>
+                  <option value="gemini-2.5-flash-image-preview">gemini-2.5-flash-image-preview</option>
+                </>
+              )}
             </select>
             {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
                <p className="text-[10px] text-gray-500 mt-1">{t('advanced.modelOnlyHint')}</p>
+            )}
+            {graphType === 'tech_route' && (
+               <p className="text-[10px] text-gray-500 mt-1">技术路线图固定使用 gpt-5.2-high 模型（高思考模式）</p>
             )}
           </div>
 
@@ -200,6 +218,35 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
               {graphType === 'exp_data' && <option value="blocky LEGO aesthetic">{t('advanced.style.lego')}</option>}
             </select>
           </div>
+
+          {graphType === 'tech_route' && (
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">{t('techRoute.paletteLabel')}</label>
+              <select
+                value={techRoutePalette}
+                onChange={e => setTechRoutePalette(e.target.value)}
+                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              >
+                {TECH_ROUTE_PALETTES.map(palette => (
+                  <option key={palette.id || 'none'} value={palette.id}>
+                    {palette.label}
+                  </option>
+                ))}
+              </select>
+              {selectedPalette.colors.length > 0 && (
+                <div className="mt-2 flex items-center gap-1.5">
+                  {selectedPalette.colors.map(color => (
+                    <span
+                      key={color}
+                      className="w-4 h-4 rounded-full border border-white/20"
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -299,25 +346,47 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
           </button>
         )}
 
-        {graphType === 'tech_route' && (pptPath || svgPath || svgPreviewPath) && (
+        {graphType === 'tech_route' && (pptPath || svgPath || svgPreviewPath || svgBwPath || svgColorPath) && (
           <div className="mt-2 space-y-2">
-            {svgPath && (
+            {(svgBwPath || svgPath) && (
               <>
                 <button
                   type="button"
                   onClick={() => {
-                    if (!svgPath) return;
-                    window.open(svgPath, '_blank');
+                    const bwPath = svgBwPath || svgPath;
+                    if (!bwPath) return;
+                    window.open(bwPath, '_blank');
                   }}
                   className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-sky-400/60 text-sky-300 text-xs py-2 bg-sky-500/10 hover:bg-sky-500/20 transition-colors"
                 >
                   <ImageIcon size={14} />
-                  <span>SVG 源文件下载</span>
+                  <span>黑白 SVG 源文件下载</span>
                 </button>
                 <div className="text-[11px] text-gray-300 bg-black/30 border border-white/10 rounded-md px-2 py-1.5">
-                  <div className="font-semibold text-gray-200">SVG 链接：</div>
+                  <div className="font-semibold text-gray-200">黑白 SVG 链接：</div>
                   <div className="mt-1 break-all text-sky-300 select-all cursor-text font-mono text-[10px] leading-tight p-1 bg-black/20 rounded">
-                    {svgPath}
+                    {svgBwPath || svgPath}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {svgColorPath && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.open(svgColorPath, '_blank');
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-amber-400/60 text-amber-300 text-xs py-2 bg-amber-500/10 hover:bg-amber-500/20 transition-colors"
+                >
+                  <ImageIcon size={14} />
+                  <span>彩色 SVG 源文件下载</span>
+                </button>
+                <div className="text-[11px] text-gray-300 bg-black/30 border border-white/10 rounded-md px-2 py-1.5">
+                  <div className="font-semibold text-gray-200">彩色 SVG 链接：</div>
+                  <div className="mt-1 break-all text-amber-300 select-all cursor-text font-mono text-[10px] leading-tight p-1 bg-black/20 rounded">
+                    {svgColorPath}
                   </div>
                 </div>
               </>

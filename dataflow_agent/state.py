@@ -261,6 +261,9 @@ class Paper2FigureRequest(MainRequest):
     
     # 新增：用于 wf_paper2technical.py 的技术路线生成模型
     technical_model: str = "claude-haiku-4-5-20251001"
+    # 技术路线图模板/配色（可选）
+    tech_route_template: str = ""
+    tech_route_palette: str = ""
 
     input_type: str = "PDF"
     #  科研绘图复杂度    
@@ -300,10 +303,16 @@ class Paper2FigureState(MainState):
 
     # 技术路线图使用属性 ==============================
     figure_tec_svg_content: str = ""
+    figure_tec_svg_bw_content: str = ""
+    figure_tec_svg_color_content: str = ""
     svg_img_path: str = ""
     mineru_port: int = 8010
     svg_file_path: str = ""  # svg 带文字图的 地址
     svg_bg_file_path: str = ""
+    svg_bw_file_path: str = ""
+    svg_bw_img_path: str = ""
+    svg_color_file_path: str = ""
+    svg_color_img_path: str = ""
     # 带文字版本的svg图片
     svg_full_img_path: str = ""
     # 背景svg code：

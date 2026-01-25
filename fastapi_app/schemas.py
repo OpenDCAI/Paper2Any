@@ -94,6 +94,8 @@ class Paper2FigureRequest(BaseModel):
     chart_model: str = settings.PAPER2FIGURE_CHART_MODEL
     fig_desc_model: str = settings.PAPER2FIGURE_DESC_MODEL
     technical_model: str = settings.PAPER2FIGURE_TECHNICAL_MODEL
+    tech_route_template: str = ""
+    tech_route_palette: str = ""
 
     # ---------------------- 输入类型设置 ----------------------
     input_type: Literal["PDF", "TEXT", "FIGURE"] = "PDF"
@@ -141,6 +143,10 @@ class Paper2FigureResponse(BaseModel):
     ppt_filename: str = ""  # 生成PPT的路径
     svg_filename: str = ""  # 技术路线 SVG 源文件路径（graph_type=tech_route 时有效）
     svg_image_filename: str = ""  # 技术路线 PNG 渲染图路径（graph_type=tech_route 时有效）
+    svg_bw_filename: str = ""  # 技术路线黑白 SVG 源文件路径（选配色时有效）
+    svg_bw_image_filename: str = ""  # 技术路线黑白 PNG 渲染图路径（选配色时有效）
+    svg_color_filename: str = ""  # 技术路线彩色 SVG 源文件路径（选配色时有效）
+    svg_color_image_filename: str = ""  # 技术路线彩色 PNG 渲染图路径（选配色时有效）
     all_output_files: List[str] = []  # 本次任务产生的所有输出文件路径（稍后在路由层转换为 URL）
 
 

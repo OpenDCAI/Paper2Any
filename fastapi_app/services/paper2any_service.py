@@ -241,6 +241,8 @@ class Paper2AnyService:
         style: str,
         figure_complex: str = "easy",
         edit_prompt: Optional[str] = None,
+        tech_route_palette: str = "",
+        tech_route_template: str = "",
     ) -> Dict[str, Any]:
         """
         执行 paper2figure 生成，返回 JSON 响应数据（包含 URL）。
@@ -282,6 +284,8 @@ class Paper2AnyService:
             figure_complex=figure_complex,
             email=email or "",
             edit_prompt=edit_prompt or "",
+            tech_route_palette=tech_route_palette or "",
+            tech_route_template=tech_route_template or "",
         )
 
         # 5. 执行 workflow
@@ -292,6 +296,10 @@ class Paper2AnyService:
         safe_ppt = _to_outputs_url(p2f_resp.ppt_filename, request)
         safe_svg = _to_outputs_url(p2f_resp.svg_filename, request) if p2f_resp.svg_filename else ""
         safe_png = _to_outputs_url(p2f_resp.svg_image_filename, request) if p2f_resp.svg_image_filename else ""
+        safe_svg_bw = _to_outputs_url(p2f_resp.svg_bw_filename, request) if p2f_resp.svg_bw_filename else ""
+        safe_png_bw = _to_outputs_url(p2f_resp.svg_bw_image_filename, request) if p2f_resp.svg_bw_image_filename else ""
+        safe_svg_color = _to_outputs_url(p2f_resp.svg_color_filename, request) if p2f_resp.svg_color_filename else ""
+        safe_png_color = _to_outputs_url(p2f_resp.svg_color_image_filename, request) if p2f_resp.svg_color_image_filename else ""
 
         safe_all_files: list[str] = []
         for abs_path in getattr(p2f_resp, "all_output_files", []) or []:
@@ -303,6 +311,10 @@ class Paper2AnyService:
             "ppt_filename": safe_ppt,
             "svg_filename": safe_svg,
             "svg_image_filename": safe_png,
+            "svg_bw_filename": safe_svg_bw,
+            "svg_bw_image_filename": safe_png_bw,
+            "svg_color_filename": safe_svg_color,
+            "svg_color_image_filename": safe_png_color,
             "all_output_files": safe_all_files,
         }
 

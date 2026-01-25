@@ -76,6 +76,9 @@ const Paper2FigurePage = () => {
   const [pptPath, setPptPath] = useState<string | null>(null);
   const [svgPath, setSvgPath] = useState<string | null>(null);
   const [svgPreviewPath, setSvgPreviewPath] = useState<string | null>(null);
+  const [svgBwPath, setSvgBwPath] = useState<string | null>(null);
+  const [svgColorPath, setSvgColorPath] = useState<string | null>(null);
+  const [techRoutePalette, setTechRoutePalette] = useState<string>('');
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [allOutputFiles, setAllOutputFiles] = useState<string[]>([]);
@@ -158,6 +161,7 @@ const Paper2FigurePage = () => {
           llmApiUrl?: string;
           apiKey?: string;
           model?: string;
+        techRoutePalette?: string;
         };
 
         if (saved.uploadMode) setUploadMode(saved.uploadMode);
@@ -179,6 +183,7 @@ const Paper2FigurePage = () => {
           if (saved.apiKey) setApiKey(saved.apiKey);
         }
       }
+      if (saved.techRoutePalette !== undefined) setTechRoutePalette(saved.techRoutePalette);
     } catch (e) {
       console.error('Failed to restore paper2figure config', e);
     }
@@ -197,6 +202,7 @@ const Paper2FigurePage = () => {
       llmApiUrl,
       apiKey,
       model,
+      techRoutePalette,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -207,7 +213,7 @@ const Paper2FigurePage = () => {
     } catch (e) {
       console.error('Failed to persist paper2figure config', e);
     }
-  }, [uploadMode, textContent, graphType, language, style, figureComplex, llmApiUrl, apiKey, model, user?.id]);
+  }, [uploadMode, textContent, graphType, language, style, figureComplex, llmApiUrl, apiKey, model, techRoutePalette, user?.id]);
 
   // 新增：管理生成阶段的定时器
   useEffect(() => {
@@ -355,6 +361,8 @@ const Paper2FigurePage = () => {
       setPptPath(null);
       setSvgPath(null);
       setSvgPreviewPath(null);
+      setSvgBwPath(null);
+      setSvgColorPath(null);
       setCurrentStage(0);
       setStageProgress(0);
       // setShowOutputPanel(true);
@@ -378,10 +386,14 @@ const Paper2FigurePage = () => {
       formData.append('api_key', apiKey.trim());
       formData.append('input_type', uploadMode);
       formData.append('email', user?.id || user?.email || '');
-      formData.append('graph_type', graphType);
-      formData.append('style', style);
-      formData.append('figure_complex', figureComplex);
-      formData.append('language', language);
+    formData.append('graph_type', graphType);
+    formData.append('style', style);
+    formData.append('figure_complex', figureComplex);
+    formData.append('language', language);
+    if (graphType === 'tech_route') {
+      formData.append('tech_route_palette', techRoutePalette);
+      formData.append('tech_route_template', 'temp.png');
+    }
 
       if (uploadMode === 'file') {
         if (!selectedFile) {
@@ -424,6 +436,10 @@ const Paper2FigurePage = () => {
           ppt_filename: string;
           svg_filename: string;
           svg_image_filename: string;
+          svg_bw_filename?: string;
+          svg_bw_image_filename?: string;
+          svg_color_filename?: string;
+          svg_color_image_filename?: string;
           all_output_files?: string[];
         };
 
@@ -492,6 +508,8 @@ const Paper2FigurePage = () => {
     setPptPath(null);
     setSvgPath(null);
     setSvgPreviewPath(null);
+    setSvgBwPath(null);
+    setSvgColorPath(null);
     setCurrentStage(0);
     setStageProgress(0);
     // setShowOutputPanel(true);
@@ -579,6 +597,10 @@ const Paper2FigurePage = () => {
           ppt_filename: string;
           svg_filename: string;
           svg_image_filename: string;
+          svg_bw_filename?: string;
+          svg_bw_image_filename?: string;
+          svg_color_filename?: string;
+          svg_color_image_filename?: string;
           all_output_files?: string[];
         };
 
@@ -591,6 +613,8 @@ const Paper2FigurePage = () => {
         setPptPath(data.ppt_filename);
         setSvgPath(data.svg_filename);
         setSvgPreviewPath(data.svg_image_filename);
+        setSvgBwPath(data.svg_bw_filename ?? data.svg_filename ?? null);
+        setSvgColorPath(data.svg_color_filename ?? null);
         setAllOutputFiles(data.all_output_files ?? []);
         setSuccessMessage(t('success.techRouteGenerated'));
 
@@ -728,6 +752,10 @@ const Paper2FigurePage = () => {
               pptPath={pptPath}
               svgPath={svgPath}
               svgPreviewPath={svgPreviewPath}
+              svgBwPath={svgBwPath}
+              svgColorPath={svgColorPath}
+              techRoutePalette={techRoutePalette}
+              setTechRoutePalette={setTechRoutePalette}
               isValidating={isValidating}
               error={error}
               successMessage={successMessage}
