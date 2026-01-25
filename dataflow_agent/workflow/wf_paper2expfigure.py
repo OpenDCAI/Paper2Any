@@ -641,10 +641,14 @@ def create_paper2expfigure_graph() -> GenericGraphBuilder:
         节点 6: 执行代码生成图表
         调用 chart_code_generator Agent 智能生成图表
         """
+        log.info("[code_executor] 开始执行代码生成图表...")
+
         tables = state.extracted_tables
         if not tables:
             log.warning("[code_executor] 没有表格数据，跳过")
             return state
+
+        log.info(f"[code_executor] 共有 {len(tables)} 个表格待处理")
         
         image_paths = [t["image_path"] for t in tables if "image_path" in t]
         
@@ -788,16 +792,15 @@ output_path = {repr(str(chart_path))}
             except Exception as e:
                 log.error(f"[code_executor] 处理表格 {table_id} 时出错: {e}")
                 import traceback
-                traceback.print_exc()
-                return [{table_id: None}, {table_id: None}]
+                log.error(f"[code_executor] 错误堆栈:\n{traceback.format_exc()}")
+                return ({table_id: None}, {table_id: None})
         
         # 过滤掉不适合生成图表的表格，定义匿名函数封装复杂提取逻辑，提高代码可读性
         get_chart_config = lambda x: state.chart_configs.get(x.get("table_id"), {})
         is_suitable = lambda x: get_chart_config(x).get("is_suitable_for_chart", True)
         
-        print("==" * 20)
-        print(f"state.paper_idea: {state.paper_idea}")
-        print("==" * 20)
+        # Debug: Print paper_idea length instead of full content to avoid log truncation
+        log.info(f"[code_executor] paper_idea length: {len(state.paper_idea) if state.paper_idea else 0} characters")
         
         states = [
             ChartCodeGeneratorState(
@@ -817,20 +820,21 @@ output_path = {repr(str(chart_path))}
         generated_results = await asyncio.gather(*tasks)
         generated_code = [result[0] for result in generated_results]
         generated_charts = [result[1] for result in generated_results]
-        # 过滤掉失败节点的值
-        generated_code = [
-            result
-            for result in generated_code if result is not None
-            for key, value in result.items() if value is not None
-        ]
-        generated_charts = [
-            result
-            for result in generated_charts if result is not None
-            for key, value in result.items() if value is not None
-        ]
-        
-        code_results = reduce(lambda x, y: {**x, **y}, generated_code, {})
-        chart_results = reduce(lambda x, y: {**x, **y}, generated_charts, {})
+
+        # 过滤掉失败节点的值 - 修复：正确过滤 None 值
+        code_results = {}
+        for code_dict in generated_code:
+            if code_dict:
+                for table_id, code_entry in code_dict.items():
+                    if code_entry is not None:
+                        code_results[table_id] = code_entry
+
+        chart_results = {}
+        for chart_dict in generated_charts:
+            if chart_dict:
+                for table_id, chart_path in chart_dict.items():
+                    if chart_path is not None:
+                        chart_results[table_id] = chart_path
         
         state.generated_code = code_results
         state.generated_charts = chart_results

@@ -5,6 +5,7 @@ paper2ppt 工作流封装。
 
 拆分为三个 API：
 - run_paper2page_content_wf_api: 只跑 paper2page_content，侧重解析/生成 pagecontent
+- run_paper2page_content_refine_wf_api: 只跑 paper2page_content，用于基于反馈修订 outline
 - run_paper2ppt_wf_api: 只跑 paper2ppt，基于已有 pagecontent 生成 PPT 资源
 - run_paper2ppt_full_pipeline: full pipeline，串联 paper2page_content + paper2ppt
 """
@@ -99,9 +100,35 @@ def _init_state_from_request(
 
     # 统一 result_path（如果调用方显式指定，则优先使用）
     if result_path is not None:
-        state.result_path = str(result_path)
+        state.result_path = str(Path(result_path).resolve())
 
     return state
+
+
+def _try_load_existing_mineru_markdown(result_root: Path) -> tuple[str, str]:
+    """
+    从既有的 result_root 中尝试加载 MinerU 解析的 markdown。
+    期望路径形态：<pdf_stem>/auto/<pdf_stem>.md
+
+    Returns:
+        (mineru_output, mineru_root_dir)
+    """
+    try:
+        candidates = list(result_root.glob("*/auto/*.md"))
+    except Exception:
+        candidates = []
+
+    if not candidates:
+        return "", ""
+
+    md_path = candidates[0]
+    try:
+        md = md_path.read_text(encoding="utf-8")
+    except Exception:
+        return "", ""
+
+    mineru_output = _shrink_markdown(md, max_h1=8, max_chars=30_000)
+    return mineru_output, str(md_path.parent.resolve())
 
 
 async def run_paper2page_content_wf_api(req: Paper2PPTRequest, result_path: Path | None = None) -> Paper2PPTResponse:
@@ -140,6 +167,44 @@ async def run_paper2page_content_wf_api(req: Paper2PPTRequest, result_path: Path
         "result_path": result_path,
     }
 
+    return Paper2PPTResponse(**resp_data)
+
+
+async def run_paper2page_content_refine_wf_api(
+    req: Paper2PPTRequest,
+    pagecontent: list[dict],
+    outline_feedback: str,
+    result_path: Path | None = None,
+) -> Paper2PPTResponse:
+    """
+    只执行 paper2page_content 工作流，用于基于反馈修订已有 outline。
+    """
+    if result_path is None:
+        result_root = _ensure_result_path_for_full(req.email)
+    else:
+        result_root = result_path
+
+    state = _init_state_from_request(req, result_path=result_root)
+    state.pagecontent = list(pagecontent or [])
+    state.outline_feedback = outline_feedback or ""
+    if not getattr(state, "minueru_output", ""):
+        mineru_output, mineru_root = _try_load_existing_mineru_markdown(result_root)
+        if mineru_output:
+            state.minueru_output = mineru_output
+        if mineru_root:
+            state.mineru_root = mineru_root
+
+    log.info(f"[paper2page_content_refine_wf_api] start, result_path={state.result_path}")
+    final_state: Paper2FigureState = await run_workflow("paper2page_content", state)
+
+    pagecontent = final_state["pagecontent"] or []
+    result_path = final_state["result_path"] or str(result_root)
+
+    resp_data: dict[str, Any] = {
+        "success": True,
+        "pagecontent": pagecontent,
+        "result_path": result_path,
+    }
     return Paper2PPTResponse(**resp_data)
 
 

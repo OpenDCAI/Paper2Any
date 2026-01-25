@@ -261,6 +261,9 @@ class Paper2FigureRequest(MainRequest):
     
     # 新增：用于 wf_paper2technical.py 的技术路线生成模型
     technical_model: str = "claude-haiku-4-5-20251001"
+    # 技术路线图模板/配色（可选）
+    tech_route_template: str = ""
+    tech_route_palette: str = ""
 
     input_type: str = "PDF"
     #  科研绘图复杂度    
@@ -300,10 +303,16 @@ class Paper2FigureState(MainState):
 
     # 技术路线图使用属性 ==============================
     figure_tec_svg_content: str = ""
+    figure_tec_svg_bw_content: str = ""
+    figure_tec_svg_color_content: str = ""
     svg_img_path: str = ""
     mineru_port: int = 8010
     svg_file_path: str = ""  # svg 带文字图的 地址
     svg_bg_file_path: str = ""
+    svg_bw_file_path: str = ""
+    svg_bw_img_path: str = ""
+    svg_color_file_path: str = ""
+    svg_color_img_path: str = ""
     # 带文字版本的svg图片
     svg_full_img_path: str = ""
     # 背景svg code：
@@ -346,6 +355,7 @@ class Paper2FigureState(MainState):
     minueru_output: str = ""
     mineru_root: str = ""
     text_content: str = ""
+    outline_feedback: str = ""
     # 生成的 PPT PDF 路径
     ppt_pdf_path: str = ""
     ppt_pptx_path: str = ""
@@ -391,9 +401,33 @@ class IntelligentQAState(MainState):
     智能问答状态
     """
     request: IntelligentQARequest = field(default_factory=IntelligentQARequest)
-    
+
     # 解析后的上下文内容
     context_content: str = ""
-    
+
+    # 新增: 存储每个文件的分析结果
+    file_analyses: List[Dict[str, Any]] = field(default_factory=list)
+
     # 最终回答
     answer: str = ""
+
+@dataclass
+class KBPodcastRequest(MainRequest):
+    """
+    知识播客请求
+    """
+    files: List[str] = field(default_factory=list)  # 文件路径列表
+    tts_model: str = "gemini-2.5-pro-preview-tts"
+    voice_name: str = "Kore"
+    language: str = "zh"
+
+@dataclass
+class KBPodcastState(MainState):
+    """
+    知识播客状态
+    """
+    request: KBPodcastRequest = field(default_factory=KBPodcastRequest)
+    result_path: str = ""
+    file_contents: List[Dict[str, Any]] = field(default_factory=list)
+    podcast_script: str = ""
+    audio_path: str = ""

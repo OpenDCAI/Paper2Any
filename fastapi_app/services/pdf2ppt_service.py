@@ -20,8 +20,8 @@ log = get_logger(__name__)
 # so the semaphore should be global in the module to be effective across requests.
 task_semaphore = asyncio.Semaphore(1)
 
-BASE_OUTPUT_DIR = Path("outputs")
 PROJECT_ROOT = get_project_root()
+BASE_OUTPUT_DIR = (PROJECT_ROOT / "outputs").resolve()
 
 class PDF2PPTService:
     def __init__(self):

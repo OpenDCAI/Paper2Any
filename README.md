@@ -58,6 +58,11 @@ English | [中文](README_CN.md)
 ## 🔥 News
 
 > [!TIP]
+> 🆕 <strong>2026-01-25 · New Features</strong><br>
+> Added **AI-assisted outline editing**, **three-layer model configuration system** for flexible model selection, and **user points management** with daily quota allocation.<br>
+> 🌐 Online Demo: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
+
+> [!TIP]
 > 🆕 <strong>2026-01-20 · Bug Fixes</strong><br>
 > Fixed bugs in experimental plot generation (image/text) and resolved the missing historical files issue.<br>
 > 🌐 Online Demo: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
@@ -132,6 +137,14 @@ Paper2Any currently includes the following sub-capabilities:
 <br><br>
 <img src="static/new_readme/paper2ppt-表格提取功能.png" width="90%"/>
 <br><sub>✨ Intelligent Table Extraction & Insertion</sub>
+
+<br><br>
+<img src="static/new_readme/AI辅助编辑outline.png" width="90%"/>
+<br><sub>✨ AI-Assisted Outline Editing</sub>
+
+<br><br>
+<img src="static/new_readme/历史版本管理.png" width="90%"/>
+<br><sub>✨ Version History Management</sub>
 
 </div>
 
@@ -225,25 +238,84 @@ export DF_API_URL=xxx  # Optional: if you need a third-party API gateway
 export MINERU_DEVICES="0,1,2,3" # Optional: MinerU task GPU resource pool
 ```
 
-#### 4. Configure Supabase (Required for Frontend & Backend)
+> [!TIP]
+> 📚 **For detailed configuration guide**, see [Configuration Guide](docs/guides/configuration.md) for step-by-step instructions on configuring models, environment variables, and starting services.
 
-Create a `.env` file under the `frontend-workflow` directory and fill in the following configuration:
+#### 4. Configure Environment Files (Optional)
+
+<details>
+<summary><strong>📝 Click to expand: Detailed .env Configuration Guide</strong></summary>
+
+Paper2Any uses two `.env` files for configuration. **Both are optional** - you can run the application without them using default settings.
+
+##### Step 1: Copy Example Files
 
 ```bash
-# frontend-workflow/.env
+# Copy backend environment file
+cp fastapi_app/.env.example fastapi_app/.env
 
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-# Backend
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-SUPABASE_JWT_SECRET=your_jwt_secret
-
-# Application Settings
-DAILY_WORKFLOW_LIMIT=10
+# Copy frontend environment file
+cp frontend-workflow/.env.example frontend-workflow/.env
 ```
+
+##### Step 2: Backend Configuration (`fastapi_app/.env`)
+
+**Supabase (Optional)** - Only needed if you want user authentication and cloud storage:
+```bash
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+**Model Configuration** - Customize which models to use for different workflows:
+```bash
+# Default LLM API URL
+DEFAULT_LLM_API_URL=http://123.129.219.111:3000/v1/
+
+# Workflow-level defaults
+PAPER2PPT_DEFAULT_MODEL=gpt-5.1
+PAPER2PPT_DEFAULT_IMAGE_MODEL=gemini-3-pro-image-preview
+PDF2PPT_DEFAULT_MODEL=gpt-4o
+# ... see .env.example for full list
+```
+
+##### Step 3: Frontend Configuration (`frontend-workflow/.env`)
+
+**LLM Provider Configuration** - Controls the API endpoint dropdown in the UI:
+```bash
+# Default API URL shown in the UI
+VITE_DEFAULT_LLM_API_URL=https://api.apiyi.com/v1
+
+# Available API URLs in the dropdown (comma-separated)
+VITE_LLM_API_URLS=https://api.apiyi.com/v1,http://b.apiyi.com:16888/v1,http://123.129.219.111:3000/v1
+```
+
+**What happens when you modify `VITE_LLM_API_URLS`:**
+- The frontend will display a **dropdown menu** with all URLs you specify
+- Users can select different API endpoints without manually typing URLs
+- Useful for switching between OpenAI, local models, or custom API gateways
+
+**Supabase (Optional)** - Uncomment these lines if you want user authentication:
+```bash
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_JWT_SECRET=your-jwt-secret
+```
+
+##### Running Without Supabase
+
+If you skip Supabase configuration:
+- ✅ All core features work normally
+- ✅ CLI scripts work without any configuration
+- ❌ No user authentication or quotas
+- ❌ No cloud file storage
+
+</details>
+
+> [!NOTE]
+> **Quick Start:** You can skip the `.env` configuration entirely and use CLI scripts directly with `--api-key` parameter. See [CLI Scripts](#️-cli-scripts-command-line-interface) section below.
+
+---
 
 <details>
 <summary><strong>Advanced Configuration: Local Model Service Load Balancing</strong></summary>
@@ -383,16 +455,6 @@ vllm serve opendatalab/MinerU2.5-2509-1.2B `
   --enforce-eager
 ```
 
-> [!TIP]
-> **Paper2Figure Web Beta Instructions**
-> 
-> If you do not want to deploy both frontend and backend for now, you can try the core capabilities via local scripts:
-> - `python script/run_paper2figure.py`: model architecture diagram generation
-> - `python script/run_paper2expfigure.py`: experimental plot generation
-> - `python script/run_paper2technical.py`: technical roadmap generation
-> - `python script/run_paper2ppt.py`: paper to editable PPT
-> - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`: PDF2PPT (layout preserved + editable content)
-
 ---
 
 ### Launch Application
@@ -412,11 +474,127 @@ npm run dev
 
 Visit `http://localhost:3000`.
 
-> [!TIP]
-> If you do not want to deploy frontend/backend for now, you can try the core features via local scripts:
-> - `python script/run_paper2figure.py`: model architecture diagram generation
-> - `python script/run_paper2ppt.py`: paper to PPT
-> - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`: PDF to PPT
+---
+
+### 🖥️ CLI Scripts (Command-Line Interface)
+
+Paper2Any provides standalone CLI scripts that accept command-line parameters for direct workflow execution without requiring the web frontend/backend.
+
+#### Environment Variables
+
+Configure API access via environment variables (optional):
+
+```bash
+export DF_API_URL=https://api.openai.com/v1  # LLM API URL
+export DF_API_KEY=sk-xxx                      # API key
+export DF_MODEL=gpt-4o                        # Default model
+```
+
+#### Available CLI Scripts
+
+**1. Paper2Figure CLI** - Generate scientific figures (3 types)
+
+```bash
+# Generate model architecture diagram from PDF
+python script/run_paper2figure_cli.py \
+  --input paper.pdf \
+  --graph-type model_arch \
+  --api-key sk-xxx
+
+# Generate technical roadmap from text
+python script/run_paper2figure_cli.py \
+  --input "Transformer architecture with attention mechanism" \
+  --input-type TEXT \
+  --graph-type tech_route
+
+# Generate experimental data visualization
+python script/run_paper2figure_cli.py \
+  --input paper.pdf \
+  --graph-type exp_data
+```
+
+**Graph types:** `model_arch` (model architecture), `tech_route` (technical roadmap), `exp_data` (experimental plots)
+
+**2. Paper2PPT CLI** - Convert papers to PPT presentations
+
+```bash
+# Basic usage
+python script/run_paper2ppt_cli.py \
+  --input paper.pdf \
+  --api-key sk-xxx \
+  --page-count 15
+
+# With custom style
+python script/run_paper2ppt_cli.py \
+  --input paper.pdf \
+  --style "Academic style; English; Modern design" \
+  --language en
+```
+
+**3. PDF2PPT CLI** - One-click PDF to editable PPT
+
+```bash
+# Basic conversion (no AI enhancement)
+python script/run_pdf2ppt_cli.py --input slides.pdf
+
+# With AI enhancement
+python script/run_pdf2ppt_cli.py \
+  --input slides.pdf \
+  --use-ai-edit \
+  --api-key sk-xxx
+```
+
+**4. Image2PPT CLI** - Convert images to editable PPT
+
+```bash
+# Basic conversion
+python script/run_image2ppt_cli.py --input screenshot.png
+
+# With AI enhancement
+python script/run_image2ppt_cli.py \
+  --input diagram.jpg \
+  --use-ai-edit \
+  --api-key sk-xxx
+```
+
+**5. PPT2Polish CLI** - Beautify existing PPT files
+
+```bash
+# Basic beautification
+python script/run_ppt2polish_cli.py \
+  --input old_presentation.pptx \
+  --style "Academic style, clean and elegant" \
+  --api-key sk-xxx
+
+# With reference image for style consistency
+python script/run_ppt2polish_cli.py \
+  --input old_presentation.pptx \
+  --style "Modern minimalist style" \
+  --ref-img reference_style.png \
+  --api-key sk-xxx
+```
+
+> [!NOTE]
+> **System Requirements for PPT2Polish:**
+> - LibreOffice: `sudo apt-get install libreoffice` (Ubuntu/Debian)
+> - pdf2image: `pip install pdf2image`
+> - poppler-utils: `sudo apt-get install poppler-utils`
+
+#### Common Options
+
+All CLI scripts support these common options:
+
+- `--api-url URL` - LLM API URL (default: from `DF_API_URL` env var)
+- `--api-key KEY` - API key (default: from `DF_API_KEY` env var)
+- `--model NAME` - Text model name (default: varies by script)
+- `--output-dir DIR` - Custom output directory (default: `outputs/cli/{script_name}/{timestamp}`)
+- `--help` - Show detailed help message
+
+For complete parameter documentation, run any script with `--help`:
+
+```bash
+python script/run_paper2figure_cli.py --help
+```
 
 ---
 

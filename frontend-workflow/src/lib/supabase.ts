@@ -8,8 +8,9 @@
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// TEMPORARY: Hardcoded for debugging env variable issue
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://xciveaaildyzbreltihu.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhjaXZlYWFpbGR5emJyZWx0aWh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY3NzA3OTcsImV4cCI6MjA4MjM0Njc5N30.HuxOQfZe4S8aQHiSD7P4A0kHjZ1I2VPAKl1KmduYIMM';
 
 /**
  * Check if Supabase is properly configured.

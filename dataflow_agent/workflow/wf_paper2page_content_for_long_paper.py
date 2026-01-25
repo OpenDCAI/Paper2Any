@@ -200,6 +200,29 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         """提供 topic 生成轮次信息"""
         return getattr(state, "generation_round", 0)
 
+    # ----------------------------------------------------------------------
+    # Outline Refine Tools (Added for consistency with standard workflow)
+    # ----------------------------------------------------------------------
+    @builder.pre_tool("outline_feedback", "outline_refine_agent")
+    def _get_outline_feedback(state: Paper2FigureState):
+        return state.outline_feedback or ""
+
+    @builder.pre_tool("minueru_output", "outline_refine_agent")
+    def _get_mineru_markdown_for_refine(state: Paper2FigureState):
+        return state.minueru_output or ""
+
+    @builder.pre_tool("text_content", "outline_refine_agent")
+    def _get_text_content_for_refine(state: Paper2FigureState):
+        return state.text_content or ""
+
+    @builder.pre_tool("pagecontent", "outline_refine_agent")
+    def _get_pagecontent_for_refine(state: Paper2FigureState):
+        return json.dumps(state.pagecontent or [], ensure_ascii=False)
+
+    @builder.pre_tool("pagecontent_raw", "outline_refine_agent")
+    def _get_pagecontent_raw_for_refine(state: Paper2FigureState):
+        return state.pagecontent or []
+
     # ==============================================================
     # NODES
     # ==============================================================
@@ -356,6 +379,18 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
                 log.info(f"[long_paper] 生成完成，达到目标长度")
                 break
         state.text_content = current_text
+        return state
+
+    async def outline_refine_agent(state: Paper2FigureState) -> Paper2FigureState:
+        """
+        outline_refine_agent: refine existing outline based on user feedback.
+        """
+        agent = create_react_agent(
+            name="outline_refine_agent",
+            parser_type="json",
+            max_retries=5
+        )
+        state = await agent.execute(state=state)
         return state
 
     async def consolidate_long_text(state: Paper2FigureState) -> Paper2FigureState:
@@ -543,6 +578,12 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
     
     def _route_input(state: Paper2FigureState) -> str:
         """根据输入类型路由到不同节点"""
+        # 优先检查是否有反馈
+        feedback = (state.outline_feedback or "").strip()
+        if feedback and state.pagecontent:
+            log.critical("走 OUTLINE 反馈修订路径 (Long Paper)")
+            return "outline_refine_agent"
+
         t = getattr(state.request, "input_type", None) or getattr(state, "input_type", None) or ""
         t = str(t).upper().strip()
         
@@ -579,11 +620,17 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         # 统一处理
         "consolidate_long_text": consolidate_long_text,
         "outline_for_long_text": outline_for_long_text,
+
+        # 修订
+        "outline_refine_agent": outline_refine_agent,
         
         "_end_": lambda state: state,
     }
 
     edges = [
+        # Refine → End
+        ("outline_refine_agent", "_end_"),
+
         # PDF → 统一整合
         ("parse_pdf_pages_long", "consolidate_long_text"),
         

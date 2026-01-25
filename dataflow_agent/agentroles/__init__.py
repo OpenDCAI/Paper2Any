@@ -47,7 +47,7 @@ from .cores import (
 )
 _auto_import_all_submodules()
 
-from . import common_agents, data_agents, infra_agents, paper2any_agents
+from . import common_agents, infra_agents, paper2any_agents
 
 # ==================== 核心函数（增强版） ====================
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import time
+import json
 from pathlib import Path
 from typing import List, Dict, Any
 import re
@@ -64,6 +65,26 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
     def _get_text_content(state: Paper2FigureState):
         return state.text_content or ""
 
+    @builder.pre_tool("outline_feedback", "outline_refine_agent")
+    def _get_outline_feedback(state: Paper2FigureState):
+        return state.outline_feedback or ""
+
+    @builder.pre_tool("minueru_output", "outline_refine_agent")
+    def _get_mineru_markdown_for_refine(state: Paper2FigureState):
+        return state.minueru_output or ""
+
+    @builder.pre_tool("text_content", "outline_refine_agent")
+    def _get_text_content_for_refine(state: Paper2FigureState):
+        return state.text_content or ""
+
+    @builder.pre_tool("pagecontent", "outline_refine_agent")
+    def _get_pagecontent_for_refine(state: Paper2FigureState):
+        return json.dumps(state.pagecontent or [], ensure_ascii=False)
+
+    @builder.pre_tool("pagecontent_raw", "outline_refine_agent")
+    def _get_pagecontent_raw_for_refine(state: Paper2FigureState):
+        return state.pagecontent or []
+
     # ==============================================================
     # NODES
     # ==============================================================
@@ -73,6 +94,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         state.minueru_output = state.minueru_output or ""
         state.text_content = state.text_content or ""
         state.pagecontent = state.pagecontent or []
+        state.outline_feedback = state.outline_feedback or ""
         return state
 
     async def parse_pdf_pages(state: Paper2FigureState) -> Paper2FigureState:
@@ -218,6 +240,18 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         state = await agent.execute(state=state)
         return state
 
+    async def outline_refine_agent(state: Paper2FigureState) -> Paper2FigureState:
+        """
+        outline_refine_agent: refine existing outline based on user feedback.
+        """
+        agent = create_react_agent(
+            name="outline_refine_agent",
+            parser_type="json",
+            max_retries=5
+        )
+        state = await agent.execute(state=state)
+        return state
+        
     async def deep_research_agent(state: Paper2FigureState) -> Paper2FigureState:
         """
         Deep Research Agent: 接收 Topic，生成长文，更新 state.text_content
@@ -235,6 +269,10 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
     # 注册 nodes / edges
     # ==============================================================
     def _route_input(state: Paper2FigureState) -> str:
+        feedback = (state.outline_feedback or "").strip()
+        if feedback and state.pagecontent:
+            log.critical("走 OUTLINE 反馈修订路径")
+            return "outline_refine_agent"
         t = getattr(state.request, "input_type", None) or getattr(state, "input_type", None) or ""
         t = str(t).upper().strip()
         if t == "PDF":
@@ -259,6 +297,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         "ppt_to_images": ppt_to_images,
         "deep_research_agent": deep_research_agent,
         "outline_agent": outline_agent,
+        "outline_refine_agent": outline_refine_agent,
         "_end_": lambda state: state,
     }
 
@@ -267,6 +306,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         ("prepare_text_input", "outline_agent"),
         ("deep_research_agent", "outline_agent"),
         ("ppt_to_images", "_end_"),
+        ("outline_refine_agent", "_end_"),
         ("outline_agent", "_end_"),
     ]
 

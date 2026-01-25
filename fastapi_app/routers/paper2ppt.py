@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+import base64
+from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 
 from fastapi_app.schemas import (
     ErrorResponse,
     FullPipelineRequest,
+    OutlineRefineRequest,
     PageContentRequest,
     PPTGenerationRequest,
 )
 from fastapi_app.services.paper2ppt_service import Paper2PPTService
+from dataflow_agent.utils.version_manager import ImageVersionManager
+from fastapi_app.utils import _to_outputs_url
 
 # 注意：prefix 由 main.py 统一加 "/api/paper2ppt"
 router = APIRouter(tags=["paper2ppt"])
@@ -131,3 +136,130 @@ async def paper2ppt_ppt_json(
         request=request,
     )
     return data
+
+
+@router.post(
+    "/paper2ppt/outline-refine",
+    response_model=Dict[str, Any],
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def paper2ppt_outline_refine(
+    request: Request,
+    outline_feedback: str = Form(...),
+    pagecontent: str = Form(...),
+    chat_api_url: str = Form(...),
+    api_key: str = Form(...),
+    email: Optional[str] = Form(None),
+    model: str = Form("gpt-5.1"),
+    language: str = Form("zh"),
+    result_path: Optional[str] = Form(None),
+    service: Paper2PPTService = Depends(get_service),
+):
+    """Refine existing outline based on feedback, without re-parsing input."""
+    req = OutlineRefineRequest(
+        chat_api_url=chat_api_url,
+        api_key=api_key,
+        email=email,
+        model=model,
+        language=language,
+        result_path=result_path,
+        outline_feedback=outline_feedback,
+        pagecontent=pagecontent,
+    )
+    data = await service.refine_outline(req=req, request=request)
+    return data
+
+
+@router.get(
+    "/paper2ppt/version-history/{encoded_path}/{page_id}",
+    response_model=Dict[str, Any],
+    responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def get_version_history(
+    encoded_path: str,
+    page_id: int,
+    request: Request,
+    service: Paper2PPTService = Depends(get_service),
+):
+    """
+    获取指定页面的版本历史。
+
+    Args:
+        encoded_path: Base64编码的result_path
+        page_id: 页面索引（0-based）
+
+    Returns:
+        包含版本列表的字典
+    """
+    try:
+        # 解码 result_path
+        decoded_path = base64.b64decode(encoded_path).decode('utf-8')
+        img_dir = Path(decoded_path) / "ppt_pages"
+
+        if not img_dir.exists():
+            raise HTTPException(status_code=404, detail="图片目录不存在")
+
+        # 获取版本历史
+        history = ImageVersionManager.get_version_history(img_dir, page_id)
+
+        # 将文件路径转换为 URL
+        for item in history:
+            # 使用 _to_outputs_url 转换路径为完整的 HTTP URL
+            item["imageUrl"] = _to_outputs_url(item["image_path"], request)
+
+        return {"success": True, "versions": history}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取版本历史失败: {str(e)}")
+
+
+@router.post(
+    "/paper2ppt/revert-version",
+    response_model=Dict[str, Any],
+    responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def revert_to_version(
+    request: Request,
+    result_path: str = Form(...),
+    page_id: int = Form(...),
+    target_version: int = Form(...),
+    service: Paper2PPTService = Depends(get_service),
+):
+    """
+    将页面恢复到指定版本。
+
+    Args:
+        result_path: 结果路径
+        page_id: 页面索引（0-based）
+        target_version: 目标版本号
+
+    Returns:
+        包含当前图片URL和恢复版本号的字典
+    """
+    try:
+        img_dir = Path(result_path) / "ppt_pages"
+
+        if not img_dir.exists():
+            raise HTTPException(status_code=404, detail="图片目录不存在")
+
+        # 恢复到指定版本
+        reverted_path = ImageVersionManager.revert_to_version(
+            img_dir, page_id, target_version
+        )
+
+        if not reverted_path:
+            raise HTTPException(status_code=404, detail="指定版本不存在")
+
+        # 将绝对路径转换为浏览器可访问的 URL
+        image_url = _to_outputs_url(reverted_path, request)
+
+        return {
+            "success": True,
+            "currentImageUrl": image_url,
+            "revertedToVersion": target_version
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"恢复版本失败: {str(e)}")

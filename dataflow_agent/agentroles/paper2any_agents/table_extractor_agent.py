@@ -79,7 +79,50 @@ class TableExtractor(BaseAgent):
             self._validator_has_html_code,
             self._validator_html_not_markdown,
             self._validator_html_has_table_tag,
+            self._validator_html_renderable,  # 新增渲染验证器
         ]
+
+    def _validator_html_renderable(self, content: str, parsed_result: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+        """
+        尝试渲染 HTML，如果失败则反馈给 LLM 让其重试/简化。
+        """
+        html_code = (parsed_result.get("html_code") or "") if isinstance(parsed_result, dict) else ""
+        if not html_code:
+            return True, None # 前面的验证器会拦截空内容，这里跳过
+        
+        # 构造完整文档
+        full_html = self._wrap_html_document(html_code)
+        
+        # 使用临时文件测试渲染
+        import tempfile
+        import os
+        
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                tmp_path = tmp.name
+            
+            # 尝试渲染
+            self._render_html_to_png(full_html, tmp_path)
+            
+            # 检查文件是否生成且非空
+            if not os.path.exists(tmp_path) or os.path.getsize(tmp_path) == 0:
+                 return False, "HTML 代码看起来正确，但渲染引擎无法生成图片。请尝试简化 HTML 结构，去除复杂的 CSS 或特殊字符，只保留最基本的表格结构。"
+            
+            # 渲染成功，清理临时文件
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+                
+            return True, None
+
+        except Exception as e:
+            err_msg = str(e)
+            # 提取关键错误信息反馈给 LLM
+            if "Could not write to output file" in err_msg or "Could not save image" in err_msg:
+                 return False, f"HTML 渲染失败 (System Error)。请尝试极大简化 HTML 代码，不要使用任何外部资源引用，不要使用复杂的样式，确保是一个标准的、最简的 HTML 表格。"
+            
+            return False, f"HTML 渲染抛出异常: {err_msg[:200]}... 请检查代码是否包含导致渲染引擎崩溃的非法结构。"
 
     @staticmethod
     def _validator_has_html_code(content: str, parsed_result: Dict[str, Any]) -> Tuple[bool, Optional[str]]:

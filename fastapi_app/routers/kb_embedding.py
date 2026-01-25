@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from dataflow_agent.toolkits.ragtool.vector_store_tool import process_knowledge_base_files
 from dataflow_agent.utils import get_project_root
+from fastapi_app.config import settings
 
 router = APIRouter(prefix="/kb", tags=["Knowledge Base Embedding"])
 
@@ -13,7 +14,7 @@ async def create_embedding(
     api_url: Optional[str] = Body(None, embed=True),
     api_key: Optional[str] = Body(None, embed=True),
     model_name: Optional[str] = Body(None, embed=True),
-    multimodal_model: Optional[str] = Body("gemini-2.5-flash", embed=True),
+    multimodal_model: Optional[str] = Body(settings.KB_EMBEDDING_MODEL, embed=True),
     image_model: Optional[str] = Body(None, embed=True),
     video_model: Optional[str] = Body(None, embed=True),
 ):

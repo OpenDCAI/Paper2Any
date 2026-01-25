@@ -214,6 +214,89 @@ SVG 内容设计规范（在不影响 JSON 解析的前提下，兼顾复杂度�
 请严格遵守上述 JSON 输出要求，仅返回包含 svg_code 的 JSON 对象。
 """
 
+
+# ------------------------------------------------------------------ #
+# 3. Technical Route BW SVG Generator (template-based)
+# ------------------------------------------------------------------ #
+class TechnicalRouteBWSvgGenerator:
+    system_prompt_for_technical_route_bw_svg_generator = """
+You are a Technical Route SVG Generator. Output strictly in JSON format:
+{"svg_code": "<svg ...>...</svg>"}
+
+STRICT REQUIREMENTS:
+1) Output only a JSON object, no extra text or Markdown.
+2) SVG must include viewBox; width/height should be "100%".
+3) Generate black/white/grayscale version only: fill and stroke can only use black/white/gray.
+4) I have provided a template SVG code. Analyze its structure, layout, node shapes, arrow styles, and follow its design style while adjusting node count and positions as needed.
+5) If validation_feedback is provided, fix the issues mentioned.
+6) **CRITICAL LANGUAGE REQUIREMENT**: The text content in SVG must be in the language specified by the user. If user specifies "EN" or "English", ALL text labels must be in English. If user specifies "ZH" or "Chinese", ALL text labels must be in Chinese.
+7) **CRITICAL FONT REQUIREMENT**:
+   - If generating Chinese text, you MUST use Chinese-friendly fonts in ALL text elements
+   - Use: font-family="Noto Sans CJK SC, Microsoft YaHei, SimHei, SimSun, sans-serif"
+   - NEVER use Arial, Helvetica, Times, or Courier for Chinese text
+   - Apply this font-family attribute to EVERY <text> element containing Chinese characters
+"""
+
+    task_prompt_for_technical_route_bw_svg_generator = """
+**IMPORTANT**: I have provided a template SVG code. Please analyze:
+- Overall layout structure (top-to-bottom / left-to-right)
+- Stage division (grouping and layering)
+- Node shapes and sizes (rect, circle elements)
+- Arrow thickness and styles (line, path, marker definitions)
+- Text positions and sizes (text element coordinates and font sizes)
+- viewBox and coordinate system
+Then generate a new SVG based on this template style.
+
+**Template SVG Code**:
+{template_svg_code}
+
+**Paper Content (paper_idea)**:
+{paper_idea}
+
+**Validation Feedback (if any)**:
+{validation_feedback}
+
+**OUTPUT LANGUAGE: {lang}**
+CRITICAL: ALL text labels in the SVG MUST be written in {lang}.
+- If {lang} is "EN" or "English": Use English for ALL text (e.g., "Data Processing", "Model Training", "Feature Extraction")
+- If {lang} is "ZH" or "Chinese": Use Chinese for ALL text (e.g., "数据处理", "模型训练", "特征提取")
+DO NOT mix languages. Every single text element must follow this language requirement.
+
+Output only JSON {{"svg_code": "..."}}.
+"""
+
+
+# ------------------------------------------------------------------ #
+# 4. Technical Route Colorize SVG (palette-based)
+# ------------------------------------------------------------------ #
+class TechnicalRouteColorizeSvg:
+    system_prompt_for_technical_route_colorize_svg = """
+你是 SVG 上色器。输入是一份黑白 SVG 和色卡配置。
+
+输出要求：
+1) 仅输出一个 JSON 对象：{"svg_code": "<svg ...>...</svg>"}。
+2) 不改变任何几何结构/坐标/path d/文字内容，只允许修改 fill/stroke/style/class。
+3) 同类型或同层级内容使用同一颜色。
+4) 颜色仅从色卡提供的 colors/level_colors/arrow_color/text_color 中选择。
+5) 若提供 validation_feedback，请修复其中问题。
+"""
+
+    task_prompt_for_technical_route_colorize_svg = """
+黑白 SVG：
+{bw_svg_code}
+
+色卡配置（JSON）：
+{palette_json}
+
+彩色模板参考（可选，用于了解配色风格）：
+{color_template_svg}
+
+校验反馈（若有）：
+{validation_feedback}
+
+请参考彩色模板的配色风格，完成上色并输出 JSON {"svg_code": "..."}。
+"""
+
     # ------------------------------------------------------------------ #
     # 2. SvgBgCleaner - svg_bg_cleaner 相关提示词
     # ------------------------------------------------------------------ #
@@ -325,6 +408,56 @@ SVG 内容设计规范（在不影响 JSON 解析的前提下，兼顾复杂度�
       ......
     ],
     "asset_ref": "Table_2"
+  }}
+]
+"""
+
+    system_prompt_for_outline_refine_agent = """
+你是一位拥有丰富学术汇报经验的 PPT 设计专家及大纲编辑助手。你的核心任务是：在不改变页数与顺序的前提下，基于用户反馈与论文内容，对已有 PPT 大纲进行更精准、更完善的改写与补充。
+
+请遵循以下严格规则：
+1. **改内容**：仅允许修改每页内容字段：`title` / `layout_description` / `key_points`。
+2. **保留引用**：默认保留 `asset_ref`（以及其它非内容字段），除非用户反馈明确要求修改。
+3. **反幻觉**：禁止编造论文中不存在的具体事实、数值、指标、结论或对比结果。若原文未提供支撑信息，只能做结构化补充（例如补充讲述维度/表达更完整），不能捏造细节。
+4. **格式严格**：输出必须且只能是标准 JSON 数组。严禁包含 markdown 标记（如 ```json）、前言、后语或任何非 JSON 字符。
+5. **最小必要修改**：仅修改反馈涉及的页面与要点；未涉及页面保持原样。
+"""
+
+    task_prompt_for_outline_refine_agent = """
+请根据以下提供的论文内容、当前大纲以及用户反馈，对大纲进行“只改内容”的修订与完善。
+
+**输入数据：**
+论文内容：
+{text_content}
+{minueru_output}
+
+当前大纲（JSON Array）：
+{pagecontent}
+
+用户反馈：
+{outline_feedback}
+
+**约束条件：**
+1. `asset_ref` 默认保留；除非用户反馈明确要求修改。
+2. 返回论文内容一致的语言；
+3. 若用户提到“第 N 页”，按 1-based 页码理解：输入数组第 1 个对象为“第 1 页” 或 “第一页”。
+4. 如果需要添加内容，则必须严格参考论文内容，绝对不能添加论文中不存在的内容或数据！！
+
+**输出格式要求（JSON Array）：**
+请返回一个 JSON 数组，数组中每个对象代表一页PPT，结构如下：
+- `title`: 该页PPT的标题。
+- `layout_description`: 详细的版面布局描述（例如："左侧列出三个关键点，右侧放置流程图"）。
+- `key_points`: 一个包含多个关键要点的字符串列表（List<String>）。
+- `asset_ref`: 默认保留原值（除非反馈明确要求修改）。
+
+**示例输出结构 **
+!!!必须返回 {language} 语言!!!
+[
+  {{
+    "title": "xxx",
+    "layout_description": "xxx",
+    "key_points": ["xxx", "xxx"],
+    "asset_ref": null
   }}
 ]
 """

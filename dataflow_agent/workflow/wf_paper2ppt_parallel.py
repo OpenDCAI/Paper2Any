@@ -520,7 +520,7 @@ def create_paper2ppt_parallel_graph() -> GenericGraphBuilder:  # noqa: N802
             # 用户提供了具体修改意见
             full_prompt = (
                 f"Beautify this PowerPoint slide based on this instruction: '{prompt}'. "
-                f"Transform the existing design into a high-end, professional {style} style presentation. "
+                # f"Transform the existing design into a high-end, professional {style} style presentation. "
                 f"Enhance the visual aesthetics, layout, and background while preserving the core message."
             )
         else:

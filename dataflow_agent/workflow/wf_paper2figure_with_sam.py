@@ -187,7 +187,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
 
         # 1) 生成带内容的图，直接存到 result_root
         fig_name = f"fig_{int(time.time())}.png"
-        save_path = str(result_root / fig_name)
+        save_path = str((result_root / fig_name).resolve())
 
         await generate_or_edit_and_save_image_async(
             prompt=final_prompt,
@@ -211,7 +211,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         # )
 
         layout_name = f"layout_{int(time.time())}.png"
-        layout_save_path = str(result_root / layout_name)
+        layout_save_path = str((result_root / layout_name).resolve())
         await generate_or_edit_and_save_image_async(
             prompt=TEMPLATE_EDIT_PROMPT,
             save_path=layout_save_path,
@@ -244,7 +244,7 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
                 result_root.mkdir(parents=True, exist_ok=True)
                 log.critical(f"[figure_layout_sam] fig_layout_path 为空， 需要更新Layout图")
                 layout_name = f"layout_{int(time.time())}.png"
-                layout_save_path = str(result_root / layout_name)
+                layout_save_path = str((result_root / layout_name).resolve())
                 await generate_or_edit_and_save_image_async(
                     prompt="1.Remove all text content; keep only the outermost rectangular frames and arrows (if any).\n"
                         "2.Keep the layout unchanged.\n"

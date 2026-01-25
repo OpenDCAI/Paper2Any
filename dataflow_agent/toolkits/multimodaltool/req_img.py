@@ -4,7 +4,7 @@ import base64
 from typing import Tuple, Optional, List, Union
 import httpx
 from io import BytesIO
-
+from dataflow_agent.utils import get_project_root
 from dataflow_agent.logger import get_logger
 from dataflow_agent.toolkits.multimodaltool.utils import (
     Provider, detect_provider, extract_base64, encode_image_to_base64 as _encode_image_to_base64,
@@ -440,7 +440,7 @@ if __name__ == "__main__":
 
         # 2. 测试图生图 (Edit)
         print("\n[2] Testing Image Editing...")
-        dummy_input = "/data/users/liuzhou/dev/DataFlow-Agent/tests/test_02.png"
+        dummy_input = f"{get_project_root()}/tests/test_02.png"
         try:
             await generate_or_edit_and_save_image_async(
                 prompt="Make it red",
@@ -459,8 +459,8 @@ if __name__ == "__main__":
         # 仅当模型是 gemini 时测试
         if "gemini" in MODEL.lower():
             print("\n[3] Testing Multi-Image Edit (Gemini Specific)...")
-            img1 = "/data/users/liuzhou/dev/DataFlow-Agent/tests/test_02.png"
-            img2 = "/data/users/liuzhou/dev/DataFlow-Agent/tests/cat_icon.png"
+            img1 = f"{get_project_root()}/tests/test_02.png"
+            img2 = f"{get_project_root()}/tests/cat_icon.png"
             try:
                 await gemini_multi_image_edit_async(
                     prompt="Merge these two images and describe the result style",
