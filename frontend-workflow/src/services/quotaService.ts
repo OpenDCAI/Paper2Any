@@ -10,7 +10,6 @@
  */
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { getUserIdentifier } from './fingerprintService';
 
 // Quota limits
 const ANONYMOUS_DAILY_LIMIT = 15;
@@ -66,52 +65,87 @@ export async function checkQuota(userId: string | null, isAnonymous: boolean = f
   // A user is authenticated (non-anonymous) only if they have a userId AND are not anonymous
   const isAuthenticated = Boolean(userId) && !isAnonymous;
   const limit = isAuthenticated ? AUTHENTICATED_DAILY_LIMIT : ANONYMOUS_DAILY_LIMIT;
-  const userIdentifier = getUserIdentifier(userId);
 
-  // If Supabase is not configured, use local storage
+  // If Supabase is not configured (self-hosted), no quota limits
   if (!isSupabaseConfigured()) {
-    const local = getLocalUsage();
-    const today = getTodayDate();
-
-    // Reset if new day
-    const used = local.date === today ? local.count : 0;
-
     return {
-      used,
-      limit,
-      remaining: Math.max(0, limit - used),
-      isAuthenticated,
+      used: 0,
+      limit: Number.MAX_SAFE_INTEGER, // Unlimited
+      remaining: Number.MAX_SAFE_INTEGER,
+      isAuthenticated: false,
     };
   }
 
   try {
-    const today = getTodayDate();
+    // For authenticated users, check and grant daily usage, then return balance
+    if (isAuthenticated && userId) {
+      // Call RPC to check and grant daily usage (if eligible)
+      const { data: newBalance, error: rpcError } = await supabase.rpc(
+        'check_and_grant_daily_usage',
+        { p_user_id: userId }
+      );
 
-    // Query usage_records for today
-    const { data, error } = await supabase
-      .from('usage_records')
-      .select('id')
-      .eq('user_id', userIdentifier)
-      .gte('called_at', `${today}T00:00:00`)
-      .lt('called_at', `${today}T23:59:59.999`);
+      if (rpcError) {
+        console.error('[quotaService] Failed to check/grant daily usage:', rpcError);
+        // Fallback: query balance directly
+        const { data: balanceData, error: balanceError } = await supabase
+          .from('points_balance')
+          .select('balance')
+          .eq('user_id', userId)
+          .single();
 
-    if (error) {
-      console.error('[quotaService] Failed to check quota:', error);
-      // Return default quota on error
-      return { used: 0, limit, remaining: limit, isAuthenticated };
+        if (balanceError && balanceError.code !== 'PGRST116') {
+          console.error('[quotaService] Failed to check points balance:', balanceError);
+        }
+
+        const balance = balanceData?.balance || 0;
+        return {
+          used: 0,
+          limit: balance,
+          remaining: balance,
+          isAuthenticated,
+        };
+      }
+
+      const balance = newBalance || 0;
+
+      return {
+        used: 0, // Not applicable for points-based system
+        limit: balance, // Current balance is the "limit"
+        remaining: balance,
+        isAuthenticated,
+      };
     }
 
-    const used = data?.length || 0;
+    // For anonymous users, use local storage (cannot query Supabase with non-UUID user_id)
+    const localUsage = getLocalUsage();
+    const today = getTodayDate();
+    
+    // Reset count if it's a new day
+    if (localUsage.date !== today) {
+      setLocalUsage(today, 0);
+      return {
+        used: 0,
+        limit,
+        remaining: limit,
+        isAuthenticated,
+      };
+    }
 
     return {
-      used,
+      used: localUsage.count,
       limit,
-      remaining: Math.max(0, limit - used),
+      remaining: Math.max(0, limit - localUsage.count),
       isAuthenticated,
     };
   } catch (err) {
     console.error('[quotaService] Error checking quota:', err);
-    return { used: 0, limit, remaining: limit, isAuthenticated };
+    return {
+      used: 0,
+      limit,
+      remaining: limit,
+      isAuthenticated,
+    };
   }
 }
 
@@ -126,8 +160,6 @@ export async function recordUsage(
   userId: string | null,
   workflowType: string
 ): Promise<boolean> {
-  const userIdentifier = getUserIdentifier(userId);
-
   // If Supabase is not configured, use local storage
   if (!isSupabaseConfigured()) {
     const local = getLocalUsage();
@@ -141,15 +173,33 @@ export async function recordUsage(
   }
 
   try {
-    const { error } = await supabase.from('usage_records').insert({
-      user_id: userIdentifier,
-      workflow_type: workflowType,
-    });
+    // For authenticated users, deduct 1 point
+    if (userId) {
+      const { data, error: rpcError } = await supabase.rpc('deduct_points', {
+        p_user_id: userId,
+        p_amount: 1,
+        p_reason: `workflow_${workflowType}`
+      });
 
-    if (error) {
-      console.error('[quotaService] Failed to record usage:', error);
-      return false;
+      if (rpcError) {
+        console.error('[quotaService] Failed to deduct points:', rpcError);
+        return false;
+      }
+
+      // If deduction failed (insufficient points), return false
+      if (!data) {
+        console.warn('[quotaService] Insufficient points');
+        return false;
+      }
+      
+      return true;
     }
+
+    // For anonymous users, use local storage (cannot insert non-UUID into usage_records)
+    const local = getLocalUsage();
+    const today = getTodayDate();
+    const newCount = local.date === today ? local.count + 1 : 1;
+    setLocalUsage(today, newCount);
 
     return true;
   } catch (err) {

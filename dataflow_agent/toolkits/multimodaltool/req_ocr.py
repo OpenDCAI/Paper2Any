@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 from dataflow_agent.logger import get_logger
 from dataflow_agent.toolkits.multimodaltool.utils import encode_image_to_base64
 from dataflow_agent.toolkits.multimodaltool.providers import get_provider
-
+from dataflow_agent.utils import get_project_root
 log = get_logger(__name__)
 
 async def _post_raw(
@@ -132,7 +132,7 @@ if __name__ == "__main__":
         print(f"Model: {MODEL}")
         print(f"----------------")
 
-        img_path = "/data/users/liuzhou/dev/DataFlow-Agent/tests/test_02.png"
+        img_path = f"{get_project_root()}/tests/test_02.png"
         if not os.path.exists(img_path):
             print("Image creation failed, skipping test.")
             return

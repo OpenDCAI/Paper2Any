@@ -140,41 +140,42 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest, result_path: Path | 
         task_name = "paper2fig"
 
     if result_path:
-        result_root = result_path
+        # 确保传入的路径是绝对路径
+        result_root = Path(result_path).resolve()
     else:
         # Fallback: 如果未提供 result_path，则自行计算
         if req.email:
-            result_root = project_root / "outputs" / req.email / task_name / ts
+            result_root = (project_root / "outputs" / req.email / task_name / ts).resolve()
         else:
             # 匿名用户，保持原逻辑 (outputs/{task_name}/{ts})
-            result_root = project_root / "outputs" / task_name / ts
+            result_root = (project_root / "outputs" / task_name / ts).resolve()
             
         if graph_type == "model_arch":
             if req.input_type == "FIGURE" and not req.edit_prompt:
                 # 覆盖上面的逻辑，因为这里 task_name 变了
                 wf_name = "pdf2ppt_qwenvl"
                 if not result_path: # 只在未指定路径时重新计算
-                    result_root = project_root / "outputs" / (req.email or "") / "paper2fig_ppt" / ts
+                    result_root = (project_root / "outputs" / (req.email or "") / "paper2fig_ppt" / ts).resolve()
             else:
                 wf_name = "paper2fig_image_only"
                 if not result_path:
-                    result_root = project_root / "outputs" / (req.email or "") / "paper2fig" / ts
+                    result_root = (project_root / "outputs" / (req.email or "") / "paper2fig" / ts).resolve()
         elif graph_type == "tech_route":
             wf_name = "paper2technical"
             if not result_path:
-                result_root = project_root / "outputs" / (req.email or "") / "paper2tec" / ts
+                result_root = (project_root / "outputs" / (req.email or "") / "paper2tec" / ts).resolve()
         elif graph_type == "exp_data":
             wf_name = "paper2expfigure"
             if not result_path:
-                result_root = project_root / "outputs" / (req.email or "") / "paper2exp" / ts
+                result_root = (project_root / "outputs" / (req.email or "") / "paper2exp" / ts).resolve()
         else:
             wf_name = "paper2fig_with_sam"
             if not result_path:
-                result_root = project_root / "outputs" / (req.email or "") / "paper2fig" / ts
+                result_root = (project_root / "outputs" / (req.email or "") / "paper2fig" / ts).resolve()
 
     result_root.mkdir(parents=True, exist_ok=True)
     state.result_path = str(result_root)
-    log.critical(f"[paper2figure] result_path: {state.result_path} !!!!!!!!\n")
+    log.info(f"[paper2figure] result_path: {state.result_path}")
     state.mask_detail_level = 2
 
     # -------- 异步执行 -------- #

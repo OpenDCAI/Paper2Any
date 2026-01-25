@@ -60,35 +60,17 @@ class OutlineRefineAgent(BaseAgent):
         if not isinstance(original, list):
             original = getattr(state, "pagecontent", []) or []
 
-        if not isinstance(result, list) or len(result) != len(original):
+        if not isinstance(result, list):
             log.warning("[outline_refine_agent] Invalid result, fallback to original pagecontent.")
             state.pagecontent = original
             super().update_state_result(state, original, pre_tool_results)
             return
 
         merged_pages = []
-        for idx, item in enumerate(result):
-            base = original[idx] if idx < len(original) and isinstance(original[idx], dict) else {}
-            merged = dict(base)
-
+        for item in result:
             if isinstance(item, dict):
-                title = item.get("title")
-                if isinstance(title, str):
-                    merged["title"] = title
-
-                layout = item.get("layout_description")
-                if isinstance(layout, str):
-                    merged["layout_description"] = layout
-
-                key_points = item.get("key_points")
-                if isinstance(key_points, list):
-                    merged["key_points"] = key_points
-
-                asset_ref = item.get("asset_ref")
-                if asset_ref:
-                    merged["asset_ref"] = asset_ref
-
-            merged_pages.append(merged)
+                merged = item.copy()
+                merged_pages.append(merged)
 
         state.pagecontent = merged_pages
         log.info(f"[outline_refine_agent] refined {len(merged_pages)} pages")

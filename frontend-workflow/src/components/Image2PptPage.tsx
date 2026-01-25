@@ -2,13 +2,14 @@ import { useState, useEffect, ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   UploadCloud, Download, Loader2, CheckCircle2,
-  AlertCircle, Github, Star, X, FileImage, ArrowRight, Key, Globe, Sparkles, Image as ImageIcon, MessageSquare, Copy, Info
+  AlertCircle, Github, Star, X, FileImage, ArrowRight, Key, Globe, Sparkles, Image as ImageIcon, MessageSquare, Copy
 } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
-import { API_KEY } from '../config/api';
+import { API_KEY, API_URL_OPTIONS } from '../config/api';
 import { checkQuota, recordUsage } from '../services/quotaService';
 import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
+import { getApiSettings, saveApiSettings } from '../services/apiSettingsService';
 import QRCodeTooltip from './QRCodeTooltip';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB for images
@@ -105,6 +106,22 @@ const Image2PptPage = () => {
   const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [genFigModel, setGenFigModel] = useState('gemini-3-pro-image-preview');
+
+  // Load user-specific API settings
+  useEffect(() => {
+    const userApiSettings = getApiSettings(user?.id || null);
+    if (userApiSettings) {
+      if (userApiSettings.apiUrl) setLlmApiUrl(userApiSettings.apiUrl);
+      if (userApiSettings.apiKey) setApiKey(userApiSettings.apiKey);
+    }
+  }, [user?.id]);
+
+  // Save API settings when changed
+  useEffect(() => {
+    if (user?.id && llmApiUrl && apiKey) {
+      saveApiSettings(user.id, { apiUrl: llmApiUrl, apiKey });
+    }
+  }, [llmApiUrl, apiKey, user?.id]);
 
   const validateImageFile = (file: File): boolean => {
     const validTypes = ['image/jpeg', 'image/png', 'image/jpg'];
@@ -210,7 +227,7 @@ const Image2PptPage = () => {
     try {
       const formData = new FormData();
       formData.append('image_file', selectedFile);
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       
       if (useAiEdit) {
         formData.append('use_ai_edit', 'true');
@@ -440,8 +457,9 @@ const Image2PptPage = () => {
                           onChange={e => setLlmApiUrl(e.target.value)}
                           className="flex-1 rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-cyan-500"
                         >
-                          <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
-                          <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
+                          {API_URL_OPTIONS.map((url: string) => (
+                            <option key={url} value={url}>{url}</option>
+                          ))}
                         </select>
                         <QRCodeTooltip>
                         <a

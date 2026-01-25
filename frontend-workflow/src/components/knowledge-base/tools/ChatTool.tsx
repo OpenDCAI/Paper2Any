@@ -1,11 +1,34 @@
 import { useState } from 'react';
-import { MessageSquare, Send, Bot, User, Loader2 } from 'lucide-react';
+import { MessageSquare, Send, Bot, User, Loader2, FileText, ChevronDown, ChevronRight } from 'lucide-react';
 import { ChatMessage, KnowledgeFile } from '../types';
 
 interface ChatToolProps {
   files: KnowledgeFile[];
   selectedIds: Set<string>;
 }
+
+const AnalysisDetail = ({ filename, analysis }: { filename: string, analysis: string }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    
+    return (
+        <div className="border-t border-white/10 mt-2 pt-2">
+            <button 
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center gap-2 text-xs text-purple-300 hover:text-purple-200 transition-colors w-full text-left"
+            >
+                {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                <FileText size={12} />
+                <span>分析: {filename}</span>
+            </button>
+            
+            {isOpen && (
+                <div className="mt-2 pl-6 pr-2 text-xs text-gray-400 whitespace-pre-wrap leading-relaxed bg-black/20 p-2 rounded-lg">
+                    {analysis}
+                </div>
+            )}
+        </div>
+    );
+};
 
 export const ChatTool = ({ files, selectedIds }: ChatToolProps) => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -76,7 +99,8 @@ export const ChatTool = ({ files, selectedIds }: ChatToolProps) => {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: data.answer || "抱歉，我无法回答这个问题。",
-        time: new Date().toLocaleTimeString()
+        time: new Date().toLocaleTimeString(),
+        details: data.file_analyses
       };
       setChatMessages(prev => [...prev, botMsg]);
       
@@ -115,6 +139,20 @@ export const ChatTool = ({ files, selectedIds }: ChatToolProps) => {
               msg.role === 'assistant' ? 'bg-white/5 text-gray-200' : 'bg-primary-600 text-white'
             }`}>
               {msg.content}
+              
+              {/* Display File Analyses if available */}
+              {msg.details && msg.details.length > 0 && (
+                  <div className="mt-4 pt-2 border-t border-white/10">
+                      <p className="text-xs text-gray-500 mb-2 font-medium">思考过程 / 文件分析:</p>
+                      {msg.details.map((detail, idx) => (
+                          <AnalysisDetail 
+                            key={idx} 
+                            filename={detail.filename} 
+                            analysis={detail.analysis} 
+                          />
+                      ))}
+                  </div>
+              )}
             </div>
           </div>
         ))}

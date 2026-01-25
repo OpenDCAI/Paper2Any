@@ -130,6 +130,14 @@ Paper2Any 当前包含以下几个子能力：
 <img src="static/new_readme/paper2ppt-表格提取功能.png" width="90%"/>
 <br><sub>✨ 智能表格提取与插入</sub>
 
+<br><br>
+<img src="static/new_readme/AI辅助编辑outline.png" width="90%"/>
+<br><sub>✨ AI 辅助编辑大纲</sub>
+
+<br><br>
+<img src="static/new_readme/历史版本管理.png" width="90%"/>
+<br><sub>✨ 历史版本管理</sub>
+
 </div>
 
 ---
@@ -218,25 +226,81 @@ export DF_API_URL=xxx  # 可选：如需使用第三方 API 中转站
 export MINERU_DEVICES="0,1,2,3" # 可选：MinerU 任务 GPU 资源池
 ```
 
-#### 4. 配置 Supabase (前后端必需)
+#### 4. 配置环境文件（可选）
 
-在 `frontend-workflow` 目录下创建 `.env` 文件并填入以下配置：
+<details>
+<summary><strong>📝 点击展开：详细的 .env 配置指南</strong></summary>
+
+Paper2Any 使用两个 `.env` 文件进行配置。**两者都是可选的** - 您可以使用默认设置运行应用程序。
+
+##### 步骤 1：复制示例文件
 
 ```bash
-# frontend-workflow/.env
+# 复制后端环境文件
+cp fastapi_app/.env.example fastapi_app/.env
 
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-# Backend
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-SUPABASE_JWT_SECRET=your_jwt_secret
-
-# Application Settings
-DAILY_WORKFLOW_LIMIT=10
+# 复制前端环境文件
+cp frontend-workflow/.env.example frontend-workflow/.env
 ```
+
+##### 步骤 2：后端配置（`fastapi_app/.env`）
+
+**Supabase（可选）** - 仅在需要用户认证和云存储时配置：
+```bash
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+**模型配置** - 自定义不同工作流使用的模型：
+```bash
+# 默认 LLM API 地址
+DEFAULT_LLM_API_URL=http://123.129.219.111:3000/v1/
+
+# 工作流级别默认值
+PAPER2PPT_DEFAULT_MODEL=gpt-5.1
+PAPER2PPT_DEFAULT_IMAGE_MODEL=gemini-3-pro-image-preview
+PDF2PPT_DEFAULT_MODEL=gpt-4o
+# ... 完整列表请查看 .env.example
+```
+
+##### 步骤 3：前端配置（`frontend-workflow/.env`）
+
+**LLM 提供商配置** - 控制 UI 中的 API 端点下拉菜单：
+```bash
+# UI 中显示的默认 API 地址
+VITE_DEFAULT_LLM_API_URL=https://api.apiyi.com/v1
+
+# 下拉菜单中的可用 API 地址（逗号分隔）
+VITE_LLM_API_URLS=https://api.apiyi.com/v1,http://b.apiyi.com:16888/v1,http://123.129.219.111:3000/v1
+```
+
+**修改 `VITE_LLM_API_URLS` 后的效果：**
+- 前端会显示一个**下拉菜单**，包含您指定的所有 URL
+- 用户可以选择不同的 API 端点，无需手动输入 URL
+- 适用于在 OpenAI、本地模型或自定义 API 网关之间切换
+
+**Supabase（可选）** - 如需用户认证，取消注释这些行：
+```bash
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_JWT_SECRET=your-jwt-secret
+```
+
+##### 不配置 Supabase 的情况
+
+如果跳过 Supabase 配置：
+- ✅ 所有核心功能正常工作
+- ✅ CLI 脚本无需任何配置即可使用
+- ❌ 无用户认证或配额限制
+- ❌ 无云文件存储
+
+</details>
+
+> [!NOTE]
+> **快速开始：** 您可以完全跳过 `.env` 配置，直接使用 CLI 脚本并通过 `--api-key` 参数传递密钥。详见下方 [CLI 脚本](#️-cli-脚本命令行界面) 部分。
+
+---
 
 <details>
 <summary><strong>高级配置：本地模型服务负载均衡</strong></summary>
@@ -375,17 +439,6 @@ vllm serve opendatalab/MinerU2.5-2509-1.2B `
   --enforce-eager
 ```
 
-> [!TIP]
-> **Paper2Figure 网页端内测说明**
-> 
-> 
-> 如果暂时不想部署前后端，可以先通过本地脚本体验 Paper2Any 的核心能力：
-> - `python script/run_paper2figure.py`：模型架构图生成
-> - `python script/run_paper2expfigure.py`：实验数据图生成
-> - `python script/run_paper2technical.py`：技术路线图生成
-> - `python script/run_paper2ppt.py`：论文内容生成可编辑 PPT
-> - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`：PDF2PPT（保留版式 + 可编辑内容）
-
 ---
 
 ### 启动应用
@@ -405,11 +458,127 @@ npm run dev
 
 访问 `http://localhost:3000`。
 
-> [!TIP]
-> 如果暂时不想部署前后端，可以通过本地脚本体验核心功能：
-> - `python script/run_paper2figure.py`：模型架构图生成
-> - `python script/run_paper2ppt.py`：论文生成 PPT
-> - `python script/run_pdf2ppt_with_paddle_sam_mineru.py`：PDF 转 PPT
+---
+
+### 🖥️ CLI 脚本（命令行界面）
+
+Paper2Any 提供独立的 CLI 脚本，支持命令行参数输入，可直接执行工作流，无需启动 Web 前后端。
+
+#### 环境变量配置
+
+通过环境变量配置 API 访问（可选）：
+
+```bash
+export DF_API_URL=https://api.openai.com/v1  # LLM API 地址
+export DF_API_KEY=sk-xxx                      # API 密钥
+export DF_MODEL=gpt-4o                        # 默认模型
+```
+
+#### 可用的 CLI 脚本
+
+**1. Paper2Figure CLI** - 生成科学图表（3种类型）
+
+```bash
+# 从 PDF 生成模型架构图
+python script/run_paper2figure_cli.py \
+  --input paper.pdf \
+  --graph-type model_arch \
+  --api-key sk-xxx
+
+# 从文本生成技术路线图
+python script/run_paper2figure_cli.py \
+  --input "Transformer 架构与注意力机制" \
+  --input-type TEXT \
+  --graph-type tech_route
+
+# 生成实验数据可视化图表
+python script/run_paper2figure_cli.py \
+  --input paper.pdf \
+  --graph-type exp_data
+```
+
+**图表类型：** `model_arch`（模型架构图）、`tech_route`（技术路线图）、`exp_data`（实验数据图）
+
+**2. Paper2PPT CLI** - 将论文转换为 PPT 演示文稿
+
+```bash
+# 基础用法
+python script/run_paper2ppt_cli.py \
+  --input paper.pdf \
+  --api-key sk-xxx \
+  --page-count 15
+
+# 自定义风格
+python script/run_paper2ppt_cli.py \
+  --input paper.pdf \
+  --style "学术风格；中文；现代设计" \
+  --language zh
+```
+
+**3. PDF2PPT CLI** - 一键将 PDF 转换为可编辑 PPT
+
+```bash
+# 基础转换（无 AI 增强）
+python script/run_pdf2ppt_cli.py --input slides.pdf
+
+# 启用 AI 增强
+python script/run_pdf2ppt_cli.py \
+  --input slides.pdf \
+  --use-ai-edit \
+  --api-key sk-xxx
+```
+
+**4. Image2PPT CLI** - 将图片转换为可编辑 PPT
+
+```bash
+# 基础转换
+python script/run_image2ppt_cli.py --input screenshot.png
+
+# 启用 AI 增强
+python script/run_image2ppt_cli.py \
+  --input diagram.jpg \
+  --use-ai-edit \
+  --api-key sk-xxx
+```
+
+**5. PPT2Polish CLI** - 美化现有 PPT 文件
+
+```bash
+# 基础美化
+python script/run_ppt2polish_cli.py \
+  --input old_presentation.pptx \
+  --style "学术风格，简洁大方" \
+  --api-key sk-xxx
+
+# 使用参考图片保持风格一致性
+python script/run_ppt2polish_cli.py \
+  --input old_presentation.pptx \
+  --style "现代简约风格" \
+  --ref-img reference_style.png \
+  --api-key sk-xxx
+```
+
+> [!NOTE]
+> **PPT2Polish 系统要求：**
+> - LibreOffice: `sudo apt-get install libreoffice`（Ubuntu/Debian）
+> - pdf2image: `pip install pdf2image`
+> - poppler-utils: `sudo apt-get install poppler-utils`
+
+#### 通用选项
+
+所有 CLI 脚本都支持以下通用选项：
+
+- `--api-url URL` - LLM API 地址（默认：从 `DF_API_URL` 环境变量读取）
+- `--api-key KEY` - API 密钥（默认：从 `DF_API_KEY` 环境变量读取）
+- `--model NAME` - 文本模型名称（默认：各脚本不同）
+- `--output-dir DIR` - 自定义输出目录（默认：`outputs/cli/{脚本名称}/{时间戳}`）
+- `--help` - 显示详细帮助信息
+
+查看完整参数文档，可运行任意脚本并添加 `--help` 参数：
+
+```bash
+python script/run_paper2figure_cli.py --help
+```
 
 ---
 

@@ -401,9 +401,33 @@ class IntelligentQAState(MainState):
     智能问答状态
     """
     request: IntelligentQARequest = field(default_factory=IntelligentQARequest)
-    
+
     # 解析后的上下文内容
     context_content: str = ""
-    
+
+    # 新增: 存储每个文件的分析结果
+    file_analyses: List[Dict[str, Any]] = field(default_factory=list)
+
     # 最终回答
     answer: str = ""
+
+@dataclass
+class KBPodcastRequest(MainRequest):
+    """
+    知识播客请求
+    """
+    files: List[str] = field(default_factory=list)  # 文件路径列表
+    tts_model: str = "gemini-2.5-pro-preview-tts"
+    voice_name: str = "Kore"
+    language: str = "zh"
+
+@dataclass
+class KBPodcastState(MainState):
+    """
+    知识播客状态
+    """
+    request: KBPodcastRequest = field(default_factory=KBPodcastRequest)
+    result_path: str = ""
+    file_contents: List[Dict[str, Any]] = field(default_factory=list)
+    podcast_script: str = ""
+    audio_path: str = ""

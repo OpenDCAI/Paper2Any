@@ -17,6 +17,10 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   time: string;
+  details?: {
+    filename: string;
+    analysis: string;
+  }[];
 }
 
 export type SectionType = 'library' | 'upload' | 'output';

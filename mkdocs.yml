@@ -10,6 +10,7 @@ nav:
   - 主页: index.md
   - 快速开始: quickstart.md
   - 安装: installation.md
+  - 配置指南: guides/configuration.md
   - 功能指南:
       - Paper2Figure: guides/paper2figure.md
       - Paper2PPT: guides/paper2ppt.md

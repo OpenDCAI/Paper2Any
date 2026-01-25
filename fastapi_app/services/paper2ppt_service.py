@@ -118,7 +118,7 @@ from dataflow_agent.utils import get_project_root
 log = get_logger(__name__)
 
 PROJECT_ROOT = get_project_root()
-BASE_OUTPUT_DIR = Path("outputs")
+BASE_OUTPUT_DIR = (PROJECT_ROOT / "outputs").resolve()
 
 
 class Paper2PPTService:
