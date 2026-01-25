@@ -16,8 +16,8 @@ log = get_logger(__name__)
 # 全局信号量控制并发
 task_semaphore = asyncio.Semaphore(1)
 
-BASE_OUTPUT_DIR = Path("outputs")
 PROJECT_ROOT = get_project_root()
+BASE_OUTPUT_DIR = (PROJECT_ROOT / "outputs").resolve()
 
 class Image2PPTService:
     def __init__(self):

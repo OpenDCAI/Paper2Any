@@ -5,17 +5,20 @@ import Paper2PptPage from './components/Paper2PptPage';
 import Pdf2PptPage from './components/Pdf2PptPage';
 import Image2PptPage from './components/Image2PptPage';
 import Ppt2PolishPage from './components/Ppt2PolishPage';
-// import KnowledgeBasePage from './components/KnowledgeBasePage';
+import KnowledgeBasePage from './components/KnowledgeBasePage';
 import { FilesPage } from './components/FilesPage';
+import { AccountPage } from './components/AccountPage';
 import { useTranslation } from 'react-i18next';
-import { QuotaDisplay } from './components/QuotaDisplay';
+import { PointsDisplay } from './components/PointsDisplay';
 import { UserMenu } from './components/UserMenu';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
-import { Workflow } from 'lucide-react';
+import { Workflow, X } from 'lucide-react';
 
 function App() {
   const { t } = useTranslation('common');
   const [activePage, setActivePage] = useState<'paper2figure' | 'paper2ppt' | 'pdf2ppt' | 'image2ppt' | 'ppt2polish' | 'knowledge' | 'files'>('paper2figure');
+  const [showFilesModal, setShowFilesModal] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
 
   return (
     <div className="w-screen h-screen bg-[#0a0a1a] overflow-hidden relative">
@@ -92,7 +95,7 @@ function App() {
               >
                 {t('app.nav.ppt2polish')}
               </button>
-              {/* <button
+              <button
                 onClick={() => setActivePage('knowledge')}
                 className={`px-3 py-1.5 rounded-full text-sm ${
                   activePage === 'knowledge'
@@ -101,7 +104,7 @@ function App() {
                 }`}
               >
                 {t('app.nav.knowledge')}
-              </button> */}
+              </button>
               <button
                 onClick={() => setActivePage('files')}
                 className={`px-3 py-1.5 rounded-full text-sm ${
@@ -117,8 +120,11 @@ function App() {
             {/* 右侧：配额显示 & 用户菜单 */}
             <div className="flex items-center gap-3">
               <LanguageSwitcher />
-              <QuotaDisplay />
-              <UserMenu />
+              <PointsDisplay />
+              <UserMenu 
+                onShowFiles={() => setShowFilesModal(true)}
+                onShowAccount={() => setShowAccountModal(true)}
+              />
             </div>
           </div>
         </div>
@@ -132,10 +138,50 @@ function App() {
           {activePage === 'pdf2ppt' && <Pdf2PptPage />}
           {activePage === 'image2ppt' && <Image2PptPage />}
           {activePage === 'ppt2polish' && <Ppt2PolishPage />}
-          {/* {activePage === 'knowledge' && <KnowledgeBasePage />} */}
+          {activePage === 'knowledge' && <KnowledgeBasePage />}
           {activePage === 'files' && <FilesPage />}
         </div>
       </main>
+
+      {/* 历史文件模态框 */}
+      {showFilesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-6xl h-[80vh] m-4 glass-dark rounded-2xl border border-white/10 shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <h2 className="text-xl font-bold text-white">历史文件</h2>
+              <button
+                onClick={() => setShowFilesModal(false)}
+                className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <FilesPage />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 账户设置模态框 */}
+      {showAccountModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-6xl h-[80vh] m-4 glass-dark rounded-2xl border border-white/10 shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <h2 className="text-xl font-bold text-white">账户设置</h2>
+              <button
+                onClick={() => setShowAccountModal(false)}
+                className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <AccountPage />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 底部状态栏 */}
       <footer className="absolute bottom-0 left-0 right-0 h-8 glass-dark border-t border-white/10 z-10">

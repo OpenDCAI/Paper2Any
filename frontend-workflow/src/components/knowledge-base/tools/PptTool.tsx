@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Presentation, Loader2, CheckCircle2, X } from 'lucide-react';
-import { API_KEY } from '../../../config/api';
+import { API_KEY, API_URL_OPTIONS } from '../../../config/api';
 import { KnowledgeFile } from '../types';
 
 interface PptToolProps {
@@ -23,14 +23,14 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
 
   const handleGeneratePPT = async () => {
     if (selectedIds.size !== 1) {
-      alert('演示版本：请选择且仅选择一个 PDF 文档进行生成。');
+      alert('请选择且仅选择一个 PDF 文档进行生成。');
       return;
     }
     const fileId = Array.from(selectedIds)[0];
     const file = files.find(f => f.id === fileId);
-    
+
     if (!file || file.type !== 'doc' || (!file.name.endsWith('.pdf') && !file.name.endsWith('.PDF'))) {
-       alert('演示版本：仅支持 PDF 文件生成 PPT。');
+       alert('仅支持 PDF 文件生成 PPT。');
        return;
     }
 
@@ -39,16 +39,13 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
       return;
     }
 
+    if (!file.url) {
+      alert('无法获取文件路径，请重新上传文件。');
+      return;
+    }
+
     setPptGenerating(true);
     try {
-      const formData = new FormData();
-      if (file.file) {
-        formData.append('pdf_file', file.file);
-      } else {
-        alert('无法获取原始文件（可能是示例文件），请上传一个新的 PDF 测试。');
-        setPptGenerating(false);
-        return;
-      }
       
       const getStyleDescription = (preset: string): string => {
         const styles: Record<string, string> = {
@@ -60,42 +57,48 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
         return styles[preset] || styles.modern;
       };
 
-      formData.append('chat_api_url', pptParams.api_url);
-      formData.append('api_key', pptParams.api_key);
-      formData.append('language', pptParams.language);
-      formData.append('style', getStyleDescription(pptParams.style_preset));
-      formData.append('page_count', pptParams.page_count.toString());
-      formData.append('use_ai_edit', 'true');
-      formData.append('model', pptParams.model);
-      formData.append('img_gen_model_name', pptParams.gen_fig_model);
-
-      const res = await fetch('/api/v1/pdf2ppt/generate', {
+      const res = await fetch('/api/v1/kb/generate-ppt', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': API_KEY
+        },
+        body: JSON.stringify({
+          file_path: file.url,
+          user_id: 'user_id_placeholder',
+          email: 'user@example.com',
+          api_url: pptParams.api_url,
+          api_key: pptParams.api_key,
+          style: getStyleDescription(pptParams.style_preset),
+          language: pptParams.language,
+          page_count: pptParams.page_count,
+          model: pptParams.model,
+          gen_fig_model: pptParams.gen_fig_model
+        })
       });
 
       if (!res.ok) {
-        throw new Error('生成失败: ' + res.statusText);
+        const errorText = await res.text();
+        throw new Error('生成失败: ' + errorText);
       }
 
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = file.name.replace('.pdf', '.pptx');
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      
-      onGenerateSuccess({
-        id: 'o' + Date.now(),
-        name: file.name.replace('.pdf', '.pptx'),
-        type: 'doc',
-        size: '2MB', 
-        uploadTime: new Date().toLocaleString(),
-        desc: 'Generated from ' + file.name
-      });
+      const data = await res.json();
+
+      if (data.success) {
+        alert('PPT 生成成功！');
+
+        onGenerateSuccess({
+          id: data.output_file_id || 'o' + Date.now(),
+          name: file.name.replace('.pdf', '.pdf'),
+          type: 'doc',
+          size: '未知',
+          uploadTime: new Date().toLocaleString(),
+          url: data.pdf_path || data.pptx_path,
+          desc: 'Generated PPT from ' + file.name
+        });
+      } else {
+        throw new Error('生成失败');
+      }
 
     } catch (e: any) {
       alert('Error: ' + e.message);
@@ -149,14 +152,14 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
                   ...prev, 
                   api_url: val,
                   // Auto-switch gen model if using specific endpoint
-                  gen_fig_model: val === 'http://123.129.219.111:3000/v1' ? 'gemini-3-pro-image-preview' : prev.gen_fig_model
+                  gen_fig_model: val.includes('123.129.219.111') ? 'gemini-3-pro-image-preview' : prev.gen_fig_model
                 }));
               }}
               className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-purple-500"
             >
-              <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
-              <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
-              <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
+              {API_URL_OPTIONS.map((url: string) => (
+                <option key={url} value={url}>{url}</option>
+              ))}
             </select>
           </div>
 

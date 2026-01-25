@@ -11,6 +11,7 @@ from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.utils import get_project_root
+from dataflow_agent.utils.version_manager import ImageVersionManager
 from dataflow_agent.workflow.registry import register
 from dataflow_agent.agentroles import create_react_agent
 from dataflow_agent.toolkits.multimodaltool.req_img import (
@@ -137,7 +138,8 @@ async def _make_prompt_for_structured_page(item: Dict[str, Any], style: str, sta
             log.critical(f'[table_img_path 表格图像路径]:   {table_img_path}')
 
         if not table_img_path:
-            raise ValueError(f"[paper2ppt] 表格提取失败，未得到 table_img_path。asset_ref={asset_ref}")
+            log.warning(f"[paper2ppt] 表格提取失败 (asset_ref={asset_ref})，降级为 Text2Img 模式生成页面。")
+            return base, None, False
 
         image_path = _resolve_asset_path(table_img_path, state)
         if not image_path or not os.path.exists(image_path):
@@ -563,13 +565,15 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
             raise ValueError("[paper2ppt] edit_page_num 必须是 0-based 且 >=0")
         
         old_path: Optional[str] = None
-        if getattr(state, "generated_pages", None) and idx < len(state.generated_pages):
-            old_path = state.generated_pages[idx]
-        
-        if not old_path and idx < len(state.pagecontent or []):
+        # 优先使用 pagecontent 中的最新路径（前端传递的数据）
+        if idx < len(state.pagecontent or []):
             it = state.pagecontent[idx]
             if isinstance(it, dict):
                 old_path = it.get("generated_img_path") or it.get("ppt_img_path") or it.get("img_path")
+
+        # 如果 pagecontent 中没有，再尝试从 generated_pages 获取（兼容旧逻辑）
+        if not old_path and getattr(state, "generated_pages", None) and idx < len(state.generated_pages):
+            old_path = state.generated_pages[idx]
         
         if not old_path:
             raise ValueError(f"[paper2ppt] 找不到要编辑的页图路径: idx={idx}")
@@ -579,7 +583,8 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
         img_dir = result_root / "ppt_pages"
         img_dir.mkdir(parents=True, exist_ok=True)
 
-        save_path = str((img_dir / f"page_{idx:03d}.png").resolve())
+        # 使用临时路径生成图片，然后通过版本管理器保存
+        temp_save_path = str((img_dir / f"page_{idx:03d}_temp.png").resolve())
         aspect_ratio = getattr(state, "aspect_ratio", None) or "16:9"
         style = getattr(state.request, "style", None) or "kartoon"
 
@@ -591,7 +596,7 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                 log.warning(f"[paper2ppt] Edit page: ref_img not found: {user_ref_img}")
                 user_ref_img = None
 
-        log.info(f"[paper2ppt] edit_single_page idx={idx} old={old_path} save={save_path} ref={user_ref_img}")
+        log.info(f"[paper2ppt] edit_single_page idx={idx} old={old_path} temp_save={temp_save_path} ref={user_ref_img}")
 
         if user_ref_img:
             # 有参考图 -> 多图融合
@@ -612,7 +617,7 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
             await gemini_multi_image_edit_async(
                 prompt=full_prompt,
                 image_paths=[user_ref_img, old_path],
-                save_path=save_path,
+                save_path=temp_save_path,
                 api_url=state.request.chat_api_url,
                 api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
                 model=state.request.gen_fig_model,
@@ -623,7 +628,7 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
             if prompt:
                 full_prompt = (
                     f"Beautify this PowerPoint slide based on this instruction: '{prompt}'. "
-                    f"Transform the existing design into a high-end, professional {style} style presentation. "
+                    # f"Transform the existing design into a high-end, professional {style} style presentation. "
                     f"Enhance the visual aesthetics, layout, and background while preserving the core message."
                 )
             else:
@@ -635,7 +640,7 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
 
             await generate_or_edit_and_save_image_async(
                 prompt=full_prompt,
-                save_path=save_path,
+                save_path=temp_save_path,
                 aspect_ratio=aspect_ratio,
                 api_url=state.request.chat_api_url,
                 api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
@@ -643,6 +648,24 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                 image_path=old_path,
                 use_edit=True,
             )
+
+        # 使用版本管理器保存版本化图片
+        versioned_path, version_num = ImageVersionManager.save_versioned_image(
+            img_dir=img_dir,
+            page_idx=idx,
+            new_image_path=temp_save_path,
+            prompt=prompt
+        )
+
+        # 清理临时文件
+        temp_path_obj = Path(temp_save_path)
+        if temp_path_obj.exists():
+            temp_path_obj.unlink()
+
+        # 更新为当前路径（保持向后兼容性）
+        save_path = str((img_dir / f"page_{idx:03d}.png").resolve())
+
+        log.info(f"[paper2ppt] Saved version {version_num} for page {idx}: {versioned_path}")
 
         if getattr(state, "generated_pages", None) and idx < len(state.generated_pages):
             state.generated_pages[idx] = save_path
@@ -652,6 +675,7 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                 it["generated_img_path"] = save_path
                 it["edit_prompt"] = prompt
                 it["mode"] = "edit_again"
+                it["current_version"] = version_num  # 跟踪当前版本号
 
         state.edit_page_prompt = ""
         state.edit_page_num = -1

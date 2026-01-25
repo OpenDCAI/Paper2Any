@@ -5,6 +5,7 @@ import { uploadAndSaveFile } from '../../services/fileService';
 import { API_KEY } from '../../config/api';
 import { checkQuota, recordUsage } from '../../services/quotaService';
 import { verifyLlmConnection } from '../../services/llmService';
+import { getApiSettings, saveApiSettings } from '../../services/apiSettingsService';
 
 import {
   UploadMode,
@@ -17,7 +18,6 @@ import {
 import {
   BACKEND_API,
   JSON_API,
-  HISTORY_API,
   IMAGE_EXTENSIONS,
   GENERATION_STAGES,
   MAX_FILE_SIZE,
@@ -57,7 +57,7 @@ const Paper2FigurePage = () => {
   const [style, setStyle] = useState<StyleType>('cartoon');
   const [figureComplex, setFigureComplex] = useState<FigureComplex>('easy');
 
-  const [llmApiUrl, setLlmApiUrl] = useState('https://api.apiyi.com/v1');
+  const [llmApiUrl, setLlmApiUrl] = useState(import.meta.env.VITE_DEFAULT_LLM_API_URL || 'https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gemini-3-pro-image-preview');
   // const [model, setModel] = useState('gpt-4o');
@@ -77,7 +77,7 @@ const Paper2FigurePage = () => {
   const [svgPath, setSvgPath] = useState<string | null>(null);
   const [svgPreviewPath, setSvgPreviewPath] = useState<string | null>(null);
 
-  // 新增：本次任务所有输出文件 URL 列表 + 是否展示输出面板
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [allOutputFiles, setAllOutputFiles] = useState<string[]>([]);
   // const [showOutputPanel, setShowOutputPanel] = useState(false);
 
@@ -147,32 +147,42 @@ const Paper2FigurePage = () => {
     if (typeof window === 'undefined') return;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw) as {
-        uploadMode?: UploadMode;
-        textContent?: string;
-        graphType?: GraphType;
-        language?: Language;
-        style?: StyleType;
-        figureComplex?: FigureComplex;
-        llmApiUrl?: string;
-        apiKey?: string;
-        model?: string;
-      };
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          uploadMode?: UploadMode;
+          textContent?: string;
+          graphType?: GraphType;
+          language?: Language;
+          style?: StyleType;
+          figureComplex?: FigureComplex;
+          llmApiUrl?: string;
+          apiKey?: string;
+          model?: string;
+        };
 
-      if (saved.uploadMode) setUploadMode(saved.uploadMode);
-      if (saved.textContent) setTextContent(saved.textContent);
-      if (saved.graphType) setGraphType(saved.graphType);
-      if (saved.language) setLanguage(saved.language);
-      if (saved.style) setStyle(saved.style);
-      if (saved.figureComplex) setFigureComplex(saved.figureComplex);
-      if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
-      if (saved.apiKey) setApiKey(saved.apiKey);
-      if (saved.model) setModel(saved.model);
+        if (saved.uploadMode) setUploadMode(saved.uploadMode);
+        if (saved.textContent) setTextContent(saved.textContent);
+        if (saved.graphType) setGraphType(saved.graphType);
+        if (saved.language) setLanguage(saved.language);
+        if (saved.style) setStyle(saved.style);
+        if (saved.figureComplex) setFigureComplex(saved.figureComplex);
+        if (saved.model) setModel(saved.model);
+
+        // API settings: prioritize user-specific settings from apiSettingsService
+        const userApiSettings = getApiSettings(user?.id || null);
+        if (userApiSettings) {
+          if (userApiSettings.apiUrl) setLlmApiUrl(userApiSettings.apiUrl);
+          if (userApiSettings.apiKey) setApiKey(userApiSettings.apiKey);
+        } else {
+          // Fallback to legacy localStorage
+          if (saved.llmApiUrl) setLlmApiUrl(saved.llmApiUrl);
+          if (saved.apiKey) setApiKey(saved.apiKey);
+        }
+      }
     } catch (e) {
       console.error('Failed to restore paper2figure config', e);
     }
-  }, []);
+  }, [user?.id]);
 
   // 将配置写入 localStorage
   useEffect(() => {
@@ -190,10 +200,14 @@ const Paper2FigurePage = () => {
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      // Also save API settings to user-specific storage
+      if (user?.id && llmApiUrl && apiKey) {
+        saveApiSettings(user.id, { apiUrl: llmApiUrl, apiKey });
+      }
     } catch (e) {
       console.error('Failed to persist paper2figure config', e);
     }
-  }, [uploadMode, textContent, graphType, language, style, figureComplex, llmApiUrl, apiKey, model]);
+  }, [uploadMode, textContent, graphType, language, style, figureComplex, llmApiUrl, apiKey, model, user?.id]);
 
   // 新增：管理生成阶段的定时器
   useEffect(() => {
@@ -363,7 +377,7 @@ const Paper2FigurePage = () => {
       formData.append('chat_api_url', llmApiUrl.trim());
       formData.append('api_key', apiKey.trim());
       formData.append('input_type', uploadMode);
-      formData.append('email', user?.email || '');
+      formData.append('email', user?.id || user?.email || '');
       formData.append('graph_type', graphType);
       formData.append('style', style);
       formData.append('figure_complex', figureComplex);
@@ -736,7 +750,7 @@ const Paper2FigurePage = () => {
             model={model}
             llmApiUrl={llmApiUrl}
             apiKey={apiKey}
-            email={user?.email || ''}
+            email={user?.id || user?.email || ''}
             figureComplex={figureComplex}
             language={language}
           />

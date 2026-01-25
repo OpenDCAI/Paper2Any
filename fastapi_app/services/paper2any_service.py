@@ -18,7 +18,7 @@ from dataflow_agent.logger import get_logger
 log = get_logger(__name__)
 
 PROJECT_ROOT = get_project_root()
-BASE_OUTPUT_DIR = Path("outputs")
+BASE_OUTPUT_DIR = (PROJECT_ROOT / "outputs").resolve()
 
 # 全局信号量：控制重任务并发度（排队机制）
 # 保持在 Service 层或模块级别，因为它是全局共享的资源控制
@@ -380,7 +380,7 @@ class Paper2AnyService:
         (run_dir / "input").mkdir(parents=True, exist_ok=True)
         (run_dir / "output").mkdir(parents=True, exist_ok=True)
 
-        return run_dir
+        return run_dir.resolve()
 
     def _validate_input(
         self,

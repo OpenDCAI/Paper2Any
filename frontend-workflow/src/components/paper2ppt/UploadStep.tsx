@@ -1,5 +1,6 @@
 import React, { ChangeEvent, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { API_URL_OPTIONS } from '../../config/api';
 import {
   UploadCloud, Settings2, Loader2, AlertCircle, Sparkles,
   ArrowRight, FileText, Key, Globe, Cpu, Type, Lightbulb,
@@ -228,15 +229,15 @@ const UploadStep: React.FC<UploadStepProps> = ({
                 onChange={e => {
                   const val = e.target.value;
                   setLlmApiUrl(val);
-                  if (val === 'http://123.129.219.111:3000/v1') {
+                  if (val.includes('123.129.219.111')) {
                     setGenFigModel('gemini-3-pro-image-preview');
                   }
                 }}
                 className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
               >
-                <option value="https://api.apiyi.com/v1">https://api.apiyi.com/v1</option>
-                <option value="http://b.apiyi.com:16888/v1">http://b.apiyi.com:16888/v1</option>
-                <option value="http://123.129.219.111:3000/v1">http://123.129.219.111:3000/v1</option>
+                {API_URL_OPTIONS.map((url: string) => (
+                  <option key={url} value={url}>{url}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -262,13 +263,13 @@ const UploadStep: React.FC<UploadStepProps> = ({
               <select
                 value={genFigModel}
                 onChange={e => setGenFigModel(e.target.value)}
-                disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
+                disabled={llmApiUrl.includes('123.129.219.111')}
                 className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="gemini-3-pro-image-preview">Gemini 3 Pro (中文必选)</option>
                 <option value="gemini-2.5-flash-image">Gemini 2.5 (Flash Image)</option>
               </select>
-              {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
+              {llmApiUrl.includes('123.129.219.111') && (
                  <p className="text-[10px] text-gray-500 mt-1">此源仅支持 gemini-3-pro</p>
               )}
             </div>

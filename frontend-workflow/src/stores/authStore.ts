@@ -5,7 +5,7 @@
  */
 
 import { create } from "zustand";
-import { User, Session } from "@supabase/supabase-js";
+import { User, Session, Provider } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 interface Quota {
@@ -30,11 +30,52 @@ interface AuthState {
   signUpWithEmail: (email: string, password: string) => Promise<{ needsVerification: boolean }>;
   verifyOtp: (email: string, token: string) => Promise<void>;
   resendOtp: (email: string) => Promise<void>;
+  signInWithPhoneOtp: (phone: string) => Promise<boolean>;
+  verifyPhoneOtp: (phone: string, token: string) => Promise<void>;
+  signInWithOAuth: (provider: Provider) => Promise<void>;
+  linkOAuthIdentity: (provider: Provider) => Promise<void>;
+  claimInviteCode: (inviteCode: string) => Promise<void>;
   signInAnonymously: () => Promise<void>;
   signOut: () => Promise<void>;
   clearError: () => void;
   clearPendingVerification: () => void;
   refreshQuota: () => Promise<void>;
+}
+
+const INVITE_CODE_STORAGE_KEY = "paper2any_invite_code";
+
+function normalizePhoneE164China(input: string): string {
+  const s = input.trim();
+  if (s.startsWith("+")) return s;
+  if (s.startsWith("86")) return `+${s}`;
+  return `+86${s.replace(/\D/g, "")}`;
+}
+
+async function tryClaimInviteCode(inviteCode: string): Promise<void> {
+  // Database side will enforce idempotency.
+  // This RPC name will be added by migration.
+  const { data, error } = await supabase.rpc("apply_invite_code", { p_code: inviteCode });
+  
+  if (error) {
+    throw new Error("邀请码兑换失败，请稍后重试");
+  }
+  
+  // Check response from RPC function
+  if (data && !data.success) {
+    const errorCode = data.error;
+    switch (errorCode) {
+      case 'not_authenticated':
+        throw new Error("请先登录后再填写邀请码");
+      case 'already_claimed':
+        throw new Error("您已经使用过邀请码了");
+      case 'invalid_code':
+        throw new Error("邀请码无效，请检查后重试");
+      case 'self_invite':
+        throw new Error("不能使用自己的邀请码");
+      default:
+        throw new Error("邀请码兑换失败");
+    }
+  }
 }
 
 // Note: We use relative paths ("/api/...") which go through Vite proxy in dev mode
@@ -73,7 +114,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
 
     if (error) {
-      set({ error: error.message, loading: false });
+      // Translate common error messages to user-friendly Chinese
+      let friendlyError = error.message;
+      if (error.message.toLowerCase().includes("invalid login credentials")) {
+        friendlyError = "邮箱或密码错误，请检查后重试";
+      } else if (error.message.toLowerCase().includes("email not confirmed")) {
+        friendlyError = "邮箱未验证，请查收验证邮件";
+      } else if (error.message.toLowerCase().includes("invalid")) {
+        friendlyError = "登录信息无效，请检查后重试";
+      }
+      set({ error: friendlyError, loading: false });
       return;
     }
 
@@ -82,6 +132,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user: data.user,
       loading: false,
     });
+
+    // Try claim invite code after login
+    try {
+      const stored = localStorage.getItem(INVITE_CODE_STORAGE_KEY);
+      if (stored) {
+        await tryClaimInviteCode(stored);
+        localStorage.removeItem(INVITE_CODE_STORAGE_KEY);
+      }
+    } catch {
+      // ignore
+    }
 
     // Fetch quota after successful login
     get().refreshQuota();
@@ -122,6 +183,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user: data.user,
       loading: false,
     });
+
+    // Try claim invite code after signup
+    try {
+      const stored = localStorage.getItem(INVITE_CODE_STORAGE_KEY);
+      if (stored) {
+        await tryClaimInviteCode(stored);
+        localStorage.removeItem(INVITE_CODE_STORAGE_KEY);
+      }
+    } catch {
+      // ignore
+    }
     return { needsVerification: false };
   },
 
@@ -152,8 +224,173 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       loading: false,
     });
 
+    // Try claim invite code after verification
+    try {
+      const stored = localStorage.getItem(INVITE_CODE_STORAGE_KEY);
+      if (stored) {
+        await tryClaimInviteCode(stored);
+        localStorage.removeItem(INVITE_CODE_STORAGE_KEY);
+      }
+    } catch {
+      // ignore
+    }
+
     // Fetch quota after successful verification
     get().refreshQuota();
+  },
+
+  signInWithPhoneOtp: async (phone) => {
+    if (!isSupabaseConfigured()) {
+      set({ error: "Supabase is not configured" });
+      return false;
+    }
+
+    set({ error: null });
+    const phoneE164 = normalizePhoneE164China(phone);
+    const { error } = await supabase.auth.signInWithOtp({ phone: phoneE164 });
+
+    if (error) {
+      // Translate common error messages to user-friendly Chinese
+      let friendlyError = error.message;
+      if (error.message.toLowerCase().includes("sms") || error.message.toLowerCase().includes("phone")) {
+        friendlyError = "发送验证码失败，请检查手机号后重试";
+      } else if (error.message.toLowerCase().includes("rate limit")) {
+        friendlyError = "发送过于频繁，请稍后再试";
+      }
+      set({ error: friendlyError });
+      return false;
+    }
+
+    return true;
+  },
+
+  verifyPhoneOtp: async (phone, token) => {
+    if (!isSupabaseConfigured()) {
+      set({ error: "Supabase is not configured", loading: false });
+      return;
+    }
+
+    set({ loading: true, error: null });
+    const phoneE164 = normalizePhoneE164China(phone);
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone: phoneE164,
+      token,
+      type: "sms",
+    });
+
+    if (error) {
+      // Translate common error messages to user-friendly Chinese
+      let friendlyError = error.message;
+      if (error.message.toLowerCase().includes("token") && error.message.toLowerCase().includes("expired")) {
+        friendlyError = "验证码已过期，请重新获取";
+      } else if (error.message.toLowerCase().includes("invalid")) {
+        friendlyError = "验证码错误，请检查后重试";
+      } else if (error.message.toLowerCase().includes("token")) {
+        friendlyError = "验证码无效或已过期，请重新获取";
+      }
+      set({ error: friendlyError, loading: false });
+      return;
+    }
+
+    set({
+      session: data.session,
+      user: data.user,
+      loading: false,
+    });
+
+    // Try claim invite code after phone login
+    try {
+      const stored = localStorage.getItem(INVITE_CODE_STORAGE_KEY);
+      if (stored) {
+        await tryClaimInviteCode(stored);
+        localStorage.removeItem(INVITE_CODE_STORAGE_KEY);
+      }
+    } catch {
+      // ignore
+    }
+
+    get().refreshQuota();
+  },
+
+  signInWithOAuth: async (provider) => {
+    if (!isSupabaseConfigured()) {
+      set({ error: "Supabase is not configured", loading: false });
+      return;
+    }
+
+    set({ loading: true, error: null });
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+
+    if (error) {
+      set({ error: error.message, loading: false });
+      return;
+    }
+
+    // Redirect happens; keep loading true to avoid flicker
+  },
+
+  linkOAuthIdentity: async (provider) => {
+    if (!isSupabaseConfigured()) {
+      set({ error: "Supabase is not configured", loading: false });
+      return;
+    }
+    const { user } = get();
+    if (!user) {
+      set({ error: "Please sign in first", loading: false });
+      return;
+    }
+
+    set({ loading: true, error: null });
+    // supabase-js v2 supports linkIdentity; if not available, this will throw.
+    try {
+      const authAny = supabase.auth as any;
+      const { error } = await authAny.linkIdentity({
+        provider,
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+      if (error) {
+        set({ error: error.message, loading: false });
+        return;
+      }
+    } catch (e) {
+      set({ error: `linkIdentity not supported: ${String(e)}`, loading: false });
+      return;
+    }
+
+    // Redirect happens
+  },
+
+  claimInviteCode: async (inviteCode) => {
+    if (!isSupabaseConfigured()) {
+      const error = "Supabase is not configured";
+      set({ error });
+      throw new Error(error);
+    }
+
+    set({ error: null });
+
+    try {
+      await tryClaimInviteCode(inviteCode.trim());
+      localStorage.removeItem(INVITE_CODE_STORAGE_KEY);
+      await get().refreshQuota();
+    } catch (e) {
+      // If DB isn't ready yet, store locally and retry later.
+      try {
+        localStorage.setItem(INVITE_CODE_STORAGE_KEY, inviteCode.trim());
+      } catch {
+        // ignore
+      }
+      const errorMsg = String(e);
+      set({ error: errorMsg });
+      throw e; // Re-throw so caller can handle it
+    }
   },
 
   resendOtp: async (email) => {
