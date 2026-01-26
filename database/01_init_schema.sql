@@ -4,12 +4,18 @@
 -- This script sets up the necessary tables, views, functions, triggers,
 -- storage buckets, and security policies for the Paper2Any application.
 --
+-- INCLUDES:
+-- - User management (profiles, referrals, points system)
+-- - File storage (user_files, knowledge_base_files)
+-- - Usage tracking and quota management
+-- - Storage buckets and RLS policies
+--
 -- INSTRUCTIONS:
 -- 1. Go to your Supabase Project Dashboard: https://supabase.com/dashboard
 -- 2. Navigate to the "SQL Editor" section.
 -- 3. Click "New query", paste this entire script, and click "Run".
 --
--- Last Updated: 2025-01-22 (synced from production database)
+-- Last Updated: 2026-01-26 (merged with knowledge base schema)
 -- ==============================================================================
 
 -- ==============================================================================
@@ -78,6 +84,48 @@ WITH CHECK (auth.uid() = user_id);
 -- Policy: Users can delete their own files
 CREATE POLICY "Users can delete own files"
 ON public.user_files
+FOR DELETE
+USING (auth.uid() = user_id);
+
+-- ==============================================================================
+-- Table: knowledge_base_files
+-- Stores metadata for knowledge base files (PDFs, videos, documents, etc.)
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS public.knowledge_base_files (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_email TEXT,
+    file_name TEXT NOT NULL,
+    file_type TEXT,
+    file_size BIGINT,
+    storage_path TEXT NOT NULL,
+    is_embedded BOOLEAN DEFAULT FALSE,
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable Row Level Security
+ALTER TABLE public.knowledge_base_files ENABLE ROW LEVEL SECURITY;
+
+-- Add index for performance
+CREATE INDEX IF NOT EXISTS idx_kb_files_user_id ON public.knowledge_base_files(user_id);
+
+-- Policy: Users can only see their own KB files
+CREATE POLICY "Users can view own KB files"
+ON public.knowledge_base_files
+FOR SELECT
+USING (auth.uid() = user_id);
+
+-- Policy: Users can insert their own KB files
+CREATE POLICY "Users can insert own KB files"
+ON public.knowledge_base_files
+FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+-- Policy: Users can delete their own KB files
+CREATE POLICY "Users can delete own KB files"
+ON public.knowledge_base_files
 FOR DELETE
 USING (auth.uid() = user_id);
 

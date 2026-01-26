@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { KnowledgeFile } from './types';
-import { FileText, Image, Video, Link as LinkIcon, Trash2, Search, Filter, X, Eye, Database, Loader2, CheckCircle } from 'lucide-react';
+import { KnowledgeFile, ToolType } from './types';
+import { FileText, Image, Video, Link as LinkIcon, Trash2, Search, Filter, X, Eye, Database, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { API_URL_OPTIONS } from '../../config/api';
 
@@ -12,11 +12,36 @@ interface LibraryViewProps {
   onRefresh: () => Promise<void>;
   onPreview: (file: KnowledgeFile) => void;
   onDelete: (file: KnowledgeFile) => void;
+  activeTool: ToolType;
 }
 
-export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, onRefresh, onPreview, onDelete }: LibraryViewProps) => {
+// 定义每个工具支持的文件类型
+const TOOL_SUPPORTED_TYPES: Record<ToolType, string[]> = {
+  chat: ['doc', 'image', 'video', 'link'], // Chat 支持所有类型（通过向量检索）
+  ppt: ['doc'], // PPT 生成仅支持 PDF 文档
+  podcast: ['doc'], // Podcast 仅支持文档类型（PDF/DOCX/PPTX）
+  mindmap: ['doc'], // MindMap 暂定支持文档
+  video: ['doc', 'image', 'video'], // Video 暂定支持多种类型
+};
+
+// 获取工具的友好提示名称
+const TOOL_DISPLAY_NAMES: Record<ToolType, string> = {
+  chat: '智能问答',
+  ppt: 'PPT生成',
+  podcast: '播客生成',
+  mindmap: '思维导图',
+  video: '视频生成',
+};
+
+export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, onRefresh, onPreview, onDelete, activeTool }: LibraryViewProps) => {
   const [filterType, setFilterType] = useState<'all' | 'embedded'>('all');
   const [isEmbedding, setIsEmbedding] = useState(false);
+
+  // 判断文件是否被当前工具支持
+  const isFileSupported = (file: KnowledgeFile): boolean => {
+    const supportedTypes = TOOL_SUPPORTED_TYPES[activeTool];
+    return supportedTypes.includes(file.type);
+  };
   
   // Embedding Config Modal
   const [showEmbedConfig, setShowEmbedConfig] = useState(false);
@@ -138,6 +163,18 @@ export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, 
 
   return (
     <div className="h-full flex flex-col relative">
+      {/* Tool File Type Hint */}
+      {activeTool !== 'chat' && (
+        <div className="mb-4 bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 flex items-start gap-3">
+          <AlertCircle className="text-blue-400 mt-0.5 flex-shrink-0" size={16} />
+          <div className="text-xs text-blue-300">
+            <span className="font-medium">{TOOL_DISPLAY_NAMES[activeTool]}</span> 当前仅支持
+            <span className="font-semibold"> 文档类型 </span>
+            (PDF/DOCX/PPTX)，其他类型文件已禁用选择。
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex items-center gap-6 mb-6 border-b border-white/10 pb-1">
           <button 
@@ -186,14 +223,18 @@ export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, 
 
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto pb-20 flex-1">
-        {filteredFiles.map(file => (
-          <div 
+        {filteredFiles.map(file => {
+          const isSupported = isFileSupported(file);
+          return (
+          <div
             key={file.id}
             onClick={() => onPreview(file)}
-            className={`group relative p-4 rounded-xl border transition-all cursor-pointer ${
-              selectedIds.has(file.id) 
-                ? 'bg-purple-500/10 border-purple-500/50' 
-                : 'bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10'
+            className={`group relative p-4 rounded-xl border transition-all ${
+              !isSupported
+                ? 'opacity-40 cursor-not-allowed bg-white/5 border-white/5'
+                : selectedIds.has(file.id)
+                  ? 'bg-purple-500/10 border-purple-500/50 cursor-pointer'
+                  : 'bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10 cursor-pointer'
             }`}
           >
             <div className="flex items-start justify-between mb-3">
@@ -202,11 +243,25 @@ export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, 
                 {file.isEmbedded && (
                     <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border border-[#0a0a1a]" title="Embedded"></div>
                 )}
+                {!isSupported && (
+                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500/80 rounded-full border border-[#0a0a1a] flex items-center justify-center" title="当前工具不支持此文件类型">
+                      <X size={10} className="text-white" />
+                    </div>
+                )}
               </div>
-              <div 
-                onClick={(e) => { e.stopPropagation(); onToggleSelect(file.id); }}
-                className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors cursor-pointer hover:border-purple-400 ${
-                  selectedIds.has(file.id) ? 'bg-purple-500 border-purple-500' : 'border-white/20'
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isSupported) {
+                    onToggleSelect(file.id);
+                  }
+                }}
+                className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${
+                  !isSupported
+                    ? 'cursor-not-allowed border-white/10 bg-white/5'
+                    : selectedIds.has(file.id)
+                      ? 'bg-purple-500 border-purple-500 cursor-pointer'
+                      : 'border-white/20 cursor-pointer hover:border-purple-400'
                 }`}
               >
                 {selectedIds.has(file.id) && <div className="w-2 h-2 bg-white rounded-full" />}
@@ -224,7 +279,7 @@ export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, 
 
             {/* Hover Actions */}
             <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-               <button 
+               <button
                  onClick={(e) => handleDelete(file, e)}
                  className="p-1.5 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500 hover:text-white shadow-lg"
                  title="Delete file"
@@ -233,7 +288,8 @@ export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, 
                </button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
       
       {/* Bottom Bar for Vector Embedding */}

@@ -153,14 +153,15 @@ const KnowledgeBase = () => {
         {/* Views */}
         <div className="flex-1 overflow-y-auto p-8">
           {activeSection === 'library' && (
-            <LibraryView 
-              files={files} 
-              selectedIds={selectedIds} 
-              onToggleSelect={handleToggleSelect} 
+            <LibraryView
+              files={files}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
               onGoToUpload={() => setActiveSection('upload')}
               onRefresh={fetchLibraryFiles}
               onPreview={setPreviewFile}
               onDelete={handleDeleteFile}
+              activeTool={activeTool}
             />
           )}
           {activeSection === 'upload' && (
