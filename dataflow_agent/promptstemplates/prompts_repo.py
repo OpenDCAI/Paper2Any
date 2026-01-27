@@ -2463,3 +2463,20 @@ class TableSplitterPrompts:
 
 请返回包含 "tables" 字段的 JSON 对象。
 """
+
+
+# --------------------------------------------------------------------------- #
+# Draw.io 图表生成                                                            #
+# --------------------------------------------------------------------------- #
+class DrawioPrompts:
+    """Draw.io 图表生成相关的提示词模板"""
+
+    # 从 drawio_system_prompt 模块导入模板
+    from dataflow_agent.promptstemplates.drawio_system_prompt import (
+        system_prompt_for_diagram_planner,
+        task_prompt_for_diagram_planner,
+        system_prompt_for_drawio_xml_generator,
+        task_prompt_for_drawio_xml_generator,
+        system_prompt_for_diagram_editor,
+        task_prompt_for_diagram_editor,
+    )

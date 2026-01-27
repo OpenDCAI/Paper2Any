@@ -15,6 +15,10 @@
       "knowledge": "Knowledge Base",
       "files": "My History Files"
     },
+    "sidebar": {
+      "toggle": "Toggle Menu",
+      "navigation": "Navigation"
+    },
     "footer": {
       "ready": "Ready",
       "version": "Paper2Any v1.0.0"

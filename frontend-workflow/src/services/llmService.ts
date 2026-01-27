@@ -9,9 +9,9 @@ import { API_KEY } from '../config/api';
  * @returns Promise that resolves to true if successful, throws error otherwise
  */
 export async function verifyLlmConnection(
-  apiUrl: string, 
-  apiKey: string, 
-  model: string = 'gpt-4o'
+  apiUrl: string,
+  apiKey: string,
+  model: string = 'deepseek-v3.2'
 ): Promise<boolean> {
   // Normalize URL
   let baseUrl = apiUrl.trim();
@@ -25,7 +25,7 @@ export async function verifyLlmConnection(
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
 
     const res = await fetch(verifyUrl, {
       method: 'POST',

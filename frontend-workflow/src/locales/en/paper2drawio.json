@@ -1,0 +1,40 @@
+{
+  "title": "AI Diagram Generator",
+  "subtitle": "Generate draw.io diagrams from papers or text descriptions",
+  "apiConfig": "API Configuration",
+  "apiUrl": "API URL",
+  "apiKey": "API Key",
+  "model": "Model",
+  "inputMode": "Input Mode",
+  "textInput": "Text Input",
+  "uploadPdf": "Upload PDF",
+  "textPlaceholder": "Enter content description to generate diagram...",
+  "uploadPlaceholder": "Click to upload PDF file",
+  "diagramType": "Diagram Type",
+  "auto": "Auto Detect",
+  "flowchart": "Flowchart",
+  "architecture": "Architecture",
+  "sequence": "Sequence Diagram",
+  "mindmap": "Mind Map",
+  "er": "ER Diagram",
+  "generate": "Generate Diagram",
+  "generating": "Generating...",
+  "chatEdit": "Chat Edit",
+  "chatPlaceholder": "Enter edit instruction...",
+  "preview": "Diagram Preview",
+  "export": "Export",
+  "previewPlaceholder": "Preview will appear here after generation",
+  "diagramUpdated": "Diagram updated",
+  "uploadHint": "Supports PDF format, max 50MB",
+  "examples": {
+    "sectionTitle": "Examples",
+    "feishuLink": "View Tutorial",
+    "sectionSubtitle": "Get started with examples",
+    "cards": {
+      "pdfToDiagramTitle": "PDF to Diagram",
+      "pdfToDiagramDesc": "Upload paper PDF and generate professional diagrams",
+      "textToDiagramTitle": "Text to Diagram",
+      "textToDiagramDesc": "Enter text description and quickly generate visual diagrams"
+    }
+  }
+}

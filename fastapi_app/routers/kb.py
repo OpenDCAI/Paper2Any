@@ -5,9 +5,10 @@ from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
 from typing import Optional, List, Dict, Any
 
-from dataflow_agent.state import IntelligentQARequest, IntelligentQAState, KBPodcastRequest, KBPodcastState
+from dataflow_agent.state import IntelligentQARequest, IntelligentQAState, KBPodcastRequest, KBPodcastState, KBMindMapRequest, KBMindMapState
 from dataflow_agent.workflow.wf_intelligent_qa import create_intelligent_qa_graph
 from dataflow_agent.workflow.wf_kb_podcast import create_kb_podcast_graph
+from dataflow_agent.workflow.wf_kb_mindmap import create_kb_mindmap_graph
 from dataflow_agent.utils import get_project_root
 from fastapi_app.config import settings
 from fastapi_app.schemas import Paper2PPTRequest
@@ -331,6 +332,83 @@ async def generate_podcast_from_kb(
             "audio_path": audio_path,
             "script_path": script_path,
             "output_file_id": f"kb_podcast_{int(time.time())}"
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/generate-mindmap")
+async def generate_mindmap_from_kb(
+    file_paths: List[str] = Body(..., embed=True),
+    user_id: str = Body(..., embed=True),
+    email: str = Body(..., embed=True),
+    api_url: str = Body(..., embed=True),
+    api_key: str = Body(..., embed=True),
+    model: str = Body("gpt-4o", embed=True),
+    mindmap_style: str = Body("default", embed=True),
+    max_depth: int = Body(3, embed=True),
+    language: str = Body("zh", embed=True),
+):
+    """
+    Generate mindmap from knowledge base files
+    """
+    try:
+        # Normalize file paths
+        project_root = get_project_root()
+        local_file_paths = []
+
+        for f in file_paths:
+            clean_path = f.lstrip('/')
+            local_path = project_root / clean_path
+
+            if not local_path.exists():
+                local_path = Path(f)
+                if not local_path.exists():
+                    raise HTTPException(status_code=404, detail=f"File not found: {f}")
+
+            local_file_paths.append(str(local_path))
+
+        if not local_file_paths:
+            raise HTTPException(status_code=400, detail="No valid files provided")
+
+        # Prepare request
+        mindmap_req = KBMindMapRequest(
+            files=local_file_paths,
+            chat_api_url=api_url,
+            api_key=api_key,
+            model=model,
+            mindmap_style=mindmap_style,
+            max_depth=max_depth,
+            language=language
+        )
+        mindmap_req.email = email
+
+        state = KBMindMapState(request=mindmap_req)
+
+        # Build and run graph
+        builder = create_kb_mindmap_graph()
+        graph = builder.compile()
+
+        result_state = await graph.ainvoke(state)
+
+        # Extract results
+        mermaid_code = ""
+        result_path = ""
+
+        if isinstance(result_state, dict):
+            mermaid_code = result_state.get("mermaid_code", "")
+            result_path = result_state.get("result_path", "")
+        else:
+            mermaid_code = getattr(result_state, "mermaid_code", "")
+            result_path = getattr(result_state, "result_path", "")
+
+        return {
+            "success": True,
+            "result_path": result_path,
+            "mermaid_code": mermaid_code,
+            "output_file_id": f"kb_mindmap_{int(time.time())}"
         }
 
     except Exception as e:

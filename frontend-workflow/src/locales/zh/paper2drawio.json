@@ -1,0 +1,40 @@
+{
+  "title": "AI 图表生成",
+  "subtitle": "从论文或文本描述生成 draw.io 图表",
+  "apiConfig": "API 配置",
+  "apiUrl": "API 地址",
+  "apiKey": "API 密钥",
+  "model": "模型",
+  "inputMode": "输入模式",
+  "textInput": "文本输入",
+  "uploadPdf": "上传 PDF",
+  "textPlaceholder": "输入要生成图表的内容描述...",
+  "uploadPlaceholder": "点击上传 PDF 文件",
+  "diagramType": "图表类型",
+  "auto": "自动识别",
+  "flowchart": "流程图",
+  "architecture": "架构图",
+  "sequence": "时序图",
+  "mindmap": "思维导图",
+  "er": "ER 图",
+  "generate": "生成图表",
+  "generating": "生成中...",
+  "chatEdit": "对话编辑",
+  "chatPlaceholder": "输入编辑指令...",
+  "preview": "图表预览",
+  "export": "导出",
+  "previewPlaceholder": "生成图表后在此预览",
+  "diagramUpdated": "图表已更新",
+  "uploadHint": "支持 PDF 格式，最大 50MB",
+  "examples": {
+    "sectionTitle": "使用示例",
+    "feishuLink": "查看详细教程",
+    "sectionSubtitle": "参考示例快速上手",
+    "cards": {
+      "pdfToDiagramTitle": "PDF 转图表",
+      "pdfToDiagramDesc": "上传论文 PDF，自动生成专业图表",
+      "textToDiagramTitle": "文本转图表",
+      "textToDiagramDesc": "输入文本描述，快速生成可视化图表"
+    }
+  }
+}

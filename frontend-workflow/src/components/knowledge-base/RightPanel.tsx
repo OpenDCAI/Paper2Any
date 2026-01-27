@@ -29,7 +29,7 @@ export const RightPanel = ({ activeTool, onToolChange, files, selectedIds, onGen
           <PptTool files={files} selectedIds={selectedIds} onGenerateSuccess={onGenerateSuccess} />
         </div>
         <div className={`absolute inset-0 transition-transform duration-300 ease-in-out ${activeTool === 'mindmap' ? 'translate-x-0' : 'translate-x-full opacity-0 pointer-events-none'}`}>
-          <MindMapTool />
+          <MindMapTool files={files} selectedIds={selectedIds} onGenerateSuccess={onGenerateSuccess} />
         </div>
         <div className={`absolute inset-0 transition-transform duration-300 ease-in-out ${activeTool === 'podcast' ? 'translate-x-0' : 'translate-x-full opacity-0 pointer-events-none'}`}>
           <PodcastTool files={files} selectedIds={selectedIds} onGenerateSuccess={onGenerateSuccess} />

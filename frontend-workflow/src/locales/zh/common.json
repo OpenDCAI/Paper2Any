@@ -15,6 +15,10 @@
       "knowledge": "知识库",
       "files": "我的历史文件"
     },
+    "sidebar": {
+      "toggle": "切换菜单",
+      "navigation": "导航"
+    },
     "footer": {
       "ready": "就绪",
       "version": "Paper2Any v1.0.0"

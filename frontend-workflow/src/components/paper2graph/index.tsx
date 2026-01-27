@@ -429,7 +429,7 @@ const Paper2FigurePage = () => {
       try {
         setIsValidating(true);
         setError(null);
-        await verifyLlmConnection(llmApiUrl, apiKey, "gpt-4o");
+        await verifyLlmConnection(llmApiUrl, apiKey, "deepseek-v3.2");
         setIsValidating(false);
 
         setIsLoading(true);

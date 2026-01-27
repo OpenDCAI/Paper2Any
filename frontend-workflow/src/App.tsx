@@ -7,18 +7,21 @@ import Image2PptPage from './components/Image2PptPage';
 import Ppt2PolishPage from './components/Ppt2PolishPage';
 import KnowledgeBasePage from './components/KnowledgeBasePage';
 import { FilesPage } from './components/FilesPage';
+import Paper2DrawioPage from './components/paper2drawio';
 import { AccountPage } from './components/AccountPage';
 import { useTranslation } from 'react-i18next';
 import { PointsDisplay } from './components/PointsDisplay';
 import { UserMenu } from './components/UserMenu';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
-import { Workflow, X } from 'lucide-react';
+import { Workflow, X, Menu } from 'lucide-react';
+import { AppSidebar } from './components/AppSidebar';
 
 function App() {
   const { t } = useTranslation('common');
-  const [activePage, setActivePage] = useState<'paper2figure' | 'paper2ppt' | 'pdf2ppt' | 'image2ppt' | 'ppt2polish' | 'knowledge' | 'files'>('paper2figure');
+  const [activePage, setActivePage] = useState<'paper2figure' | 'paper2ppt' | 'pdf2ppt' | 'image2ppt' | 'ppt2polish' | 'knowledge' | 'files' | 'paper2drawio'>('paper2figure');
   const [showFilesModal, setShowFilesModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="w-screen h-screen bg-[#0a0a1a] overflow-hidden relative">
@@ -30,6 +33,14 @@ function App() {
         <div className="h-full px-6 flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center gap-3">
+            {/* Hamburger Menu Button */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="p-2 rounded-lg glass border border-white/10 text-gray-300 hover:bg-white/10 hover:text-white transition-all duration-200"
+              aria-label={t('app.sidebar.toggle')}
+            >
+              <Menu size={20} />
+            </button>
             <div className="p-2 rounded-lg bg-primary-500/20">
               <Workflow className="text-primary-400" size={24} />
             </div>
@@ -43,80 +54,6 @@ function App() {
 
           {/* 工具栏 */}
           <div className="flex items-center gap-4">
-            {/* 页面切换 Tab */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setActivePage('paper2figure')}
-                className={`px-3 py-1.5 rounded-full text-sm ${
-                  activePage === 'paper2figure'
-                    ? 'bg-primary-500 text-white shadow'
-                    : 'glass text-gray-300 hover:bg-white/10'
-                }`}
-              >
-                {t('app.nav.paper2figure')}
-              </button>
-              <button
-                onClick={() => setActivePage('paper2ppt')}
-                className={`px-3 py-1.5 rounded-full text-sm ${
-                  activePage === 'paper2ppt'
-                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow'
-                    : 'glass text-gray-300 hover:bg-white/10'
-                }`}
-              >
-                {t('app.nav.paper2ppt')}
-              </button>
-              <button
-                onClick={() => setActivePage('pdf2ppt')}
-                className={`px-3 py-1.5 rounded-full text-sm ${
-                  activePage === 'pdf2ppt'
-                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow'
-                    : 'glass text-gray-300 hover:bg-white/10'
-                }`}
-              >
-                {t('app.nav.pdf2ppt')}
-              </button>
-              <button
-                onClick={() => setActivePage('image2ppt')}
-                className={`px-3 py-1.5 rounded-full text-sm ${
-                  activePage === 'image2ppt'
-                    ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow'
-                    : 'glass text-gray-300 hover:bg-white/10'
-                }`}
-              >
-                Image2PPT
-              </button>
-              <button
-                onClick={() => setActivePage('ppt2polish')}
-                className={`px-3 py-1.5 rounded-full text-sm ${
-                  activePage === 'ppt2polish'
-                    ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white shadow'
-                    : 'glass text-gray-300 hover:bg-white/10'
-                }`}
-              >
-                {t('app.nav.ppt2polish')}
-              </button>
-              <button
-                onClick={() => setActivePage('knowledge')}
-                className={`px-3 py-1.5 rounded-full text-sm ${
-                  activePage === 'knowledge'
-                    ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow'
-                    : 'glass text-gray-300 hover:bg-white/10'
-                }`}
-              >
-                {t('app.nav.knowledge')}
-              </button>
-              <button
-                onClick={() => setActivePage('files')}
-                className={`px-3 py-1.5 rounded-full text-sm ${
-                  activePage === 'files'
-                    ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow'
-                    : 'glass text-gray-300 hover:bg-white/10'
-                }`}
-              >
-                {t('app.nav.files')}
-              </button>
-            </div>
-
             {/* 右侧：配额显示 & 用户菜单 */}
             <div className="flex items-center gap-3">
               <LanguageSwitcher />
@@ -131,7 +68,7 @@ function App() {
       </header>
 
       {/* 主内容区 */}
-      <main className="absolute top-16 bottom-0 left-0 right-0 flex">
+      <main className="absolute top-16 bottom-8 left-0 right-0 flex">
         <div className="flex-1">
           {activePage === 'paper2figure' && <Paper2GraphPage />}
           {activePage === 'paper2ppt' && <Paper2PptPage />}
@@ -140,6 +77,7 @@ function App() {
           {activePage === 'ppt2polish' && <Ppt2PolishPage />}
           {activePage === 'knowledge' && <KnowledgeBasePage />}
           {activePage === 'files' && <FilesPage />}
+          {activePage === 'paper2drawio' && <Paper2DrawioPage />}
         </div>
       </main>
 
@@ -197,6 +135,17 @@ function App() {
           </div>
         </div>
       </footer>
+
+      {/* 侧边栏 */}
+      <AppSidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        activePage={activePage}
+        onPageChange={(page) => {
+          setActivePage(page as typeof activePage);
+          setSidebarOpen(false);
+        }}
+      />
     </div>
   );
 }
