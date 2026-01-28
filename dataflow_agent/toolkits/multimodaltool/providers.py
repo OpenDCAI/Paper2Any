@@ -807,6 +807,148 @@ class GoogleNativeProvider(AIProviderStrategy):
     # Native Chat Implementation can also be added here (e.g., converting messages to contents)
 
 
+class ComflyProvider(AIProviderStrategy):
+    """
+    Comfly AI Provider
+    图生图：https://ai.comfly.chat/v1/images/edits
+    文生图：https://ai.comfly.chat/v1/images/generations
+    修改图片/文本处理：https://ai.comfly.chat/v1/chat/completions
+
+    Model Mapping:
+    - gemini-2.5-flash-image -> nano-banana
+    - gemini-3-pro-image-preview -> nano-banana-2-2k
+    """
+
+    def match(self, api_url: str, model: str) -> bool:
+        """Match if the URL contains comfly.chat"""
+        return "comfly.chat" in api_url.lower()
+
+    def _translate_model_name(self, model: str) -> str:
+        """
+        Translate Gemini model names to Comfly-specific model names
+        """
+        model_mapping = {
+            "gemini-2.5-flash-image": "nano-banana",
+            "gemini-3-pro-image-preview": "nano-banana-2-2k",
+        }
+        translated = model_mapping.get(model, model)
+        if translated != model:
+            log.info(f"[ComflyProvider] Translated model: {model} -> {translated}")
+        return translated
+
+    def build_generation_request(self, api_url: str, model: str, prompt: str, **kwargs) -> Tuple[str, Dict[str, Any], bool]:
+        """Build text-to-image generation request"""
+        url = f"{api_url.rstrip('/')}/images/generations"
+
+        # Translate model name for Comfly API
+        translated_model = self._translate_model_name(model)
+
+        size = kwargs.get("size", "1024x1024")
+        quality = kwargs.get("quality", "standard")
+        response_format = kwargs.get("response_format", "b64_json")
+
+        payload = {
+            "model": translated_model,
+            "prompt": prompt,
+            "n": 1,
+            "size": size,
+            "quality": quality,
+            "response_format": response_format,
+        }
+
+        return url, payload, False
+
+    def build_edit_request(
+        self,
+        api_url: str,
+        model: str,
+        prompt: str,
+        image_b64: str,
+        **kwargs
+    ) -> Tuple[str, Dict[str, Any], bool]:
+        """Build image-to-image edit request (multipart format)"""
+        import base64
+        import os
+
+        url = f"{api_url.rstrip('/')}/images/edits"
+
+        # Translate model name for Comfly API
+        translated_model = self._translate_model_name(model)
+
+        # Decode base64 image to binary
+        image_bytes = base64.b64decode(image_b64)
+
+        files = {
+            "image": ("image.png", image_bytes, "image/png")
+        }
+
+        # Handle mask if provided
+        mask_path = kwargs.get("mask_path")
+        if mask_path and os.path.exists(mask_path):
+            with open(mask_path, "rb") as f:
+                mask_bytes = f.read()
+            files["mask"] = (os.path.basename(mask_path), mask_bytes, "image/png")
+
+        # Build form data
+        data = {
+            "model": translated_model,
+            "prompt": prompt,
+            "n": kwargs.get("n", 1),
+            "size": kwargs.get("size", "1024x1024"),
+        }
+
+        # Construct multipart payload
+        payload = {
+            "__is_multipart__": True,
+            "files": files,
+            "data": data
+        }
+
+        return url, payload, False
+
+    def _fix_base64_padding(self, b64_string: str) -> str:
+        """
+        Fix Base64 padding and remove Data URL prefix if present
+
+        Handles formats like: data:image/png;base64,<base64data>
+        """
+        # Remove any whitespace
+        b64_string = b64_string.strip()
+
+        # Check for Data URL format: data:image/png;base64,<base64data>
+        if b64_string.startswith('data:'):
+            comma_index = b64_string.find(',')
+            if comma_index != -1:
+                b64_string = b64_string[comma_index + 1:]
+                log.info(f"[ComflyProvider] Removed Data URL prefix")
+
+        # Calculate padding needed
+        padding_needed = (4 - len(b64_string) % 4) % 4
+
+        if padding_needed > 0:
+            b64_string += '=' * padding_needed
+            log.info(f"[ComflyProvider] Added {padding_needed} padding characters to Base64 string")
+
+        return b64_string
+
+    def parse_generation_response(self, data: Dict[str, Any]) -> str:
+        """Parse generation response and return base64 image"""
+        if "data" in data and len(data["data"]) > 0:
+            item = data["data"][0]
+
+            # Debug: log response structure
+            log.info(f"[ComflyProvider] Response item keys: {list(item.keys())}")
+
+            if "b64_json" in item:
+                b64_string = item["b64_json"]
+                log.info(f"[ComflyProvider] b64_json length: {len(b64_string)}, first 100 chars: {b64_string[:100]}")
+                # Fix Base64 padding if needed
+                return self._fix_base64_padding(b64_string)
+            if "url" in item:
+                log.info(f"[ComflyProvider] Returning URL: {item['url']}")
+                return item["url"]
+        raise RuntimeError(f"Failed to parse Comfly response: {str(data)[:200]}")
+
 # 注册顺序
 STRATEGIES = [
     ApiYiGeminiProvider(),
@@ -814,6 +956,7 @@ STRATEGIES = [
     ApiYiGPTImageProvider(),
     Local123GeminiProvider(),
     OpenAIDalleProvider(),
+    ComflyProvider(),
     # Add GoogleNativeProvider() here if needed
     OpenAICompatGeminiProvider(), # Default Fallback
 ]

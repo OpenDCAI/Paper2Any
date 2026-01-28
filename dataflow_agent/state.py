@@ -266,6 +266,7 @@ class Paper2FigureRequest(MainRequest):
     tech_route_palette: str = ""
 
     input_type: str = "PDF"
+    input_content: str = ""
     #  科研绘图复杂度    
     figure_complex: str = "hard"
     style: str = "kartoon"

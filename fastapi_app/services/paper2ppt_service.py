@@ -94,6 +94,7 @@ paper2ppt 业务 Service 层
 函数级 docstring 里会详细说明每个参数的含义和使用约定。
 """
 
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -191,6 +192,10 @@ class Paper2PPTService:
 
         resp_dict = resp_model.model_dump()
         if request is not None:
+            resp_dict["pagecontent"] = self._convert_pagecontent_paths_to_urls(
+                resp_dict.get("pagecontent", []), request
+            )
+        if request is not None:
             resp_dict["all_output_files"] = self._collect_output_files_as_urls(resp_model.result_path, request)
         else:
             resp_dict["all_output_files"] = []
@@ -241,6 +246,10 @@ class Paper2PPTService:
         )
 
         resp_dict = resp_model.model_dump()
+        if request is not None:
+            resp_dict["pagecontent"] = self._convert_pagecontent_paths_to_urls(
+                resp_dict.get("pagecontent", []), request
+            )
         if request is not None:
             resp_dict["all_output_files"] = self._collect_output_files_as_urls(resp_model.result_path, request)
         else:
@@ -326,6 +335,9 @@ class Paper2PPTService:
                 resp_dict["ppt_pdf_path"] = _to_outputs_url(resp_dict["ppt_pdf_path"], request)
             if resp_dict.get("ppt_pptx_path"):
                 resp_dict["ppt_pptx_path"] = _to_outputs_url(resp_dict["ppt_pptx_path"], request)
+            resp_dict["pagecontent"] = self._convert_pagecontent_paths_to_urls(
+                resp_dict.get("pagecontent", []), request
+            )
 
             resp_dict["all_output_files"] = self._collect_output_files_as_urls(resp_model.result_path, request)
         else:
@@ -377,6 +389,9 @@ class Paper2PPTService:
                 resp_dict["ppt_pdf_path"] = _to_outputs_url(resp_dict["ppt_pdf_path"], request)
             if resp_dict.get("ppt_pptx_path"):
                 resp_dict["ppt_pptx_path"] = _to_outputs_url(resp_dict["ppt_pptx_path"], request)
+            resp_dict["pagecontent"] = self._convert_pagecontent_paths_to_urls(
+                resp_dict.get("pagecontent", []), request
+            )
 
             resp_dict["all_output_files"] = self._collect_output_files_as_urls(resp_model.result_path, request)
         else:
@@ -404,6 +419,42 @@ class Paper2PPTService:
         run_dir = PROJECT_ROOT / BASE_OUTPUT_DIR / code / "paper2ppt" / str(ts)
         run_dir.mkdir(parents=True, exist_ok=True)
         return run_dir
+
+    def _convert_pagecontent_paths_to_urls(
+        self,
+        pagecontent: List[Dict[str, Any]],
+        request: Request,
+    ) -> List[Dict[str, Any]]:
+        """Convert local output paths inside pagecontent to browser-accessible URLs."""
+        if not pagecontent:
+            return pagecontent
+
+        keys = {
+            "ppt_img_path",
+            "generated_img_path",
+            "img_path",
+            "image_path",
+            "path",
+            "source_img_path",
+            "reference_image_path",
+            "asset_ref",
+        }
+
+        for item in pagecontent:
+            if not isinstance(item, dict):
+                continue
+            for key in keys:
+                value = item.get(key)
+                if not value or not isinstance(value, str):
+                    continue
+                # Skip already-normalized URLs
+                if value.startswith("http") or value.startswith("/outputs/"):
+                    continue
+                # Only convert when path is absolute or explicitly points into outputs
+                if os.path.isabs(value) or "/outputs/" in value or value.startswith("outputs/"):
+                    item[key] = _to_outputs_url(value, request)
+
+        return pagecontent
 
     async def _save_reference_image(self, input_dir: Path, reference_img: UploadFile | None) -> Optional[Path]:
         if reference_img is None:

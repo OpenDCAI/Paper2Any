@@ -28,9 +28,38 @@ from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.agentroles import create_vlm_agent
+from dataflow_agent.toolkits.multimodaltool import ppt_tool
 
 log = get_logger(__name__)
 
+# Provider check: fallback to local PaddleOCR when VLM OCR model not available.
+def _use_local_ocr(state: Paper2FigureState) -> bool:
+    chat_api_url = getattr(getattr(state, "request", None), "chat_api_url", "") or ""
+    return "comfly" in chat_api_url.lower()
+
+def _paddle_ocr_lines_to_vlm_items(lines: List[Any], w: int, h: int) -> List[Dict[str, Any]]:
+    items: List[Dict[str, Any]] = []
+    if not lines:
+        return items
+    for line in lines:
+        try:
+            bbox_px, text, conf = line
+            if not bbox_px or len(bbox_px) != 4:
+                continue
+            x1, y1, x2, y2 = bbox_px
+            # Normalize to 0-1 and match VLM bbox order: [y1, x1, y2, x2]
+            y1n = max(0.0, min(1.0, float(y1) / float(h)))
+            x1n = max(0.0, min(1.0, float(x1) / float(w)))
+            y2n = max(0.0, min(1.0, float(y2) / float(h)))
+            x2n = max(0.0, min(1.0, float(x2) / float(w)))
+            items.append({
+                "bbox": [y1n, x1n, y2n, x2n],
+                "text": text or "",
+                "conf": conf,
+            })
+        except Exception:
+            continue
+    return items
 # --- Helpers ---
 
 def _ensure_result_path(state: Paper2FigureState) -> str:
@@ -95,18 +124,27 @@ def create_image2ppt_graph() -> GenericGraphBuilder:
                 temp_state = copy.copy(state)
                 temp_state.result_path = state.result_path
 
-                agent = create_vlm_agent(
-                    name="ImageTextBBoxAgent",
-                    model_name="qwen-vl-ocr-2025-11-20",
-                    chat_api_url=getattr(state.request, "chat_api_url", None),
-                    vlm_mode="understanding",
-                    additional_params={
-                        "input_image": img_path
-                    }
-                )
+                if _use_local_ocr(state):
+                    log.info(f"[image2ppt][OCR] page#{page_idx+1} using local PaddleOCR (comfly)")
+                    ocr_res = await asyncio.to_thread(ppt_tool.paddle_ocr_page_with_layout, img_path)
+                    bbox_res = _paddle_ocr_lines_to_vlm_items(
+                        ocr_res.get("lines", []),
+                        ocr_res.get("image_size", (0, 0))[0] or 1,
+                        ocr_res.get("image_size", (0, 0))[1] or 1,
+                    )
+                else:
+                    agent = create_vlm_agent(
+                        name="ImageTextBBoxAgent",
+                        model_name="qwen-vl-ocr-2025-11-20",
+                        chat_api_url=getattr(state.request, "chat_api_url", None),
+                        vlm_mode="understanding",
+                        additional_params={
+                            "input_image": img_path
+                        }
+                    )
 
-                new_state = await agent.execute(temp_state)
-                bbox_res = getattr(new_state, "bbox_result", [])
+                    new_state = await agent.execute(temp_state)
+                    bbox_res = getattr(new_state, "bbox_result", [])
                 log.info(f"[image2ppt][VLM] page#{page_idx+1} extracted {len(bbox_res)} text items")
                 return {
                     "page_idx": page_idx,

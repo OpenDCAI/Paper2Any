@@ -48,6 +48,35 @@ from pptx.dml.color import RGBColor
 
 log = get_logger(__name__)
 
+# Provider check: fallback to local PaddleOCR when VLM OCR model not available.
+def _use_local_ocr(state: Paper2FigureState) -> bool:
+    chat_api_url = getattr(getattr(state, "request", None), "chat_api_url", "") or ""
+    return "comfly" in chat_api_url.lower()
+
+def _paddle_ocr_lines_to_vlm_items(lines: List[Any], w: int, h: int) -> List[Dict[str, Any]]:
+    items: List[Dict[str, Any]] = []
+    if not lines:
+        return items
+    for line in lines:
+        try:
+            bbox_px, text, conf = line
+            if not bbox_px or len(bbox_px) != 4:
+                continue
+            x1, y1, x2, y2 = bbox_px
+            # Normalize to 0-1 and match VLM bbox order: [y1, x1, y2, x2]
+            y1n = max(0.0, min(1.0, float(y1) / float(h)))
+            x1n = max(0.0, min(1.0, float(x1) / float(w)))
+            y2n = max(0.0, min(1.0, float(y2) / float(h)))
+            x2n = max(0.0, min(1.0, float(x2) / float(w)))
+            items.append({
+                "bbox": [y1n, x1n, y2n, x2n],
+                "text": text or "",
+                "conf": conf,
+            })
+        except Exception:
+            continue
+    return items
+
 # Load configuration from yaml
 def load_server_config():
     root = get_project_root()
@@ -264,37 +293,39 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                 max_retries = 3
                 bbox_res = []
                 
-                for attempt in range(max_retries):
-                    try:
-                        agent = create_vlm_agent(
-                            name="ImageTextBBoxAgent",
-                            model_name=getattr(state.request, "vlm_model", "qwen-vl-ocr-2025-11-20"),
-                            chat_api_url=getattr(state.request, "chat_api_url", None),
-                            vlm_mode="ocr",
-                            additional_params={
-                                "input_image": img_path
-                            }
-                        )
+                if _use_local_ocr(state):
+                    log.info(f"[pdf2ppt_qwenvl][OCR] page#{page_idx+1} using local PaddleOCR (comfly)")
+                    ocr_res = await asyncio.to_thread(ppt_tool.paddle_ocr_page_with_layout, img_path)
+                    bbox_res = _paddle_ocr_lines_to_vlm_items(
+                        ocr_res.get("lines", []),
+                        ocr_res.get("image_size", (0, 0))[0] or 1,
+                        ocr_res.get("image_size", (0, 0))[1] or 1,
+                    )
+                else:
+                    for attempt in range(max_retries):
+                        try:
+                            agent = create_vlm_agent(
+                                name="ImageTextBBoxAgent",
+                                model_name=getattr(state.request, "vlm_model", "qwen-vl-ocr-2025-11-20"),
+                                chat_api_url=getattr(state.request, "chat_api_url", None),
+                                vlm_mode="ocr",
+                                additional_params={
+                                    "input_image": img_path
+                                }
+                            )
 
-                        log.info(f"[pdf2ppt_qwenvl][VLM] page#{page_idx+1} attempt {attempt+1}/{max_retries}...")
-                        new_state = await agent.execute(temp_state)
-                        bbox_res = getattr(new_state, "bbox_result", [])
-                        
-                        # Basic validation: ensure we got a list and it's not empty (unless image is truly blank)
-                        # Here we assume a successful parse returns a list. If it failed to parse, base_agent usually returns error dict or empty.
-                        # We can check if new_state has error info or if bbox_res is valid.
-                        if isinstance(bbox_res, list):
-                            # Success
-                            break
-                        else:
-                            log.warning(f"[pdf2ppt_qwenvl][VLM] page#{page_idx+1} attempt {attempt+1} got invalid result: {type(bbox_res)}")
+                            log.info(f"[pdf2ppt_qwenvl][VLM] page#{page_idx+1} attempt {attempt+1}/{max_retries}...")
+                            new_state = await agent.execute(temp_state)
+                            bbox_res = getattr(new_state, "bbox_result", [])
                             
-                    except Exception as e:
-                        log.warning(f"[pdf2ppt_qwenvl][VLM] page#{page_idx+1} attempt {attempt+1} failed: {e}")
-                        if attempt == max_retries - 1:
-                            raise e
-                        # Continue to retry
-                        await asyncio.sleep(1)
+                            if isinstance(bbox_res, list):
+                                break
+                            log.warning(f"[pdf2ppt_qwenvl][VLM] page#{page_idx+1} attempt {attempt+1} got invalid result: {type(bbox_res)}")
+                        except Exception as e:
+                            log.warning(f"[pdf2ppt_qwenvl][VLM] page#{page_idx+1} attempt {attempt+1} failed: {e}")
+                            if attempt == max_retries - 1:
+                                raise e
+                            await asyncio.sleep(1)
 
                 if not isinstance(bbox_res, list):
                     bbox_res = []
@@ -531,6 +562,7 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
         api_key = req_cfg.get("api_key") or os.getenv("DF_API_KEY")
         api_url = req_cfg.get("chat_api_url") or "https://api.apiyi.com"
         model_name = req_cfg.get("gen_fig_model") or "gemini-3-pro-image-preview"
+        is_comfly = "comfly" in str(api_url).lower()
         
         # 限制并发
         sem = asyncio.Semaphore(3)
@@ -555,7 +587,7 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
             # 将结果路径回写到 pinfo，供后续步骤使用
             pinfo["clean_bg_path"] = str(clean_bg_path)
             
-            if state.use_ai_edit and api_key and no_text_path and os.path.exists(no_text_path):
+            if state.use_ai_edit and not is_comfly and api_key and no_text_path and os.path.exists(no_text_path):
                 ratio_str = "16:9"
                 try:
                     with Image.open(no_text_path) as tmp_img:

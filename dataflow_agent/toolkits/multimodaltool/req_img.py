@@ -278,7 +278,6 @@ async def generate_or_edit_and_save_image_async(
     根据模型类型选择不同的API进行图像生成/编辑
     重构后：使用 Strategy Pattern 自动匹配 Provider
     """
-    
     # 动态调整超时（保留原有针对 Gemini-3 Pro 的逻辑）
     if _is_gemini_model(model) and is_gemini_3_pro(model):
         timeout_map = {"1K": 40, "2K": 180, "4K": 350}

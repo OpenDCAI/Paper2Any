@@ -12,7 +12,7 @@ export const API_KEY = import.meta.env.VITE_API_KEY || 'df-internal-2024-workflo
 export const DEFAULT_LLM_API_URL = import.meta.env.VITE_DEFAULT_LLM_API_URL || 'https://api.apiyi.com/v1';
 
 // List of available LLM API URLs
-export const API_URL_OPTIONS = (import.meta.env.VITE_LLM_API_URLS || 'https://api.apiyi.com/v1,http://b.apiyi.com:16888/v1,http://123.129.219.111:3000/v1').split(',').map((url: string) => url.trim());
+export const API_URL_OPTIONS = (import.meta.env.VITE_LLM_API_URLS || 'https://api.apiyi.com/v1,http://b.apiyi.com:16888/v1,http://123.129.219.111:3000/v1,https://ai.comfly.chat/v1').split(',').map((url: string) => url.trim());
 
 /**
  * Get headers for API calls including the API key.
