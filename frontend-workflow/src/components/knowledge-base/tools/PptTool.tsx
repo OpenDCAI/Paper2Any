@@ -20,18 +20,26 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
     model: 'gpt-5.1',
     gen_fig_model: 'gemini-2.5-flash-image'
   });
+  const [query, setQuery] = useState('');
+  const [needEmbedding, setNeedEmbedding] = useState(false);
 
   const handleGeneratePPT = async () => {
-    if (selectedIds.size !== 1) {
-      alert('请选择且仅选择一个 PDF 文档进行生成。');
+    const selectedFiles = files.filter(f => selectedIds.has(f.id));
+    const docFiles = selectedFiles.filter(f => f.type === 'doc');
+    const imageFiles = selectedFiles.filter(f => f.type === 'image');
+    const validDocFiles = docFiles.filter(f => {
+      const name = f.name.toLowerCase();
+      return name.endsWith('.pdf') || name.endsWith('.pptx') || name.endsWith('.ppt') || name.endsWith('.docx') || name.endsWith('.doc');
+    });
+    const invalidDocFiles = docFiles.filter(f => !validDocFiles.includes(f));
+
+    if (validDocFiles.length === 0) {
+      alert('请至少选择 1 个 PDF/PPTX/DOCX 文档进行生成。');
       return;
     }
-    const fileId = Array.from(selectedIds)[0];
-    const file = files.find(f => f.id === fileId);
-
-    if (!file || file.type !== 'doc' || (!file.name.endsWith('.pdf') && !file.name.endsWith('.PDF'))) {
-       alert('仅支持 PDF 文件生成 PPT。');
-       return;
+    if (invalidDocFiles.length > 0) {
+      alert('当前仅支持 PDF/PPTX/DOCX 文档。');
+      return;
     }
 
     if (!pptParams.api_key) {
@@ -39,8 +47,13 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
       return;
     }
 
-    if (!file.url) {
-      alert('无法获取文件路径，请重新上传文件。');
+    const docPaths = validDocFiles.map(f => f.url).filter(Boolean) as string[];
+    const imageItems = imageFiles
+      .map(f => ({ path: f.url, description: f.desc || '' }))
+      .filter(item => Boolean(item.path));
+
+    if (docPaths.length !== validDocFiles.length) {
+      alert('无法获取文档路径，请重新上传文件。');
       return;
     }
 
@@ -64,7 +77,10 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
           'X-API-Key': API_KEY
         },
         body: JSON.stringify({
-          file_path: file.url,
+          file_paths: docPaths,
+          image_items: imageItems,
+          query: query.trim(),
+          need_embedding: needEmbedding,
           user_id: 'user_id_placeholder',
           email: 'user@example.com',
           api_url: pptParams.api_url,
@@ -89,12 +105,12 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
 
         onGenerateSuccess({
           id: data.output_file_id || 'o' + Date.now(),
-          name: file.name.replace('.pdf', '.pdf'),
+          name: `kb_ppt_${Date.now()}.pptx`,
           type: 'doc',
           size: '未知',
           uploadTime: new Date().toLocaleString(),
           url: data.pdf_path || data.pptx_path,
-          desc: 'Generated PPT from ' + file.name
+          desc: `Generated PPT from ${validDocFiles.length} doc(s)${imageFiles.length ? ` + ${imageFiles.length} image(s)` : ''}`
         });
       } else {
         throw new Error('生成失败');
@@ -114,7 +130,7 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
         <div>
           <h4 className="text-sm font-medium text-purple-300 mb-1">PPT 生成助手</h4>
           <p className="text-xs text-purple-200/70">
-            仅支持选择 1 个 PDF 文档。AI 将自动分析文档结构并生成演示文稿。
+            支持选择多个 PDF/PPTX/DOCX 文档，并可附带图片素材。AI 将自动分析文档结构并生成演示文稿。
           </p>
         </div>
       </div>
@@ -124,8 +140,8 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
         <div>
           <label className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 block">当前选中素材</label>
           <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-sm text-gray-300 flex items-center justify-between">
-            <span className="truncate">{selectedIds.size === 1 ? files.find(f => f.id === Array.from(selectedIds)[0])?.name : '未选择或选择了多个'}</span>
-            {selectedIds.size === 1 ? <CheckCircle2 size={16} className="text-green-500" /> : <X size={16} className="text-red-500" />}
+            <span className="truncate">{selectedIds.size > 0 ? `${selectedIds.size} 个文件` : '未选择'}</span>
+            {selectedIds.size > 0 ? <CheckCircle2 size={16} className="text-green-500" /> : <X size={16} className="text-red-500" />}
           </div>
         </div>
 
@@ -141,6 +157,27 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
               className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-purple-500 font-mono"
             />
           </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300">主题 / Query（可为空）</label>
+            <input
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="例如：模型贡献与实验结果"
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-purple-500"
+            />
+          </div>
+
+          <label className="flex items-center gap-3 text-sm text-gray-300">
+            <input
+              type="checkbox"
+              checked={needEmbedding}
+              onChange={e => setNeedEmbedding(e.target.checked)}
+              className="w-4 h-4 accent-purple-500"
+            />
+            需要向量入库并基于检索生成大纲
+          </label>
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-300">API URL</label>
@@ -247,7 +284,7 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
       <div className="mt-8 pb-8">
         <button
           onClick={handleGeneratePPT}
-          disabled={pptGenerating || selectedIds.size !== 1}
+          disabled={pptGenerating || selectedIds.size === 0}
           className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white py-3.5 rounded-xl font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/20 transition-all transform active:scale-95"
         >
           {pptGenerating ? <Loader2 size={18} className="animate-spin" /> : <Presentation size={18} />}

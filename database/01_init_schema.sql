@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS public.knowledge_base_files (
     file_size BIGINT,
     storage_path TEXT NOT NULL,
     is_embedded BOOLEAN DEFAULT FALSE,
+    kb_file_id TEXT,
     description TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

@@ -2,11 +2,55 @@ from fastapi import APIRouter, HTTPException, Body
 from typing import List, Dict, Optional
 import os
 from pathlib import Path
-from dataflow_agent.toolkits.ragtool.vector_store_tool import process_knowledge_base_files
+from dataflow_agent.toolkits.ragtool.vector_store_tool import process_knowledge_base_files, VectorStoreManager
 from dataflow_agent.utils import get_project_root
 from fastapi_app.config import settings
+from fastapi_app.utils import _to_outputs_url
+from fastapi_app.dependencies.auth import get_supabase_client
 
 router = APIRouter(prefix="/kb", tags=["Knowledge Base Embedding"])
+
+
+def _extract_email_from_path(path_str: str) -> Optional[str]:
+    try:
+        parts = Path(path_str).parts
+        if "kb_data" in parts:
+            idx = parts.index("kb_data")
+            if idx + 1 < len(parts):
+                return parts[idx + 1]
+    except Exception:
+        return None
+    return None
+
+
+def _write_manifest_ids_to_supabase(manifest: Dict[str, Any]) -> None:
+    supabase = get_supabase_client()
+    if not supabase:
+        return
+
+    files = manifest.get("files", []) if isinstance(manifest, dict) else []
+    for f in files:
+        file_id = f.get("id")
+        original_path = f.get("original_path", "")
+        if not file_id or not original_path:
+            continue
+
+        outputs_url = _to_outputs_url(original_path)
+        try:
+            resp = supabase.table("knowledge_base_files").update(
+                {"kb_file_id": file_id}
+            ).eq("storage_path", outputs_url).execute()
+            updated = bool(getattr(resp, "data", None))
+
+            if not updated:
+                email = _extract_email_from_path(original_path)
+                filename = Path(original_path).name
+                if email and filename:
+                    supabase.table("knowledge_base_files").update(
+                        {"kb_file_id": file_id}
+                    ).eq("user_email", email).eq("file_name", filename).execute()
+        except Exception as e:
+            print(f"[kb_embedding] Supabase writeback failed: {e}")
 
 @router.post("/embedding")
 async def create_embedding(
@@ -98,6 +142,11 @@ async def create_embedding(
             video_model=video_model
         )
         
+        try:
+            _write_manifest_ids_to_supabase(manifest)
+        except Exception as e:
+            print(f"[kb_embedding] writeback error: {e}")
+
         return {
             "success": True,
             "message": f"Successfully processed {len(process_list)} files",
@@ -135,5 +184,81 @@ async def list_kb_files(email: Optional[str] = None):
                 "project_name": "kb_project",
                 "files": []
             }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/search")
+async def search_kb(
+    query: str = Body(..., embed=True),
+    top_k: int = Body(5, embed=True),
+    email: Optional[str] = Body(None, embed=True),
+    api_url: Optional[str] = Body(None, embed=True),
+    api_key: Optional[str] = Body(None, embed=True),
+    model_name: Optional[str] = Body(None, embed=True),
+    file_ids: Optional[List[str]] = Body(None, embed=True),
+):
+    """
+    Vector search in knowledge base.
+    Returns matched text (or media description) with source file info.
+    """
+    try:
+        project_root = get_project_root()
+        if email:
+            base_dir = project_root / "outputs" / "kb_data" / email / "vector_store"
+        else:
+            base_dir = project_root / "outputs" / "kb_data" / "vector_store_main"
+
+        kwargs = {"base_dir": str(base_dir)}
+        if api_url:
+            if "/embeddings" not in api_url:
+                api_url = api_url.rstrip("/") + "/embeddings"
+            kwargs["embedding_api_url"] = api_url
+        if api_key:
+            kwargs["api_key"] = api_key
+        if model_name:
+            kwargs["embedding_model"] = model_name
+
+        manager = VectorStoreManager(**kwargs)
+        results = manager.search(query=query, top_k=top_k, file_ids=file_ids)
+
+        # Build lookup for source file metadata
+        manifest = manager.manifest or {"files": []}
+        files_by_id = {f.get("id"): f for f in manifest.get("files", []) if f.get("id")}
+
+        formatted = []
+        for item in results:
+            meta = item.get("metadata", {})
+            source_id = item.get("source_file_id")
+            src = files_by_id.get(source_id, {})
+            src_path = src.get("original_path", "")
+            src_url = _to_outputs_url(src_path) if src_path else ""
+
+            media_path = meta.get("path") or ""
+            media_url = _to_outputs_url(media_path) if media_path else ""
+
+            formatted.append({
+                "score": item.get("score"),
+                "content": item.get("content"),
+                "type": item.get("type"),
+                "source_file": {
+                    "id": source_id,
+                    "file_type": src.get("file_type"),
+                    "original_path": src_path,
+                    "url": src_url
+                },
+                "media": {
+                    "path": media_path,
+                    "url": media_url
+                } if media_path else None,
+                "metadata": meta
+            })
+
+        return {
+            "success": True,
+            "query": query,
+            "top_k": top_k,
+            "results": formatted
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

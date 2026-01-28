@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { KnowledgeFile, ToolType } from './types';
 import { FileText, Image, Video, Link as LinkIcon, Trash2, Search, Filter, X, Eye, Database, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { API_URL_OPTIONS } from '../../config/api';
+import { API_KEY, API_URL_OPTIONS } from '../../config/api';
+import { useAuthStore } from '../../stores/authStore';
 
 interface LibraryViewProps {
   files: KnowledgeFile[];
@@ -18,7 +19,8 @@ interface LibraryViewProps {
 // 定义每个工具支持的文件类型
 const TOOL_SUPPORTED_TYPES: Record<ToolType, string[]> = {
   chat: ['doc', 'image', 'video', 'link'], // Chat 支持所有类型（通过向量检索）
-  ppt: ['doc'], // PPT 生成仅支持 PDF 文档
+  search: ['doc', 'image', 'video', 'link'], // 语义检索支持所有类型
+  ppt: ['doc', 'image'], // PPT 生成支持 PDF/PPTX + 图片
   podcast: ['doc'], // Podcast 仅支持文档类型（PDF/DOCX/PPTX）
   mindmap: ['doc'], // MindMap 暂定支持文档
   video: ['doc', 'image', 'video'], // Video 暂定支持多种类型
@@ -27,18 +29,41 @@ const TOOL_SUPPORTED_TYPES: Record<ToolType, string[]> = {
 // 获取工具的友好提示名称
 const TOOL_DISPLAY_NAMES: Record<ToolType, string> = {
   chat: '智能问答',
+  search: '语义检索',
   ppt: 'PPT生成',
   podcast: '播客生成',
   mindmap: '思维导图',
   video: '视频生成',
 };
 
+const TOOL_HINTS: Record<ToolType, string> = {
+  chat: '',
+  search: '语义检索无需选择文件，但仅支持已入库的素材。',
+  ppt: 'PPT 生成支持 PDF / PPTX / DOCX 文档和图片素材；文档可多选并合并。',
+  podcast: '播客生成仅支持文档类型（PDF/DOCX/PPTX）。',
+  mindmap: '思维导图当前仅支持文档类型。',
+  video: '视频生成支持文档、图片和视频素材。',
+};
+
 export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, onRefresh, onPreview, onDelete, activeTool }: LibraryViewProps) => {
+  const { user } = useAuthStore();
   const [filterType, setFilterType] = useState<'all' | 'embedded'>('all');
   const [isEmbedding, setIsEmbedding] = useState(false);
+  const [showManifest, setShowManifest] = useState(false);
+  const [manifestLoading, setManifestLoading] = useState(false);
+  const [manifestData, setManifestData] = useState<any>(null);
+  const [manifestError, setManifestError] = useState('');
 
   // 判断文件是否被当前工具支持
   const isFileSupported = (file: KnowledgeFile): boolean => {
+    if (activeTool === 'ppt') {
+      if (file.type === 'image') return true;
+      if (file.type === 'doc') {
+        const name = file.name.toLowerCase();
+        return name.endsWith('.pdf') || name.endsWith('.pptx') || name.endsWith('.ppt') || name.endsWith('.docx') || name.endsWith('.doc');
+      }
+      return false;
+    }
     const supportedTypes = TOOL_SUPPORTED_TYPES[activeTool];
     return supportedTypes.includes(file.type);
   };
@@ -88,6 +113,32 @@ export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, 
     } catch (err) {
       console.error('Bulk delete error:', err);
       alert('Delete failed');
+    }
+  };
+
+  const openManifest = async () => {
+    setShowManifest(true);
+    if (!user?.email) {
+      setManifestError('未检测到用户信息，请先登录。');
+      return;
+    }
+    setManifestLoading(true);
+    setManifestError('');
+    try {
+      const res = await fetch(`/api/v1/kb/list?email=${encodeURIComponent(user.email)}`, {
+        headers: {
+          'X-API-Key': API_KEY
+        }
+      });
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+      const data = await res.json();
+      setManifestData(data);
+    } catch (err: any) {
+      setManifestError(err?.message || '获取结构化清单失败');
+    } finally {
+      setManifestLoading(false);
     }
   };
 
@@ -164,13 +215,11 @@ export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, 
   return (
     <div className="h-full flex flex-col relative">
       {/* Tool File Type Hint */}
-      {activeTool !== 'chat' && (
+      {TOOL_HINTS[activeTool] && (
         <div className="mb-4 bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 flex items-start gap-3">
           <AlertCircle className="text-blue-400 mt-0.5 flex-shrink-0" size={16} />
           <div className="text-xs text-blue-300">
-            <span className="font-medium">{TOOL_DISPLAY_NAMES[activeTool]}</span> 当前仅支持
-            <span className="font-semibold"> 文档类型 </span>
-            (PDF/DOCX/PPTX)，其他类型文件已禁用选择。
+            <span className="font-medium">{TOOL_DISPLAY_NAMES[activeTool]}</span>：{TOOL_HINTS[activeTool]}
           </div>
         </div>
       )}
@@ -211,7 +260,13 @@ export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, 
           <button className="p-2 text-gray-400 hover:text-white bg-white/5 rounded-lg border border-white/10">
             <Filter size={18} />
           </button>
-          
+          <button
+            onClick={openManifest}
+            className="p-2 text-gray-400 hover:text-white bg-white/5 rounded-lg border border-white/10"
+            title="结构化清单"
+          >
+            <Database size={18} />
+          </button>
         </div>
         <button 
           onClick={onGoToUpload}
@@ -398,6 +453,57 @@ export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, 
                     </button>
                 </div>
             </div>
+        </div>
+      )}
+
+      {/* Manifest Modal */}
+      {showManifest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowManifest(false)}>
+          <div className="bg-[#0a0a1a] border border-white/10 rounded-xl p-6 w-full max-w-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-white flex items-center gap-2">
+                <Database className="text-purple-500" />
+                知识库结构化清单
+              </h3>
+              <button
+                onClick={() => setShowManifest(false)}
+                className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {manifestLoading && (
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <Loader2 className="animate-spin" size={16} /> 加载中...
+              </div>
+            )}
+
+            {manifestError && (
+              <div className="text-sm text-red-400 mb-4">{manifestError}</div>
+            )}
+
+            {manifestData && (
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                <div className="text-xs text-gray-400">
+                  项目：{manifestData.project_name || 'kb_project'} • 文件数：{manifestData.files?.length || 0}
+                </div>
+                {(manifestData.files || []).map((f: any) => (
+                  <div key={f.id} className="bg-white/5 border border-white/10 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-white truncate">{f.original_path?.split('/').pop() || f.id}</div>
+                      <span className="text-xs text-gray-400">{f.file_type || 'unknown'}</span>
+                    </div>
+                    <div className="mt-2 text-xs text-gray-500 flex items-center gap-4">
+                      <span>状态：{f.status || 'unknown'}</span>
+                      <span>文本块：{f.chunks_count ?? 0}</span>
+                      <span>多模态描述：{f.media_desc_count ?? 0}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

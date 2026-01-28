@@ -316,7 +316,7 @@ const Paper2PptPage = () => {
         // Step 0: Verify LLM Connection first
         setIsValidating(true);
         setError(null);
-        await verifyLlmConnection(llmApiUrl, apiKey, 'deepseek-v3.2');
+        await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || 'deepseek-v3.2');
         setIsValidating(false);
     } catch (err) {
         setIsValidating(false);

@@ -46,6 +46,7 @@ const KnowledgeBase = () => {
         size: formatSize(row.file_size),
         uploadTime: new Date(row.created_at).toLocaleString(),
         isEmbedded: row.is_embedded,
+        kbFileId: row.kb_file_id,
         desc: row.description,
         url: row.storage_path.includes('/outputs') ? row.storage_path : `/outputs/kb_data/${user?.email}/${row.file_name}`
       }));

@@ -429,7 +429,7 @@ const Paper2FigurePage = () => {
       try {
         setIsValidating(true);
         setError(null);
-        await verifyLlmConnection(llmApiUrl, apiKey, "deepseek-v3.2");
+        await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || "deepseek-v3.2");
         setIsValidating(false);
 
         setIsLoading(true);
@@ -591,7 +591,7 @@ const Paper2FigurePage = () => {
       // Step 0: Verify LLM Connection first
       setIsValidating(true);
       setError(null);
-      await verifyLlmConnection(llmApiUrl, apiKey, "gpt-4o");
+      await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || "gpt-4o");
       setIsValidating(false);
 
       setIsLoading(true);
