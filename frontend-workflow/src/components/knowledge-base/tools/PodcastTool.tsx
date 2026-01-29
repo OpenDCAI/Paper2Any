@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Headphones, Loader2, CheckCircle2, X } from 'lucide-react';
 import { API_KEY, API_URL_OPTIONS } from '../../../config/api';
 import { KnowledgeFile } from '../types';
+import { getApiSettings } from '../../../services/apiSettingsService';
+import { useAuthStore } from '../../../stores/authStore';
 
 interface PodcastToolProps {
   files: KnowledgeFile[];
@@ -10,6 +12,7 @@ interface PodcastToolProps {
 }
 
 export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: PodcastToolProps) => {
+  const { user } = useAuthStore();
   const [podcastGenerating, setPodcastGenerating] = useState(false);
   const [podcastParams, setPodcastParams] = useState({
     api_key: '',
@@ -20,7 +23,23 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
     language: 'zh'
   });
 
+  useEffect(() => {
+    const settings = getApiSettings(user?.id || null);
+    if (settings) {
+      setPodcastParams(prev => ({
+        ...prev,
+        api_key: settings.apiKey || prev.api_key,
+        api_url: settings.apiUrl || prev.api_url
+      }));
+    }
+  }, [user?.id]);
+
   const handleGeneratePodcast = async () => {
+    if (!user?.id || !user?.email) {
+      alert('请先登录后再生成播客。');
+      return;
+    }
+
     if (selectedIds.size === 0) {
       alert('请至少选择一个文件进行播客生成。');
       return;
@@ -50,8 +69,8 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
         },
         body: JSON.stringify({
           file_paths: filePaths,
-          user_id: 'user_id_placeholder',
-          email: 'user@example.com',
+          user_id: user.id,
+          email: user.email,
           api_url: podcastParams.api_url,
           api_key: podcastParams.api_key,
           model: podcastParams.model,

@@ -222,11 +222,8 @@ async def chat_with_kb(
         
         state = IntelligentQAState(request=req)
         
-        # Build and Run Graph
-        builder = create_intelligent_qa_graph()
-        graph = builder.compile()
-        
-        result_state = await graph.ainvoke(state)
+        # Run workflow via registry (统一使用 run_workflow)
+        result_state = await run_workflow("intelligent_qa", state)
         
         # graph.ainvoke returns the final state dict or state object depending on implementation.
         # LangGraph usually returns dict. But our GenericGraphBuilder wrapper might return state.
@@ -503,11 +500,8 @@ async def generate_podcast_from_kb(
 
         state = KBPodcastState(request=podcast_req)
 
-        # Build and run graph
-        builder = create_kb_podcast_graph()
-        graph = builder.compile()
-
-        result_state = await graph.ainvoke(state)
+        # Run workflow via registry (统一使用 run_workflow)
+        result_state = await run_workflow("kb_podcast", state)
 
         # Extract results
         audio_path = ""
@@ -524,11 +518,15 @@ async def generate_podcast_from_kb(
         if result_path:
             script_path = str(Path(result_path) / "script.txt")
 
+        audio_url = _to_outputs_url(audio_path) if audio_path else ""
+        script_url = _to_outputs_url(script_path) if script_path else ""
+        result_url = _to_outputs_url(result_path) if result_path else ""
+
         return {
             "success": True,
-            "result_path": result_path,
-            "audio_path": audio_path,
-            "script_path": script_path,
+            "result_path": result_url,
+            "audio_path": audio_url,
+            "script_path": script_url,
             "output_file_id": f"kb_podcast_{int(time.time())}"
         }
 
@@ -585,11 +583,8 @@ async def generate_mindmap_from_kb(
 
         state = KBMindMapState(request=mindmap_req)
 
-        # Build and run graph
-        builder = create_kb_mindmap_graph()
-        graph = builder.compile()
-
-        result_state = await graph.ainvoke(state)
+        # Run workflow via registry (统一使用 run_workflow)
+        result_state = await run_workflow("kb_mindmap", state)
 
         # Extract results
         mermaid_code = ""
@@ -602,13 +597,65 @@ async def generate_mindmap_from_kb(
             mermaid_code = getattr(result_state, "mermaid_code", "")
             result_path = getattr(result_state, "result_path", "")
 
+        mindmap_path = ""
+        if result_path:
+            mmd_path = Path(result_path) / "mindmap.mmd"
+            if (not mmd_path.exists()) and mermaid_code:
+                try:
+                    mmd_path.write_text(mermaid_code, encoding="utf-8")
+                except Exception:
+                    pass
+            if mmd_path.exists():
+                mindmap_path = _to_outputs_url(str(mmd_path))
+
         return {
             "success": True,
-            "result_path": result_path,
+            "result_path": _to_outputs_url(result_path) if result_path else "",
             "mermaid_code": mermaid_code,
+            "mindmap_path": mindmap_path,
             "output_file_id": f"kb_mindmap_{int(time.time())}"
         }
 
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/save-mindmap")
+async def save_mindmap_to_file(
+    file_url: str = Body(..., embed=True),
+    content: str = Body(..., embed=True),
+):
+    """
+    Save edited Mermaid mindmap code back to the output file.
+    """
+    try:
+        if not file_url:
+            raise HTTPException(status_code=400, detail="File URL is required")
+
+        local_path = Path(_from_outputs_url(file_url))
+        if not local_path.is_absolute():
+            local_path = (get_project_root() / local_path).resolve()
+
+        outputs_root = (get_project_root() / "outputs").resolve()
+        try:
+            local_path.relative_to(outputs_root)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid output path")
+
+        if local_path.suffix.lower() not in {".mmd", ".mermaid", ".md"}:
+            raise HTTPException(status_code=400, detail="Invalid mindmap file type")
+
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        local_path.write_text(content or "", encoding="utf-8")
+
+        return {
+            "success": True,
+            "mindmap_path": _to_outputs_url(str(local_path))
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()

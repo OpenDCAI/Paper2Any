@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BrainCircuit, Loader2, CheckCircle2, X } from 'lucide-react';
 import { API_KEY, API_URL_OPTIONS } from '../../../config/api';
 import { KnowledgeFile } from '../types';
 import { MermaidPreview } from './MermaidPreview';
+import { getApiSettings } from '../../../services/apiSettingsService';
+import { useAuthStore } from '../../../stores/authStore';
 
 interface MindMapToolProps {
   files: KnowledgeFile[];
@@ -11,6 +13,7 @@ interface MindMapToolProps {
 }
 
 export const MindMapTool = ({ files = [], selectedIds, onGenerateSuccess }: MindMapToolProps) => {
+  const { user } = useAuthStore();
   const [mindmapGenerating, setMindmapGenerating] = useState(false);
   const [generatedMermaidCode, setGeneratedMermaidCode] = useState('');
   const [showPreview, setShowPreview] = useState(false);
@@ -23,7 +26,23 @@ export const MindMapTool = ({ files = [], selectedIds, onGenerateSuccess }: Mind
     language: 'zh'
   });
 
+  useEffect(() => {
+    const settings = getApiSettings(user?.id || null);
+    if (settings) {
+      setMindmapParams(prev => ({
+        ...prev,
+        api_key: settings.apiKey || prev.api_key,
+        api_url: settings.apiUrl || prev.api_url
+      }));
+    }
+  }, [user?.id]);
+
   const handleGenerateMindMap = async () => {
+    if (!user?.id || !user?.email) {
+      alert('请先登录后再生成思维导图。');
+      return;
+    }
+
     if (selectedIds.size === 0) {
       alert('请至少选择一个文件进行思维导图生成。');
       return;
@@ -54,8 +73,8 @@ export const MindMapTool = ({ files = [], selectedIds, onGenerateSuccess }: Mind
         },
         body: JSON.stringify({
           file_paths: filePaths,
-          user_id: 'user_id_placeholder',
-          email: 'user@example.com',
+          user_id: user.id,
+          email: user.email,
           api_url: mindmapParams.api_url,
           api_key: mindmapParams.api_key,
           model: mindmapParams.model,
@@ -76,6 +95,7 @@ export const MindMapTool = ({ files = [], selectedIds, onGenerateSuccess }: Mind
         setGeneratedMermaidCode(data.mermaid_code);
         setShowPreview(true);
         alert('思维导图生成成功！');
+        const fallbackPath = data.result_path ? `${data.result_path.replace(/\/$/, '')}/mindmap.mmd` : '';
 
         onGenerateSuccess({
           id: data.output_file_id || 'o' + Date.now(),
@@ -83,7 +103,7 @@ export const MindMapTool = ({ files = [], selectedIds, onGenerateSuccess }: Mind
           type: 'doc',
           size: '未知',
           uploadTime: new Date().toLocaleString(),
-          url: data.result_path,
+          url: data.mindmap_path || fallbackPath || data.result_path,
           desc: `MindMap from ${selectedFiles.length} file(s)`
         });
       } else {

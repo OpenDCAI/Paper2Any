@@ -1,4 +1,4 @@
-export type MaterialType = 'image' | 'doc' | 'video' | 'link';
+export type MaterialType = 'image' | 'doc' | 'video' | 'link' | 'audio';
 
 export interface KnowledgeFile {
   id: string;
@@ -24,5 +24,5 @@ export interface ChatMessage {
   }[];
 }
 
-export type SectionType = 'library' | 'upload' | 'output';
+export type SectionType = 'library' | 'upload' | 'output' | 'settings';
 export type ToolType = 'chat' | 'ppt' | 'mindmap' | 'podcast' | 'video' | 'search';

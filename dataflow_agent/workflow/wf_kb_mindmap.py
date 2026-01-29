@@ -9,9 +9,8 @@ from dataflow_agent.workflow.registry import register
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import KBMindMapState, MainState
-from dataflow_agent.agentroles import create_simple_agent
+from dataflow_agent.agentroles import create_agent
 from dataflow_agent.utils import get_project_root
-from langchain_core.messages import HumanMessage
 
 log = get_logger(__name__)
 
@@ -36,6 +35,17 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
     3. Generate Mermaid mindmap syntax using LLM
     """
     builder = GenericGraphBuilder(state_model=KBMindMapState, entry_point="_start_")
+
+    def _extract_text_result(state: MainState, role_name: str) -> str:
+        try:
+            result = state.agent_results.get(role_name, {}).get("results", {})
+            if isinstance(result, dict):
+                return result.get("text") or result.get("raw") or ""
+            if isinstance(result, str):
+                return result
+        except Exception:
+            return ""
+        return ""
 
     def _start_(state: KBMindMapState) -> KBMindMapState:
         # Ensure request fields
@@ -176,22 +186,18 @@ def create_kb_mindmap_graph() -> GenericGraphBuilder:
 请输出层级化的知识结构："""
 
         try:
-            agent = create_simple_agent(
-                name="structure_analyzer",
+            agent = create_agent(
+                name="kb_prompt_agent",
                 model_name=state.request.model,
                 chat_api_url=state.request.chat_api_url,
-                temperature=0.3
+                temperature=0.3,
+                parser_type="text"
             )
 
             temp_state = MainState(request=state.request)
-            temp_state.messages = [HumanMessage(content=prompt)]
+            res_state = await agent.execute(temp_state, prompt=prompt)
 
-            res_state = await agent.execute(temp_state)
-
-            if res_state.messages and res_state.messages[-1].type == "ai":
-                state.content_structure = res_state.messages[-1].content
-            else:
-                state.content_structure = "[Structure analysis failed]"
+            state.content_structure = _extract_text_result(res_state, "kb_prompt_agent") or "[Structure analysis failed]"
         except Exception as e:
             log.error(f"Structure analysis failed: {e}")
             state.content_structure = f"[Structure analysis error: {e}]"
@@ -234,20 +240,19 @@ mindmap
 请生成Mermaid mindmap代码："""
 
         try:
-            agent = create_simple_agent(
-                name="mermaid_generator",
+            agent = create_agent(
+                name="kb_prompt_agent",
                 model_name=state.request.model,
                 chat_api_url=state.request.chat_api_url,
-                temperature=0.5
+                temperature=0.5,
+                parser_type="text"
             )
 
             temp_state = MainState(request=state.request)
-            temp_state.messages = [HumanMessage(content=prompt)]
+            res_state = await agent.execute(temp_state, prompt=prompt)
 
-            res_state = await agent.execute(temp_state)
-
-            if res_state.messages and res_state.messages[-1].type == "ai":
-                mermaid_raw = res_state.messages[-1].content
+            mermaid_raw = _extract_text_result(res_state, "kb_prompt_agent")
+            if mermaid_raw:
                 # Extract mermaid code from markdown code blocks if present
                 if "```" in mermaid_raw:
                     lines = mermaid_raw.split("\n")

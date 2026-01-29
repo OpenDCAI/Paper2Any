@@ -1,4 +1,4 @@
-import { Grid, UploadCloud, Presentation, Bot, Settings2 } from 'lucide-react';
+import { Grid, UploadCloud, Presentation, Settings2 } from 'lucide-react';
 import { SectionType } from './types';
 
 interface SidebarProps {
@@ -35,6 +35,7 @@ export const Sidebar = ({ activeSection, onSectionChange, filesCount, outputCoun
         <SidebarItem id="upload" label="上传文件" icon={UploadCloud} />
         <div className="h-px bg-white/5 my-4 mx-2" />
         <SidebarItem id="output" label="知识产出" icon={Presentation} count={outputCount} />
+        <SidebarItem id="settings" label="API 设置" icon={Settings2} />
       </nav>
     </div>
   );

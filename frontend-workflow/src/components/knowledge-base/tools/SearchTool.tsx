@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Search, Loader2, FileText, Image as ImageIcon, Video as VideoIcon, ExternalLink } from 'lucide-react';
 import { API_KEY, API_URL_OPTIONS } from '../../../config/api';
 import { useAuthStore } from '../../../stores/authStore';
+import { getApiSettings } from '../../../services/apiSettingsService';
 
 interface SearchResult {
   score: number;
@@ -35,6 +36,14 @@ export const SearchTool = ({ files = [], selectedIds = new Set() }: SearchToolPr
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const settings = getApiSettings(user?.id || null);
+    if (settings) {
+      setApiUrl(settings.apiUrl || apiUrl);
+      setApiKey(settings.apiKey || apiKey);
+    }
+  }, [user?.id]);
 
   const getMediaKind = (url?: string) => {
     if (!url) return null;

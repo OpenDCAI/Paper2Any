@@ -4,9 +4,10 @@ import { FileText, Download, ExternalLink, Clock, Headphones } from 'lucide-reac
 interface OutputViewProps {
   files: KnowledgeFile[];
   onGoToTool: (tool: ToolType) => void;
+  onPreview: (file: KnowledgeFile) => void;
 }
 
-export const OutputView = ({ files, onGoToTool }: OutputViewProps) => {
+export const OutputView = ({ files, onGoToTool, onPreview }: OutputViewProps) => {
   const getFileIcon = (type: string) => {
     switch (type) {
       case 'audio':
@@ -46,7 +47,11 @@ export const OutputView = ({ files, onGoToTool }: OutputViewProps) => {
       {files.map(file => {
         const color = getFileColor(file.type);
         return (
-          <div key={file.id} className={`bg-white/5 border border-white/10 rounded-xl p-4 hover:border-${color}-500/30 transition-all`}>
+          <div
+            key={file.id}
+            onClick={() => onPreview(file)}
+            className={`bg-white/5 border border-white/10 rounded-xl p-4 hover:border-${color}-500/30 transition-all cursor-pointer`}
+          >
             <div className="flex items-start justify-between mb-4">
               <div className={`p-2 bg-${color}-500/10 rounded-lg`}>
                 {getFileIcon(file.type)}
@@ -67,12 +72,17 @@ export const OutputView = ({ files, onGoToTool }: OutputViewProps) => {
               <div className="flex gap-2">
                 <a
                   href={file.url}
+                  onClick={(e) => e.stopPropagation()}
                   className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                   title="Download"
                 >
                   <Download size={16} />
                 </a>
                 <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPreview(file);
+                  }}
                   className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                   title="View"
                 >

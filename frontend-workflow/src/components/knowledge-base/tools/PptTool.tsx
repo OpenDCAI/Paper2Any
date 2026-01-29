@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Presentation, Loader2, CheckCircle2, X } from 'lucide-react';
 import { API_KEY, API_URL_OPTIONS } from '../../../config/api';
 import { KnowledgeFile } from '../types';
+import { getApiSettings } from '../../../services/apiSettingsService';
+import { useAuthStore } from '../../../stores/authStore';
 
 interface PptToolProps {
   files: KnowledgeFile[];
@@ -10,6 +12,7 @@ interface PptToolProps {
 }
 
 export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps) => {
+  const { user } = useAuthStore();
   const [pptGenerating, setPptGenerating] = useState(false);
   const [pptParams, setPptParams] = useState({
     api_key: '',
@@ -23,7 +26,23 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
   const [query, setQuery] = useState('');
   const [needEmbedding, setNeedEmbedding] = useState(false);
 
+  useEffect(() => {
+    const settings = getApiSettings(user?.id || null);
+    if (settings) {
+      setPptParams(prev => ({
+        ...prev,
+        api_key: settings.apiKey || prev.api_key,
+        api_url: settings.apiUrl || prev.api_url
+      }));
+    }
+  }, [user?.id]);
+
   const handleGeneratePPT = async () => {
+    if (!user?.id || !user?.email) {
+      alert('请先登录后再生成 PPT。');
+      return;
+    }
+
     const selectedFiles = files.filter(f => selectedIds.has(f.id));
     const docFiles = selectedFiles.filter(f => f.type === 'doc');
     const imageFiles = selectedFiles.filter(f => f.type === 'image');
@@ -81,8 +100,8 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
           image_items: imageItems,
           query: query.trim(),
           need_embedding: needEmbedding,
-          user_id: 'user_id_placeholder',
-          email: 'user@example.com',
+          user_id: user.id,
+          email: user.email,
           api_url: pptParams.api_url,
           api_key: pptParams.api_key,
           style: getStyleDescription(pptParams.style_preset),

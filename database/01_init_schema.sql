@@ -142,6 +142,9 @@ ON public.knowledge_base_files
 FOR DELETE
 USING (auth.uid() = user_id);
 
+-- Grant table privileges to authenticated role (required in addition to RLS)
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.knowledge_base_files TO authenticated;
+
 -- ==============================================================================
 -- Table: profiles
 -- Stores user profiles with invite codes.

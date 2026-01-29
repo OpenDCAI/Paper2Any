@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import re
 import asyncio
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -9,10 +10,9 @@ from dataflow_agent.workflow.registry import register
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import IntelligentQAState, MainState
-from dataflow_agent.agentroles import create_vlm_agent, create_simple_agent
+from dataflow_agent.agentroles import create_vlm_agent, create_agent
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.promptstemplates.resources.pt_qa_agent_repo import QaAgent as QaAgentPrompts
-from langchain_core.messages import HumanMessage
 
 log = get_logger(__name__)
 
@@ -38,6 +38,17 @@ def create_intelligent_qa_graph() -> GenericGraphBuilder:
     """
     builder = GenericGraphBuilder(state_model=IntelligentQAState, entry_point="_start_")
 
+    def _extract_text_result(state: MainState, role_name: str) -> str:
+        try:
+            result = state.agent_results.get(role_name, {}).get("results", {})
+            if isinstance(result, dict):
+                return result.get("text") or result.get("raw") or ""
+            if isinstance(result, str):
+                return result
+        except Exception:
+            return ""
+        return ""
+
     def _start_(state: IntelligentQAState) -> IntelligentQAState:
         # Ensure request fields
         if not state.request.files:
@@ -56,6 +67,24 @@ def create_intelligent_qa_graph() -> GenericGraphBuilder:
         if not files:
             state.context_content = ""
             return state
+        
+        def _infer_target_files(query: str, file_paths: List[str]) -> List[str]:
+            if not query:
+                return []
+            q = query.lower()
+            q_compact = re.sub(r"\s+", "", q)
+            matches: List[str] = []
+            for path in file_paths:
+                name = Path(path).name.lower()
+                stem = Path(path).stem.lower()
+                name_compact = re.sub(r"\s+", "", name)
+                stem_compact = re.sub(r"\s+", "", stem)
+                if name in q or stem in q or name_compact in q_compact or stem_compact in q_compact:
+                    matches.append(path)
+            return matches
+
+        target_files = _infer_target_files(state.request.query or "", files)
+        files_to_process = target_files if target_files else files
 
         async def process_file(file_path: str) -> Dict[str, Any]:
             file_path_obj = Path(file_path)
@@ -148,26 +177,28 @@ def create_intelligent_qa_graph() -> GenericGraphBuilder:
                         input_key = "input_video"
 
                     try:
-                        # Create VLM Agent
+                        vlm_prompt = QaAgentPrompts.file_analysis_prompt.format(
+                            filename=filename,
+                            file_type="media",
+                            content="[Media content attached]",
+                            query=state.request.query
+                        )
+
                         agent = create_vlm_agent(
-                            name=f"vlm_analyzer_{filename}",
+                            name="kb_vlm_prompt_agent",
                             vlm_mode=vlm_mode,
                             model_name="gemini-2.5-flash",
                             chat_api_url=state.request.chat_api_url,
+                            parser_type="text",
                             additional_params={input_key: file_path}
                         )
 
-                        # Construct Prompt for VLM
-                        # We ask it to describe AND relate to user query
-                        vlm_prompt = f"Please analyze this media content. User Question: {state.request.query}. Describe relevant details."
-
                         temp_state = MainState(request=state.request)
-                        temp_state.messages = [HumanMessage(content=vlm_prompt)]
+                        temp_state.temp_data["kb_vlm_prompt"] = vlm_prompt
 
                         res_state = await agent.execute(temp_state)
-
-                        if res_state.messages and res_state.messages[-1].type == "ai":
-                            analysis_result = res_state.messages[-1].content
+                        analysis_result = _extract_text_result(res_state, "kb_vlm_prompt_agent")
+                        if analysis_result:
                             raw_content = "[Media Content Processed by VLM]"
                         else:
                             analysis_result = "[VLM returned no content]"
@@ -191,21 +222,19 @@ def create_intelligent_qa_graph() -> GenericGraphBuilder:
                                 query=state.request.query
                             )
 
-                            agent = create_simple_agent(
-                                name=f"text_analyzer_{filename}",
+                            agent = create_agent(
+                                name="kb_prompt_agent",
                                 model_name=state.request.model,
                                 chat_api_url=state.request.chat_api_url,
-                                temperature=0.3
+                                temperature=0.3,
+                                parser_type="text"
                             )
 
                             temp_state = MainState(request=state.request)
-                            temp_state.messages = [HumanMessage(content=analysis_prompt)]
+                            res_state = await agent.execute(temp_state, prompt=analysis_prompt)
 
-                            res_state = await agent.execute(temp_state)
-
-                            if res_state.messages and res_state.messages[-1].type == "ai":
-                                analysis_result = res_state.messages[-1].content
-                            else:
+                            analysis_result = _extract_text_result(res_state, "kb_prompt_agent")
+                            if not analysis_result:
                                 analysis_result = "[LLM Analysis Failed]"
                         except Exception as e:
                             log.error(f"Text analysis failed for {filename}: {e}")
@@ -223,7 +252,7 @@ def create_intelligent_qa_graph() -> GenericGraphBuilder:
             }
 
         # Run in parallel
-        tasks = [process_file(f) for f in files]
+        tasks = [process_file(f) for f in files_to_process]
         results = await asyncio.gather(*tasks)
         
         state.file_analyses = results
@@ -251,23 +280,17 @@ def create_intelligent_qa_graph() -> GenericGraphBuilder:
             history=history_str
         )
         
-        # Use QA Agent for Final Answer
-        agent = create_qa_agent(
+        agent = create_agent(
+            name="kb_prompt_agent",
             model_name=state.request.model,
             chat_api_url=state.request.chat_api_url,
-            temperature=0.7
+            temperature=0.7,
+            parser_type="text"
         )
-        
-        from langchain_core.messages import HumanMessage
-        # Override messages
-        state.messages = [HumanMessage(content=final_prompt)]
-        
-        new_state = await agent.execute(state)
-        
-        if new_state.messages and new_state.messages[-1].type == "ai":
-            state.answer = new_state.messages[-1].content
-        else:
-            state.answer = "Sorry, I couldn't generate an answer."
+
+        new_state = await agent.execute(state, prompt=final_prompt)
+        answer_text = _extract_text_result(new_state, "kb_prompt_agent")
+        state.answer = answer_text or "Sorry, I couldn't generate an answer."
             
         return state
 

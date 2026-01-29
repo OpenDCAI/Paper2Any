@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KnowledgeFile, ToolType } from './types';
 import { FileText, Image, Video, Link as LinkIcon, Trash2, Search, Filter, X, Eye, Database, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { API_KEY, API_URL_OPTIONS } from '../../config/api';
 import { useAuthStore } from '../../stores/authStore';
+import { getApiSettings } from '../../services/apiSettingsService';
 
 interface LibraryViewProps {
   files: KnowledgeFile[];
@@ -77,6 +78,21 @@ export const LibraryView = ({ files, selectedIds, onToggleSelect, onGoToUpload, 
       image_model: 'gemini-2.5-flash',
       video_model: 'gemini-2.5-flash'
   });
+
+  useEffect(() => {
+    const settings = getApiSettings(user?.id || null);
+    if (settings) {
+      const baseUrl = settings.apiUrl || '';
+      const embedUrl = baseUrl
+        ? (baseUrl.includes('/embeddings') ? baseUrl : `${baseUrl.replace(/\/$/, '')}/embeddings`)
+        : '';
+      setEmbedConfig(prev => ({
+        ...prev,
+        api_url: embedUrl || prev.api_url,
+        api_key: settings.apiKey || prev.api_key
+      }));
+    }
+  }, [user?.id]);
 
   const handleDelete = async (file: KnowledgeFile, e: React.MouseEvent) => {
     e.stopPropagation();

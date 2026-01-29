@@ -1,11 +1,118 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MessageSquare, Send, Bot, User, Loader2, FileText, ChevronDown, ChevronRight } from 'lucide-react';
 import { ChatMessage, KnowledgeFile } from '../types';
+import { apiFetch } from '../../../config/api';
+import { getApiSettings } from '../../../services/apiSettingsService';
+import { useAuthStore } from '../../../stores/authStore';
 
 interface ChatToolProps {
   files: KnowledgeFile[];
   selectedIds: Set<string>;
 }
+
+const escapeHtml = (text: string) =>
+  text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+const renderInline = (text: string) => {
+  let html = escapeHtml(text);
+  html = html.replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-white/10 text-purple-200 font-mono text-xs">$1</code>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer" class="text-purple-300 hover:text-purple-200 underline">$1</a>');
+  return html;
+};
+
+const renderMarkdownToHtml = (content: string) => {
+  if (!content) return '';
+  const codeBlockRegex = /```([a-zA-Z0-9_-]+)?\n([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let html = '';
+  let match: RegExpExecArray | null;
+
+  const processTextBlock = (block: string) => {
+    const lines = block.split('\n');
+    let blockHtml = '';
+    let inUl = false;
+    let inOl = false;
+
+    const closeLists = () => {
+      if (inUl) {
+        blockHtml += '</ul>';
+        inUl = false;
+      }
+      if (inOl) {
+        blockHtml += '</ol>';
+        inOl = false;
+      }
+    };
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      const headingMatch = /^(#{1,6})\s+(.+)$/.exec(trimmed);
+      if (headingMatch) {
+        closeLists();
+        const level = headingMatch[1].length;
+        const headingText = renderInline(headingMatch[2]);
+        blockHtml += `<h${level} class="font-semibold text-gray-100 mt-3 mb-2">${headingText}</h${level}>`;
+        continue;
+      }
+
+      if (/^[-*]\s+/.test(trimmed)) {
+        if (!inUl) {
+          closeLists();
+          blockHtml += '<ul class="list-disc pl-5 space-y-1">';
+          inUl = true;
+        }
+        blockHtml += `<li>${renderInline(trimmed.replace(/^[-*]\s+/, ''))}</li>`;
+        continue;
+      }
+
+      if (/^\d+\.\s+/.test(trimmed)) {
+        if (!inOl) {
+          closeLists();
+          blockHtml += '<ol class="list-decimal pl-5 space-y-1">';
+          inOl = true;
+        }
+        blockHtml += `<li>${renderInline(trimmed.replace(/^\d+\.\s+/, ''))}</li>`;
+        continue;
+      }
+
+      if (!trimmed) {
+        closeLists();
+        blockHtml += '<div class="h-2"></div>';
+        continue;
+      }
+
+      closeLists();
+      blockHtml += `<p class="my-1">${renderInline(line)}</p>`;
+    }
+
+    closeLists();
+    return blockHtml;
+  };
+
+  while ((match = codeBlockRegex.exec(content)) !== null) {
+    const before = content.slice(lastIndex, match.index);
+    html += processTextBlock(before);
+    const code = escapeHtml(match[2].replace(/\s+$/, ''));
+    html += `<pre class="bg-black/40 border border-white/10 rounded-lg p-3 my-2 overflow-x-auto text-xs"><code class="text-emerald-200 font-mono whitespace-pre">${code}</code></pre>`;
+    lastIndex = match.index + match[0].length;
+  }
+
+  html += processTextBlock(content.slice(lastIndex));
+  return html;
+};
+
+const MarkdownContent = ({ content, className }: { content: string; className?: string }) => (
+  <div
+    className={className || 'text-sm leading-relaxed text-gray-200'}
+    dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(content) }}
+  />
+);
 
 const AnalysisDetail = ({ filename, analysis }: { filename: string, analysis: string }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -22,8 +129,8 @@ const AnalysisDetail = ({ filename, analysis }: { filename: string, analysis: st
             </button>
             
             {isOpen && (
-                <div className="mt-2 pl-6 pr-2 text-xs text-gray-400 whitespace-pre-wrap leading-relaxed bg-black/20 p-2 rounded-lg">
-                    {analysis}
+                <div className="mt-2 pl-6 pr-2 text-xs text-gray-300 leading-relaxed bg-black/20 p-2 rounded-lg">
+                  <MarkdownContent content={analysis} className="text-xs leading-relaxed text-gray-300" />
                 </div>
             )}
         </div>
@@ -31,6 +138,7 @@ const AnalysisDetail = ({ filename, analysis }: { filename: string, analysis: st
 };
 
 export const ChatTool = ({ files, selectedIds }: ChatToolProps) => {
+  const { user } = useAuthStore();
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
@@ -41,6 +149,16 @@ export const ChatTool = ({ files, selectedIds }: ChatToolProps) => {
   ]);
   const [inputMsg, setInputMsg] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [apiUrl, setApiUrl] = useState('');
+  const [apiKey, setApiKey] = useState('');
+
+  useEffect(() => {
+    const settings = getApiSettings(user?.id || null);
+    if (settings) {
+      setApiUrl(settings.apiUrl || '');
+      setApiKey(settings.apiKey || '');
+    }
+  }, [user?.id]);
 
   const handleSendMessage = async () => {
     if (!inputMsg.trim()) return;
@@ -69,7 +187,10 @@ export const ChatTool = ({ files, selectedIds }: ChatToolProps) => {
         return;
       }
 
-      const selectedFiles = files.filter(f => selectedIds.has(f.id)).map(f => f.url);
+      const selectedFiles = files
+        .filter(f => selectedIds.has(f.id))
+        .map(f => f.url)
+        .filter(Boolean);
       
       // Construct history for API
       const history = chatMessages.filter(m => m.id !== 'welcome').map(m => ({
@@ -77,7 +198,7 @@ export const ChatTool = ({ files, selectedIds }: ChatToolProps) => {
           content: m.content
       }));
 
-      const res = await fetch('/api/v1/kb/chat', {
+      const res = await apiFetch('/api/v1/kb/chat', {
           method: 'POST',
           headers: {
               'Content-Type': 'application/json'
@@ -85,7 +206,9 @@ export const ChatTool = ({ files, selectedIds }: ChatToolProps) => {
           body: JSON.stringify({
               files: selectedFiles,
               query: userMsg.content,
-              history: history
+              history: history,
+              api_url: apiUrl?.trim() || undefined,
+              api_key: apiKey?.trim() || undefined
           })
       });
 
@@ -138,7 +261,7 @@ export const ChatTool = ({ files, selectedIds }: ChatToolProps) => {
             <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
               msg.role === 'assistant' ? 'bg-white/5 text-gray-200' : 'bg-primary-600 text-white'
             }`}>
-              {msg.content}
+              {msg.role === 'assistant' ? <MarkdownContent content={msg.content} /> : msg.content}
               
               {/* Display File Analyses if available */}
               {msg.details && msg.details.length > 0 && (

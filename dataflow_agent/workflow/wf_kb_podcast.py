@@ -9,10 +9,9 @@ from dataflow_agent.workflow.registry import register
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import KBPodcastState, MainState
-from dataflow_agent.agentroles import create_simple_agent
+from dataflow_agent.agentroles import create_agent
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.toolkits.multimodaltool.req_tts import generate_speech_and_save_async
-from langchain_core.messages import HumanMessage
 
 log = get_logger(__name__)
 
@@ -37,6 +36,17 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
     3. Generate audio using TTS
     """
     builder = GenericGraphBuilder(state_model=KBPodcastState, entry_point="_start_")
+
+    def _extract_text_result(state: MainState, role_name: str) -> str:
+        try:
+            result = state.agent_results.get(role_name, {}).get("results", {})
+            if isinstance(result, dict):
+                return result.get("text") or result.get("raw") or ""
+            if isinstance(result, str):
+                return result
+        except Exception:
+            return ""
+        return ""
 
     def _start_(state: KBPodcastState) -> KBPodcastState:
         # Ensure request fields
@@ -175,22 +185,18 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
 请生成播客脚本："""
 
         try:
-            agent = create_simple_agent(
-                name="podcast_script_generator",
+            agent = create_agent(
+                name="kb_prompt_agent",
                 model_name=state.request.model,
                 chat_api_url=state.request.chat_api_url,
-                temperature=0.7
+                temperature=0.7,
+                parser_type="text"
             )
 
             temp_state = MainState(request=state.request)
-            temp_state.messages = [HumanMessage(content=prompt)]
+            res_state = await agent.execute(temp_state, prompt=prompt)
 
-            res_state = await agent.execute(temp_state)
-
-            if res_state.messages and res_state.messages[-1].type == "ai":
-                state.podcast_script = res_state.messages[-1].content
-            else:
-                state.podcast_script = "[Script generation failed]"
+            state.podcast_script = _extract_text_result(res_state, "kb_prompt_agent") or "[Script generation failed]"
         except Exception as e:
             log.error(f"Script generation failed: {e}")
             state.podcast_script = f"[Script generation error: {e}]"
