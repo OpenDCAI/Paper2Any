@@ -10,6 +10,7 @@ export interface KnowledgeFile {
   size?: string;
   uploadTime: string;
   isEmbedded?: boolean;
+  kbFileId?: string;
 }
 
 export interface ChatMessage {
@@ -24,4 +25,4 @@ export interface ChatMessage {
 }
 
 export type SectionType = 'library' | 'upload' | 'output';
-export type ToolType = 'chat' | 'ppt' | 'mindmap' | 'podcast' | 'video';
+export type ToolType = 'chat' | 'ppt' | 'mindmap' | 'podcast' | 'video' | 'search';

@@ -103,7 +103,7 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
         <div>
           <h4 className="text-sm font-medium text-green-300 mb-1">知识播客生成</h4>
           <p className="text-xs text-green-200/70">
-            支持选择多个文件。AI 将分析文件内容并生成播客脚本，然后转换为语音。
+            支持选择多个文档（PDF/DOCX/PPTX）。系统将合并内容生成播客脚本并转换为语音。
           </p>
         </div>
       </div>

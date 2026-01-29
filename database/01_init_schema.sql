@@ -4,13 +4,31 @@
 -- This script sets up the necessary tables, views, functions, triggers,
 -- storage buckets, and security policies for the Paper2Any application.
 --
+-- INCLUDES:
+-- - User management (profiles, referrals, points system)
+-- - File storage (user_files, knowledge_base_files)
+-- - Usage tracking and quota management
+-- - Storage buckets and RLS policies
+--
 -- INSTRUCTIONS:
 -- 1. Go to your Supabase Project Dashboard: https://supabase.com/dashboard
 -- 2. Navigate to the "SQL Editor" section.
 -- 3. Click "New query", paste this entire script, and click "Run".
 --
--- Last Updated: 2025-01-22 (synced from production database)
+-- Last Updated: 2026-01-26 (merged with knowledge base schema)
 -- ==============================================================================
+
+-- ==============================================================================
+-- Schema Permissions
+-- Grant necessary permissions to authenticated users to access public schema
+-- ==============================================================================
+
+-- CRITICAL: Grant USAGE permission on public schema
+-- Without this, authenticated users cannot access any tables, views, or functions
+GRANT USAGE ON SCHEMA public TO authenticated;
+
+-- Grant ALL privileges on public schema (recommended for Supabase)
+GRANT ALL ON SCHEMA public TO authenticated;
 
 -- ==============================================================================
 -- Table: usage_records
@@ -82,6 +100,49 @@ FOR DELETE
 USING (auth.uid() = user_id);
 
 -- ==============================================================================
+-- Table: knowledge_base_files
+-- Stores metadata for knowledge base files (PDFs, videos, documents, etc.)
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS public.knowledge_base_files (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_email TEXT,
+    file_name TEXT NOT NULL,
+    file_type TEXT,
+    file_size BIGINT,
+    storage_path TEXT NOT NULL,
+    is_embedded BOOLEAN DEFAULT FALSE,
+    kb_file_id TEXT,
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable Row Level Security
+ALTER TABLE public.knowledge_base_files ENABLE ROW LEVEL SECURITY;
+
+-- Add index for performance
+CREATE INDEX IF NOT EXISTS idx_kb_files_user_id ON public.knowledge_base_files(user_id);
+
+-- Policy: Users can only see their own KB files
+CREATE POLICY "Users can view own KB files"
+ON public.knowledge_base_files
+FOR SELECT
+USING (auth.uid() = user_id);
+
+-- Policy: Users can insert their own KB files
+CREATE POLICY "Users can insert own KB files"
+ON public.knowledge_base_files
+FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+-- Policy: Users can delete their own KB files
+CREATE POLICY "Users can delete own KB files"
+ON public.knowledge_base_files
+FOR DELETE
+USING (auth.uid() = user_id);
+
+-- ==============================================================================
 -- Table: profiles
 -- Stores user profiles with invite codes.
 -- ==============================================================================
@@ -101,6 +162,9 @@ CREATE POLICY "Users can view own profile"
 ON public.profiles
 FOR SELECT
 USING (auth.uid() = user_id);
+
+-- Grant SELECT permission to authenticated users
+GRANT SELECT ON public.profiles TO authenticated;
 
 -- ==============================================================================
 -- Table: referrals
@@ -123,6 +187,9 @@ CREATE POLICY "Users can view own referrals"
 ON public.referrals
 FOR SELECT
 USING (auth.uid() = inviter_user_id OR auth.uid() = invitee_user_id);
+
+-- Grant SELECT permission to authenticated users
+GRANT SELECT ON public.referrals TO authenticated;
 
 -- ==============================================================================
 -- Table: points_ledger
@@ -147,17 +214,23 @@ ON public.points_ledger
 FOR SELECT
 USING (auth.uid() = user_id);
 
+-- Grant SELECT permission to authenticated users
+GRANT SELECT ON public.points_ledger TO authenticated;
+
 -- ==============================================================================
 -- View: points_balance
 -- Calculates current balance per user.
 -- ==============================================================================
 
 CREATE OR REPLACE VIEW public.points_balance AS
-SELECT 
+SELECT
     user_id,
     COALESCE(SUM(points), 0)::INTEGER AS balance
 FROM public.points_ledger
 GROUP BY user_id;
+
+-- Grant SELECT permission on points_balance view to authenticated users
+GRANT SELECT ON public.points_balance TO authenticated;
 
 -- ==============================================================================
 -- Function: handle_new_user

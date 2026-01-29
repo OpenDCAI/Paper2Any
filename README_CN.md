@@ -48,6 +48,7 @@
 - [🔥 News](#-news)
 - [✨ 核心功能](#-核心功能)
 - [📸 功能展示](#-功能展示)
+- [🧩 Drawio](#-drawio)
 - [🚀 快速开始](#-快速开始)
 - [📂 项目结构](#-项目结构)
 - [🗺️ 开发计划](#️-开发计划)
@@ -56,6 +57,11 @@
 ---
 
 ## 🔥 News
+
+> [!TIP]
+> 🆕 <strong>2026-01-28 · Drawio 更新</strong><br>
+> 新增 Drawio 支持，用于可视化图示的快速创作与展示输出。<br>
+> KB 一句话概括：支持多文件 PPT 生成（文档转换/合并 + 图片注入 + 向量检索增强）。
 
 > [!TIP]
 > 🆕 <strong>2026-01-20 · Bug 修复</strong><br>
@@ -77,10 +83,14 @@
 
 Paper2Any 当前包含以下几个子能力：
 
-- **📊 Paper2Figure - 可编辑科研绘图**：一键生成模型架构图、技术路线图（PPT + SVG）、实验数据图，支持多种输入源，输出可编辑 PPTX。
-- **🎬 Paper2PPT - 可编辑演示文稿**：生成任意风格PPT，支持超长文档处理，内置表格提取与图表解析功能。
-- **🖼️ PDF2PPT - 版式保留转换**：智能抠图与版式分析，将 PDF 精准转换为可编辑 PPTX。
-- **🎨 PPT 智能美化**：基于 AI 的 PPT 排版优化与风格迁移。
+- **📊 Paper2Figure - 可编辑科研绘图**：模型架构图、技术路线图（PPT + SVG）与实验数据图，输出可编辑 PPTX。
+- **🧩 Paper2Diagram / Image2Drawio - 可编辑流程图**：从论文/文本或图片生成 Drawio 图，支持 drawio/png/svg 导出与对话式编辑。
+- **🎬 Paper2PPT - 可编辑演示文稿**：论文/文本/主题一键生成，支持超长文档与表格/图表抽取。
+- **🖼️ PDF2PPT - 版式保留转换**：精准保留版式的 PDF → 可编辑 PPTX。
+- **🖼️ Image2PPT - 图片转 PPT**：将图片或截图快速转换为结构化幻灯片。
+- **🎨 PPTPolish 智能美化**：基于 AI 的排版优化与风格迁移。
+- **🎬 Paper2Video**：生成讲解视频脚本与配音素材。
+- **📚 知识库（KB）**：文件入库/向量化、语义检索，以及 KB 驱动的 PPT/播客/思维导图生成。
 
 ---
 
@@ -165,6 +175,22 @@ Paper2Any 当前包含以下几个子能力：
 <br>
 <img src="static/new_readme/pdf2ppt抠图.png" width="90%"/>
 <br><sub>✨ 智能抠图 & 版式保留</sub>
+
+</div>
+
+---
+
+### 🧩 Drawio
+
+<div align="center">
+
+<br>
+<img src="static/new_readme/drawio/drawio-1.gif" width="90%"/>
+<br><sub>✨ Diagram 生成（思维导图 / 流程图 / ER 图 ......）</sub>
+
+<br><br>
+<img src="static/new_readme/drawio/drawio-2.gif" width="90%"/>
+<br><sub>✨ 模型图生成：上传 PDF 或输入文本，自动生成科研绘图</sub>
 
 </div>
 
@@ -611,7 +637,7 @@ Paper2Any/
 </tr>
 <tr>
 <td><strong>📊 Paper2Figure</strong><br><sub>可编辑科研绘图</sub></td>
-<td><img src="https://img.shields.io/badge/进度-80%25-blue?style=flat-square&logo=progress" alt="80%"/></td>
+<td><img src="https://img.shields.io/badge/进度-85%25-blue?style=flat-square&logo=progress" alt="85%"/></td>
 <td>
 <img src="https://img.shields.io/badge/✓-模型架构图-success?style=flat-square" alt="完成"/><br>
 <img src="https://img.shields.io/badge/✓-技术路线图-success?style=flat-square" alt="完成"/><br>
@@ -620,13 +646,23 @@ Paper2Any/
 </td>
 </tr>
 <tr>
+<td><strong>🧩 Paper2Diagram</strong><br><sub>Drawio 绘图</sub></td>
+<td><img src="https://img.shields.io/badge/进度-80%25-blue?style=flat-square&logo=progress" alt="80%"/></td>
+<td>
+<img src="https://img.shields.io/badge/✓-论文或文本生成-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-图片转_Drawio-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-对话式编辑-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-Drawio_PNG_SVG_导出-success?style=flat-square" alt="完成"/>
+</td>
+</tr>
+<tr>
 <td><strong>🎬 Paper2PPT</strong><br><sub>可编辑演示文稿</sub></td>
-<td><img src="https://img.shields.io/badge/进度-60%25-yellow?style=flat-square&logo=progress" alt="60%"/></td>
+<td><img src="https://img.shields.io/badge/进度-70%25-yellow?style=flat-square&logo=progress" alt="70%"/></td>
 <td>
 <img src="https://img.shields.io/badge/✓-Beamer_样式-success?style=flat-square" alt="完成"/><br>
 <img src="https://img.shields.io/badge/✓-长文_PPT-success?style=flat-square" alt="完成"/><br>
-<img src="https://img.shields.io/badge/⚠-参考模版PPT生成-yellow?style=flat-square" alt="进行中"/><br>
-<img src="https://img.shields.io/badge/⚠-基于知识库的PPT生成-yellow?style=flat-square" alt="进行中"/><br>
+<img src="https://img.shields.io/badge/✓-参考模版PPT生成-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-基于知识库的PPT生成-success?style=flat-square" alt="完成"/><br>
 <img src="https://img.shields.io/badge/✓-表格提取-success?style=flat-square" alt="完成"/><br>
 <img src="https://img.shields.io/badge/✓-配图提取-success?style=flat-square" alt="完成"/>
 </td>
@@ -641,12 +677,37 @@ Paper2Any/
 </td>
 </tr>
 <tr>
-<td><strong>🎨 PPT 美化</strong><br><sub>智能排版优化</sub></td>
-<td><img src="https://img.shields.io/badge/进度-50%25-yellow?style=flat-square&logo=progress" alt="50%"/></td>
+<td><strong>🖼️ Image2PPT</strong><br><sub>图片转 PPT</sub></td>
+<td><img src="https://img.shields.io/badge/进度-85%25-blue?style=flat-square&logo=progress" alt="85%"/></td>
+<td>
+<img src="https://img.shields.io/badge/✓-单图与多图输入-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-版式生成-success?style=flat-square" alt="完成"/>
+</td>
+</tr>
+<tr>
+<td><strong>🎨 PPTPolish</strong><br><sub>智能美化</sub></td>
+<td><img src="https://img.shields.io/badge/进度-60%25-yellow?style=flat-square&logo=progress" alt="60%"/></td>
 <td>
 <img src="https://img.shields.io/badge/✓-样式迁移-success?style=flat-square" alt="完成"/><br>
 <img src="https://img.shields.io/badge/⚠-布局优化-yellow?style=flat-square" alt="进行中"/><br>
 <img src="https://img.shields.io/badge/⚠-参考图美化-yellow?style=flat-square" alt="进行中"/>
+</td>
+</tr>
+<tr>
+<td><strong>📚 知识库（KB）</strong><br><sub>KB 工作流</sub></td>
+<td><img src="https://img.shields.io/badge/进度-75%25-blue?style=flat-square&logo=progress" alt="75%"/></td>
+<td>
+<img src="https://img.shields.io/badge/✓-文件入库与向量化-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-语义检索-success?style=flat-square" alt="完成"/><br>
+<img src="https://img.shields.io/badge/✓-KB_PPT_播客_思维导图-success?style=flat-square" alt="完成"/>
+</td>
+</tr>
+<tr>
+<td><strong>🎬 Paper2Video</strong><br><sub>视频脚本生成</sub></td>
+<td><img src="https://img.shields.io/badge/进度-40%25-yellow?style=flat-square&logo=progress" alt="40%"/></td>
+<td>
+<img src="https://img.shields.io/badge/⚠-脚本与配音-yellow?style=flat-square" alt="进行中"/><br>
+<img src="https://img.shields.io/badge/⚠-分镜与素材-yellow?style=flat-square" alt="进行中"/>
 </td>
 </tr>
 </table>

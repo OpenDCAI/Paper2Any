@@ -46,6 +46,7 @@ const KnowledgeBase = () => {
         size: formatSize(row.file_size),
         uploadTime: new Date(row.created_at).toLocaleString(),
         isEmbedded: row.is_embedded,
+        kbFileId: row.kb_file_id,
         desc: row.description,
         url: row.storage_path.includes('/outputs') ? row.storage_path : `/outputs/kb_data/${user?.email}/${row.file_name}`
       }));
@@ -153,14 +154,15 @@ const KnowledgeBase = () => {
         {/* Views */}
         <div className="flex-1 overflow-y-auto p-8">
           {activeSection === 'library' && (
-            <LibraryView 
-              files={files} 
-              selectedIds={selectedIds} 
-              onToggleSelect={handleToggleSelect} 
+            <LibraryView
+              files={files}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
               onGoToUpload={() => setActiveSection('upload')}
               onRefresh={fetchLibraryFiles}
               onPreview={setPreviewFile}
               onDelete={handleDeleteFile}
+              activeTool={activeTool}
             />
           )}
           {activeSection === 'upload' && (

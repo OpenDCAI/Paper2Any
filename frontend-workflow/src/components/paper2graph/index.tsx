@@ -429,7 +429,7 @@ const Paper2FigurePage = () => {
       try {
         setIsValidating(true);
         setError(null);
-        await verifyLlmConnection(llmApiUrl, apiKey, "gpt-4o");
+        await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || "deepseek-v3.2");
         setIsValidating(false);
 
         setIsLoading(true);
@@ -505,7 +505,7 @@ const Paper2FigurePage = () => {
 
         setPreviewImgUrl(mainImg);
         // Step 1 结束，暂不设置 pptUrl，因为 PPT 还没生成
-        setPptUrl(null); 
+        setPptUrl(null);
         setGraphStep('preview');
       } catch (err) {
         const message = err instanceof Error ? err.message : t('errors.serverBusy');
@@ -591,7 +591,7 @@ const Paper2FigurePage = () => {
       // Step 0: Verify LLM Connection first
       setIsValidating(true);
       setError(null);
-      await verifyLlmConnection(llmApiUrl, apiKey, "gpt-4o");
+      await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || "gpt-4o");
       setIsValidating(false);
 
       setIsLoading(true);

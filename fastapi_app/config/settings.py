@@ -55,6 +55,11 @@ class AppSettings(BaseSettings):
     # Paper2Video Workflow
     PAPER2VIDEO_DEFAULT_MODEL: str = "gpt-4o"
 
+    # Paper2Drawio Workflow
+    PAPER2DRAWIO_DEFAULT_MODEL: str = "claude-sonnet-4-5-20250929"
+    PAPER2DRAWIO_VLM_MODEL: str = "gpt-4o"
+    PAPER2DRAWIO_ENABLE_VLM_VALIDATION: bool = False
+
     # Knowledge Base
     KB_EMBEDDING_MODEL: str = "gemini-2.5-flash"
     KB_CHAT_MODEL: str = "gpt-4o"

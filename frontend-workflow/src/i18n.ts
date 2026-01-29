@@ -11,12 +11,16 @@ import enPdf2ppt from './locales/en/pdf2ppt.json';
 import zhPdf2ppt from './locales/zh/pdf2ppt.json';
 import enImage2ppt from './locales/en/image2ppt.json';
 import zhImage2ppt from './locales/zh/image2ppt.json';
+import enImage2drawio from './locales/en/image2drawio.json';
+import zhImage2drawio from './locales/zh/image2drawio.json';
 import enPptPolish from './locales/en/pptPolish.json';
 import zhPptPolish from './locales/zh/pptPolish.json';
 import enCommon from './locales/en/common.json';
 import zhCommon from './locales/zh/common.json';
 import enPaper2graph from './locales/en/paper2graph.json';
 import zhPaper2graph from './locales/zh/paper2graph.json';
+import enPaper2drawio from './locales/en/paper2drawio.json';
+import zhPaper2drawio from './locales/zh/paper2drawio.json';
 
 i18n
   // 检测用户语言
@@ -39,8 +43,10 @@ i18n
         paper2ppt: enPaper2ppt,
         pdf2ppt: enPdf2ppt,
         image2ppt: enImage2ppt,
+        image2drawio: enImage2drawio,
         pptPolish: enPptPolish,
-        paper2graph: enPaper2graph
+        paper2graph: enPaper2graph,
+        paper2drawio: enPaper2drawio
       },
       zh: {
         common: zhCommon,
@@ -48,14 +54,16 @@ i18n
         paper2ppt: zhPaper2ppt,
         pdf2ppt: zhPdf2ppt,
         image2ppt: zhImage2ppt,
+        image2drawio: zhImage2drawio,
         pptPolish: zhPptPolish,
-        paper2graph: zhPaper2graph
+        paper2graph: zhPaper2graph,
+        paper2drawio: zhPaper2drawio
       }
     },
     // 默认命名空间
     defaultNS: 'common',
     // 命名空间
-    ns: ['common', 'login', 'paper2ppt', 'pdf2ppt', 'image2ppt', 'pptPolish', 'paper2graph']
+    ns: ['common', 'login', 'paper2ppt', 'pdf2ppt', 'image2ppt', 'image2drawio', 'pptPolish', 'paper2graph', 'paper2drawio']
   });
 
 export default i18n;

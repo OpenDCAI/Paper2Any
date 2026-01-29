@@ -1,0 +1,64 @@
+{
+  "title": "AI 图表生成",
+  "subtitle": "从论文或文本描述生成 draw.io 图表",
+  "apiConfig": "API 配置",
+  "apiUrl": "API 地址",
+  "apiKey": "API 密钥",
+  "model": "模型",
+  "inputMode": "输入模式",
+  "textInput": "文本输入",
+  "uploadPdf": "上传 PDF",
+  "textPlaceholder": "输入要生成图表的内容描述...",
+  "uploadPlaceholder": "点击上传 PDF 文件",
+  "diagramType": "图表类型",
+  "diagramOptions": "生成设置",
+  "diagramLanguage": "输出语言",
+  "vlmValidation": "启用 VLM 布局校验",
+  "vlmValidationHint": "将图渲染成 PNG 后用视觉模型检测重叠与连线问题，失败会自动重生成（最多 3 次）",
+  "auto": "自动识别",
+  "flowchart": "流程图",
+  "architecture": "架构图",
+  "sequence": "时序图",
+  "mindmap": "思维导图",
+  "er": "ER 图",
+  "generate": "生成图表",
+  "generating": "生成中...",
+  "chatEdit": "对话编辑",
+  "chatPlaceholder": "输入编辑指令...",
+  "preview": "图表预览",
+  "export": "导出",
+  "previewPlaceholder": "生成图表后在此预览",
+  "diagramUpdated": "图表已更新",
+  "uploadHint": "支持 PDF 格式，最大 50MB",
+  "modelParams": {
+    "title": "模型结构图参数",
+    "imageModelLabel": "图像生成模型",
+    "languageLabel": "语言",
+    "language": {
+      "zh": "中文",
+      "en": "英文"
+    },
+    "styleLabel": "风格",
+    "style": {
+      "cartoon": "卡通",
+      "realistic": "写实"
+    },
+    "complexityLabel": "复杂度",
+    "complexity": {
+      "easy": "简单",
+      "mid": "中等",
+      "hard": "复杂"
+    }
+  },
+  "examples": {
+    "sectionTitle": "使用示例",
+    "feishuLink": "查看详细教程",
+    "sectionSubtitle": "参考示例快速上手",
+    "cards": {
+      "pdfToDiagramTitle": "PDF 转图表",
+      "pdfToDiagramDesc": "上传论文 PDF，自动生成专业图表",
+      "textToDiagramTitle": "文本转图表",
+      "textToDiagramDesc": "输入文本描述，快速生成可视化图表"
+    }
+  }
+}

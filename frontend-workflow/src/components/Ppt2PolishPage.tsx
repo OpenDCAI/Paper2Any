@@ -438,7 +438,7 @@ const Ppt2PolishPage = () => {
         // Step 0: Verify LLM Connection first
         setIsValidating(true);
         setError(null);
-        await verifyLlmConnection(llmApiUrl, apiKey, 'gpt-4o');
+        await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || 'deepseek-v3.2');
         setIsValidating(false);
     } catch (err) {
         setIsValidating(false);

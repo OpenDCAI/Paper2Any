@@ -358,6 +358,14 @@ class Paper2FigureState(MainState):
     outline_feedback: str = ""
     # 生成的 PPT PDF 路径
     ppt_pdf_path: str = ""
+
+    # image2drawio 专用 ==============================
+    ocr_items: List[Dict[str, Any]] = field(default_factory=list)
+    no_text_path: str = ""
+    clean_bg_path: str = ""
+    drawio_elements: List[Dict[str, Any]] = field(default_factory=list)
+    drawio_xml: str = ""
+    drawio_output_path: str = ""
     ppt_pptx_path: str = ""
 
     # 长文PPT专用：
@@ -431,3 +439,89 @@ class KBPodcastState(MainState):
     file_contents: List[Dict[str, Any]] = field(default_factory=list)
     podcast_script: str = ""
     audio_path: str = ""
+
+
+# ==================== KBMindMap 相关 State ====================
+
+@dataclass
+class KBMindMapRequest(MainRequest):
+    """
+    知识库思维导图请求
+    """
+    files: List[str] = field(default_factory=list)  # 文件路径列表
+    mindmap_style: str = "default"  # default | flowchart | tree
+    max_depth: int = 3  # 思维导图最大深度
+
+@dataclass
+class KBMindMapState(MainState):
+    """
+    知识库思维导图状态
+    """
+    request: KBMindMapRequest = field(default_factory=KBMindMapRequest)
+    result_path: str = ""
+    file_contents: List[Dict[str, Any]] = field(default_factory=list)
+    content_structure: str = ""  # LLM提取的内容结构
+    mermaid_code: str = ""  # 生成的Mermaid代码
+    mindmap_svg_path: str = ""  # SVG输出路径（可选）
+
+
+# ==================== Paper2Drawio 相关 State ====================
+
+@dataclass
+class Paper2DrawioRequest(MainRequest):
+    """Paper2Drawio 请求参数"""
+    # 输入类型: "PDF" | "TEXT"
+    input_type: str = "TEXT"
+
+    # 图表类型: "flowchart" | "architecture" | "sequence" | "mindmap" | "er" | "auto"
+    diagram_type: str = "auto"
+
+    # 图表风格: "minimal" | "sketch" | "default"
+    diagram_style: str = "default"
+
+    # 是否启用 VLM 验证
+    enable_vlm_validation: bool = False
+
+    # VLM 模型（可选，默认使用 model）
+    vlm_model: str = ""
+
+    # VLM 验证最大重试次数
+    vlm_validation_max_retries: int = 3
+
+    # 最大重试次数
+    max_retries: int = 3
+
+    # 当前 XML (用于编辑模式)
+    current_xml: str = ""
+
+    # 编辑指令 (用于编辑模式)
+    edit_instruction: str = ""
+
+    # 会话历史 (用于多轮对话)
+    chat_history: List[Dict[str, str]] = field(default_factory=list)
+
+
+@dataclass
+class Paper2DrawioState(MainState):
+    """Paper2Drawio 工作流状态"""
+    request: Paper2DrawioRequest = field(default_factory=Paper2DrawioRequest)
+
+    # 输入内容
+    paper_file: str = ""           # PDF 文件路径
+    text_content: str = ""         # 文本内容
+
+    # 中间结果
+    paper_summary: str = ""        # 论文摘要/核心内容
+    diagram_plan: str = ""         # 图表规划描述
+
+    # 图表 XML
+    drawio_xml: str = ""           # 当前 draw.io XML
+    drawio_xml_history: List[str] = field(default_factory=list)  # XML 历史
+    validation_feedback: str = ""  # VLM 验证反馈
+    validation_png_path: str = ""  # VLM 验证用 PNG
+
+    # 输出路径
+    result_path: str = ""          # 结果目录
+    output_xml_path: str = ""      # XML 文件路径
+    output_png_path: str = ""      # PNG 导出路径
+    output_svg_path: str = ""      # SVG 导出路径

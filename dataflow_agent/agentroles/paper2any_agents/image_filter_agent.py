@@ -1,0 +1,111 @@
+"""
+Image Filter Agent
+"""
+from __future__ import annotations
+
+from typing import Any, Dict, Optional
+
+from dataflow_agent.state import MainState
+from dataflow_agent.toolkits.tool_manager import ToolManager
+from dataflow_agent.logger import get_logger
+from dataflow_agent.agentroles.cores.base_agent import BaseAgent
+from dataflow_agent.agentroles.cores.registry import register
+
+log = get_logger(__name__)
+
+
+@register("image_filter_agent")
+class ImageFilterAgent(BaseAgent):
+    @classmethod
+    def create(cls, tool_manager: Optional[ToolManager] = None, **kwargs):
+        return cls(tool_manager=tool_manager, **kwargs)
+
+    @property
+    def role_name(self) -> str:
+        return "image_filter_agent"
+
+    @property
+    def system_prompt_template_name(self) -> str:
+        return "system_prompt_for_image_filter_agent"
+
+    @property
+    def task_prompt_template_name(self) -> str:
+        return "task_prompt_for_image_filter_agent"
+
+    def get_task_prompt_params(self, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "query": pre_tool_results.get("query", ""),
+            "image_items_json": pre_tool_results.get("image_items_json", "[]"),
+        }
+
+    def update_state_result(
+        self,
+        state: MainState,
+        result: Dict[str, Any],
+        pre_tool_results: Dict[str, Any],
+    ):
+        state.filtered_image_items = result.get("selected_items", [])
+        log.info(f"[image_filter_agent]: selected {len(state.filtered_image_items)} images")
+        super().update_state_result(state, result, pre_tool_results)
+
+
+async def image_filter_agent(
+    state: MainState,
+    model_name: Optional[str] = None,
+    tool_manager: Optional[ToolManager] = None,
+    temperature: float = 0.0,
+    max_tokens: int = 4096,
+    tool_mode: str = "auto",
+    react_mode: bool = False,
+    react_max_retries: int = 3,
+    parser_type: str = "json",
+    parser_config: Optional[Dict[str, Any]] = None,
+    use_vlm: bool = False,
+    vlm_config: Optional[Dict[str, Any]] = None,
+    use_agent: bool = False,
+    **kwargs,
+) -> MainState:
+    agent = ImageFilterAgent(
+        tool_manager=tool_manager,
+        model_name=model_name,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        tool_mode=tool_mode,
+        react_mode=react_mode,
+        react_max_retries=react_max_retries,
+        parser_type=parser_type,
+        parser_config=parser_config,
+        use_vlm=use_vlm,
+        vlm_config=vlm_config,
+    )
+    return await agent.execute(state, use_agent=use_agent, **kwargs)
+
+
+def create_image_filter_agent(
+    tool_manager: Optional[ToolManager] = None,
+    model_name: Optional[str] = None,
+    temperature: float = 0.0,
+    max_tokens: int = 4096,
+    tool_mode: str = "auto",
+    react_mode: bool = False,
+    react_max_retries: int = 3,
+    parser_type: str = "json",
+    parser_config: Optional[Dict[str, Any]] = None,
+    use_vlm: bool = False,
+    vlm_config: Optional[Dict[str, Any]] = None,
+    **kwargs,
+) -> ImageFilterAgent:
+    return ImageFilterAgent.create(
+        tool_manager=tool_manager,
+        model_name=model_name,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        tool_mode=tool_mode,
+        react_mode=react_mode,
+        react_max_retries=react_max_retries,
+        parser_type=parser_type,
+        parser_config=parser_config,
+        use_vlm=use_vlm,
+        vlm_config=vlm_config,
+        **kwargs,
+    )
