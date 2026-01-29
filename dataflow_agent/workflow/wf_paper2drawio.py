@@ -17,6 +17,7 @@ AI 驱动的 draw.io 图表生成工作流
 """
 
 from __future__ import annotations
+import os
 import time
 from pathlib import Path
 import json
@@ -25,9 +26,9 @@ from typing import Dict, Any
 from dataflow_agent.state import Paper2DrawioState
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register
-from dataflow_agent.agentroles import create_simple_agent, create_react_agent
+from dataflow_agent.agentroles import create_simple_agent, create_react_agent, create_vlm_agent
 from dataflow_agent.logger import get_logger
-from dataflow_agent.toolkits.drawio_tools import wrap_xml, validate_xml
+from dataflow_agent.toolkits.drawio_tools import wrap_xml, validate_xml, export_drawio_png
 
 log = get_logger(__name__)
 
@@ -86,6 +87,10 @@ def create_paper2drawio_graph() -> GenericGraphBuilder:
     def _get_diagram_type(state: Paper2DrawioState) -> str:
         return state.request.diagram_type
 
+    @builder.pre_tool("language", "diagram_planner")
+    def _get_diagram_language(state: Paper2DrawioState) -> str:
+        return state.request.language or "en"
+
     @builder.pre_tool("diagram_plan", "drawio_xml_generator")
     def _get_diagram_plan(state: Paper2DrawioState) -> str:
         plan = state.diagram_plan or ""
@@ -100,6 +105,14 @@ def create_paper2drawio_graph() -> GenericGraphBuilder:
     def _get_diagram_style(state: Paper2DrawioState) -> str:
         return state.request.diagram_style or "default"
 
+    @builder.pre_tool("language", "drawio_xml_generator")
+    def _get_generator_language(state: Paper2DrawioState) -> str:
+        return state.request.language or "en"
+
+    @builder.pre_tool("validation_feedback", "drawio_xml_generator")
+    def _get_validation_feedback(state: Paper2DrawioState) -> str:
+        return state.validation_feedback or ""
+
     @builder.pre_tool("current_xml", "diagram_editor")
     def _get_current_xml(state: Paper2DrawioState) -> str:
         return state.drawio_xml or ""
@@ -107,6 +120,14 @@ def create_paper2drawio_graph() -> GenericGraphBuilder:
     @builder.pre_tool("edit_instruction", "diagram_editor")
     def _get_edit_instruction(state: Paper2DrawioState) -> str:
         return state.request.edit_instruction or ""
+
+    @builder.pre_tool("diagram_xml", "diagram_vlm_validator")
+    def _get_diagram_xml_for_validation(state: Paper2DrawioState) -> str:
+        return state.drawio_xml or ""
+
+    @builder.pre_tool("diagram_type", "diagram_vlm_validator")
+    def _get_diagram_type_for_validation(state: Paper2DrawioState) -> str:
+        return state.request.diagram_type or "auto"
 
     # ==================== NODES ====================
 
@@ -126,7 +147,7 @@ def create_paper2drawio_graph() -> GenericGraphBuilder:
         return state
 
     async def drawio_xml_generator_node(state: Paper2DrawioState) -> Paper2DrawioState:
-        """生成 draw.io XML"""
+        """生成 draw.io XML（可选 VLM 验证 + 反馈再生）"""
         base_dir = Path(_ensure_result_path(state))
 
         agent = create_react_agent(
@@ -137,23 +158,116 @@ def create_paper2drawio_graph() -> GenericGraphBuilder:
             max_tokens=16384,
             parser_type="text",
         )
-        state = await agent.execute(state=state)
 
-        # 保存 XML 文件
-        xml_code = state.drawio_xml
-        if xml_code:
-            # 验证 XML
-            is_valid, errors = validate_xml(xml_code)
-            if not is_valid:
-                log.warning(f"XML 验证警告: {errors}")
+        enable_vlm = bool(state.request.enable_vlm_validation)
+        if not enable_vlm:
+            env_flag = os.getenv("PAPER2DRAWIO_ENABLE_VLM_VALIDATION", "false").lower()
+            enable_vlm = env_flag in ("1", "true", "yes", "on")
+        max_vlm_rounds = state.request.vlm_validation_max_retries or 3
 
-            # 包装并保存
-            full_xml = wrap_xml(xml_code)
-            timestamp = int(time.time())
-            xml_path = base_dir / f"diagram_{timestamp}.drawio"
-            xml_path.write_text(full_xml, encoding="utf-8")
-            state.output_xml_path = str(xml_path)
-            log.info(f"XML 已保存: {xml_path}")
+        def _format_validation_feedback(result: Dict[str, Any]) -> str:
+            if not isinstance(result, dict):
+                return ""
+            issues = result.get("issues") or []
+            suggestions = result.get("suggestions") or []
+            lines = ["DIAGRAM VISUAL VALIDATION FAILED", ""]
+            if issues:
+                lines.append("Issues:")
+                for issue in issues:
+                    if isinstance(issue, dict):
+                        itype = issue.get("type", "issue")
+                        desc = issue.get("description", "")
+                        lines.append(f"- [{itype}] {desc}")
+                    else:
+                        lines.append(f"- {issue}")
+                lines.append("")
+            if suggestions:
+                lines.append("Suggestions:")
+                for s in suggestions:
+                    lines.append(f"- {s}")
+                lines.append("")
+            return "\n".join(lines).strip()
+
+        async def _run_vlm_validation(
+            state: Paper2DrawioState,
+            png_path: str,
+        ) -> Dict[str, Any]:
+            schema = {
+                "valid": "boolean",
+                "issues": [
+                    {
+                        "type": "overlap|edge_routing|text|layout|rendering|arrow_direction",
+                        "severity": "critical|warning",
+                        "description": "string",
+                    }
+                ],
+                "suggestions": ["string"],
+            }
+            vlm_agent = create_vlm_agent(
+                name="diagram_vlm_validator",
+                vlm_mode="understanding",
+                model_name=state.request.vlm_model or state.request.model,
+                chat_api_url=state.request.chat_api_url,
+                parser_type="json",
+                parser_config={
+                    "schema": schema,
+                    "required_fields": ["valid"],
+                },
+                additional_params={"input_image": png_path},
+            )
+
+            # Execute VLM agent using current state (diagram_xml pre-tool will read state)
+            state = await vlm_agent.execute(state)
+            result = state.agent_results.get("diagram_vlm_validator", {}).get("results", {})
+            return result if isinstance(result, dict) else {"raw": result}
+
+        last_feedback = state.validation_feedback or ""
+
+        for attempt in range(max(1, max_vlm_rounds if enable_vlm else 1)):
+            if last_feedback:
+                state.validation_feedback = last_feedback
+
+            state = await agent.execute(state=state)
+
+            # 保存 XML 文件
+            xml_code = state.drawio_xml
+            if xml_code:
+                is_valid, errors = validate_xml(xml_code)
+                if not is_valid:
+                    log.warning(f"XML 验证警告: {errors}")
+
+                full_xml = wrap_xml(xml_code)
+                timestamp = int(time.time())
+                xml_path = base_dir / f"diagram_{timestamp}_try{attempt + 1}.drawio"
+                xml_path.write_text(full_xml, encoding="utf-8")
+                state.output_xml_path = str(xml_path)
+                log.info(f"XML 已保存: {xml_path}")
+
+            if not enable_vlm:
+                break
+
+            if not xml_code:
+                log.warning("[paper2drawio] empty XML, skip VLM validation")
+                break
+
+            png_path = base_dir / f"diagram_{int(time.time())}_try{attempt + 1}.png"
+            ok, msg = export_drawio_png(xml_code, str(png_path))
+            if not ok:
+                log.warning(f"[paper2drawio] drawio PNG export skipped: {msg}")
+                break
+
+            state.validation_png_path = str(png_path)
+
+            vlm_result = await _run_vlm_validation(state, str(png_path))
+            valid = bool(vlm_result.get("valid") is True)
+            if valid:
+                state.validation_feedback = ""
+                log.info(f"[paper2drawio] VLM validation passed on attempt {attempt + 1}")
+                break
+
+            last_feedback = _format_validation_feedback(vlm_result)
+            state.validation_feedback = last_feedback
+            log.warning(f"[paper2drawio] VLM validation failed on attempt {attempt + 1}")
 
         return state
 

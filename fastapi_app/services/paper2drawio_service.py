@@ -13,6 +13,7 @@ from fastapi import UploadFile, Request
 from dataflow_agent.state import Paper2DrawioState, Paper2DrawioRequest
 from dataflow_agent.toolkits.drawio_tools import wrap_xml, extract_cells
 from dataflow_agent.logger import get_logger
+from fastapi_app.config.settings import settings
 
 log = get_logger(__name__)
 
@@ -37,6 +38,9 @@ class Paper2DrawioService:
         chat_api_url: str,
         api_key: str,
         model: str,
+        enable_vlm_validation: bool,
+        vlm_model: Optional[str],
+        vlm_validation_max_retries: Optional[int],
         input_type: str,
         diagram_type: str,
         diagram_style: str,
@@ -63,7 +67,10 @@ class Paper2DrawioService:
                 language=language,
                 chat_api_url=chat_api_url,
                 api_key=api_key,
-                model=model,
+                model=model or settings.PAPER2DRAWIO_DEFAULT_MODEL,
+                enable_vlm_validation=bool(enable_vlm_validation),
+                vlm_model=vlm_model or settings.PAPER2DRAWIO_VLM_MODEL,
+                vlm_validation_max_retries=vlm_validation_max_retries or 3,
                 input_type=input_type,
                 diagram_type=diagram_type,
                 diagram_style=diagram_style,

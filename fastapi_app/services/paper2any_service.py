@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import datetime
 import uuid
 from pathlib import Path
@@ -245,6 +246,7 @@ class Paper2AnyService:
         tech_route_template: str = "",
         reference_image: Optional[UploadFile] = None,
         tech_route_edit_prompt: Optional[str] = None,
+        output_format: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         执行 paper2figure 生成，返回 JSON 响应数据（包含 URL）。
@@ -322,9 +324,60 @@ class Paper2AnyService:
             if abs_path:
                 safe_all_files.append(_to_outputs_url(abs_path, request))
 
+        # 7. 可选：生成 image2drawio（仅 model_arch）
+        drawio_url = ""
+        if output_format == "drawio" and graph_type == "model_arch":
+            try:
+                # 选择 fig_*.png 作为输入
+                fig_path = ""
+                for abs_path in getattr(p2f_resp, "all_output_files", []) or []:
+                    if abs_path and abs_path.lower().endswith((".png", ".jpg", ".jpeg")) and "fig_" in os.path.basename(abs_path).lower():
+                        fig_path = abs_path
+                        break
+                if not fig_path:
+                    # fallback: 任意 png
+                    for abs_path in getattr(p2f_resp, "all_output_files", []) or []:
+                        if abs_path and abs_path.lower().endswith((".png", ".jpg", ".jpeg")):
+                            fig_path = abs_path
+                            break
+
+                if fig_path:
+                    # 复用 image2drawio workflow
+                    from dataflow_agent.workflow.registry import RuntimeRegistry
+                    from dataflow_agent.state import Paper2FigureState
+
+                    sub_dir = run_dir / "image2drawio"
+                    sub_dir.mkdir(parents=True, exist_ok=True)
+
+                    i2d_req = Paper2FigureRequest(
+                        input_type="FIGURE",
+                        input_content=str(fig_path),
+                        chat_api_url=chat_api_url,
+                        api_key=api_key,
+                        model=p2f_req.model,
+                        gen_fig_model=img_gen_model_name,
+                        vlm_model=p2f_req.vlm_model,
+                        language=language,
+                    )
+                    i2d_state = Paper2FigureState(request=i2d_req, messages=[])
+                    i2d_state.fig_draft_path = str(fig_path)
+                    i2d_state.result_path = str(sub_dir)
+
+                    factory = RuntimeRegistry.get("image2drawio")
+                    builder = factory()
+                    graph = builder.build()
+                    final_state = await graph.ainvoke(i2d_state)
+
+                    drawio_path = final_state.get("drawio_output_path", "") if isinstance(final_state, dict) else getattr(final_state, "drawio_output_path", "")
+                    if drawio_path:
+                        drawio_url = _to_outputs_url(drawio_path, request)
+            except Exception as e:
+                log.error(f"[paper2figure] image2drawio failed: {e}")
+
         return {
             "success": p2f_resp.success,
             "ppt_filename": safe_ppt,
+            "drawio_filename": drawio_url,
             "svg_filename": safe_svg,
             "svg_image_filename": safe_png,
             "svg_bw_filename": safe_svg_bw,

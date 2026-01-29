@@ -8,12 +8,26 @@
     "exploreMore": "🚀 探索更多 AI 数据处理工具",
     "quotaRemaining": "剩余次数: {{remaining}}/{{limit}}",
     "nav": {
-      "paper2figure": "Paper2Figure",
-      "paper2ppt": "Paper2PPT",
-      "pdf2ppt": "Pdf2PPT",
-      "ppt2polish": "PptPolish",
+      "paper2figure": "科研绘图生成",
+      "paper2drawio": "图表生成 (DrawIO)",
+      "paper2ppt": "文档转PPT",
+      "pdf2ppt": "PDF转PPT",
+      "image2ppt": "图片转PPT",
+      "image2drawio": "图片转DrawIO",
+      "ppt2polish": "PPT润色优化",
       "knowledge": "知识库",
       "files": "我的历史文件"
+    },
+    "navTooltip": {
+      "paper2figure": "根据文档内容生成科研绘图，包括模型架构图、技术路线图、实验数据图等可编辑的PPTX格式图表",
+      "paper2drawio": "将图片转换为可编辑的DrawIO图表，支持流程图、架构图等多种类型",
+      "paper2ppt": "上传PDF或输入主题，AI智能分析内容并生成精美的学术汇报幻灯片",
+      "pdf2ppt": "将任意PDF版本的ppt文档快速转换为可编辑的PPTX格式，保留原有排版和内容结构",
+      "image2ppt": "上传图片或截图，自动识别内容并转换为可编辑的PPT",
+      "image2drawio": "上传任意图片并转换为可编辑的DrawIO图",
+      "ppt2polish": "对已有的PPT进行AI智能润色，优化排版、美化设计、完善内容",
+      "knowledge": "管理和检索您的文档知识库，支持智能问答和内容搜索",
+      "files": "查看和管理所有工作流生成的文件，支持下载和删除操作"
     },
     "sidebar": {
       "toggle": "切换菜单",

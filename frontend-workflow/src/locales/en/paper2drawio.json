@@ -11,6 +11,10 @@
   "textPlaceholder": "Enter content description to generate diagram...",
   "uploadPlaceholder": "Click to upload PDF file",
   "diagramType": "Diagram Type",
+  "diagramOptions": "Generation Options",
+  "diagramLanguage": "Output Language",
+  "vlmValidation": "Enable VLM layout validation",
+  "vlmValidationHint": "Render to PNG and use a vision model to detect overlaps/edge issues; auto-regenerates up to 3 times on failure",
   "auto": "Auto Detect",
   "flowchart": "Flowchart",
   "architecture": "Architecture",
@@ -26,6 +30,26 @@
   "previewPlaceholder": "Preview will appear here after generation",
   "diagramUpdated": "Diagram updated",
   "uploadHint": "Supports PDF format, max 50MB",
+  "modelParams": {
+    "title": "Model Structure Parameters",
+    "imageModelLabel": "Image Generation Model",
+    "languageLabel": "Language",
+    "language": {
+      "zh": "Chinese",
+      "en": "English"
+    },
+    "styleLabel": "Style",
+    "style": {
+      "cartoon": "Cartoon",
+      "realistic": "Photorealistic"
+    },
+    "complexityLabel": "Complexity",
+    "complexity": {
+      "easy": "Simple",
+      "mid": "Medium",
+      "hard": "Complex"
+    }
+  },
   "examples": {
     "sectionTitle": "Examples",
     "feishuLink": "View Tutorial",

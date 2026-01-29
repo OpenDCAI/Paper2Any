@@ -298,26 +298,26 @@ async def generate_ppt_from_kb(
             ext = local_path.suffix.lower()
             if ext in IMAGE_EXTENSIONS:
                 user_image_items.append({"path": str(local_path), "description": ""})
-            elif ext in {\".pdf\", \".pptx\", \".ppt\", \".docx\", \".doc\"}:
+            elif ext in {".pdf", ".pptx", ".ppt", ".docx", ".doc"}:
                 doc_paths.append(local_path)
             else:
-                raise HTTPException(status_code=400, detail=f\"Unsupported file type for PPT: {local_path.name}\")
+                raise HTTPException(status_code=400, detail=f"Unsupported file type for PPT: {local_path.name}")
 
         if not doc_paths:
-            raise HTTPException(status_code=400, detail=\"At least one document file is required for PPT generation\")
+            raise HTTPException(status_code=400, detail="At least one document file is required for PPT generation")
 
         # Convert docs to PDF for MinerU merge
         local_pdf_paths: List[Path] = []
-        convert_dir = output_dir / \"input\"
+        convert_dir = output_dir / "input"
         convert_dir.mkdir(parents=True, exist_ok=True)
         for p in doc_paths:
             ext = p.suffix.lower()
-            if ext == \".pdf\":
+            if ext == ".pdf":
                 local_pdf_paths.append(p)
-            elif ext in {\".pptx\", \".ppt\", \".docx\", \".doc\"}:
+            elif ext in {".pptx", ".ppt", ".docx", ".doc"}:
                 local_pdf_paths.append(_convert_to_pdf(p, convert_dir))
             else:
-                raise HTTPException(status_code=400, detail=f\"Unsupported file type for PPT: {p.name}\")
+                raise HTTPException(status_code=400, detail=f"Unsupported file type for PPT: {p.name}")
 
         # Merge PDFs if multiple
         if len(local_pdf_paths) > 1:

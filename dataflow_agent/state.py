@@ -358,6 +358,14 @@ class Paper2FigureState(MainState):
     outline_feedback: str = ""
     # 生成的 PPT PDF 路径
     ppt_pdf_path: str = ""
+
+    # image2drawio 专用 ==============================
+    ocr_items: List[Dict[str, Any]] = field(default_factory=list)
+    no_text_path: str = ""
+    clean_bg_path: str = ""
+    drawio_elements: List[Dict[str, Any]] = field(default_factory=list)
+    drawio_xml: str = ""
+    drawio_output_path: str = ""
     ppt_pptx_path: str = ""
 
     # 长文PPT专用：
@@ -474,6 +482,12 @@ class Paper2DrawioRequest(MainRequest):
     # 是否启用 VLM 验证
     enable_vlm_validation: bool = False
 
+    # VLM 模型（可选，默认使用 model）
+    vlm_model: str = ""
+
+    # VLM 验证最大重试次数
+    vlm_validation_max_retries: int = 3
+
     # 最大重试次数
     max_retries: int = 3
 
@@ -503,6 +517,8 @@ class Paper2DrawioState(MainState):
     # 图表 XML
     drawio_xml: str = ""           # 当前 draw.io XML
     drawio_xml_history: List[str] = field(default_factory=list)  # XML 历史
+    validation_feedback: str = ""  # VLM 验证反馈
+    validation_png_path: str = ""  # VLM 验证用 PNG
 
     # 输出路径
     result_path: str = ""          # 结果目录

@@ -1,0 +1,47 @@
+{
+  "title": "图片转 DrawIO",
+  "subtitle": "上传任意图像，生成可编辑的 DrawIO 文件。",
+  "upload": {
+    "title": "上传图片",
+    "drag": "拖拽图片到这里",
+    "button": "选择图片",
+    "hint": "支持 PNG / JPG，最大 15MB"
+  },
+  "config": {
+    "title": "AI 设置",
+    "apiUrl": "API 地址",
+    "apiKey": "API Key（用于 VLM / 修复）",
+    "model": "对话模型",
+    "genModel": "图像编辑模型",
+    "vlmModel": "VLM OCR 模型"
+  },
+  "preview": {
+    "title": "预览",
+    "placeholder": "生成的 DrawIO 预览会出现在这里"
+  },
+  "xml": {
+    "title": "DrawIO XML",
+    "placeholder": "生成完成后会显示 XML 输出"
+  },
+  "actions": {
+    "generate": "生成 DrawIO",
+    "processing": "生成中...",
+    "download": "下载 .drawio",
+    "open": "打开文件",
+    "copy": "复制 XML",
+    "copied": "已复制",
+    "clear": "清除"
+  },
+  "status": {
+    "uploading": "正在上传图片...",
+    "processing": "解析并转换中...",
+    "complete": "生成完成"
+  },
+  "errors": {
+    "selectFile": "请选择图片",
+    "imgOnly": "仅支持 JPG / PNG 图片",
+    "sizeLimit": "图片大小不能超过 15MB",
+    "apiFail": "转换失败，请稍后再试",
+    "quotaFull": "额度已用完，请稍后再试"
+  }
+}

@@ -2,15 +2,19 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Wand2, Upload, FileText, Send, Download } from 'lucide-react';
 import type { DiagramType, DiagramStyle, ChatMessage } from './types';
-import { API_KEY } from '../../config/api';
+import { API_KEY, API_URL_OPTIONS } from '../../config/api';
 import { useAuthStore } from '../../stores/authStore';
 import { getApiSettings, saveApiSettings } from '../../services/apiSettingsService';
+import { verifyLlmConnection } from '../../services/llmService';
 import Banner from './Banner';
 import ExamplesSection from './ExamplesSection';
 
 const DRAWIO_ORIGINS = new Set(['https://embed.diagrams.net', 'https://app.diagrams.net']);
 const STORAGE_KEY = 'paper2drawio_settings';
 const DRAWIO_EXPORT_TIMEOUT_MS = 5000;
+const DRAWIO_ANIMATE_STEP_MS = 60;
+const DRAWIO_ANIMATE_MAX_CELLS = 240;
+const DRAWIO_ANIMATE_LARGE_BATCH = 5;
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -19,6 +23,8 @@ export default function Paper2DrawioPage() {
   const { user } = useAuthStore();
 
   // 状态
+  const [generationMode, setGenerationMode] = useState<'ai' | 'paper2drawio'>('ai');
+  const [modePicked, setModePicked] = useState(false);
   const [uploadMode, setUploadMode] = useState<'file' | 'text'>('text');
   const [textContent, setTextContent] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -26,6 +32,8 @@ export default function Paper2DrawioPage() {
   const [diagramStyle, setDiagramStyle] = useState<DiagramStyle>('default');
   const [xmlContent, setXmlContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportFormat, setExportFormat] = useState<'drawio' | 'png' | 'svg'>('drawio');
   const [exportFilename, setExportFilename] = useState('diagram');
@@ -44,11 +52,19 @@ export default function Paper2DrawioPage() {
   // API 配置
   const [apiUrl, setApiUrl] = useState(import.meta.env.VITE_DEFAULT_LLM_API_URL || 'https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('gpt-4o');
+  const [model, setModel] = useState('claude-sonnet-4-5-20250929');
+  const [drawioLanguage, setDrawioLanguage] = useState<'zh' | 'en'>('zh');
+  const [enableVlmValidation, setEnableVlmValidation] = useState(false);
+  const [p2dImageModel, setP2dImageModel] = useState('gemini-3-pro-image-preview');
+  const [p2dLanguage, setP2dLanguage] = useState<'zh' | 'en'>('zh');
+  const [p2dStyle, setP2dStyle] = useState<'cartoon' | 'realistic'>('cartoon');
+  const [p2dFigureComplex, setP2dFigureComplex] = useState<'easy' | 'mid' | 'hard'>('easy');
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const chatListRef = useRef<HTMLDivElement>(null);
   const lastLoadedXmlRef = useRef('');
+  const isAnimatingRef = useRef(false);
+  const animationTokenRef = useRef(0);
   const pendingExportRef = useRef<{
     resolve: ((data: string) => void) | null;
     reject: ((error: Error) => void) | null;
@@ -56,6 +72,8 @@ export default function Paper2DrawioPage() {
   }>({ resolve: null, reject: null, format: null });
   const panelClass = 'rounded-2xl bg-white/5 border border-white/10 p-4 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] transition-all duration-300';
   const inputClass = 'w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-slate-500 outline-none transition focus:border-sky-400/60 focus:ring-2 focus:ring-sky-500/20';
+  const modeButtonActive = 'bg-gradient-to-r from-sky-500 to-cyan-500 text-white shadow-[0_0_30px_rgba(14,165,233,0.6),0_0_60px_rgba(6,182,212,0.4)] border border-sky-400/50 scale-105';
+  const modeButtonIdle = 'bg-white/5 text-slate-300 hover:bg-gradient-to-r hover:from-sky-500/20 hover:to-cyan-500/20 hover:text-white hover:shadow-[0_0_20px_rgba(14,165,233,0.3)] hover:border-sky-400/30 hover:scale-105 border border-white/10';
 
   // 自动滚动到底部
   useEffect(() => {
@@ -107,11 +125,18 @@ export default function Paper2DrawioPage() {
           apiUrl?: string;
           apiKey?: string;
           model?: string;
+          drawioLanguage?: 'zh' | 'en';
+          enableVlmValidation?: boolean;
           xmlContent?: string;
           chatHistory?: ChatMessage[];
           chatInput?: string;
           exportFormat?: 'drawio' | 'png' | 'svg';
           exportFilename?: string;
+          generationMode?: 'ai' | 'paper2drawio';
+          p2dImageModel?: string;
+          p2dLanguage?: 'zh' | 'en';
+          p2dStyle?: 'cartoon' | 'realistic';
+          p2dFigureComplex?: 'easy' | 'mid' | 'hard';
         };
 
         if (saved.uploadMode) setUploadMode(saved.uploadMode);
@@ -119,11 +144,18 @@ export default function Paper2DrawioPage() {
         if (saved.diagramType) setDiagramType(saved.diagramType);
         if (saved.diagramStyle) setDiagramStyle(saved.diagramStyle);
         if (saved.model) setModel(saved.model);
+        if (saved.drawioLanguage) setDrawioLanguage(saved.drawioLanguage);
+        if (typeof saved.enableVlmValidation === 'boolean') setEnableVlmValidation(saved.enableVlmValidation);
         if (saved.xmlContent) setXmlContent(saved.xmlContent);
         if (saved.chatHistory) setChatHistory(saved.chatHistory);
         if (saved.chatInput) setChatInput(saved.chatInput);
         if (saved.exportFormat) setExportFormat(saved.exportFormat);
         if (saved.exportFilename) setExportFilename(saved.exportFilename);
+        if (saved.generationMode) setGenerationMode(saved.generationMode);
+        if (saved.p2dImageModel) setP2dImageModel(saved.p2dImageModel);
+        if (saved.p2dLanguage) setP2dLanguage(saved.p2dLanguage);
+        if (saved.p2dStyle) setP2dStyle(saved.p2dStyle);
+        if (saved.p2dFigureComplex) setP2dFigureComplex(saved.p2dFigureComplex);
 
         const userApiSettings = getApiSettings(user?.id || null);
         if (userApiSettings) {
@@ -150,11 +182,18 @@ export default function Paper2DrawioPage() {
       apiUrl,
       apiKey,
       model,
+      drawioLanguage,
+      enableVlmValidation,
       xmlContent,
       chatHistory,
       chatInput,
       exportFormat,
       exportFilename,
+      generationMode,
+      p2dImageModel,
+      p2dLanguage,
+      p2dStyle,
+      p2dFigureComplex,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -172,20 +211,80 @@ export default function Paper2DrawioPage() {
     apiUrl,
     apiKey,
     model,
+    drawioLanguage,
+    enableVlmValidation,
     xmlContent,
     chatHistory,
     chatInput,
     exportFormat,
     exportFilename,
+    generationMode,
+    p2dImageModel,
+    p2dLanguage,
+    p2dStyle,
+    p2dFigureComplex,
     user?.id,
   ]);
 
   // 生成图表
   const handleGenerate = useCallback(async () => {
     if (!textContent && !file) return;
+
+    // Step 0: Verify LLM Connection first
+    try {
+      setIsValidating(true);
+      setError(null);
+      await verifyLlmConnection(apiUrl, apiKey, model);
+      setIsValidating(false);
+    } catch (err) {
+      setIsValidating(false);
+      const errorMsg = err instanceof Error ? err.message : '验证 LLM 连接失败';
+      setError(errorMsg);
+      return;
+    }
+
     setIsLoading(true);
 
     try {
+      if (generationMode === 'paper2drawio') {
+        const formData = new FormData();
+        formData.append('img_gen_model_name', p2dImageModel);
+        formData.append('chat_api_url', apiUrl);
+        formData.append('api_key', apiKey);
+        formData.append('input_type', uploadMode);
+        formData.append('graph_type', 'model_arch');
+        formData.append('style', p2dStyle);
+        formData.append('figure_complex', p2dFigureComplex);
+        formData.append('language', p2dLanguage);
+        formData.append('output_format', 'drawio');
+
+        if (uploadMode === 'text') {
+          formData.append('text', textContent);
+        } else if (file) {
+          formData.append('file', file);
+          formData.append('file_kind', 'pdf');
+        }
+
+        const res = await fetch(`${API_BASE}/api/v1/paper2figure/generate-json`, {
+          method: 'POST',
+          headers: { 'X-API-Key': API_KEY },
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (data.success && data.drawio_filename) {
+          let drawioUrl = data.drawio_filename as string;
+          if (typeof window !== 'undefined' && window.location.protocol === 'https:' && drawioUrl.startsWith('http:')) {
+            drawioUrl = drawioUrl.replace(/^http:/, 'https:');
+          }
+          const xml = await fetch(drawioUrl).then(r => r.text());
+          if (xml && xml.includes('<mxfile')) {
+            setXmlContent(xml);
+          }
+        }
+        return;
+      }
+
       const formData = new FormData();
       formData.append('chat_api_url', apiUrl);
       formData.append('api_key', apiKey);
@@ -193,7 +292,8 @@ export default function Paper2DrawioPage() {
       formData.append('input_type', uploadMode === 'file' ? 'PDF' : 'TEXT');
       formData.append('diagram_type', diagramType);
       formData.append('diagram_style', diagramStyle);
-      formData.append('language', 'zh');
+      formData.append('language', drawioLanguage);
+      formData.append('enable_vlm_validation', enableVlmValidation ? 'true' : 'false');
 
       if (uploadMode === 'text') {
         formData.append('text_content', textContent);
@@ -216,13 +316,123 @@ export default function Paper2DrawioPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [textContent, file, uploadMode, apiUrl, apiKey, model, diagramType, diagramStyle]);
+  }, [
+    textContent,
+    file,
+    uploadMode,
+    apiUrl,
+    apiKey,
+    model,
+    diagramType,
+    diagramStyle,
+    generationMode,
+    p2dImageModel,
+    p2dLanguage,
+    p2dStyle,
+    p2dFigureComplex,
+    drawioLanguage,
+    enableVlmValidation,
+  ]);
+
+  const handleSelectMode = useCallback((mode: 'ai' | 'paper2drawio') => {
+    setGenerationMode(mode);
+    setModePicked(true);
+  }, []);
 
   const postToDrawio = useCallback((payload: Record<string, unknown>) => {
     const frame = iframeRef.current?.contentWindow;
     if (!frame) return;
     frame.postMessage(JSON.stringify(payload), '*');
   }, []);
+
+  const requestDrawioFit = useCallback(() => {
+    postToDrawio({ action: 'zoom', zoom: 'fit' });
+  }, [postToDrawio]);
+
+  const parseXmlForAnimation = useCallback((xml: string) => {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xml, 'text/xml');
+      if (doc.querySelector('parsererror')) return null;
+      const root =
+        doc.querySelector('mxGraphModel > root') ||
+        doc.querySelector('root');
+      if (!root) return null;
+
+      const rootCells = Array.from(root.children).filter(
+        node => node.nodeName === 'mxCell'
+      ) as Element[];
+      if (!rootCells.length) return null;
+
+      const baseCells = rootCells.filter(cell => {
+        const id = cell.getAttribute('id');
+        return id === '0' || id === '1';
+      });
+      const normalCells = rootCells.filter(cell => {
+        const id = cell.getAttribute('id');
+        return id !== '0' && id !== '1';
+      });
+      const nonEdges = normalCells.filter(cell => cell.getAttribute('edge') !== '1');
+      const edges = normalCells.filter(cell => cell.getAttribute('edge') === '1');
+      const orderedCells = [...nonEdges, ...edges];
+
+      return { doc, baseCells, orderedCells };
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const buildXmlWithCells = useCallback((sourceDoc: Document, cells: Element[]) => {
+    const docClone = sourceDoc.cloneNode(true) as Document;
+    const root =
+      docClone.querySelector('mxGraphModel > root') ||
+      docClone.querySelector('root');
+    if (!root) return '';
+    while (root.firstChild) {
+      root.removeChild(root.firstChild);
+    }
+    for (const cell of cells) {
+      root.appendChild(docClone.importNode(cell, true));
+    }
+    return new XMLSerializer().serializeToString(docClone);
+  }, []);
+
+  const animateDrawioLoad = useCallback(
+    async (xml: string) => {
+      const parsed = parseXmlForAnimation(xml);
+      if (!parsed) {
+        postToDrawio({ action: 'load', xml, autosave: 1 });
+        lastLoadedXmlRef.current = xml;
+        setTimeout(() => requestDrawioFit(), 120);
+        return;
+      }
+
+      const { doc, baseCells, orderedCells } = parsed;
+      const total = orderedCells.length;
+      const batchSize =
+        total > DRAWIO_ANIMATE_MAX_CELLS ? DRAWIO_ANIMATE_LARGE_BATCH : 1;
+      const token = ++animationTokenRef.current;
+      isAnimatingRef.current = true;
+
+      for (let i = 0; i < total; i += batchSize) {
+        if (animationTokenRef.current !== token) return;
+        const subset = orderedCells.slice(0, Math.min(i + batchSize, total));
+        const autosave = i + batchSize >= total ? 1 : 0;
+        const partialXml = buildXmlWithCells(doc, [...baseCells, ...subset]);
+        if (!partialXml) break;
+        postToDrawio({ action: 'load', xml: partialXml, autosave });
+        setTimeout(() => requestDrawioFit(), 80);
+        await new Promise(resolve => setTimeout(resolve, DRAWIO_ANIMATE_STEP_MS));
+      }
+
+      if (animationTokenRef.current === token) {
+        lastLoadedXmlRef.current = xml;
+        isAnimatingRef.current = false;
+        setTimeout(() => requestDrawioFit(), 120);
+      }
+    },
+    [buildXmlWithCells, parseXmlForAnimation, postToDrawio, requestDrawioFit]
+  );
 
   const requestDrawioExport = useCallback(
     (format: 'xml' | 'png' | 'svg') => {
@@ -421,10 +631,22 @@ export default function Paper2DrawioPage() {
 
       if (message.event === 'init' || message.event === 'ready') {
         setDrawioReady(true);
+        postToDrawio({
+          action: 'configure',
+          config: {
+            sidebar: false,
+            format: false,
+            layers: false,
+            menubar: false,
+            toolbar: false,
+            status: false,
+          },
+        });
         return;
       }
 
       if ((message.event === 'save' || message.event === 'autosave') && typeof message.xml === 'string') {
+        if (isAnimatingRef.current) return;
         lastLoadedXmlRef.current = message.xml;
         setXmlContent(message.xml);
         return;
@@ -444,9 +666,8 @@ export default function Paper2DrawioPage() {
   useEffect(() => {
     if (!drawioReady || !xmlContent) return;
     if (xmlContent === lastLoadedXmlRef.current) return;
-    postToDrawio({ action: 'load', xml: xmlContent, autosave: 1 });
-    lastLoadedXmlRef.current = xmlContent;
-  }, [drawioReady, xmlContent, postToDrawio]);
+    animateDrawioLoad(xmlContent);
+  }, [drawioReady, xmlContent, animateDrawioLoad]);
 
   return (
     <div className="relative w-full h-full overflow-y-auto bg-[#0b0d12] text-slate-100">
@@ -472,6 +693,81 @@ export default function Paper2DrawioPage() {
         <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)] mt-6" style={{ minHeight: '720px' }}>
           {/* 左侧：输入区域 */}
           <div className="flex flex-col gap-4 animate-slide-in" style={{ animationDelay: '40ms' }}>
+            <div className={panelClass}>
+              <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
+                <Wand2 className="text-sky-300" size={18} />
+                选择功能
+              </h3>
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={() => handleSelectMode('ai')}
+                  className={`flex-1 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                    modePicked && generationMode === 'ai' ? modeButtonActive : modeButtonIdle
+                  }`}
+                >
+                  AI 驱动 DrawIO
+                </button>
+                <button
+                  onClick={() => handleSelectMode('paper2drawio')}
+                  className={`flex-1 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                    modePicked && generationMode === 'paper2drawio' ? modeButtonActive : modeButtonIdle
+                  }`}
+                >
+                  DrawIO 版本科研绘图生成
+                </button>
+              </div>
+              <div className="space-y-2 text-xs text-slate-400">
+                <div className="relative group rounded-xl border border-white/10 bg-white/5 p-3 hover:border-sky-400/40 hover:bg-white/10 transition-all cursor-pointer">
+                  <p className="text-slate-200 font-semibold mb-1">Demo · AI 驱动</p>
+                  <p>输入文本或论文 PDF，直接生成可编辑流程图、架构图等通用 DrawIO 图。</p>
+                  {/* Hover 预览框 - 显示在上方 */}
+                  <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 pointer-events-none" style={{ zIndex: 9999 }}>
+                    <div className="rounded-lg border border-sky-400/60 bg-slate-900/98 backdrop-blur-xl shadow-2xl overflow-hidden">
+                      <div className="px-2.5 py-1.5 border-b border-white/10 flex items-center justify-between">
+                        <p className="text-[11px] font-semibold text-sky-300">AI 驱动演示</p>
+                        <span className="text-[9px] text-slate-400">悬停查看</span>
+                      </div>
+                      <div className="p-1.5">
+                        <img
+                          src="/demos/drawio-1.gif"
+                          alt="AI驱动DrawIO演示"
+                          className="w-full rounded"
+                          onError={(e) => {
+                            e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="320" height="213"%3E%3Crect width="320" height="213" fill="%23334155"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" fill="%2394a3b8" font-size="12"%3EGIF 加载中...%3C/text%3E%3C/svg%3E';
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="relative group rounded-xl border border-white/10 bg-white/5 p-3 hover:border-sky-400/40 hover:bg-white/10 transition-all cursor-pointer">
+                  <p className="text-slate-200 font-semibold mb-1">Demo · 科研绘图</p>
+                  <p>先生成模型结构图图片，再自动转为可编辑 DrawIO 图元。</p>
+                  {/* Hover 预览框 - 显示在中央 */}
+                  <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 pointer-events-none" style={{ zIndex: 9999 }}>
+                    <div className="rounded-lg border border-sky-400/60 bg-slate-900/98 backdrop-blur-xl shadow-2xl overflow-hidden">
+                      <div className="px-2.5 py-1.5 border-b border-white/10 flex items-center justify-between">
+                        <p className="text-[11px] font-semibold text-sky-300">科研绘图演示</p>
+                        <span className="text-[9px] text-slate-400">悬停查看</span>
+                      </div>
+                      <div className="p-1.5">
+                        <img
+                          src="/demos/drawio-2.gif"
+                          alt="科研绘图DrawIO演示"
+                          className="w-full rounded"
+                          onError={(e) => {
+                            e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="320" height="213"%3E%3Crect width="320" height="213" fill="%23334155"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" fill="%2394a3b8" font-size="12"%3EGIF 加载中...%3C/text%3E%3C/svg%3E';
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {modePicked && (
+              <>
             {/* API 配置 */}
             <div className={panelClass}>
               <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
@@ -479,13 +775,25 @@ export default function Paper2DrawioPage() {
                 {t('apiConfig')}
               </h3>
               <div className="space-y-2">
-                <input
-                  type="text"
-                  placeholder={t('apiUrl')}
-                  value={apiUrl}
-                  onChange={e => setApiUrl(e.target.value)}
-                  className={inputClass}
-                />
+                {generationMode === 'paper2drawio' ? (
+                  <select
+                    value={apiUrl}
+                    onChange={e => setApiUrl(e.target.value)}
+                    className={inputClass}
+                  >
+                    {API_URL_OPTIONS.map((url: string) => (
+                      <option key={url} value={url} className="bg-slate-900">{url}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    placeholder={t('apiUrl')}
+                    value={apiUrl}
+                    onChange={e => setApiUrl(e.target.value)}
+                    className={inputClass}
+                  />
+                )}
                 <input
                   type="password"
                   placeholder={t('apiKey')}
@@ -505,6 +813,10 @@ export default function Paper2DrawioPage() {
 
             {/* 输入模式切换 */}
             <div className={panelClass}>
+              <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
+                <Wand2 className="text-sky-300" size={18} />
+                输入内容
+              </h3>
               <div className="flex gap-2 mb-3">
                 <button
                   onClick={() => setUploadMode('text')}
@@ -559,8 +871,53 @@ export default function Paper2DrawioPage() {
               )}
             </div>
 
+            {generationMode === 'paper2drawio' && (
+              <div className={panelClass}>
+                <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
+                  <Wand2 className="text-sky-300" size={18} />
+                  {t('modelParams.title')}
+                </h3>
+                <div className="space-y-2">
+                  <select
+                    value={p2dImageModel}
+                    onChange={e => setP2dImageModel(e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="gemini-3-pro-image-preview" className="bg-slate-900">gemini-3-pro-image-preview</option>
+                    <option value="gemini-2.5-flash-image-preview" className="bg-slate-900">gemini-2.5-flash-image-preview</option>
+                  </select>
+                  <select
+                    value={p2dLanguage}
+                    onChange={e => setP2dLanguage(e.target.value as 'zh' | 'en')}
+                    className={inputClass}
+                  >
+                    <option value="zh" className="bg-slate-900">{t('modelParams.language.zh')}</option>
+                    <option value="en" className="bg-slate-900">{t('modelParams.language.en')}</option>
+                  </select>
+                  <select
+                    value={p2dStyle}
+                    onChange={e => setP2dStyle(e.target.value as 'cartoon' | 'realistic')}
+                    className={inputClass}
+                  >
+                    <option value="cartoon" className="bg-slate-900">{t('modelParams.style.cartoon')}</option>
+                    <option value="realistic" className="bg-slate-900">{t('modelParams.style.realistic')}</option>
+                  </select>
+                  <select
+                    value={p2dFigureComplex}
+                    onChange={e => setP2dFigureComplex(e.target.value as 'easy' | 'mid' | 'hard')}
+                    className={inputClass}
+                  >
+                    <option value="easy" className="bg-slate-900">{t('modelParams.complexity.easy')}</option>
+                    <option value="mid" className="bg-slate-900">{t('modelParams.complexity.mid')}</option>
+                    <option value="hard" className="bg-slate-900">{t('modelParams.complexity.hard')}</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
             {/* 图表类型选择 */}
-            <div className={panelClass}>
+            {generationMode === 'ai' && (
+              <div className={panelClass}>
               <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
                 <Wand2 className="text-sky-300" size={18} />
                 {t('diagramType')}
@@ -577,15 +934,58 @@ export default function Paper2DrawioPage() {
                 <option value="mindmap" className="bg-slate-900">{t('mindmap')}</option>
                 <option value="er" className="bg-slate-900">{t('er')}</option>
               </select>
-            </div>
+              </div>
+            )}
+
+            {generationMode === 'ai' && (
+              <div className={panelClass}>
+                <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
+                  <Wand2 className="text-sky-300" size={18} />
+                  {t('diagramOptions')}
+                </h3>
+                <div className="space-y-2">
+                  <div className="text-xs text-slate-400">{t('diagramLanguage')}</div>
+                  <select
+                    value={drawioLanguage}
+                    onChange={e => setDrawioLanguage(e.target.value as 'zh' | 'en')}
+                    className={inputClass}
+                  >
+                    <option value="zh" className="bg-slate-900">{t('modelParams.language.zh')}</option>
+                    <option value="en" className="bg-slate-900">{t('modelParams.language.en')}</option>
+                  </select>
+                  <label className="flex items-center gap-3 text-sm text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={enableVlmValidation}
+                      onChange={e => setEnableVlmValidation(e.target.checked)}
+                      className="h-4 w-4 rounded border border-white/20 bg-transparent text-sky-400 focus:ring-2 focus:ring-sky-500/30"
+                    />
+                    {t('vlmValidation')}
+                  </label>
+                  <p className="text-xs text-slate-500">{t('vlmValidationHint')}</p>
+                </div>
+              </div>
+            )}
+
+            {/* 错误信息显示 */}
+            {error && (
+              <div className="rounded-xl bg-red-500/10 border border-red-500/30 p-3 text-sm text-red-300">
+                {error}
+              </div>
+            )}
 
             {/* 生成按钮 */}
             <button
               onClick={handleGenerate}
-              disabled={isLoading || (!textContent && !file)}
+              disabled={isLoading || isValidating || (!textContent && !file)}
               className="w-full py-3 rounded-2xl font-semibold text-white bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_18px_45px_rgba(14,165,233,0.35)] flex items-center justify-center gap-2"
             >
-              {isLoading ? (
+              {isValidating ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  验证连接中...
+                </>
+              ) : isLoading ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   {t('generating')}
@@ -597,9 +997,11 @@ export default function Paper2DrawioPage() {
                 </>
               )}
             </button>
+              </>
+            )}
 
-            {/* 对话编辑 */}
-            {xmlContent && (
+            {/* 对话编辑 - 仅 AI 驱动模式支持 */}
+            {xmlContent && generationMode === 'ai' && (
               <div className={panelClass}>
                 <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
                   <Send className="text-sky-300" size={18} />
@@ -714,7 +1116,7 @@ export default function Paper2DrawioPage() {
               {xmlContent ? (
                 <iframe
                   ref={iframeRef}
-                  src={`https://embed.diagrams.net/?embed=1&spin=1&proto=json&autosave=1&saveAndExit=0&noSaveBtn=1&noExitBtn=1`}
+                  src={`https://embed.diagrams.net/?embed=1&spin=1&proto=json&autosave=1&saveAndExit=0&noSaveBtn=1&noExitBtn=1&sidebar=0&layers=0&toolbar=0&menubar=0&status=0&format=0`}
                   className="absolute inset-0 w-full h-full border-0"
                   title="draw.io editor"
                 />
@@ -727,9 +1129,6 @@ export default function Paper2DrawioPage() {
             </div>
           </div>
         </div>
-
-        {/* 示例区域 */}
-        <ExamplesSection />
       </div>
     </div>
   );

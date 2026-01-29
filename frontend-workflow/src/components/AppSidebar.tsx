@@ -5,15 +5,18 @@ import {
   Presentation,
   FileText,
   ImagePlus,
+  Image,
   Wand2,
   BookOpen,
   FolderOpen,
   Network
 } from 'lucide-react';
+import NavTooltip from './NavTooltip';
 
 interface NavigationItem {
   id: string;
   labelKey: string;
+  tooltipKey: string;
   icon: any;
   gradient: string;
 }
@@ -32,48 +35,63 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
     {
       id: 'paper2figure',
       labelKey: t('app.nav.paper2figure'),
+      tooltipKey: t('app.navTooltip.paper2figure'),
       icon: Sparkles,
       gradient: 'from-primary-500 to-primary-600'
     },
     {
       id: 'paper2drawio',
-      labelKey: 'Paper2Drawio',
+      labelKey: t('app.nav.paper2drawio'),
+      tooltipKey: t('app.navTooltip.paper2drawio'),
       icon: Network,
       gradient: 'from-teal-500 to-cyan-500'
     },
     {
       id: 'paper2ppt',
       labelKey: t('app.nav.paper2ppt'),
+      tooltipKey: t('app.navTooltip.paper2ppt'),
       icon: Presentation,
       gradient: 'from-purple-500 to-pink-500'
     },
     {
       id: 'pdf2ppt',
       labelKey: t('app.nav.pdf2ppt'),
+      tooltipKey: t('app.navTooltip.pdf2ppt'),
       icon: FileText,
       gradient: 'from-orange-500 to-red-500'
     },
     {
       id: 'image2ppt',
-      labelKey: 'Image2PPT',
+      labelKey: t('app.nav.image2ppt'),
+      tooltipKey: t('app.navTooltip.image2ppt'),
       icon: ImagePlus,
       gradient: 'from-cyan-500 to-blue-500'
     },
     {
+      id: 'image2drawio',
+      labelKey: t('app.nav.image2drawio'),
+      tooltipKey: t('app.navTooltip.image2drawio'),
+      icon: Image,
+      gradient: 'from-amber-500 to-lime-500'
+    },
+    {
       id: 'ppt2polish',
       labelKey: t('app.nav.ppt2polish'),
+      tooltipKey: t('app.navTooltip.ppt2polish'),
       icon: Wand2,
       gradient: 'from-cyan-500 to-teal-500'
     },
     {
       id: 'knowledge',
       labelKey: t('app.nav.knowledge'),
+      tooltipKey: t('app.navTooltip.knowledge'),
       icon: BookOpen,
       gradient: 'from-indigo-500 to-purple-500'
     },
     {
       id: 'files',
       labelKey: t('app.nav.files'),
+      tooltipKey: t('app.navTooltip.files'),
       icon: FolderOpen,
       gradient: 'from-emerald-500 to-green-500'
     }
@@ -115,18 +133,19 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
           {navigationItems.map((item) => {
             const Icon = item.icon;
             return (
-              <button
-                key={item.id}
-                onClick={() => handleNavigation(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 mb-2 ${
-                  activePage === item.id
-                    ? `bg-gradient-to-r ${item.gradient} text-white shadow-lg shadow-${item.gradient.split('-')[1]}-500/30 border border-white/20 scale-[1.02]`
-                    : 'text-gray-300 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 hover:text-white hover:shadow-md hover:scale-[1.02]'
-                }`}
-              >
-                <Icon size={22} className={activePage === item.id ? 'drop-shadow-lg' : ''} />
-                <span className="text-sm font-medium">{item.labelKey}</span>
-              </button>
+              <NavTooltip key={item.id} content={item.tooltipKey}>
+                <button
+                  onClick={() => handleNavigation(item.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 mb-2 ${
+                    activePage === item.id
+                      ? `bg-gradient-to-r ${item.gradient} text-white shadow-lg shadow-${item.gradient.split('-')[1]}-500/30 border border-white/20 scale-[1.02]`
+                      : 'text-gray-300 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 hover:text-white hover:shadow-md hover:scale-[1.02]'
+                  }`}
+                >
+                  <Icon size={22} className={activePage === item.id ? 'drop-shadow-lg' : ''} />
+                  <span className="text-sm font-medium">{item.labelKey}</span>
+                </button>
+              </NavTooltip>
             );
           })}
         </nav>

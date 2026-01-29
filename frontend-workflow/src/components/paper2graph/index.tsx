@@ -505,7 +505,7 @@ const Paper2FigurePage = () => {
 
         setPreviewImgUrl(mainImg);
         // Step 1 结束，暂不设置 pptUrl，因为 PPT 还没生成
-        setPptUrl(null); 
+        setPptUrl(null);
         setGraphStep('preview');
       } catch (err) {
         const message = err instanceof Error ? err.message : t('errors.serverBusy');

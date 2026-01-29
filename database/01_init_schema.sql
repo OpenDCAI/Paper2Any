@@ -19,6 +19,18 @@
 -- ==============================================================================
 
 -- ==============================================================================
+-- Schema Permissions
+-- Grant necessary permissions to authenticated users to access public schema
+-- ==============================================================================
+
+-- CRITICAL: Grant USAGE permission on public schema
+-- Without this, authenticated users cannot access any tables, views, or functions
+GRANT USAGE ON SCHEMA public TO authenticated;
+
+-- Grant ALL privileges on public schema (recommended for Supabase)
+GRANT ALL ON SCHEMA public TO authenticated;
+
+-- ==============================================================================
 -- Table: usage_records
 -- Tracks API/Workflow usage for quota management.
 -- ==============================================================================
@@ -151,6 +163,9 @@ ON public.profiles
 FOR SELECT
 USING (auth.uid() = user_id);
 
+-- Grant SELECT permission to authenticated users
+GRANT SELECT ON public.profiles TO authenticated;
+
 -- ==============================================================================
 -- Table: referrals
 -- Tracks who invited whom.
@@ -172,6 +187,9 @@ CREATE POLICY "Users can view own referrals"
 ON public.referrals
 FOR SELECT
 USING (auth.uid() = inviter_user_id OR auth.uid() = invitee_user_id);
+
+-- Grant SELECT permission to authenticated users
+GRANT SELECT ON public.referrals TO authenticated;
 
 -- ==============================================================================
 -- Table: points_ledger
@@ -196,17 +214,23 @@ ON public.points_ledger
 FOR SELECT
 USING (auth.uid() = user_id);
 
+-- Grant SELECT permission to authenticated users
+GRANT SELECT ON public.points_ledger TO authenticated;
+
 -- ==============================================================================
 -- View: points_balance
 -- Calculates current balance per user.
 -- ==============================================================================
 
 CREATE OR REPLACE VIEW public.points_balance AS
-SELECT 
+SELECT
     user_id,
     COALESCE(SUM(points), 0)::INTEGER AS balance
 FROM public.points_ledger
 GROUP BY user_id;
+
+-- Grant SELECT permission on points_balance view to authenticated users
+GRANT SELECT ON public.points_balance TO authenticated;
 
 -- ==============================================================================
 -- Function: handle_new_user

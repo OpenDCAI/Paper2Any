@@ -4,6 +4,7 @@ import Paper2GraphPage from './components/Paper2GraphPage';
 import Paper2PptPage from './components/Paper2PptPage';
 import Pdf2PptPage from './components/Pdf2PptPage';
 import Image2PptPage from './components/Image2PptPage';
+import Image2DrawioPage from './components/Image2DrawioPage';
 import Ppt2PolishPage from './components/Ppt2PolishPage';
 import KnowledgeBasePage from './components/KnowledgeBasePage';
 import { FilesPage } from './components/FilesPage';
@@ -18,7 +19,7 @@ import { AppSidebar } from './components/AppSidebar';
 
 function App() {
   const { t } = useTranslation('common');
-  const [activePage, setActivePage] = useState<'paper2figure' | 'paper2ppt' | 'pdf2ppt' | 'image2ppt' | 'ppt2polish' | 'knowledge' | 'files' | 'paper2drawio'>('paper2figure');
+  const [activePage, setActivePage] = useState<'paper2figure' | 'paper2ppt' | 'pdf2ppt' | 'image2ppt' | 'image2drawio' | 'ppt2polish' | 'knowledge' | 'files' | 'paper2drawio'>('paper2figure');
   const [showFilesModal, setShowFilesModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -74,6 +75,7 @@ function App() {
           {activePage === 'paper2ppt' && <Paper2PptPage />}
           {activePage === 'pdf2ppt' && <Pdf2PptPage />}
           {activePage === 'image2ppt' && <Image2PptPage />}
+          {activePage === 'image2drawio' && <Image2DrawioPage />}
           {activePage === 'ppt2polish' && <Ppt2PolishPage />}
           {activePage === 'knowledge' && <KnowledgeBasePage />}
           {activePage === 'files' && <FilesPage />}

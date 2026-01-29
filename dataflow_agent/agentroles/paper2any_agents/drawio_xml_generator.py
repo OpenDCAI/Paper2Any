@@ -45,12 +45,16 @@ class DrawioXmlGenerator(BaseAgent):
         diagram_type = pre_tool_results.get("diagram_type", "auto")
         diagram_style = pre_tool_results.get("diagram_style", "default")
         text_content = pre_tool_results.get("text_content", "")
+        validation_feedback = pre_tool_results.get("validation_feedback", "")
+        language = pre_tool_results.get("language", "")
 
         return {
             "diagram_plan": diagram_plan,
             "diagram_type": diagram_type,
             "diagram_style": diagram_style,
             "text_content": text_content,
+            "validation_feedback": validation_feedback,
+            "language": language,
         }
 
     def get_default_pre_tool_results(self) -> Dict[str, Any]:
@@ -60,6 +64,8 @@ class DrawioXmlGenerator(BaseAgent):
             "diagram_type": "auto",
             "diagram_style": "default",
             "text_content": "",
+            "validation_feedback": "",
+            "language": "",
         }
 
     def get_react_validators(self) -> List[ValidatorFunc]:
@@ -154,6 +160,9 @@ class DrawioXmlGenerator(BaseAgent):
                 if xml_content.endswith("```"):
                     xml_content = xml_content[:-3]
                 xml_content = sanitize_cells_xml(xml_content)
+                # NOTE: Temporarily disable hard overlap resolver per request.
+                # diagram_type = pre_tool_results.get("diagram_type", "auto")
+                # xml_content = resolve_overlaps(xml_content, diagram_type=diagram_type)
                 xml_content = xml_content.strip()
 
             if xml_content:

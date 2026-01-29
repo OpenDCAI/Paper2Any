@@ -39,11 +39,13 @@ class DiagramPlanner(BaseAgent):
         paper_content = pre_tool_results.get("paper_content", "")
         text_content = pre_tool_results.get("text_content", "")
         diagram_type = pre_tool_results.get("diagram_type", "auto")
+        language = pre_tool_results.get("language", "")
 
         return {
             "paper_content": paper_content,
             "text_content": text_content,
             "diagram_type": diagram_type,
+            "language": language,
         }
 
     def get_default_pre_tool_results(self) -> Dict[str, Any]:
@@ -52,6 +54,7 @@ class DiagramPlanner(BaseAgent):
             "paper_content": "",
             "text_content": "",
             "diagram_type": "auto",
+            "language": "",
         }
 
     def update_state_result(

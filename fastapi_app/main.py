@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi_app.routers import paper2video
 from fastapi_app.routers import paper2any, paper2ppt
 from fastapi_app.routers import pdf2ppt, image2ppt, kb, kb_embedding, files
+from fastapi_app.routers import image2drawio
 from fastapi_app.routers import paper2drawio
 from fastapi_app.middleware.api_key import APIKeyMiddleware
 from dataflow_agent.utils import get_project_root
@@ -50,6 +51,8 @@ def create_app() -> FastAPI:
     app.include_router(pdf2ppt.router, prefix="/api/v1", tags=["pdf2ppt"])
     # Image2PPT
     app.include_router(image2ppt.router, prefix="/api/v1", tags=["image2ppt"])
+    # Image2DrawIO
+    app.include_router(image2drawio.router, prefix="/api/v1", tags=["image2drawio"])
     # 知识库接口
     app.include_router(kb.router, prefix="/api/v1", tags=["Knowledge Base"])
     app.include_router(kb_embedding.router, prefix="/api/v1", tags=["Knowledge Base Embedding"])

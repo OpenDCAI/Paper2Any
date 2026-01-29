@@ -48,6 +48,7 @@ English | [中文](README_CN.md)
 - [🔥 News](#-news)
 - [✨ Core Features](#-core-features)
 - [📸 Showcase](#-showcase)
+- [🧩 Drawio](#-drawio)
 - [🚀 Quick Start](#-quick-start)
 - [📂 Project Structure](#-project-structure)
 - [🗺️ Roadmap](#️-roadmap)
@@ -56,6 +57,11 @@ English | [中文](README_CN.md)
 ---
 
 ## 🔥 News
+
+> [!TIP]
+> 🆕 <strong>2026-01-28 · Drawio Update</strong><br>
+> Added Drawio support for visual diagram creation and showcase-ready outputs in the workflow.<br>
+> KB updates in one line: multi-file PPT generation with doc convert/merge, optional image injection, and embedding-assisted retrieval.
 
 > [!TIP]
 > 🆕 <strong>2026-01-25 · New Features</strong><br>
@@ -85,10 +91,15 @@ English | [中文](README_CN.md)
 
 Paper2Any currently includes the following sub-capabilities:
 
-- **📊 Paper2Figure - Editable Scientific Figures**: One-click generation of model architecture diagrams, technical roadmaps (PPT + SVG), and experimental plots. Supports multiple input sources and outputs editable PPTX.
-- **🎬 Paper2PPT - Editable Slide Decks**: Generate PPTs in arbitrary styles, support ultra-long document processing, and include built-in table extraction and chart parsing.
-- **🖼️ PDF2PPT - Layout-Preserving Conversion**: Intelligent cutout and layout analysis to accurately convert PDFs into editable PPTX.
-- **🎨 PPT Smart Beautification**: AI-based PPT layout optimization and style transfer.
+- **📊 Paper2Figure - Editable Scientific Figures**: Model architecture diagrams, technical roadmaps (PPT + SVG), and experimental plots with editable PPTX output.
+- **🧩 Paper2Diagram / Image2Drawio - Editable Diagrams**: Generate draw.io diagrams from paper/text or images, with drawio/png/svg export and chat-based edits.
+- **🎬 Paper2PPT - Editable Slide Decks**: Paper/text/topic to PPT, long-doc support, and built-in table/figure extraction.
+- **🖼️ PDF2PPT - Layout-Preserving Conversion**: Accurate layout retention for PDF → editable PPTX.
+- **🖼️ Image2PPT - Image to Slides**: Convert images or screenshots into structured slides.
+- **🎨 PPTPolish - Smart Beautification**: AI-based layout optimization and style transfer.
+- **🎬 Paper2Video**: Generate video scripts and narration assets.
+- **📝 Paper2Technical**: Produce technical reports and method summaries.
+- **📚 Knowledge Base (KB)**: Ingest/embedding, semantic search, and KB-driven PPT/podcast/mindmap generation.
 
 ---
 
@@ -177,6 +188,22 @@ Paper2Any currently includes the following sub-capabilities:
 <br>
 <img src="static/new_readme/image2PPT.png" width="93%"/>
 <br><sub>✨ Image2PPT</sub>
+
+</div>
+
+---
+
+### 🧩 Drawio
+
+<div align="center">
+
+<br>
+<img src="static/new_readme/drawio/drawio-1.gif" width="90%"/>
+<br><sub>✨ Diagram generation (mindmap / flowchart / ER ...)</sub>
+
+<br><br>
+<img src="static/new_readme/drawio/drawio-2.gif" width="90%"/>
+<br><sub>✨ Model diagrams from PDF or text (research figure generation)</sub>
 
 </div>
 
@@ -627,7 +654,7 @@ Paper2Any/
 </tr>
 <tr>
 <td><strong>📊 Paper2Figure</strong><br><sub>Editable Scientific Figures</sub></td>
-<td><img src="https://img.shields.io/badge/Progress-80%25-blue?style=flat-square&logo=progress" alt="80%"/></td>
+<td><img src="https://img.shields.io/badge/Progress-85%25-blue?style=flat-square&logo=progress" alt="85%"/></td>
 <td>
 <img src="https://img.shields.io/badge/✓-Model_Architecture-success?style=flat-square" alt="Done"/><br>
 <img src="https://img.shields.io/badge/✓-Technical_Roadmap-success?style=flat-square" alt="Done"/><br>
@@ -636,13 +663,23 @@ Paper2Any/
 </td>
 </tr>
 <tr>
+<td><strong>🧩 Paper2Diagram</strong><br><sub>Drawio Diagrams</sub></td>
+<td><img src="https://img.shields.io/badge/Progress-80%25-blue?style=flat-square&logo=progress" alt="80%"/></td>
+<td>
+<img src="https://img.shields.io/badge/✓-Paper_or_Text_to_Drawio-success?style=flat-square" alt="Done"/><br>
+<img src="https://img.shields.io/badge/✓-Image_to_Drawio-success?style=flat-square" alt="Done"/><br>
+<img src="https://img.shields.io/badge/✓-Chat_Edit-success?style=flat-square" alt="Done"/><br>
+<img src="https://img.shields.io/badge/✓-Export_Drawio_PNG_SVG-success?style=flat-square" alt="Done"/>
+</td>
+</tr>
+<tr>
 <td><strong>🎬 Paper2PPT</strong><br><sub>Editable Slide Decks</sub></td>
-<td><img src="https://img.shields.io/badge/Progress-60%25-yellow?style=flat-square&logo=progress" alt="60%"/></td>
+<td><img src="https://img.shields.io/badge/Progress-70%25-yellow?style=flat-square&logo=progress" alt="70%"/></td>
 <td>
 <img src="https://img.shields.io/badge/✓-Beamer_Style-success?style=flat-square" alt="Done"/><br>
 <img src="https://img.shields.io/badge/✓-Long_Doc_PPT-success?style=flat-square" alt="Done"/><br>
-<img src="https://img.shields.io/badge/⚠-Template_based_PPT_Generation-yellow?style=flat-square" alt="In_Progress"/><br>
-<img src="https://img.shields.io/badge/⚠-KB_based_PPT_Generation-yellow?style=flat-square" alt="In_Progress"/><br>
+<img src="https://img.shields.io/badge/✓-Template_based_PPT_Generation-success?style=flat-square" alt="Done"/><br>
+<img src="https://img.shields.io/badge/✓-KB_based_PPT_Generation-success?style=flat-square" alt="Done"/><br>
 <img src="https://img.shields.io/badge/✓-Table_Extraction-success?style=flat-square" alt="Done"/><br>
 <img src="https://img.shields.io/badge/✓-Figure_Extraction-success?style=flat-square" alt="Done"/>
 </td>
@@ -657,12 +694,37 @@ Paper2Any/
 </td>
 </tr>
 <tr>
-<td><strong>🎨 PPT Beautification</strong><br><sub>Smart Layout Optimization</sub></td>
-<td><img src="https://img.shields.io/badge/Progress-50%25-yellow?style=flat-square&logo=progress" alt="50%"/></td>
+<td><strong>🖼️ Image2PPT</strong><br><sub>Image to Slides</sub></td>
+<td><img src="https://img.shields.io/badge/Progress-85%25-blue?style=flat-square&logo=progress" alt="85%"/></td>
+<td>
+<img src="https://img.shields.io/badge/✓-Single_or_Multi_Image_Input-success?style=flat-square" alt="Done"/><br>
+<img src="https://img.shields.io/badge/✓-Layout_Aware_Slides-success?style=flat-square" alt="Done"/>
+</td>
+</tr>
+<tr>
+<td><strong>🎨 PPTPolish</strong><br><sub>Smart Beautification</sub></td>
+<td><img src="https://img.shields.io/badge/Progress-60%25-yellow?style=flat-square&logo=progress" alt="60%"/></td>
 <td>
 <img src="https://img.shields.io/badge/✓-Style_Transfer-success?style=flat-square" alt="Done"/><br>
 <img src="https://img.shields.io/badge/⚠-Layout_Optimization-yellow?style=flat-square" alt="In_Progress"/><br>
-<img src="https://img.shields.io/badge/⚠-Reference_Image_Beautification-yellow?style=flat-square" alt="In_Progress"/>
+<img src="https://img.shields.io/badge/⚠-Reference_Image_Polish-yellow?style=flat-square" alt="In_Progress"/>
+</td>
+</tr>
+<tr>
+<td><strong>📚 Knowledge Base</strong><br><sub>KB Workflows</sub></td>
+<td><img src="https://img.shields.io/badge/Progress-75%25-blue?style=flat-square&logo=progress" alt="75%"/></td>
+<td>
+<img src="https://img.shields.io/badge/✓-Ingest_and_Embedding-success?style=flat-square" alt="Done"/><br>
+<img src="https://img.shields.io/badge/✓-Semantic_Search-success?style=flat-square" alt="Done"/><br>
+<img src="https://img.shields.io/badge/✓-KB_PPT_Podcast_Mindmap-success?style=flat-square" alt="Done"/>
+</td>
+</tr>
+<tr>
+<td><strong>🎬 Paper2Video</strong><br><sub>Video Script Generation</sub></td>
+<td><img src="https://img.shields.io/badge/Progress-40%25-yellow?style=flat-square&logo=progress" alt="40%"/></td>
+<td>
+<img src="https://img.shields.io/badge/⚠-Script_and_Narration-yellow?style=flat-square" alt="In_Progress"/><br>
+<img src="https://img.shields.io/badge/⚠-Storyboard_Assets-yellow?style=flat-square" alt="In_Progress"/>
 </td>
 </tr>
 </table>

@@ -2479,4 +2479,6 @@ class DrawioPrompts:
         task_prompt_for_drawio_xml_generator,
         system_prompt_for_diagram_editor,
         task_prompt_for_diagram_editor,
+        system_prompt_for_drawio_vlm_validator,
+        task_prompt_for_drawio_vlm_validator,
     )

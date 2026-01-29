@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from dataflow_agent.logger import get_logger
+from fastapi_app.config.settings import settings
 
 log = get_logger(__name__)
 router = APIRouter(prefix="/paper2drawio", tags=["paper2drawio"])
@@ -56,7 +57,10 @@ async def generate_diagram(
     request: Request,
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
-    model: str = Form("gpt-4o"),
+    model: Optional[str] = Form(None),
+    enable_vlm_validation: Optional[bool] = Form(None),
+    vlm_model: Optional[str] = Form(None),
+    vlm_validation_max_retries: int = Form(3),
     input_type: str = Form("TEXT"),
     diagram_type: str = Form("auto"),
     diagram_style: str = Form("default"),
@@ -75,7 +79,14 @@ async def generate_diagram(
         request=request,
         chat_api_url=chat_api_url,
         api_key=api_key,
-        model=model,
+        model=model or settings.PAPER2DRAWIO_DEFAULT_MODEL,
+        enable_vlm_validation=(
+            enable_vlm_validation
+            if enable_vlm_validation is not None
+            else settings.PAPER2DRAWIO_ENABLE_VLM_VALIDATION
+        ),
+        vlm_model=vlm_model or settings.PAPER2DRAWIO_VLM_MODEL,
+        vlm_validation_max_retries=vlm_validation_max_retries,
         input_type=input_type,
         diagram_type=diagram_type,
         diagram_style=diagram_style,

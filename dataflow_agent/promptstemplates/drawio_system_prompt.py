@@ -19,6 +19,9 @@ Provide your plan in a structured format that can be used by the XML generator.
 
 ## Language
 Respond in the same language as the input content.
+
+## Content Priority
+If multiple content fields are provided, prioritize the most complete non-empty content.
 """
 
 # XML 生成器系统提示 - 核心提示
@@ -51,6 +54,9 @@ Example - generate ONLY this:
 - Keep node sizes consistent within the same level
 - Align nodes to an implicit grid; keep symmetry and clear visual hierarchy
 - Prefer short labels; use line breaks for long labels
+ - Keep diagrams simple and readable; prefer grouping over listing too many items
+ - Default to <= 12 nodes; if content is large, summarize and cluster
+ - For ER diagrams, include only the top 8-12 core entities and key relationships
 
 ## Text Rules:
 - Keep labels concise (2-5 words); summarize long descriptions
@@ -98,6 +104,38 @@ Example - generate ONLY this:
 - sequence: evenly spaced lifelines, messages left-to-right
 - mindmap: central node centered, branches distributed symmetrically
 - er: entities as rectangles, relationships as diamonds, align in a grid
+
+## Diagram Type Enforcement (CRITICAL):
+- If Diagram Type is not "auto", you MUST follow the corresponding layout and shape semantics.
+- If the plan conflicts with the Diagram Type, you MUST reconcile the plan to match the Diagram Type.
+- Do NOT output a generic diagram when a specific type is provided.
+
+## Type Templates (mxCell-only skeletons, adapt content/layout):
+### flowchart (start -> process -> decision -> end)
+<mxCell id="2" value="Start" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="120" y="40" width="100" height="50" as="geometry"/></mxCell>
+<mxCell id="3" value="Process" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="120" y="120" width="120" height="60" as="geometry"/></mxCell>
+<mxCell id="4" value="Decision" style="rhombus;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="120" y="220" width="120" height="80" as="geometry"/></mxCell>
+<mxCell id="5" value="End" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="120" y="340" width="100" height="50" as="geometry"/></mxCell>
+
+### architecture (layers)
+<mxCell id="2" value="Users" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="40" y="60" width="160" height="80" as="geometry"/></mxCell>
+<mxCell id="3" value="Services" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="260" y="60" width="220" height="80" as="geometry"/></mxCell>
+<mxCell id="4" value="Data" style="shape=cylinder;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="540" y="60" width="160" height="80" as="geometry"/></mxCell>
+
+### sequence (lifelines and messages)
+<mxCell id="2" value="Actor A" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="80" y="40" width="120" height="50" as="geometry"/></mxCell>
+<mxCell id="3" value="Actor B" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="320" y="40" width="120" height="50" as="geometry"/></mxCell>
+<mxCell id="4" style="edgeStyle=orthogonalEdgeStyle;endArrow=block;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="2" target="3"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+### mindmap (central node + branches)
+<mxCell id="2" value="Central Topic" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="320" y="240" width="160" height="80" as="geometry"/></mxCell>
+<mxCell id="3" value="Branch A" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="120" y="160" width="140" height="60" as="geometry"/></mxCell>
+<mxCell id="4" style="edgeStyle=orthogonalEdgeStyle;endArrow=none;html=1;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="2" target="3"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+### er (entity-relationship)
+<mxCell id="2" value="Entity A" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="80" y="160" width="160" height="80" as="geometry"/></mxCell>
+<mxCell id="3" value="REL" style="rhombus;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="300" y="180" width="100" height="60" as="geometry"/></mxCell>
+<mxCell id="4" value="Entity B" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="440" y="160" width="160" height="80" as="geometry"/></mxCell>
 
 ## Common Styles:
 - Shapes: rounded=1 (rounded corners), fillColor=#hex, strokeColor=#hex
@@ -339,9 +377,13 @@ system_prompt_for_diagram_planner = DIAGRAM_PLANNER_PROMPT
 task_prompt_for_diagram_planner = """Based on the following content, create a detailed diagram plan:
 
 **Diagram Type**: {diagram_type}
+**Language**: {language}
 
-**Content**:
+**Paper Content**:
 {paper_content}
+
+**Text Content**:
+{text_content}
 
 Please analyze the content and provide:
 1. Recommended diagram type (flowchart, architecture, sequence, mindmap, er)
@@ -359,14 +401,19 @@ task_prompt_for_drawio_xml_generator = """Generate draw.io XML diagram based on 
 
 **Diagram Type**: {diagram_type}
 **Diagram Style**: {diagram_style}
+**Language**: {language}
 **Diagram Plan**:
 {diagram_plan}
+
+**Validation Feedback (fix these issues if present)**:
+{validation_feedback}
 
 **Original Content**:
 {text_content}
 
 Generate ONLY the mxCell elements (no wrapper tags). Follow all the rules in the system prompt.
 Follow the Diagram Style exactly and apply the corresponding style variant rules.
+Ensure all labels and text are in the specified Language.
 Ensure the diagram is compact and fits within the viewport constraints (x: 0-800, y: 0-600).
 If the diagram plan is structured JSON, follow its nodes and relationships faithfully."""
 
@@ -382,3 +429,34 @@ task_prompt_for_diagram_editor = """Update the existing draw.io XML based on the
 {edit_instruction}
 
 Return ONLY the updated mxCell elements (no wrapper tags). Do not include XML comments or markdown fences. Preserve IDs when possible and keep layout within x:0-800, y:0-600."""
+
+# Diagram VLM Validator templates
+DRAWIO_VLM_VALIDATOR_PROMPT = """You are a diagram quality validator. Analyze the rendered diagram image and the XML.
+
+Check for:
+1) Overlapping elements (critical): shapes covering each other or unreadable.
+2) Edge routing issues (critical): lines/arrows crossing through shapes that are not source/target.
+3) Arrow direction issues (critical): edge direction contradicts the intended flow or source/target.
+4) Text readability (warning): labels cut off, overlapping, too small.
+5) Layout quality (warning): cramped spacing, misalignment, poor hierarchy.
+6) Rendering errors (critical): missing or corrupted elements.
+
+Rules:
+- valid = true ONLY if there are no critical issues.
+- Be specific about which elements have problems.
+- Provide actionable suggestions for fixes.
+- If the diagram is acceptable with minor warnings, set valid = true and list warnings."""
+
+system_prompt_for_drawio_vlm_validator = DRAWIO_VLM_VALIDATOR_PROMPT
+
+task_prompt_for_drawio_vlm_validator = """Validate the diagram.
+
+**Diagram Type**: {diagram_type}
+**Diagram XML (mxCell only)**:
+{diagram_xml}
+
+Return JSON with fields:
+- valid: boolean
+- issues: list of {type, severity, description}
+- suggestions: list of strings
+"""
