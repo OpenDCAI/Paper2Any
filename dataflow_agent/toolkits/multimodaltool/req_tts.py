@@ -1,29 +1,69 @@
 import os
+import re
 import wave
 import base64
-from typing import Optional
+from typing import Optional, List
 from dataflow_agent.logger import get_logger
 from dataflow_agent.toolkits.multimodaltool.providers import get_provider
 from dataflow_agent.toolkits.multimodaltool.req_img import _post_raw
 
 log = get_logger(__name__)
 
-async def generate_speech_and_save_async(
+def split_tts_text(content: str, limit: int) -> List[str]:
+    if limit is None or limit <= 0:
+        return [content]
+    if len(content) <= limit:
+        return [content]
+    # Normalize whitespace
+    content = content.replace("\r", "")
+    parts: List[str] = []
+    paragraphs = [p.strip() for p in content.split("\n") if p.strip()]
+    if not paragraphs:
+        paragraphs = [content.strip()]
+
+    sentence_splitter = re.compile(r"(?<=[。！？.!?;；])\s+")
+    for para in paragraphs:
+        if len(para) <= limit:
+            parts.append(para)
+            continue
+        sentences = [s.strip() for s in sentence_splitter.split(para) if s.strip()]
+        if not sentences:
+            sentences = [para]
+        buf = ""
+        for sent in sentences:
+            if not buf:
+                buf = sent
+                continue
+            if len(buf) + 1 + len(sent) <= limit:
+                buf = f"{buf} {sent}"
+            else:
+                parts.append(buf)
+                buf = sent
+        if buf:
+            parts.append(buf)
+
+    # Hard split if any chunk is still too large
+    final_parts: List[str] = []
+    for p in parts:
+        if len(p) <= limit:
+            final_parts.append(p)
+        else:
+            for i in range(0, len(p), limit):
+                final_parts.append(p[i:i + limit])
+    return final_parts
+
+async def generate_speech_bytes_async(
     text: str,
-    save_path: str,
     api_url: str,
     api_key: str,
     model: str = "gemini-2.5-pro-preview-tts",
-    voice_name: str = "Kore", #Aoede, Charon, Fenrir, Kore, Puck, Orbit, Orus, Trochilidae, Zephyr
+    voice_name: str = "Kore",
     timeout: int = 120,
     **kwargs,
-) -> str:
-    """
-    生成语音并保存为WAV文件
-    """
+) -> bytes:
     provider = get_provider(api_url, model)
     log.info(f"TTS using Provider: {provider.__class__.__name__}")
-    
+
     try:
         url, payload, is_stream = provider.build_tts_request(
             api_url=api_url,
@@ -36,25 +76,59 @@ async def generate_speech_and_save_async(
         log.error(f"Provider {provider.__class__.__name__} does not support TTS")
         raise
 
-    # TTS usually returns full audio in one go
     resp_data = await _post_raw(url, api_key, payload, timeout)
-    
     try:
         audio_bytes = provider.parse_tts_response(resp_data)
     except Exception as e:
         log.error(f"Failed to parse TTS response: {e}")
         log.error(f"Response: {resp_data}")
         raise
-    
+    return audio_bytes
+
+
+async def generate_speech_and_save_async(
+    text: str,
+    save_path: str,
+    api_url: str,
+    api_key: str,
+    model: str = "gemini-2.5-pro-preview-tts",
+    voice_name: str = "Kore", #Aoede, Charon, Fenrir, Kore, Puck, Orbit, Orus, Trochilidae, Zephyr
+    timeout: int = 120,
+    max_chars: int = 1500,
+    **kwargs,
+) -> str:
+    """
+    生成语音并保存为WAV文件
+    """
+    chunks = split_tts_text(text, max_chars)
+    log.info(f"TTS split into {len(chunks)} chunk(s) with max_chars={max_chars}")
+
+    audio_chunks: List[bytes] = []
+    for idx, chunk in enumerate(chunks, start=1):
+        try:
+            audio_bytes = await generate_speech_bytes_async(
+                text=chunk,
+                api_url=api_url,
+                api_key=api_key,
+                model=model,
+                voice_name=voice_name,
+                timeout=timeout,
+                **kwargs
+            )
+        except Exception as e:
+            log.error(f"Failed to generate speech (chunk {idx}/{len(chunks)}): {e}")
+            raise
+        audio_chunks.append(audio_bytes)
+
     os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
-    
+
     # Save as WAV (assuming 24kHz, 16bit, Mono as per user doc)
     with wave.open(save_path, "wb") as wav_file:
         wav_file.setnchannels(1)        # 1 Channel
         wav_file.setsampwidth(2)        # 16 bit = 2 bytes
         wav_file.setframerate(24000)    # 24kHz
-        wav_file.writeframes(audio_bytes)
-        
+        wav_file.writeframes(b"".join(audio_chunks))
+
     log.info(f"Audio saved to {save_path}")
     return save_path
 
@@ -71,7 +145,7 @@ if __name__ == "__main__":
         print(f"Testing TTS with URL: {url}, Model: {model}")
         try:
             path = await generate_speech_and_save_async(
-                "Data governance ensures data quality, security, and compliance through policies and standards—a critical foundation for scaling modern AI development. Recently, Large Language Models (LLMs) have emerged as a promising solution for automating data governance by translating user intent into executable transformation code. However, existing benchmarks for automated data science often emphasize snippet-level coding or high-level analytics, failing to capture the unique challenge of data governance: ensuring the correctness and quality of the data itself. To bridge this gap, we introduce DataGovBench, a benchmark featuring 150 diverse tasks grounded in real-world scenarios, built on data from actual cases. DataGovBench employs a novel ``reversed-objective'' methodology to synthesize realistic noise and utilizes rigorous metrics to assess end-to-end pipeline reliability. Our analysis on DataGovBench reveals that current models struggle with complex, multi-step workflows and lack robust error-correction mechanisms. Consequently, we propose DataGovAgent, a framework utilizing a Planner-Executor-Evaluator architecture that integrates constraint-based planning, retrieval-augmented generation, and sandboxed feedback-driven debugging. Experimental results show that DataGovAgent significantly boosts the Average Task Score (ATS) on complex tasks from 39.7 to 54.9 and reduces debugging iterations by over 77.9 compared to general-purpose baselines. ",
+                "是的！MCP的设计非常智能，特别是它的动态工具生成机制。开发者可以通过MCP为每个工具动态生成一个Python异步函数，直接调用这些工具就像调用普通函数一样。",
                 "test_tts.wav",
                 url, key, model
             )

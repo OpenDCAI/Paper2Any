@@ -425,8 +425,10 @@ class KBPodcastRequest(MainRequest):
     知识播客请求
     """
     files: List[str] = field(default_factory=list)  # 文件路径列表
+    podcast_mode: str = "monologue"  # monologue | dialog
     tts_model: str = "gemini-2.5-pro-preview-tts"
     voice_name: str = "Kore"
+    voice_name_b: str = "Puck"
     language: str = "zh"
 
 @dataclass

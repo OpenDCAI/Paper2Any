@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { KnowledgeFile, ToolType } from './types';
-import { FileText, Image, Video, Link as LinkIcon, Trash2, Search, Filter, X, Eye, Database, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { FileText, Image, Video, Link as LinkIcon, Trash2, Search, Filter, X, Eye, Database, Loader2, CheckCircle, AlertCircle, Headphones } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { API_KEY, API_URL_OPTIONS } from '../../config/api';
 import { useAuthStore } from '../../stores/authStore';

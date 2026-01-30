@@ -64,6 +64,17 @@ export const OutputView = ({ files, onGoToTool, onPreview }: OutputViewProps) =>
             <h3 className="text-white font-medium mb-1">{file.name}</h3>
             <p className="text-gray-500 text-xs mb-4 line-clamp-2">{file.desc}</p>
 
+            {file.type === 'audio' && file.url && (
+              <div className="mb-4" onClick={(e) => e.stopPropagation()}>
+                <audio
+                  className="w-full"
+                  controls
+                  preload="metadata"
+                  src={file.url}
+                />
+              </div>
+            )}
+
             <div className="flex items-center justify-between pt-4 border-t border-white/5">
               <div className="flex items-center gap-2 text-xs text-gray-500">
                 <Clock size={12} />
@@ -72,6 +83,7 @@ export const OutputView = ({ files, onGoToTool, onPreview }: OutputViewProps) =>
               <div className="flex gap-2">
                 <a
                   href={file.url}
+                  download={file.name || 'download'}
                   onClick={(e) => e.stopPropagation()}
                   className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                   title="Download"

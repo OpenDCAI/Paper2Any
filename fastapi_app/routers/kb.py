@@ -448,12 +448,19 @@ async def generate_podcast_from_kb(
     model: str = Body("gpt-4o", embed=True),
     tts_model: str = Body("gemini-2.5-pro-preview-tts", embed=True),
     voice_name: str = Body("Kore", embed=True),
+    voice_name_b: str = Body("Puck", embed=True),
+    podcast_mode: str = Body("monologue", embed=True),
     language: str = Body("zh", embed=True),
 ):
     """
     Generate podcast from knowledge base files
     """
     try:
+        ts = int(time.time())
+        project_root = get_project_root()
+        output_dir = project_root / "outputs" / "kb_outputs" / email / f"{ts}_podcast"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
         # Normalize file paths
         if not file_paths:
             raise HTTPException(status_code=400, detail="No valid files provided")
@@ -467,8 +474,7 @@ async def generate_podcast_from_kb(
 
         # If multiple files, merge into a single PDF (doc/ppt will be converted)
         if len(local_paths) > 1:
-            ts = int(time.time())
-            merge_dir = get_project_root() / "outputs" / "kb_outputs" / email / f"{ts}_podcast_input"
+            merge_dir = output_dir / "input"
             merge_dir.mkdir(parents=True, exist_ok=True)
 
             pdf_paths: List[Path] = []
@@ -494,11 +500,13 @@ async def generate_podcast_from_kb(
             model=model,
             tts_model=tts_model,
             voice_name=voice_name,
+            voice_name_b=voice_name_b,
+            podcast_mode=podcast_mode,
             language=language
         )
         podcast_req.email = email
 
-        state = KBPodcastState(request=podcast_req)
+        state = KBPodcastState(request=podcast_req, result_path=str(output_dir))
 
         # Run workflow via registry (统一使用 run_workflow)
         result_state = await run_workflow("kb_podcast", state)
@@ -517,6 +525,21 @@ async def generate_podcast_from_kb(
 
         if result_path:
             script_path = str(Path(result_path) / "script.txt")
+
+        audio_error = ""
+        if not audio_path:
+            audio_error = "No audio path returned from workflow"
+        elif isinstance(audio_path, str) and audio_path.startswith("["):
+            audio_error = audio_path
+        else:
+            audio_file = Path(audio_path)
+            if not audio_file.is_absolute():
+                audio_file = (get_project_root() / audio_file).resolve()
+            if not audio_file.exists():
+                audio_error = f"Audio file not found: {audio_file}"
+
+        if audio_error:
+            raise HTTPException(status_code=500, detail=audio_error)
 
         audio_url = _to_outputs_url(audio_path) if audio_path else ""
         script_url = _to_outputs_url(script_path) if script_path else ""

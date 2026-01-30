@@ -11,7 +11,12 @@ from dataflow_agent.logger import get_logger
 from dataflow_agent.state import KBPodcastState, MainState
 from dataflow_agent.agentroles import create_agent
 from dataflow_agent.utils import get_project_root
-from dataflow_agent.toolkits.multimodaltool.req_tts import generate_speech_and_save_async
+import re
+import wave
+from dataflow_agent.toolkits.multimodaltool.req_tts import (
+    generate_speech_bytes_async,
+    split_tts_text
+)
 
 log = get_logger(__name__)
 
@@ -62,6 +67,8 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
             output_dir = project_root / "outputs" / "kb_outputs" / email / f"{ts}_podcast"
             output_dir.mkdir(parents=True, exist_ok=True)
             state.result_path = str(output_dir)
+        else:
+            Path(state.result_path).mkdir(parents=True, exist_ok=True)
 
         state.file_contents = []
         state.podcast_script = ""
@@ -170,7 +177,28 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
 
         # Podcast script prompt
         language = state.request.language
-        prompt = f"""你是一位专业的知识播客主播。基于以下资料，生成一段5-10分钟的知识播客脚本。
+        mode = getattr(state.request, "podcast_mode", "monologue")
+        if mode == "dialog":
+            speaker_a = "主持人" if language == "zh" else "Host"
+            speaker_b = "嘉宾" if language == "zh" else "Guest"
+            prompt = f"""你是一位专业的知识播客制作人。基于以下资料，生成一段5-10分钟的双人对话播客脚本。
+
+要求：
+1. 口语化、生动有趣，避免书面语
+2. 结构清晰：开场白 → 核心内容 → 总结
+3. 使用类比和例子帮助理解
+4. 适当加入互动性语言（"你可能会想..."）
+5. 使用{language}语言
+6. 严格使用如下格式逐行输出（每行一个角色）：
+{speaker_a}: ...
+{speaker_b}: ...
+
+资料内容：
+{contents_str}
+
+请生成播客脚本："""
+        else:
+            prompt = f"""你是一位专业的知识播客主播。基于以下资料，生成一段5-10分钟的知识播客脚本。
 
 要求：
 1. 口语化、生动有趣，避免书面语
@@ -220,18 +248,121 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
 
         try:
             audio_path = str(Path(state.result_path) / "podcast.wav")
+            mode = getattr(state.request, "podcast_mode", "monologue")
+            max_chars = 1500
+            concurrency = 4
 
-            result_path = await generate_speech_and_save_async(
-                text=state.podcast_script,
-                save_path=audio_path,
-                api_url=state.request.chat_api_url,
-                api_key=state.request.api_key,
-                model=state.request.tts_model,
-                voice_name=state.request.voice_name
-            )
+            segments = []
+            if mode == "dialog":
+                language = state.request.language
+                speaker_a = "主持人" if language == "zh" else "Host"
+                speaker_b = "嘉宾" if language == "zh" else "Guest"
+                speaker_map = {
+                    speaker_a.lower(): "A",
+                    speaker_b.lower(): "B",
+                    "a": "A",
+                    "b": "B",
+                    "speaker a": "A",
+                    "speaker b": "B",
+                    "角色a": "A",
+                    "角色b": "B",
+                    "主播": "A",
+                    "嘉宾": "B",
+                }
+                pattern = re.compile(r"^\s*([^:：]{1,20})\s*[:：]\s*(.+)$")
+                current_speaker = "A"
+                for raw_line in state.podcast_script.splitlines():
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+                    m = pattern.match(line)
+                    if m:
+                        label = m.group(1).strip().lower()
+                        content = m.group(2).strip()
+                        mapped = speaker_map.get(label)
+                        if mapped:
+                            current_speaker = mapped
+                        if content:
+                            segments.append({"speaker": current_speaker, "text": content})
+                        continue
+                    # No label, append to current speaker
+                    if segments and segments[-1]["speaker"] == current_speaker:
+                        segments[-1]["text"] = f"{segments[-1]['text']} {line}"
+                    else:
+                        segments.append({"speaker": current_speaker, "text": line})
 
-            state.audio_path = result_path
-            log.info(f"Audio generated successfully: {result_path}")
+                expanded = []
+                for seg in segments:
+                    for chunk in split_tts_text(seg["text"], max_chars):
+                        expanded.append({
+                            "speaker": seg["speaker"],
+                            "text": chunk
+                        })
+                segments = expanded
+            else:
+                for chunk in split_tts_text(state.podcast_script, max_chars):
+                    segments.append({"speaker": "A", "text": chunk})
+
+            if not segments:
+                raise RuntimeError("No valid TTS segments generated from script")
+
+            sem = asyncio.Semaphore(concurrency)
+
+            async def _run(seg):
+                voice = state.request.voice_name if seg["speaker"] == "A" else state.request.voice_name_b
+                async with sem:
+                    return await generate_speech_bytes_async(
+                        text=seg["text"],
+                        api_url=state.request.chat_api_url,
+                        api_key=state.request.api_key,
+                        model=state.request.tts_model,
+                        voice_name=voice,
+                    )
+
+            async def _run_no_sem(seg):
+                voice = state.request.voice_name if seg["speaker"] == "A" else state.request.voice_name_b
+                return await generate_speech_bytes_async(
+                    text=seg["text"],
+                    api_url=state.request.chat_api_url,
+                    api_key=state.request.api_key,
+                    model=state.request.tts_model,
+                    voice_name=voice,
+                )
+
+            async def _run_with_retry(seg, attempts=3, base_delay=0.8, use_sem=True):
+                last_err = None
+                for i in range(attempts):
+                    try:
+                        if use_sem:
+                            return await _run(seg)
+                        return await _run_no_sem(seg)
+                    except Exception as e:
+                        last_err = e
+                        if i < attempts - 1:
+                            await asyncio.sleep(base_delay * (i + 1))
+                        continue
+                raise last_err
+
+            tasks = [asyncio.create_task(_run_with_retry(seg, attempts=2, use_sem=True)) for seg in segments]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            failed_indices = [i for i, r in enumerate(results) if isinstance(r, Exception)]
+            if failed_indices:
+                log.warning(f"TTS retry sequentially for {len(failed_indices)} failed segment(s)")
+                for i in failed_indices:
+                    results[i] = await _run_with_retry(segments[i], attempts=3, use_sem=False)
+
+            audio_chunks = results
+
+            os.makedirs(os.path.dirname(os.path.abspath(audio_path)), exist_ok=True)
+            with wave.open(audio_path, "wb") as wav_file:
+                wav_file.setnchannels(1)        # 1 Channel
+                wav_file.setsampwidth(2)        # 16 bit = 2 bytes
+                wav_file.setframerate(24000)    # 24kHz
+                wav_file.writeframes(b"".join(audio_chunks))
+
+            state.audio_path = audio_path
+            log.info(f"Audio generated successfully: {audio_path}")
         except Exception as e:
             log.error(f"Audio generation failed: {e}")
             state.audio_path = f"[Audio generation error: {e}]"

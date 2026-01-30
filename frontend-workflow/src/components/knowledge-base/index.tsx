@@ -9,7 +9,7 @@ import { RightPanel } from './RightPanel';
 import { MermaidPreview } from './tools/MermaidPreview';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
-import { X, Eye, Trash2, FileText, Image, Video, Link as LinkIcon } from 'lucide-react';
+import { X, Eye, Trash2, FileText, Image, Video, Link as LinkIcon, Headphones } from 'lucide-react';
 import { API_KEY } from '../../config/api';
 
 const KnowledgeBase = () => {
@@ -285,6 +285,7 @@ const KnowledgeBase = () => {
       case 'image': return <Image size={20} className="text-purple-400" />;
       case 'video': return <Video size={20} className="text-pink-400" />;
       case 'link': return <LinkIcon size={20} className="text-green-400" />;
+      case 'audio': return <Headphones size={20} className="text-green-400" />;
       default: return <FileText size={20} className="text-gray-400" />;
     }
   };
@@ -433,6 +434,24 @@ const KnowledgeBase = () => {
                     </div>
                   </div>
                 </div>
+
+                {previewFile.type === 'audio' && previewFile.url && (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                      <div className="w-1 h-4 bg-green-500 rounded-full"></div>
+                      播放预览
+                    </h4>
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                      <audio
+                        className="w-full"
+                        controls
+                        autoPlay
+                        preload="metadata"
+                        src={previewFile.url}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {previewFile.type === 'doc' && (
                   <div>

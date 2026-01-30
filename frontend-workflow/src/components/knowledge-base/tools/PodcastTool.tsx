@@ -20,6 +20,8 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
     model: 'gpt-4o',
     tts_model: 'gemini-2.5-pro-preview-tts',
     voice_name: 'Kore',
+    voice_name_b: 'Puck',
+    podcast_mode: 'monologue',
     language: 'zh'
   });
 
@@ -76,6 +78,8 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
           model: podcastParams.model,
           tts_model: podcastParams.tts_model,
           voice_name: podcastParams.voice_name,
+          voice_name_b: podcastParams.voice_name_b,
+          podcast_mode: podcastParams.podcast_mode,
           language: podcastParams.language
         })
       });
@@ -87,8 +91,7 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
 
       const data = await res.json();
 
-      if (data.success) {
-        alert('播客生成成功！');
+      if (data.success && data.audio_path) {
 
         onGenerateSuccess({
           id: data.output_file_id || 'o' + Date.now(),
@@ -100,7 +103,7 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
           desc: `Knowledge Podcast from ${selectedFiles.length} file(s)`
         });
       } else {
-        throw new Error('生成失败');
+        throw new Error(data?.detail || '生成失败');
       }
 
     } catch (e: any) {
@@ -208,6 +211,53 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
               <option value="Zephyr">Zephyr</option>
             </select>
           </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300">播客模式</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setPodcastParams({...podcastParams, podcast_mode: 'monologue'})}
+                className={`py-2.5 rounded-lg border text-sm transition-all ${
+                  podcastParams.podcast_mode === 'monologue'
+                    ? 'bg-green-500/20 border-green-500 text-green-300'
+                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                }`}
+              >
+                单口
+              </button>
+              <button
+                onClick={() => setPodcastParams({...podcastParams, podcast_mode: 'dialog'})}
+                className={`py-2.5 rounded-lg border text-sm transition-all ${
+                  podcastParams.podcast_mode === 'dialog'
+                    ? 'bg-green-500/20 border-green-500 text-green-300'
+                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                }`}
+              >
+                对话
+              </button>
+            </div>
+          </div>
+
+          {podcastParams.podcast_mode === 'dialog' && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">第二位声音</label>
+              <select
+                value={podcastParams.voice_name_b}
+                onChange={e => setPodcastParams({...podcastParams, voice_name_b: e.target.value})}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-green-500"
+              >
+                <option value="Kore">Kore</option>
+                <option value="Aoede">Aoede</option>
+                <option value="Charon">Charon</option>
+                <option value="Fenrir">Fenrir</option>
+                <option value="Puck">Puck</option>
+                <option value="Orbit">Orbit</option>
+                <option value="Orus">Orus</option>
+                <option value="Trochilidae">Trochilidae</option>
+                <option value="Zephyr">Zephyr</option>
+              </select>
+            </div>
+          )}
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-300">目标语言</label>
