@@ -9,6 +9,7 @@ import Ppt2PolishPage from './components/Ppt2PolishPage';
 import KnowledgeBasePage from './components/KnowledgeBasePage';
 import { FilesPage } from './components/FilesPage';
 import Paper2DrawioPage from './components/paper2drawio';
+import Paper2RebuttalPage from './components/Paper2RebuttalPage';
 import { AccountPage } from './components/AccountPage';
 import { useTranslation } from 'react-i18next';
 import { PointsDisplay } from './components/PointsDisplay';
@@ -19,7 +20,7 @@ import { AppSidebar } from './components/AppSidebar';
 
 function App() {
   const { t } = useTranslation('common');
-  const [activePage, setActivePage] = useState<'paper2figure' | 'paper2ppt' | 'pdf2ppt' | 'image2ppt' | 'image2drawio' | 'ppt2polish' | 'knowledge' | 'files' | 'paper2drawio'>('paper2figure');
+  const [activePage, setActivePage] = useState<'paper2figure' | 'paper2ppt' | 'pdf2ppt' | 'image2ppt' | 'image2drawio' | 'ppt2polish' | 'knowledge' | 'files' | 'paper2drawio' | 'paper2rebuttal'>('paper2figure');
   const [showFilesModal, setShowFilesModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -80,6 +81,7 @@ function App() {
           {activePage === 'knowledge' && <KnowledgeBasePage />}
           {activePage === 'files' && <FilesPage />}
           {activePage === 'paper2drawio' && <Paper2DrawioPage />}
+          {activePage === 'paper2rebuttal' && <Paper2RebuttalPage />}
         </div>
       </main>
 

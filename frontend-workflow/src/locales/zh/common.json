@@ -16,7 +16,8 @@
       "image2drawio": "图片转DrawIO",
       "ppt2polish": "PPT润色优化",
       "knowledge": "知识库",
-      "files": "我的历史文件"
+      "files": "我的历史文件",
+      "paper2rebuttal": "反驳信生成"
     },
     "navTooltip": {
       "paper2figure": "根据文档内容生成科研绘图，包括模型架构图、技术路线图、实验数据图等可编辑的PPTX格式图表",
@@ -27,7 +28,8 @@
       "image2drawio": "上传任意图片并转换为可编辑的DrawIO图",
       "ppt2polish": "对已有的PPT进行AI智能润色，优化排版、美化设计、完善内容",
       "knowledge": "管理和检索您的文档知识库，支持智能问答和内容搜索",
-      "files": "查看和管理所有工作流生成的文件，支持下载和删除操作"
+      "files": "查看和管理所有工作流生成的文件，支持下载和删除操作",
+      "paper2rebuttal": "AI辅助生成学术论文反驳信，自动分析评审意见并给出回复策略"
     },
     "sidebar": {
       "toggle": "切换菜单",

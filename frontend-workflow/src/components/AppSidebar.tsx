@@ -9,7 +9,8 @@ import {
   Wand2,
   BookOpen,
   FolderOpen,
-  Network
+  Network,
+  MessageSquare
 } from 'lucide-react';
 import NavTooltip from './NavTooltip';
 
@@ -94,6 +95,13 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
       tooltipKey: t('app.navTooltip.files'),
       icon: FolderOpen,
       gradient: 'from-emerald-500 to-green-500'
+    },
+    {
+      id: 'paper2rebuttal',
+      labelKey: t('app.nav.paper2rebuttal'),
+      tooltipKey: t('app.navTooltip.paper2rebuttal'),
+      icon: MessageSquare,
+      gradient: 'from-rose-500 to-pink-500'
     }
   ];
 
