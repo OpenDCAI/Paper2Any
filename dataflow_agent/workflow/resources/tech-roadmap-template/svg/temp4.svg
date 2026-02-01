@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="858" height="924" viewBox="0 0 858 924">
+<rect width="858" height="924" fill="#F8F9FB"/>
+<style>
+.title{font-family:sans-serif;font-size:22px;fill:#333;font-weight:700;}
+.label{font-family:sans-serif;font-size:16px;fill:#555;font-weight:700;}
+.pilltext{font-family:sans-serif;font-size:14px;fill:#444;font-weight:700;}
+.small{font-family:sans-serif;font-size:13px;fill:#555;font-weight:700;}
+.dash{stroke:#B9BDC3;stroke-width:1.5;stroke-dasharray:4 4;fill:none;}
+</style>
+<text x="429.0" y="34" text-anchor="middle" class="title">古代文学研究技术路线图</text>
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#888"/></marker></defs>
+<rect x="30" y="60" width="798" height="180" class="dash" rx="6"/>
+<rect x="50" y="90" width="170" height="130" rx="8" fill="#F0F0F0" stroke="#C9C9C9" stroke-width="1.2"/>
+<rect x="64" y="102" width="140" height="22" rx="6" fill="#FFFFFF" stroke="#CFCFCF" stroke-width="1"/>
+<text x="134" y="117" text-anchor="middle" class="small">研究背景</text>
+<rect x="64" y="130" width="140" height="22" rx="6" fill="#FFFFFF" stroke="#CFCFCF" stroke-width="1"/>
+<text x="134" y="145" text-anchor="middle" class="small">研究意义</text>
+<rect x="64" y="158" width="140" height="22" rx="6" fill="#FFFFFF" stroke="#CFCFCF" stroke-width="1"/>
+<text x="134" y="173" text-anchor="middle" class="small">文献综述</text>
+<rect x="64" y="186" width="140" height="22" rx="6" fill="#FFFFFF" stroke="#CFCFCF" stroke-width="1"/>
+<text x="134" y="201" text-anchor="middle" class="small">研究创新</text>
+<rect x="638" y="90" width="170" height="130" rx="8" fill="#F0F0F0" stroke="#C9C9C9" stroke-width="1.2"/>
+<rect x="652" y="102" width="140" height="22" rx="6" fill="#FFFFFF" stroke="#CFCFCF" stroke-width="1"/>
+<text x="722" y="117" text-anchor="middle" class="small">理论基础</text>
+<rect x="652" y="130" width="140" height="22" rx="6" fill="#FFFFFF" stroke="#CFCFCF" stroke-width="1"/>
+<text x="722" y="145" text-anchor="middle" class="small">分析框架</text>
+<rect x="652" y="158" width="140" height="22" rx="6" fill="#FFFFFF" stroke="#CFCFCF" stroke-width="1"/>
+<text x="722" y="173" text-anchor="middle" class="small">研究视角</text>
+<rect x="652" y="186" width="140" height="22" rx="6" fill="#FFFFFF" stroke="#CFCFCF" stroke-width="1"/>
+<text x="722" y="201" text-anchor="middle" class="small">理论建构</text>
+<rect x="260" y="95" width="40" height="120" rx="6" fill="#BFA7C9"/>
+<text x="280" y="160" text-anchor="middle" class="label" transform="rotate(-90 280 160)">绪论</text>
+<rect x="558" y="95" width="40" height="120" rx="6" fill="#F1958A"/>
+<text x="578" y="160" text-anchor="middle" class="label" transform="rotate(-90 578 160)">理论研究</text>
+<circle cx="429" cy="155" r="38" fill="#F4D13F" stroke="#E2B92F" stroke-width="1.2"/>
+<text x="429" y="161" text-anchor="middle" class="label">核心</text>
+<text x="429" y="180" text-anchor="middle" class="label">问题</text>
+<line x1="300" y1="155" x2="391" y2="155" stroke="#888" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="467" y1="155" x2="558" y2="155" stroke="#888" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="429" y1="240" x2="429" y2="275" stroke="#888" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="334" y="280" width="190" height="36" rx="18" fill="#F2A23A"/>
+<text x="429" y="304" text-anchor="middle" class="label" fill="#fff">研究方法</text>
+<rect x="30" y="330" width="798" height="120" class="dash" rx="6"/>
+<rect x="80" y="370" width="150" height="34" rx="17" fill="#BEE9D5" stroke="#9FD7C2" stroke-width="1"/>
+<text x="155" y="392" text-anchor="middle" class="pilltext">文本分析法</text>
+<rect x="270" y="370" width="150" height="34" rx="17" fill="#BEE9D5" stroke="#9FD7C2" stroke-width="1"/>
+<text x="345" y="392" text-anchor="middle" class="pilltext">历史考证法</text>
+<rect x="460" y="370" width="150" height="34" rx="17" fill="#BEE9D5" stroke="#9FD7C2" stroke-width="1"/>
+<text x="535" y="392" text-anchor="middle" class="pilltext">比较研究法</text>
+<rect x="650" y="370" width="150" height="34" rx="17" fill="#BEE9D5" stroke="#9FD7C2" stroke-width="1"/>
+<text x="725" y="392" text-anchor="middle" class="pilltext">文化阐释法</text>
+<rect x="50" y="470" width="150" height="200" rx="8" fill="#FFFFFF" stroke="#CFCFCF" stroke-dasharray="4 4" stroke-width="1"/>
+<rect x="58" y="478" width="134" height="26" rx="6" fill="#5BCF88"/>
+<text x="125" y="496" text-anchor="middle" class="pilltext" fill="#fff">现状分析</text>
+<rect x="68" y="512" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="125" y="528" text-anchor="middle" class="small">研究现状</text>
+<rect x="68" y="546" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="125" y="562" text-anchor="middle" class="small">发展脉络</text>
+<rect x="68" y="580" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="125" y="596" text-anchor="middle" class="small">学术成果</text>
+<rect x="68" y="614" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="125" y="630" text-anchor="middle" class="small">研究特点</text>
+<rect x="250" y="470" width="150" height="200" rx="8" fill="#FFFFFF" stroke="#CFCFCF" stroke-dasharray="4 4" stroke-width="1"/>
+<rect x="258" y="478" width="134" height="26" rx="6" fill="#8CC4EC"/>
+<text x="325" y="496" text-anchor="middle" class="pilltext" fill="#fff">原因分析</text>
+<rect x="268" y="512" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="325" y="528" text-anchor="middle" class="small">历史原因</text>
+<rect x="268" y="546" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="325" y="562" text-anchor="middle" class="small">社会因素</text>
+<rect x="268" y="580" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="325" y="596" text-anchor="middle" class="small">文化背景</text>
+<rect x="268" y="614" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="325" y="630" text-anchor="middle" class="small">深层机制</text>
+<rect x="450" y="470" width="150" height="200" rx="8" fill="#FFFFFF" stroke="#CFCFCF" stroke-dasharray="4 4" stroke-width="1"/>
+<rect x="458" y="478" width="134" height="26" rx="6" fill="#C5A4D6"/>
+<text x="525" y="496" text-anchor="middle" class="pilltext" fill="#fff">存在问题</text>
+<rect x="468" y="512" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="525" y="528" text-anchor="middle" class="small">研究空白</text>
+<rect x="468" y="546" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="525" y="562" text-anchor="middle" class="small">方法局限</text>
+<rect x="468" y="580" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="525" y="596" text-anchor="middle" class="small">理论不足</text>
+<rect x="468" y="614" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="525" y="630" text-anchor="middle" class="small">争议焦点</text>
+<rect x="650" y="470" width="150" height="200" rx="8" fill="#FFFFFF" stroke="#CFCFCF" stroke-dasharray="4 4" stroke-width="1"/>
+<rect x="658" y="478" width="134" height="26" rx="6" fill="#F1958A"/>
+<text x="725" y="496" text-anchor="middle" class="pilltext" fill="#fff">解决方法</text>
+<rect x="668" y="512" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="725" y="528" text-anchor="middle" class="small">方法创新</text>
+<rect x="668" y="546" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="725" y="562" text-anchor="middle" class="small">理论建构</text>
+<rect x="668" y="580" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="725" y="596" text-anchor="middle" class="small">视角拓展</text>
+<rect x="668" y="614" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="725" y="630" text-anchor="middle" class="small">实践应用</text>
+<rect x="50" y="690" width="150" height="130" rx="8" fill="#FFFFFF" stroke="#CFCFCF" stroke-dasharray="4 4" stroke-width="1"/>
+<rect x="58" y="698" width="134" height="26" rx="6" fill="#5BCF88"/>
+<text x="125" y="716" text-anchor="middle" class="pilltext" fill="#fff">论文专著</text>
+<rect x="68" y="736" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="125" y="752" text-anchor="middle" class="small">学术论文</text>
+<rect x="68" y="770" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="125" y="786" text-anchor="middle" class="small">专题研究</text>
+<rect x="255" y="690" width="180" height="130" rx="8" fill="#A9D2F2" stroke="#8BBCE1" stroke-width="1"/>
+<text x="345" y="748" text-anchor="middle" class="label" fill="#1C4E7A">学术交流</text>
+<text x="345" y="776" text-anchor="middle" class="label" fill="#1C4E7A">成果推广</text>
+<rect x="470" y="690" width="150" height="130" rx="8" fill="#FFFFFF" stroke="#CFCFCF" stroke-dasharray="4 4" stroke-width="1"/>
+<rect x="478" y="698" width="134" height="26" rx="6" fill="#C5A4D6"/>
+<text x="545" y="716" text-anchor="middle" class="pilltext" fill="#fff">应用价值</text>
+<rect x="488" y="736" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="545" y="752" text-anchor="middle" class="small">教学应用</text>
+<rect x="488" y="770" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="545" y="786" text-anchor="middle" class="small">文化传承</text>
+<rect x="650" y="690" width="150" height="130" rx="8" fill="#FFFFFF" stroke="#CFCFCF" stroke-dasharray="4 4" stroke-width="1"/>
+<rect x="658" y="698" width="134" height="26" rx="6" fill="#F1958A"/>
+<text x="725" y="716" text-anchor="middle" class="pilltext" fill="#fff">学术影响</text>
+<rect x="668" y="736" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="725" y="752" text-anchor="middle" class="small">学界反馈</text>
+<rect x="668" y="770" width="114" height="24" rx="12" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="725" y="786" text-anchor="middle" class="small">理论贡献</text>
+<rect x="40" y="840" width="778" height="48" rx="10" fill="#ADE5C8" stroke="#8DD5B6" stroke-width="1"/>
+<text x="429" y="872" text-anchor="middle" class="label" fill="#2D6E4E">研究结论</text>
+</svg>

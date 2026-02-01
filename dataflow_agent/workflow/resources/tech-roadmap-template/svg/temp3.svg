@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="852" height="1372" viewBox="0 0 852 1372">
+<rect width="852" height="1372" fill="#FFFFFF"/>
+<style>
+.label{font-family:sans-serif;font-size:22px;fill:#333;font-weight:700;}
+.sub{font-family:sans-serif;font-size:18px;fill:#B85C5C;font-weight:700;}
+.bartext{font-family:sans-serif;font-size:18px;fill:#fff;font-weight:700;}
+.boxtext{font-family:sans-serif;font-size:14px;fill:#fff;font-weight:700;}
+.boxtxtdark{font-family:sans-serif;font-size:14px;fill:#3A3A3A;font-weight:700;}
+.line{stroke:#CFCFCF;stroke-width:1;stroke-dasharray:4 4;}
+</style>
+<text x="32" y="68" text-anchor="start" class="label">第一章</text>
+<text x="32" y="98" text-anchor="start" class="sub">提出问题</text>
+<rect x="390" y="50" width="220" height="32" rx="6" fill="#258D8C" stroke="none" stroke-width="1"/>
+<text x="500.0" y="72" text-anchor="middle" class="bartext">绪论</text>
+<line x1="500.0" y1="82" x2="500.0" y2="96" class="line"/>
+<line x1="325.0" y1="94" x2="775.0" y2="94" class="line"/>
+<rect x="260" y="100" width="130" height="30" rx="6" fill="#46AAAA" stroke="none" stroke-width="1"/>
+<text x="325.0" y="120" text-anchor="middle" class="boxtext">研究背景</text>
+<rect x="270" y="140" width="110" height="26" rx="6" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="325.0" y="158" text-anchor="middle" class="boxtxtdark">请输入文本</text>
+<rect x="410" y="100" width="130" height="30" rx="6" fill="#46AAAA" stroke="none" stroke-width="1"/>
+<text x="475.0" y="120" text-anchor="middle" class="boxtext">研究现状</text>
+<rect x="420" y="140" width="110" height="26" rx="6" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="475.0" y="158" text-anchor="middle" class="boxtxtdark">请输入文本</text>
+<rect x="560" y="100" width="130" height="30" rx="6" fill="#46AAAA" stroke="none" stroke-width="1"/>
+<text x="625.0" y="120" text-anchor="middle" class="boxtext">研究目标</text>
+<rect x="570" y="140" width="110" height="26" rx="6" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="625.0" y="158" text-anchor="middle" class="boxtxtdark">请输入文本</text>
+<rect x="710" y="100" width="130" height="30" rx="6" fill="#46AAAA" stroke="none" stroke-width="1"/>
+<text x="775.0" y="120" text-anchor="middle" class="boxtext">研究意义</text>
+<rect x="720" y="140" width="110" height="26" rx="6" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="775.0" y="158" text-anchor="middle" class="boxtxtdark">请输入文本</text>
+<line x1="20" y1="212" x2="832" y2="212" class="line"/>
+<text x="32" y="248" text-anchor="start" class="label">第二章</text>
+<text x="32" y="278" text-anchor="start" class="sub">研究基础</text>
+<rect x="390" y="230" width="220" height="32" rx="6" fill="#BC973C" stroke="none" stroke-width="1"/>
+<text x="500.0" y="252" text-anchor="middle" class="bartext">相关理论基础与综述</text>
+<line x1="500.0" y1="262" x2="500.0" y2="276" class="line"/>
+<line x1="340.0" y1="274" x2="680.0" y2="274" class="line"/>
+<rect x="270" y="280" width="140" height="30" rx="6" fill="#E0B44B" stroke="none" stroke-width="1"/>
+<text x="340.0" y="300" text-anchor="middle" class="boxtext">相关理论研究</text>
+<rect x="440" y="280" width="140" height="30" rx="6" fill="#E0B44B" stroke="none" stroke-width="1"/>
+<text x="510.0" y="300" text-anchor="middle" class="boxtext">基础理论研究</text>
+<rect x="610" y="280" width="140" height="30" rx="6" fill="#E0B44B" stroke="none" stroke-width="1"/>
+<text x="680.0" y="300" text-anchor="middle" class="boxtext">优化理论分析</text>
+<line x1="20" y1="392" x2="832" y2="392" class="line"/>
+<text x="32" y="428" text-anchor="start" class="label">第三章</text>
+<text x="32" y="458" text-anchor="start" class="sub">研究方法</text>
+<rect x="390" y="410" width="220" height="32" rx="6" fill="#5B73A1" stroke="none" stroke-width="1"/>
+<text x="500.0" y="432" text-anchor="middle" class="bartext">研究方案</text>
+<line x1="500.0" y1="442" x2="500.0" y2="456" class="line"/>
+<line x1="325.0" y1="454" x2="775.0" y2="454" class="line"/>
+<rect x="260" y="460" width="130" height="30" rx="6" fill="#6C8AC0" stroke="none" stroke-width="1"/>
+<text x="325.0" y="480" text-anchor="middle" class="boxtext">研究问题与设计</text>
+<rect x="410" y="460" width="130" height="30" rx="6" fill="#6C8AC0" stroke="none" stroke-width="1"/>
+<text x="475.0" y="480" text-anchor="middle" class="boxtext">研究对象确定</text>
+<rect x="560" y="460" width="130" height="30" rx="6" fill="#6C8AC0" stroke="none" stroke-width="1"/>
+<text x="625.0" y="480" text-anchor="middle" class="boxtext">数据采集方法</text>
+<rect x="710" y="460" width="130" height="30" rx="6" fill="#6C8AC0" stroke="none" stroke-width="1"/>
+<text x="775.0" y="480" text-anchor="middle" class="boxtext">研究流程梳理</text>
+<line x1="20" y1="572" x2="832" y2="572" class="line"/>
+<text x="32" y="608" text-anchor="start" class="label">第四章</text>
+<text x="32" y="638" text-anchor="start" class="sub">分析问题</text>
+<rect x="390" y="590" width="220" height="32" rx="6" fill="#258D8C" stroke="none" stroke-width="1"/>
+<text x="500.0" y="612" text-anchor="middle" class="bartext">研究内容</text>
+<line x1="500.0" y1="622" x2="500.0" y2="636" class="line"/>
+<line x1="340.0" y1="634" x2="680.0" y2="634" class="line"/>
+<rect x="270" y="640" width="140" height="30" rx="6" fill="#46AAAA" stroke="none" stroke-width="1"/>
+<text x="340.0" y="660" text-anchor="middle" class="boxtext">研究内容1</text>
+<rect x="280" y="680" width="120" height="26" rx="6" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="340.0" y="698" text-anchor="middle" class="boxtxtdark">请输入文本</text>
+<rect x="440" y="640" width="140" height="30" rx="6" fill="#46AAAA" stroke="none" stroke-width="1"/>
+<text x="510.0" y="660" text-anchor="middle" class="boxtext">研究内容2</text>
+<rect x="450" y="680" width="120" height="26" rx="6" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="510.0" y="698" text-anchor="middle" class="boxtxtdark">请输入文本</text>
+<rect x="610" y="640" width="140" height="30" rx="6" fill="#46AAAA" stroke="none" stroke-width="1"/>
+<text x="680.0" y="660" text-anchor="middle" class="boxtext">研究内容3</text>
+<rect x="620" y="680" width="120" height="26" rx="6" fill="#FFFFFF" stroke="#D7D7D7" stroke-width="1"/>
+<text x="680.0" y="698" text-anchor="middle" class="boxtxtdark">请输入文本</text>
+<line x1="20" y1="752" x2="832" y2="752" class="line"/>
+<text x="32" y="788" text-anchor="start" class="label">第五章</text>
+<text x="32" y="818" text-anchor="start" class="sub">解决问题</text>
+<rect x="390" y="770" width="220" height="32" rx="6" fill="#BC973C" stroke="none" stroke-width="1"/>
+<text x="500.0" y="792" text-anchor="middle" class="bartext">实证分析</text>
+<line x1="500.0" y1="802" x2="500.0" y2="816" class="line"/>
+<line x1="340.0" y1="814" x2="680.0" y2="814" class="line"/>
+<rect x="270" y="820" width="140" height="30" rx="6" fill="#E0B44B" stroke="none" stroke-width="1"/>
+<text x="340.0" y="840" text-anchor="middle" class="boxtext">实证分析</text>
+<rect x="440" y="820" width="140" height="30" rx="6" fill="#E0B44B" stroke="none" stroke-width="1"/>
+<text x="510.0" y="840" text-anchor="middle" class="boxtext">仿真建模分析</text>
+<rect x="610" y="820" width="140" height="30" rx="6" fill="#E0B44B" stroke="none" stroke-width="1"/>
+<text x="680.0" y="840" text-anchor="middle" class="boxtext">政策制定</text>
+<line x1="20" y1="932" x2="832" y2="932" class="line"/>
+<text x="32" y="968" text-anchor="start" class="label">第六章</text>
+<rect x="390" y="950" width="220" height="32" rx="6" fill="#BC973C" stroke="none" stroke-width="1"/>
+<text x="500.0" y="972" text-anchor="middle" class="bartext">成果展示</text>
+<line x1="500.0" y1="982" x2="500.0" y2="996" class="line"/>
+<line x1="340.0" y1="994" x2="680.0" y2="994" class="line"/>
+<rect x="270" y="1000" width="140" height="30" rx="6" fill="#E0B44B" stroke="none" stroke-width="1"/>
+<text x="340.0" y="1020" text-anchor="middle" class="boxtext">成果展示1</text>
+<rect x="440" y="1000" width="140" height="30" rx="6" fill="#E0B44B" stroke="none" stroke-width="1"/>
+<text x="510.0" y="1020" text-anchor="middle" class="boxtext">成果展示2</text>
+<rect x="610" y="1000" width="140" height="30" rx="6" fill="#E0B44B" stroke="none" stroke-width="1"/>
+<text x="680.0" y="1020" text-anchor="middle" class="boxtext">成果展示3</text>
+<line x1="20" y1="1112" x2="832" y2="1112" class="line"/>
+<text x="32" y="1148" text-anchor="start" class="label">第七章</text>
+<text x="32" y="1178" text-anchor="start" class="sub">拓展问题</text>
+<rect x="390" y="1130" width="220" height="32" rx="6" fill="#5B73A1" stroke="none" stroke-width="1"/>
+<text x="500.0" y="1152" text-anchor="middle" class="bartext">研究总结与展望</text>
+<line x1="500.0" y1="1162" x2="500.0" y2="1176" class="line"/>
+<line x1="340.0" y1="1174" x2="680.0" y2="1174" class="line"/>
+<rect x="270" y="1180" width="140" height="30" rx="6" fill="#6C8AC0" stroke="none" stroke-width="1"/>
+<text x="340.0" y="1200" text-anchor="middle" class="boxtext">研究总结</text>
+<rect x="440" y="1180" width="140" height="30" rx="6" fill="#6C8AC0" stroke="none" stroke-width="1"/>
+<text x="510.0" y="1200" text-anchor="middle" class="boxtext">研究不足</text>
+<rect x="610" y="1180" width="140" height="30" rx="6" fill="#6C8AC0" stroke="none" stroke-width="1"/>
+<text x="680.0" y="1200" text-anchor="middle" class="boxtext">研究展望</text>
+</svg>

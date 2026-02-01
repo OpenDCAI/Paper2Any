@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1742" height="1276" viewBox="0 0 1742 1276">
+  <rect width="1742" height="1276" fill="#363B46"/>
+  <style>
+    .label { font-family: sans-serif; font-size: 28px; fill: #D0CCC7; font-weight: 700; }
+    .title { font-family: sans-serif; font-size: 24px; fill: #D0CCC7; font-weight: 700; }
+    .pill { font-family: sans-serif; font-size: 20px; fill: #D0CCC7; }
+  </style>
+  <rect x="14" y="18" width="1429" height="175" rx="18" fill="#343E54" stroke="#3C516F" stroke-width="2"/>
+  <rect x="1482" y="18" width="244" height="175" rx="18" fill="#343E54" stroke="#3C516F" stroke-width="2"/>
+  <text x="1604" y="110" text-anchor="middle" class="label">展现层</text>
+  <rect x="56" y="59" width="248" height="93" rx="20" fill="#33405A" stroke="#3C5984" stroke-width="2"/>
+  <text x="180" y="117" text-anchor="middle" class="pill">小程序</text>
+  <rect x="330" y="59" width="248" height="93" rx="20" fill="#33405A" stroke="#3C5984" stroke-width="2"/>
+  <text x="454" y="117" text-anchor="middle" class="pill">APP</text>
+  <rect x="605" y="59" width="248" height="93" rx="20" fill="#33405A" stroke="#3C5984" stroke-width="2"/>
+  <text x="729" y="117" text-anchor="middle" class="pill">PAD</text>
+  <rect x="879" y="59" width="248" height="93" rx="20" fill="#33405A" stroke="#3C5984" stroke-width="2"/>
+  <text x="1003" y="117" text-anchor="middle" class="pill">客户端</text>
+  <rect x="1153" y="59" width="248" height="93" rx="20" fill="#33405A" stroke="#3C5984" stroke-width="2"/>
+  <text x="1277" y="117" text-anchor="middle" class="pill">WEB</text>
+  <rect x="14" y="232" width="1429" height="554" rx="18" fill="#394852" stroke="#476770" stroke-width="2"/>
+  <rect x="1482" y="232" width="244" height="554" rx="18" fill="#394852" stroke="#476770" stroke-width="2"/>
+  <text x="1604" y="520" text-anchor="middle" class="label">应用层</text>
+  <rect x="56" y="280" width="423" height="461" rx="16" fill="#3B5059" stroke="#51858C" stroke-width="2"/>
+  <text x="267.5" y="345" text-anchor="middle" class="title">核心模块</text>
+  <rect x="89" y="381" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <rect x="280" y="381" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <text x="171.5" y="437" text-anchor="middle" class="pill">功能1</text>
+  <text x="362.5" y="437" text-anchor="middle" class="pill">功能2</text>
+  <rect x="89" y="500" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <rect x="280" y="500" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <text x="171.5" y="556" text-anchor="middle" class="pill">功能3</text>
+  <text x="362.5" y="556" text-anchor="middle" class="pill">功能4</text>
+  <rect x="89" y="618" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <rect x="280" y="618" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <text x="171.5" y="674" text-anchor="middle" class="pill">功能5</text>
+  <text x="362.5" y="674" text-anchor="middle" class="pill">功能6</text>
+  <rect x="517" y="280" width="423" height="461" rx="16" fill="#3B5059" stroke="#51858C" stroke-width="2"/>
+  <text x="728.5" y="345" text-anchor="middle" class="title">基础模块</text>
+  <rect x="550" y="381" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <rect x="741" y="381" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <text x="632.5" y="437" text-anchor="middle" class="pill">功能1</text>
+  <text x="823.5" y="437" text-anchor="middle" class="pill">功能2</text>
+  <rect x="550" y="500" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <rect x="741" y="500" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <text x="632.5" y="556" text-anchor="middle" class="pill">功能3</text>
+  <text x="823.5" y="556" text-anchor="middle" class="pill">功能4</text>
+  <rect x="550" y="618" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <rect x="741" y="618" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <text x="632.5" y="674" text-anchor="middle" class="pill">功能5</text>
+  <text x="823.5" y="674" text-anchor="middle" class="pill">功能6</text>
+  <rect x="979" y="280" width="423" height="461" rx="16" fill="#3B5059" stroke="#51858C" stroke-width="2"/>
+  <text x="1190.5" y="345" text-anchor="middle" class="title">其他模块</text>
+  <rect x="1012" y="381" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <rect x="1203" y="381" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <text x="1094.5" y="437" text-anchor="middle" class="pill">功能1</text>
+  <text x="1285.5" y="437" text-anchor="middle" class="pill">功能2</text>
+  <rect x="1012" y="500" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <rect x="1203" y="500" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <text x="1094.5" y="556" text-anchor="middle" class="pill">功能3</text>
+  <text x="1285.5" y="556" text-anchor="middle" class="pill">功能4</text>
+  <rect x="1012" y="618" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <rect x="1203" y="618" width="165" height="93" rx="18" fill="#3C555E" stroke="#49737A" stroke-width="2"/>
+  <text x="1094.5" y="674" text-anchor="middle" class="pill">功能5</text>
+  <text x="1285.5" y="674" text-anchor="middle" class="pill">功能6</text>
+  <rect x="14" y="824" width="1429" height="436" rx="18" fill="#473D3E" stroke="#5E4F4C" stroke-width="2"/>
+  <rect x="1482" y="824" width="244" height="436" rx="18" fill="#473D3E" stroke="#5E4F4C" stroke-width="2"/>
+  <text x="1604" y="1046" text-anchor="middle" class="label">平台层</text>
+  <rect x="56" y="886" width="423" height="311" rx="16" fill="#4B3E3C" stroke="#78594B" stroke-width="2"/>
+  <text x="267.5" y="941" text-anchor="middle" class="title">模块1</text>
+  <rect x="98" y="974" width="147" height="92" rx="18" fill="#4B3E3C" stroke="#78594B" stroke-width="2"/>
+  <rect x="289" y="974" width="147" height="92" rx="18" fill="#4B3E3C" stroke="#78594B" stroke-width="2"/>
+  <text x="171.5" y="1030" text-anchor="middle" class="pill">功能1</text>
+  <text x="362.5" y="1030" text-anchor="middle" class="pill">功能2</text>
+  <rect x="98" y="1092" width="147" height="92" rx="18" fill="#4B3E3C" stroke="#78594B" stroke-width="2"/>
+  <rect x="289" y="1092" width="147" height="92" rx="18" fill="#4B3E3C" stroke="#78594B" stroke-width="2"/>
+  <text x="171.5" y="1148" text-anchor="middle" class="pill">功能3</text>
+  <text x="362.5" y="1148" text-anchor="middle" class="pill">功能4</text>
+  <rect x="517" y="886" width="423" height="311" rx="16" fill="#4B3E3C" stroke="#78594B" stroke-width="2"/>
+  <text x="728.5" y="941" text-anchor="middle" class="title">模块2</text>
+  <rect x="559" y="974" width="147" height="92" rx="18" fill="#4B3E3C" stroke="#78594B" stroke-width="2"/>
+  <rect x="750" y="974" width="147" height="92" rx="18" fill="#4B3E3C" stroke="#78594B" stroke-width="2"/>
+  <text x="632.5" y="1030" text-anchor="middle" class="pill">功能1</text>
+  <text x="823.5" y="1030" text-anchor="middle" class="pill">功能2</text>
+  <rect x="559" y="1092" width="147" height="92" rx="18" fill="#4B3E3C" stroke="#78594B" stroke-width="2"/>
+  <rect x="750" y="1092" width="147" height="92" rx="18" fill="#4B3E3C" stroke="#78594B" stroke-width="2"/>
+  <text x="632.5" y="1148" text-anchor="middle" class="pill">功能3</text>
+  <text x="823.5" y="1148" text-anchor="middle" class="pill">功能4</text>
+  <rect x="979" y="886" width="423" height="311" rx="16" fill="#4B3E3C" stroke="#78594B" stroke-width="2"/>
+  <text x="1190.5" y="941" text-anchor="middle" class="title">模块3</text>
+  <rect x="1021" y="974" width="147" height="92" rx="18" fill="#4B3E3C" stroke="#78594B" stroke-width="2"/>
+  <rect x="1212" y="974" width="147" height="92" rx="18" fill="#4B3E3C" stroke="#78594B" stroke-width="2"/>
+  <text x="1094.5" y="1030" text-anchor="middle" class="pill">功能1</text>
+  <text x="1285.5" y="1030" text-anchor="middle" class="pill">功能2</text>
+  <rect x="1021" y="1092" width="147" height="92" rx="18" fill="#4B3E3C" stroke="#78594B" stroke-width="2"/>
+  <rect x="1212" y="1092" width="147" height="92" rx="18" fill="#4B3E3C" stroke="#78594B" stroke-width="2"/>
+  <text x="1094.5" y="1148" text-anchor="middle" class="pill">功能3</text>
+  <text x="1285.5" y="1148" text-anchor="middle" class="pill">功能4</text>
+</svg>
