@@ -23,3 +23,12 @@ export const TECH_ROUTE_PALETTES = [
   { id: 'slate_rose', label: '灰玫', colors: ['#334155', '#64748B', '#F43F5E', '#FCA5A5'] },
   { id: 'indigo_amber', label: '靛蓝琥珀', colors: ['#4338CA', '#6366F1', '#F59E0B', '#FCD34D'] },
 ];
+
+export const TECH_ROUTE_TEMPLATES = [
+  { id: '', labelKey: 'techRoute.templateAutoLabel', preview: '' },
+  { id: 'temp1', labelKey: 'techRoute.template1', preview: '/tech-roadmap-templates/temp1.png' },
+  { id: 'temp2', labelKey: 'techRoute.template2', preview: '/tech-roadmap-templates/temp2.png' },
+  { id: 'temp3', labelKey: 'techRoute.template3', preview: '/tech-roadmap-templates/temp3.jpg' },
+  { id: 'temp4', labelKey: 'techRoute.template4', preview: '/tech-roadmap-templates/temp4.jpg' },
+  { id: 'temp5', labelKey: 'techRoute.template5', preview: '/tech-roadmap-templates/temp5.jpg' },
+];

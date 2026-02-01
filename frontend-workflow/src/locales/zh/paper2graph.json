@@ -75,7 +75,19 @@
     "pptCopyHintTitle": "如果下载失败，请复制下面链接到浏览器地址栏打开：",
     "svgDownload": "下载 SVG 源文件：{{filename}}",
     "svgPreviewTitle": "SVG 预览（PNG 渲染图）",
-    "paletteLabel": "配色方案"
+    "paletteLabel": "配色方案",
+    "templateLabel": "模板选择",
+    "templateHint": "选择模板后将优先参考对应的 SVG 布局风格生成技术路线图。",
+    "templateAuto": "自动匹配默认模板",
+    "templateSelected": "已选",
+    "templateZoom": "放大",
+    "templateClose": "关闭",
+    "templateAutoLabel": "自动（默认）",
+    "template1": "模板 1",
+    "template2": "模板 2",
+    "template3": "模板 3",
+    "template4": "模板 4",
+    "template5": "模板 5"
   },
   "validating": {
     "apiKey": "正在验证 API Key 有效性..."

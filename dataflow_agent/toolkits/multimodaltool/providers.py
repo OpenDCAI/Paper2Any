@@ -836,6 +836,50 @@ class ComflyProvider(AIProviderStrategy):
             log.info(f"[ComflyProvider] Translated model: {model} -> {translated}")
         return translated
 
+    def _aspect_ratio_to_size(self, aspect_ratio: str, resolution: str = "2K") -> str:
+        """
+        Convert aspect_ratio (e.g., "16:9") to OpenAI-style size (e.g., "1920x1080")
+
+        Args:
+            aspect_ratio: Aspect ratio string like "16:9", "1:1", "9:16"
+            resolution: Resolution hint like "1K", "2K", "4K" (default: "2K")
+
+        Returns:
+            Size string like "1920x1080"
+        """
+        # Resolution base dimensions
+        resolution_map = {
+            "1K": 1024,
+            "2K": 2048,
+            "4K": 4096,
+        }
+        base = resolution_map.get(resolution, 2048)
+
+        # Parse aspect ratio
+        if ":" in aspect_ratio:
+            try:
+                w_ratio, h_ratio = map(int, aspect_ratio.split(":"))
+
+                # Calculate dimensions based on aspect ratio
+                if w_ratio > h_ratio:
+                    # Landscape (e.g., 16:9)
+                    width = base
+                    height = int(base * h_ratio / w_ratio)
+                elif w_ratio < h_ratio:
+                    # Portrait (e.g., 9:16)
+                    height = base
+                    width = int(base * w_ratio / h_ratio)
+                else:
+                    # Square (1:1)
+                    width = height = base
+
+                return f"{width}x{height}"
+            except (ValueError, ZeroDivisionError):
+                log.warning(f"Invalid aspect_ratio: {aspect_ratio}, using default 1024x1024")
+                return "1024x1024"
+
+        return "1024x1024"
+
     def build_generation_request(self, api_url: str, model: str, prompt: str, **kwargs) -> Tuple[str, Dict[str, Any], bool]:
         """Build text-to-image generation request"""
         url = f"{api_url.rstrip('/')}/images/generations"
@@ -843,7 +887,18 @@ class ComflyProvider(AIProviderStrategy):
         # Translate model name for Comfly API
         translated_model = self._translate_model_name(model)
 
-        size = kwargs.get("size", "1024x1024")
+        # Handle aspect_ratio conversion to size
+        aspect_ratio = kwargs.get("aspect_ratio", "")
+        resolution = kwargs.get("resolution", "2K")
+
+        if aspect_ratio:
+            # Convert aspect_ratio to size format
+            size = self._aspect_ratio_to_size(aspect_ratio, resolution)
+            log.info(f"[ComflyProvider] Converted aspect_ratio {aspect_ratio} ({resolution}) to size {size}")
+        else:
+            # Use explicit size if provided, otherwise default
+            size = kwargs.get("size", "1024x1024")
+
         quality = kwargs.get("quality", "standard")
         response_format = kwargs.get("response_format", "b64_json")
 
@@ -889,13 +944,22 @@ class ComflyProvider(AIProviderStrategy):
                 mask_bytes = f.read()
             files["mask"] = (os.path.basename(mask_path), mask_bytes, "image/png")
 
-        # Build form data
+        # Handle aspect_ratio vs size
+        aspect_ratio = kwargs.get("aspect_ratio", "")
+        resolution = kwargs.get("resolution", "2K")
+
         data = {
             "model": translated_model,
             "prompt": prompt,
             "n": kwargs.get("n", 1),
-            "size": kwargs.get("size", "1024x1024"),
         }
+        if aspect_ratio:
+            # Prefer Comfly-native fields when aspect_ratio is provided
+            data["aspect_ratio"] = aspect_ratio
+            data["image_size"] = resolution
+        else:
+            # Use explicit size if provided, otherwise default
+            data["size"] = kwargs.get("size", "1024x1024")
 
         # Construct multipart payload
         payload = {

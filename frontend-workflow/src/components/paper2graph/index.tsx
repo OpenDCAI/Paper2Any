@@ -80,6 +80,7 @@ const Paper2FigurePage = () => {
   const [svgBwPath, setSvgBwPath] = useState<string | null>(null);
   const [svgColorPath, setSvgColorPath] = useState<string | null>(null);
   const [techRoutePalette, setTechRoutePalette] = useState<string>('');
+  const [techRouteTemplate, setTechRouteTemplate] = useState<string>('');
 
   // 技术路线图参考图
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
@@ -108,7 +109,7 @@ const Paper2FigurePage = () => {
   // 当图类型变化时，自动切换为对应的默认模型
   useEffect(() => {
     if (graphType === 'tech_route') {
-      setModel('gpt-5.2-medium');
+      setModel('gpt-5.2');
     } else {
       setModel('gemini-3-pro-image-preview');
     }
@@ -181,6 +182,7 @@ const Paper2FigurePage = () => {
           apiKey?: string;
           model?: string;
         techRoutePalette?: string;
+        techRouteTemplate?: string;
         };
 
         if (saved.uploadMode) setUploadMode(saved.uploadMode);
@@ -202,6 +204,7 @@ const Paper2FigurePage = () => {
           if (saved.apiKey) setApiKey(saved.apiKey);
         }
         if (saved.techRoutePalette !== undefined) setTechRoutePalette(saved.techRoutePalette);
+        if (saved.techRouteTemplate !== undefined) setTechRouteTemplate(saved.techRouteTemplate);
       }
     } catch (e) {
       console.error('Failed to restore paper2figure config', e);
@@ -222,6 +225,7 @@ const Paper2FigurePage = () => {
       apiKey,
       model,
       techRoutePalette,
+      techRouteTemplate,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -232,7 +236,7 @@ const Paper2FigurePage = () => {
     } catch (e) {
       console.error('Failed to persist paper2figure config', e);
     }
-  }, [uploadMode, textContent, graphType, language, style, figureComplex, llmApiUrl, apiKey, model, techRoutePalette, user?.id]);
+  }, [uploadMode, textContent, graphType, language, style, figureComplex, llmApiUrl, apiKey, model, techRoutePalette, techRouteTemplate, user?.id]);
 
   // 新增：管理生成阶段的定时器
   useEffect(() => {
@@ -561,6 +565,7 @@ const Paper2FigurePage = () => {
     // 技术路线图：传递配色方案
     if (graphType === 'tech_route') {
       formData.append('tech_route_palette', techRoutePalette);
+      formData.append('tech_route_template', techRouteTemplate);
       // 添加参考图（如果有）
       if (referenceImage) {
         formData.append('reference_image', referenceImage);
@@ -785,6 +790,8 @@ const Paper2FigurePage = () => {
               svgColorPath={svgColorPath}
               techRoutePalette={techRoutePalette}
               setTechRoutePalette={setTechRoutePalette}
+              techRouteTemplate={techRouteTemplate}
+              setTechRouteTemplate={setTechRouteTemplate}
               referenceImage={referenceImage}
               setReferenceImage={setReferenceImage}
               referenceImagePreview={referenceImagePreview}

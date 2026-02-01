@@ -133,6 +133,21 @@ def _extract_svg_from_react_md(md_path: Path) -> str:
         return ""
 
 
+def _read_svg_file(svg_path: Path) -> str:
+    """
+    读取纯 SVG 文件内容。
+    """
+    if not svg_path.exists():
+        log.warning(f"SVG 模板文件不存在: {svg_path}")
+        return ""
+
+    try:
+        return svg_path.read_text(encoding="utf-8").strip()
+    except Exception as e:
+        log.error(f"读取 SVG 模板失败: {svg_path} err={e}")
+        return ""
+
+
 def _get_template_svg_code(state: Paper2FigureState, use_color: bool = False) -> str:
     """
     根据语言和配色选择合适的 SVG 模板代码。
@@ -150,6 +165,18 @@ def _get_template_svg_code(state: Paper2FigureState, use_color: bool = False) ->
     """
     root = get_project_root()
     lang = getattr(getattr(state, "request", None), "language", "EN")
+
+    # 若用户选择了技术路线模板，优先使用对应 SVG 文件
+    template_name = getattr(getattr(state, "request", None), "tech_route_template", "") or ""
+    if template_name:
+        safe_name = Path(template_name).name
+        template_stem = Path(safe_name).stem
+        template_svg = root / "dataflow_agent" / "workflow" / "resources" / "tech-roadmap-template" / "svg" / f"{template_stem}.svg"
+        svg_code = _read_svg_file(template_svg)
+        if svg_code:
+            log.info(f"使用自定义技术路线模板: {template_svg}")
+            return svg_code
+        log.warning(f"自定义模板未找到或为空: {template_svg}")
 
     # 模板目录
     template_dir = root / "dataflow_agent" / "workflow" / "resources"

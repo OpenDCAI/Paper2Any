@@ -77,6 +77,151 @@ def _paddle_ocr_lines_to_vlm_items(lines: List[Any], w: int, h: int) -> List[Dic
             continue
     return items
 
+# --- Adaptive background fill helpers ---
+def _norm_bbox_to_px(bbox_n: List[float], w: int, h: int, pad: int = 0) -> Optional[List[int]]:
+    try:
+        y1n, x1n, y2n, x2n = bbox_n
+        x1 = int(x1n * w) - pad
+        y1 = int(y1n * h) - pad
+        x2 = int(x2n * w) + pad
+        y2 = int(y2n * h) + pad
+        x1 = max(0, min(w, x1))
+        y1 = max(0, min(h, y1))
+        x2 = max(0, min(w, x2))
+        y2 = max(0, min(h, y2))
+        if x2 <= x1 or y2 <= y1:
+            return None
+        return [x1, y1, x2, y2]
+    except Exception:
+        return None
+
+def _expand_bbox_norm(bbox_n: List[float], w: int, h: int, pad_px: int) -> Optional[List[float]]:
+    try:
+        y1n, x1n, y2n, x2n = bbox_n
+        x1 = max(0.0, (x1n * w - pad_px) / float(w))
+        y1 = max(0.0, (y1n * h - pad_px) / float(h))
+        x2 = min(1.0, (x2n * w + pad_px) / float(w))
+        y2 = min(1.0, (y2n * h + pad_px) / float(h))
+        if x2 <= x1 or y2 <= y1:
+            return None
+        return [y1, x1, y2, x2]
+    except Exception:
+        return None
+
+def _bbox_overlap_ratio(inner: List[int], outer: List[int]) -> float:
+    x1 = max(inner[0], outer[0])
+    y1 = max(inner[1], outer[1])
+    x2 = min(inner[2], outer[2])
+    y2 = min(inner[3], outer[3])
+    inter = max(0, x2 - x1) * max(0, y2 - y1)
+    area = max(1, (inner[2] - inner[0]) * (inner[3] - inner[1]))
+    return inter / area
+
+def _collect_mineru_skip_bboxes(mineru_blocks: List[Dict[str, Any]]) -> List[List[float]]:
+    skip_types = {"image", "img", "table", "figure", "formula"}
+    skips: List[List[float]] = []
+    for blk in mineru_blocks or []:
+        btype = (blk.get("type") or "").lower()
+        if btype not in skip_types:
+            continue
+        bbox = blk.get("bbox")
+        if bbox and len(bbox) == 4:
+            skips.append(bbox)
+    return skips
+
+def _adaptive_fill_text_regions(
+    img_path: str,
+    text_boxes_norm: List[List[float]],
+    output_path: str,
+    *,
+    skip_boxes_norm: Optional[List[List[float]]] = None,
+    pad: int = 2,
+    ring: int = 6,
+    std_low: float = 8.0,
+    std_mid: float = 20.0,
+    max_samples: int = 5000,
+) -> bool:
+    img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+    if img is None:
+        return False
+    h, w = img.shape[:2]
+    out = img.copy()
+    skip_boxes_px: List[List[int]] = []
+    for sb in skip_boxes_norm or []:
+        px = _norm_bbox_to_px(sb, w, h, pad=0)
+        if px:
+            skip_boxes_px.append(px)
+
+    mask_high = np.zeros((h, w), dtype=np.uint8)
+
+    for bbox_n in text_boxes_norm:
+        px = _norm_bbox_to_px(bbox_n, w, h, pad=pad)
+        if not px:
+            continue
+        x1, y1, x2, y2 = px
+
+        # Skip text inside image/table zones to avoid damaging embedded figures
+        if any(_bbox_overlap_ratio(px, sb) >= 0.5 for sb in skip_boxes_px):
+            continue
+
+        xo1 = max(0, x1 - ring)
+        yo1 = max(0, y1 - ring)
+        xo2 = min(w, x2 + ring)
+        yo2 = min(h, y2 + ring)
+
+        roi = img[yo1:yo2, xo1:xo2]
+        if roi.size == 0:
+            continue
+        mask = np.ones((yo2 - yo1, xo2 - xo1), dtype=np.uint8)
+        mask[y1 - yo1:y2 - yo1, x1 - xo1:x2 - xo1] = 0
+        ys, xs = np.where(mask == 1)
+        if len(xs) < 16:
+            # Fallback: use whole ROI stats if ring too small
+            ring_pixels = roi.reshape(-1, 3)
+            xs = np.random.randint(0, roi.shape[1], size=min(len(ring_pixels), max_samples))
+            ys = np.random.randint(0, roi.shape[0], size=min(len(ring_pixels), max_samples))
+            ring_pixels = roi[ys, xs]
+            xs_full = xs + xo1
+            ys_full = ys + yo1
+        else:
+            if len(xs) > max_samples:
+                idx = np.random.choice(len(xs), max_samples, replace=False)
+                xs = xs[idx]
+                ys = ys[idx]
+            ring_pixels = roi[ys, xs]
+            xs_full = xs + xo1
+            ys_full = ys + yo1
+
+        if ring_pixels.size == 0:
+            continue
+
+        ring_gray = (
+            0.114 * ring_pixels[:, 0].astype(np.float32)
+            + 0.587 * ring_pixels[:, 1].astype(np.float32)
+            + 0.299 * ring_pixels[:, 2].astype(np.float32)
+        )
+        std = float(np.std(ring_gray))
+
+        if std < std_low:
+            mean_color = ring_pixels.mean(axis=0).astype(np.uint8)
+            out[y1:y2, x1:x2] = mean_color
+        elif std < std_mid:
+            A = np.stack([xs_full, ys_full, np.ones_like(xs_full)], axis=1).astype(np.float32)
+            xg, yg = np.meshgrid(np.arange(x1, x2), np.arange(y1, y2))
+            for c in range(3):
+                coeffs, _, _, _ = np.linalg.lstsq(A, ring_pixels[:, c].astype(np.float32), rcond=None)
+                pred = coeffs[0] * xg + coeffs[1] * yg + coeffs[2]
+                out[y1:y2, x1:x2, c] = np.clip(pred, 0, 255).astype(np.uint8)
+        else:
+            mask_high[y1:y2, x1:x2] = 255
+
+    if np.any(mask_high):
+        inpainted = cv2.inpaint(img, mask_high, 3, cv2.INPAINT_TELEA)
+        out[mask_high == 255] = inpainted[mask_high == 255]
+
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    return bool(cv2.imwrite(output_path, out))
+
 # Load configuration from yaml
 def load_server_config():
     root = get_project_root()
@@ -374,8 +519,9 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                         y1 = int(y1_n * h)
                         x2 = int(x2_n * w)
                         y2 = int(y2_n * h)
-                        # 稍微扩大一点 mask 区域以覆盖完全
-                        pad = 2
+                        # 按文字高度扩张 mask，减少残影
+                        box_h = max(1, y2 - y1)
+                        pad = max(4, int(0.15 * box_h))
                         x1 = max(0, x1 - pad)
                         y1 = max(0, y1 - pad)
                         x2 = min(w, x2 + pad)
@@ -482,7 +628,32 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
 
     async def slides_sam_node(state: Paper2FigureState) -> Paper2FigureState:
         """SAM 图标分割"""
-        image_paths: List[str] = getattr(state, "slide_images", []) or []
+        vlm_pages: List[Dict[str, Any]] = getattr(state, "vlm_pages", []) or []
+        slide_images: List[str] = getattr(state, "slide_images", []) or []
+        image_paths: List[str] = []
+        if vlm_pages and slide_images:
+            page_dict = {p.get("page_idx", 0): p for p in vlm_pages}
+            for idx, fallback in enumerate(slide_images):
+                pinfo = page_dict.get(idx, {})
+                candidates = [
+                    pinfo.get("clean_bg_lite_path"),
+                    pinfo.get("clean_bg_path"),
+                    pinfo.get("no_text_path"),
+                    pinfo.get("path"),
+                    fallback,
+                ]
+                chosen = None
+                for c in candidates:
+                    if c and os.path.exists(c):
+                        chosen = c
+                        break
+                if not chosen:
+                    chosen = fallback
+                if pinfo:
+                    pinfo["sam_input_path"] = chosen
+                image_paths.append(chosen)
+        else:
+            image_paths = slide_images
         log.info(f"[pdf2ppt_qwenvl][SAM] start, images={len(image_paths)}")
         if not image_paths:
             return state
@@ -555,6 +726,8 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
             return state
 
         base_dir = Path(_ensure_result_path(state))
+        mineru_pages = getattr(state, "mineru_pages", []) or []
+        mineru_dict = {p.get("page_idx", 0): p for p in mineru_pages}
         
         # API 配置
         req_cfg = getattr(state, "request", None) or {}
@@ -579,22 +752,131 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
 
         async def _process_inpainting(pinfo):
             page_idx = pinfo.get("page_idx", 0)
+            img_path = pinfo.get("path")
             no_text_path = pinfo.get("no_text_path")
             
             clean_bg_path = base_dir / "clean_bg" / f"bg_{page_idx+1:03d}.png"
             clean_bg_path.parent.mkdir(parents=True, exist_ok=True)
+
+            clean_bg_lite_path = base_dir / "clean_bg_lite" / f"bg_{page_idx+1:03d}.png"
+            clean_bg_lite_path.parent.mkdir(parents=True, exist_ok=True)
             
             # 将结果路径回写到 pinfo，供后续步骤使用
             pinfo["clean_bg_path"] = str(clean_bg_path)
+            pinfo["clean_bg_lite_path"] = str(clean_bg_lite_path)
+
+            # 1) 合并 OCR + MinerU 文本框，生成更完整的 no_text 图 + text mask
+            merged_no_text_path = None
+            merged_mask_path = None
+            img_w = img_h = 0
+            if img_path and os.path.exists(img_path):
+                try:
+                    img_bgr = cv2.imread(img_path, cv2.IMREAD_COLOR)
+                    if img_bgr is not None:
+                        img_h, img_w = img_bgr.shape[:2]
+                        mask_img = img_bgr.copy()
+                        text_mask = np.zeros((img_h, img_w), dtype=np.uint8)
+
+                        # OCR 文本框（已是 [y1, x1, y2, x2]）
+                        merged_boxes: List[List[float]] = []
+                        for it in pinfo.get("vlm_data", []) or []:
+                            bbox_n = it.get("bbox")
+                            if bbox_n and len(bbox_n) == 4:
+                                merged_boxes.append(bbox_n)
+
+                        # MinerU 文本框（[x1, y1, x2, y2]）
+                        mineru_blocks = mineru_dict.get(page_idx, {}).get("blocks", [])
+                        for blk in mineru_blocks or []:
+                            btype = (blk.get("type") or "").lower()
+                            if btype not in {"text", "title"}:
+                                continue
+                            bbox = blk.get("bbox")
+                            if bbox and len(bbox) == 4:
+                                x1n, y1n, x2n, y2n = bbox
+                                merged_boxes.append([y1n, x1n, y2n, x2n])
+
+                        if merged_boxes:
+                            for bbox_n in merged_boxes:
+                                y1n, x1n, y2n, x2n = bbox_n
+                                x1 = int(x1n * img_w)
+                                y1 = int(y1n * img_h)
+                                x2 = int(x2n * img_w)
+                                y2 = int(y2n * img_h)
+                                box_h = max(1, y2 - y1)
+                                pad = max(4, int(0.15 * box_h))
+                                x1 = max(0, x1 - pad)
+                                y1 = max(0, y1 - pad)
+                                x2 = min(img_w, x2 + pad)
+                                y2 = min(img_h, y2 + pad)
+                                cv2.rectangle(mask_img, (x1, y1), (x2, y2), (255, 255, 255), -1)
+                                cv2.rectangle(text_mask, (x1, y1), (x2, y2), 255, -1)
+
+                            merged_no_text_path = base_dir / "vlm_debug" / f"page_{page_idx+1:03d}_no_text_merged.png"
+                            merged_mask_path = base_dir / "vlm_debug" / f"page_{page_idx+1:03d}_text_mask.png"
+                            merged_no_text_path.parent.mkdir(parents=True, exist_ok=True)
+                            cv2.imwrite(str(merged_no_text_path), mask_img)
+                            cv2.imwrite(str(merged_mask_path), text_mask)
+                            no_text_path = str(merged_no_text_path)
+                            pinfo["no_text_path"] = no_text_path
+                            pinfo["text_mask_path"] = str(merged_mask_path)
+                except Exception as e:
+                    log.warning(f"[pdf2ppt_qwenvl][Inpainting] page#{page_idx+1} merged no_text failed: {e}")
+
+            # 2) 自适应轻量去字，用于 SAM 输入
+            lite_ok = False
+            if img_path and os.path.exists(img_path):
+                if img_w == 0 or img_h == 0:
+                    try:
+                        img_bgr = cv2.imread(img_path, cv2.IMREAD_COLOR)
+                        if img_bgr is not None:
+                            img_h, img_w = img_bgr.shape[:2]
+                    except Exception:
+                        pass
+                text_boxes = []
+                for it in pinfo.get("vlm_data", []) or []:
+                    bbox_n = it.get("bbox")
+                    if bbox_n and len(bbox_n) == 4:
+                        text_boxes.append(bbox_n)
+                mineru_blocks = mineru_dict.get(page_idx, {}).get("blocks", [])
+                for blk in mineru_blocks or []:
+                    btype = (blk.get("type") or "").lower()
+                    if btype not in {"text", "title"}:
+                        continue
+                    bbox = blk.get("bbox")
+                    if bbox and len(bbox) == 4:
+                        x1n, y1n, x2n, y2n = bbox
+                        text_boxes.append([y1n, x1n, y2n, x2n])
+                skip_boxes = _collect_mineru_skip_bboxes(mineru_blocks)
+                expanded_boxes = []
+                if text_boxes and img_w > 0 and img_h > 0:
+                    for bbox_n in text_boxes:
+                        y1n, x1n, y2n, x2n = bbox_n
+                        box_h_px = max(1, int((y2n - y1n) * img_h))
+                        pad_px = max(4, int(0.15 * box_h_px))
+                        exp = _expand_bbox_norm(bbox_n, img_w, img_h, pad_px)
+                        if exp:
+                            expanded_boxes.append(exp)
+                if expanded_boxes:
+                    try:
+                        lite_ok = _adaptive_fill_text_regions(
+                            img_path=img_path,
+                            text_boxes_norm=expanded_boxes,
+                            output_path=str(clean_bg_lite_path),
+                            skip_boxes_norm=skip_boxes,
+                            pad=0,
+                        )
+                    except Exception as e:
+                        log.warning(f"[pdf2ppt_qwenvl][Inpainting] page#{page_idx+1} adaptive fill failed: {e}")
             
-            if state.use_ai_edit and not is_comfly and api_key and no_text_path and os.path.exists(no_text_path):
+            mask_path = pinfo.get("text_mask_path")
+            if state.use_ai_edit and api_key and img_path and os.path.exists(img_path):
                 ratio_str = "16:9"
                 try:
-                    with Image.open(no_text_path) as tmp_img:
+                    with Image.open(img_path) as tmp_img:
                         ratio_str = get_closest_aspect_ratio(tmp_img.width, tmp_img.height)
                 except Exception: pass
                 
-                inpainting_prompt = "使用背景颜色，填充图里被mask的白色部分，去掉全部文字！"
+                inpainting_prompt = "Fill the masked areas with matching background. Remove text."
                 
                 async with sem:
                     await _call_image_api_with_retry(
@@ -605,21 +887,30 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                             api_key=api_key,
                             model=model_name,
                             use_edit=True,
-                            image_path=no_text_path,
+                            image_path=img_path,
+                            mask_path=mask_path if (mask_path and os.path.exists(mask_path)) else None,
                             aspect_ratio=ratio_str,
                             resolution="2K"
                         )
                     )
-            else:
-                # 降级：复制 no_text 图
-                if no_text_path and os.path.exists(no_text_path):
-                     import shutil
-                     try: shutil.copy(no_text_path, clean_bg_path)
-                     except: pass
+
+            # 2) 降级逻辑：优先使用自适应轻量图，其次 no_text，最后原图
+            final_bg_path = None
+            if os.path.exists(clean_bg_path):
+                final_bg_path = str(clean_bg_path)
+            elif lite_ok and clean_bg_lite_path.exists():
+                final_bg_path = str(clean_bg_lite_path)
+            elif no_text_path and os.path.exists(no_text_path):
+                final_bg_path = str(no_text_path)
+            elif img_path and os.path.exists(img_path):
+                final_bg_path = str(img_path)
+
+            if final_bg_path:
+                pinfo["clean_bg_path"] = final_bg_path
 
         tasks = [_process_inpainting(p) for p in vlm_pages]
         if tasks:
-            log.info(f"[pdf2ppt_qwenvl][Inpainting] starting {len(tasks)} tasks in parallel with VLM flow")
+            log.info(f"[pdf2ppt_qwenvl][Inpainting] starting {len(tasks)} tasks")
             await asyncio.gather(*tasks)
             
         return state
@@ -627,37 +918,29 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
     # --- 并行处理节点 ---
     async def parallel_processing_node(state: Paper2FigureState) -> Paper2FigureState:
         """
-        并行执行：
-        1. VLM (OCR) -> Inpainting
-        2. MinerU
-        3. SAM + BgRemove
+        并行 + 串行结合：
+        1. VLM (OCR) & MinerU 并行
+        2. Inpainting（依赖 VLM + 可选 MinerU）
+        3. SAM（依赖 Inpainting 产物）
+        4. SAM BgRemove
         """
         import copy
         import time
         start_time = time.time()
         
-        async def vlm_and_inpainting_branch():
+        async def vlm_branch():
             branch_state = copy.copy(state)
             branch_state = await vlm_recognition_node(branch_state)
-            branch_state = await slides_inpainting_node(branch_state)
             return ("vlm", branch_state)
         
         async def mineru_branch():
             branch_state = copy.copy(state)
             result = await slides_mineru_node(branch_state)
             return ("mineru", result)
-        
-        async def sam_branch():
-            branch_state = copy.copy(state)
-            branch_state = await slides_sam_node(branch_state)
-            sam_pages = getattr(branch_state, "sam_pages", [])
-            branch_state = await slides_layout_bg_remove_node(branch_state, sam_pages=sam_pages)
-            return ("sam", branch_state)
-        
+
         results = await asyncio.gather(
-            vlm_and_inpainting_branch(),
+            vlm_branch(),
             mineru_branch(),
-            sam_branch(),
             return_exceptions=True
         )
 
@@ -672,8 +955,12 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                 state.vlm_pages = getattr(branch_state, "vlm_pages", [])
             elif branch_name == "mineru":
                 state.mineru_pages = getattr(branch_state, "mineru_pages", [])
-            elif branch_name == "sam":
-                state.sam_pages = getattr(branch_state, "sam_pages", [])
+        
+        # 串行阶段：Inpainting -> SAM -> BgRemove
+        state = await slides_inpainting_node(state)
+        state = await slides_sam_node(state)
+        sam_pages = getattr(state, "sam_pages", [])
+        state = await slides_layout_bg_remove_node(state, sam_pages=sam_pages)
         
         log.info(f"[pdf2ppt_qwenvl] Parallel processing finished in {time.time() - start_time:.2f}s")
         return state
@@ -720,7 +1007,11 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
             img_path = pinfo.get("path")
             vlm_data = pinfo.get("vlm_data", [])
             # 从 vlm_pages 里获取 clean_bg_path，如果并行步骤成功，这里应该有值
-            clean_bg_path = pinfo.get("clean_bg_path")
+            clean_bg_path = (
+                pinfo.get("clean_bg_path")
+                or pinfo.get("clean_bg_lite_path")
+                or pinfo.get("no_text_path")
+            )
 
             if not img_path or not os.path.exists(img_path): continue
 

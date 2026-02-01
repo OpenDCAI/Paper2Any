@@ -75,7 +75,19 @@
     "pptCopyHintTitle": "If download fails, copy the link below into your browser:",
     "svgDownload": "Download SVG source file: {{filename}}",
     "svgPreviewTitle": "SVG preview (PNG rendering)",
-    "paletteLabel": "Color palette"
+    "paletteLabel": "Color palette",
+    "templateLabel": "Template",
+    "templateHint": "The selected template SVG will be used as the layout reference.",
+    "templateAuto": "Auto (default)",
+    "templateSelected": "Selected",
+    "templateZoom": "Zoom",
+    "templateClose": "Close",
+    "templateAutoLabel": "Auto (default)",
+    "template1": "Template 1",
+    "template2": "Template 2",
+    "template3": "Template 3",
+    "template4": "Template 4",
+    "template5": "Template 5"
   },
   "validating": {
     "apiKey": "Validating API Key..."
