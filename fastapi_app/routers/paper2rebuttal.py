@@ -15,13 +15,14 @@ import time
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, Body
 from fastapi.responses import StreamingResponse
 from fastapi_app.schemas import ErrorResponse
-from fastapi_app.services.rebuttal.rebuttal_service import (
+from fastapi_app.services.rebuttal_service import (
     rebuttal_service,
     init_llm_client,
     get_llm_client,
     ProcessStatus,
+    ReviewCheckAgent,
 )
-from fastapi_app.services.rebuttal.tools import pdf_to_md
+from dataflow_agent.toolkits.rebuttal import pdf_to_md, _read_text
 from fastapi_app.dependencies import get_optional_user, AuthUser
 from fastapi_app.utils import _to_outputs_url
 from dataflow_agent.utils import get_project_root
@@ -163,56 +164,6 @@ def parse_review_into_items(review_text: str) -> List[Dict[str, str]]:
     return items
 
 
-REVIEW_EXTRACT_SYSTEM = """你是一个学术评审解析助手。用户会提供一段从「评审网页」或「评审 PDF」导出的原始文本。
-请从中识别出每一条评审意见（可能是审稿人评论、编号问题、Q1/Q2 等），并输出为一个 JSON 数组。
-每条意见对应一个对象，格式为：{"id": "review-1", "content": "该条评审的完整原文"}。
-id 必须为 review-1, review-2, review-3 ... 连续编号。content 为该条评审的完整内容（以 Markdown 格式输出：保留标题、列表、加粗等结构，便于前端展示），不要截断。
-只输出一个合法的 JSON 数组，不要输出其他解释或代码块；content 字段内使用 Markdown 语法。"""
-
-
-def extract_reviews_with_llm(raw_text: str) -> List[Dict[str, str]]:
-    """使用 LLM 从评审网页 PDF 的原始文本中解析出 review-1, review-2 ... 列表。"""
-    client = get_llm_client()
-    user_prompt = f"""请从下面这段「评审网页/评审 PDF」的原始文本中，提取出每一条独立的评审意见，输出为 JSON 数组。
-
-原始文本：
----
-{raw_text}
----
-
-要求：输出仅包含一个 JSON 数组，每个元素为 {{"id": "review-1", "content": "该条完整内容"}}。id 从 review-1 起连续编号。content 以 Markdown 格式输出（标题、列表、加粗等），便于前端渲染。不要输出 ```json 等标记，直接输出数组。"""
-    out, _ = client.generate(
-        instructions=REVIEW_EXTRACT_SYSTEM,
-        input_text=user_prompt,
-        temperature=0.2,
-        agent_name="review_extractor",
-    )
-    out = (out or "").strip()
-    # 去掉可能的 ```json ... ``` 包裹
-    if out.startswith("```"):
-        lines = out.split("\n")
-        if lines[0].lower().startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        out = "\n".join(lines)
-    try:
-        arr = json.loads(out)
-        if not isinstance(arr, list):
-            return []
-        items = []
-        for i, x in enumerate(arr):
-            if isinstance(x, dict):
-                rid = x.get("id") or f"review-{i + 1}"
-                content = x.get("content") or str(x.get("content", ""))
-                items.append({"id": rid, "content": content})
-            elif isinstance(x, str):
-                items.append({"id": f"review-{i + 1}", "content": x})
-        return items
-    except json.JSONDecodeError:
-        return []
-
-
 def save_uploaded_files(
     pdf_file: UploadFile,
     session_id: str,
@@ -247,7 +198,9 @@ def save_uploaded_files(
                 tmp_path = tmp.name
             try:
                 out_dir = os.path.dirname(tmp_path)
-                md_path = pdf_to_md(tmp_path, out_dir)
+                md_path = pdf_to_md(tmp_path, out_dir, parser="mineru")
+                if not (md_path and os.path.isfile(md_path)):
+                    md_path = pdf_to_md(tmp_path, out_dir, parser="docling")
                 if md_path and os.path.isfile(md_path):
                     with open(md_path, "r", encoding="utf-8", errors="replace") as f:
                         review_final = f.read()
@@ -334,10 +287,10 @@ async def progress_stream_generator(session_id: str):
                 last_status = current_status
             
             # Also check if all questions are processed (fallback check)
-            # Use same logic as GET /session: check if ALL questions have agent7_output (strategy)
+            # Use same logic as GET /session: check if ALL questions have strategy_review_output (strategy)
             if session.questions and len(session.questions) > 0:
                 all_processed = all(
-                    (q.agent7_output or "").strip() for q in session.questions
+                    (q.strategy_review_output or "").strip() for q in session.questions
                 )
                 if all_processed and current_status != ProcessStatus.WAITING_FEEDBACK:
                     # Set status if not already set
@@ -362,27 +315,27 @@ def map_progress_message(raw_message: str) -> str:
     message_lower = raw_message.lower()
     
     # Agent messages
-    if 'agent1' in message_lower or 'generating paper summary' in message_lower or 'paper summary' in message_lower:
+    if 'agent-paper_summary' in message_lower or 'generating paper summary' in message_lower or 'paper summary' in message_lower:
         return '📄 正在生成论文摘要...'
-    elif 'agent2' in message_lower and 'extract' in message_lower:
+    elif 'agent-issue_extract' in message_lower and 'extract' in message_lower:
         return '🔍 正在提取评审问题...'
-    elif 'agent2' in message_lower and ('check' in message_lower or 'validat' in message_lower):
+    elif 'agent-issue_check' in message_lower and ('check' in message_lower or 'validat' in message_lower):
         return '✓ 正在验证问题提取结果...'
-    elif 'agent3' in message_lower or 'determining search strategy' in message_lower or 'search strategy' in message_lower:
+    elif 'agent-paper_search' in message_lower or 'determining search strategy' in message_lower or 'search strategy' in message_lower:
         return '🔎 正在分析问题并确定搜索策略...'
     elif 'searching' in message_lower or ('search' in message_lower and 'query' in message_lower):
         return '📚 正在搜索相关论文...'
-    elif 'agent4' in message_lower or 'selecting relevant papers' in message_lower or 'filter' in message_lower:
+    elif 'agent-reference_filter' in message_lower or 'selecting relevant papers' in message_lower or 'filter' in message_lower:
         return '📑 正在筛选相关论文...'
-    elif 'agent5' in message_lower or 'analyzing reference' in message_lower or 'reference paper' in message_lower:
+    elif 'agent-reference_analyze' in message_lower or 'analyzing reference' in message_lower or 'reference paper' in message_lower:
         return '📖 正在分析参考文献内容...'
-    elif 'agent6' in message_lower or 'generating rebuttal strategy' in message_lower:
+    elif 'agent-strategy_gen' in message_lower or 'generating rebuttal strategy' in message_lower:
         return '💡 正在生成反驳策略...'
-    elif 'agent7' in message_lower or 'optimizing rebuttal strategy' in message_lower or 'check and optimize' in message_lower:
+    elif 'agent-strategy_review' in message_lower or 'optimizing rebuttal strategy' in message_lower or 'check and optimize' in message_lower:
         return '✨ 正在优化反驳策略...'
-    elif 'agent8' in message_lower or 'generating rebuttal draft' in message_lower:
+    elif 'agent-rebuttal_draft' in message_lower or 'generating rebuttal draft' in message_lower:
         return '📝 正在生成反驳信草稿...'
-    elif 'agent9' in message_lower or 'proofreading' in message_lower or 'final version' in message_lower:
+    elif 'agent-rebuttal_final' in message_lower or 'proofreading' in message_lower or 'final version' in message_lower:
         return '🔍 正在校对并生成最终版本...'
     
     # Process messages
@@ -424,7 +377,7 @@ async def parse_review(
     review_text: Optional[str] = Form(None),
     chat_api_url: Optional[str] = Form(None),
     api_key: Optional[str] = Form(None),
-    model: Optional[str] = Form("gpt-4o-mini"),
+    model: Optional[str] = Form("kimi-k2.5"),
 ):
     """解析评审内容：支持上传 PDF/txt/md 或直接传入文本。
     所有形式的输入都会先得到原始文本（PDF 用 docling 转文本），再统一做形式化：
@@ -442,7 +395,9 @@ async def parse_review(
                     tmp_path = tmp.name
                 try:
                     out_dir = os.path.dirname(tmp_path)
-                    md_path = pdf_to_md(tmp_path, out_dir)
+                    md_path = pdf_to_md(tmp_path, out_dir, parser="mineru")
+                    if not (md_path and os.path.isfile(md_path)):
+                        md_path = pdf_to_md(tmp_path, out_dir, parser="docling")
                     if md_path and os.path.isfile(md_path):
                         with open(md_path, "r", encoding="utf-8", errors="replace") as f:
                             review_text_parsed = f.read()
@@ -460,17 +415,20 @@ async def parse_review(
         else:
             raise ValueError("请上传评审文件或粘贴评审文本")
 
-        # 所有形式的输入：只要提供了 API 就用 LLM 形式化，否则用规则解析
+        # 所有形式的输入：只要提供了 API 就用 ReviewCheckAgent (LLM) 形式化，否则用规则解析
         use_llm = bool(chat_api_url and api_key)
 
         reviews: List[Dict[str, str]] = []
         if use_llm and chat_api_url and api_key:
-            init_llm_client(api_key=api_key.strip(), chat_api_url=chat_api_url.strip(), model=model or "gpt-4o-mini")
+            init_llm_client(api_key=api_key.strip(), chat_api_url=chat_api_url.strip(), model=model or "kimi-k2.5")
             try:
-                reviews = extract_reviews_with_llm(review_text_parsed)
+                # Use ReviewCheckAgent for review extraction
+                review_agent = ReviewCheckAgent(review_text_parsed, temperature=0.2, log_dir=None)
+                reviews = review_agent.run()
             except Exception as llm_e:
                 import traceback
                 traceback.print_exc()
+                log.warning(f"[parse_review] ReviewCheckAgent failed: {llm_e}, falling back to rule-based parsing")
                 reviews = []
         if not reviews:
             reviews = parse_review_into_items(review_text_parsed)
@@ -495,7 +453,7 @@ async def start_analysis(
     review_text: Optional[str] = Form(None),
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
-    model: str = Form("gpt-5.1"),
+    model: str = Form("deepseek-v3.1"),
     email: Optional[str] = Form(None),
     user: Optional[AuthUser] = Depends(get_optional_user),
 ):
@@ -517,6 +475,18 @@ async def start_analysis(
         session = rebuttal_service.create_session(session_id, pdf_path, review_path)
         user_dir = _resolve_user_dir(user, email)
         _write_session_meta(session.session_dir, user_dir, email)
+
+        # Generate review-check logs (ReviewCheckAgent) for export zip
+        try:
+            logs_dir = os.path.join(session.session_dir, "logs")
+            os.makedirs(logs_dir, exist_ok=True)
+            review_raw = _read_text(review_path)
+            review_agent = ReviewCheckAgent(review_raw, temperature=0.2, log_dir=logs_dir)
+            reviews = review_agent.run()
+            with open(os.path.join(logs_dir, "agent-review_check_reviews.json"), "w", encoding="utf-8") as f:
+                json.dump(reviews, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            log.warning(f"[start_analysis] ReviewCheckAgent review-check log failed: {e}")
         
         # Run analysis in background thread
         def run_analysis():
@@ -596,10 +566,10 @@ async def get_session(session_id: str):
     if not session:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
     
-    # Only consider "all processed" when every question has strategy (agent7_output)
+    # Only consider "all processed" when every question has strategy (strategy_review_output)
     all_questions_processed = bool(
         session.questions
-        and all((q.agent7_output or "").strip() for q in session.questions)
+        and all((q.strategy_review_output or "").strip() for q in session.questions)
     )
     return {
         "session_id": session_id,
@@ -607,7 +577,7 @@ async def get_session(session_id: str):
             {
                 "question_id": q.question_id,
                 "question_text": q.question_text,
-                "strategy": q.agent7_output or "",
+                "strategy": q.strategy_review_output or "",
                 "strategy_text": q.strategy_text or "",
                 "todo_list": q.todo_list or [],
                 "draft_response": q.draft_response or "",
@@ -637,7 +607,7 @@ async def revise_strategy(
     feedback: str = Form(...),
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
-    model: str = Form("gpt-5.1"),
+    model: str = Form("deepseek-v3.1"),
 ):
     """Revise strategy based on feedback"""
     try:
@@ -651,7 +621,7 @@ async def revise_strategy(
         
         return {
             "status": "success",
-            "strategy": q_state.agent7_output,
+            "strategy": q_state.strategy_review_output,
             "strategy_text": q_state.strategy_text or "",
             "todo_list": q_state.todo_list or [],
             "draft_response": q_state.draft_response or "",
@@ -688,7 +658,7 @@ async def generate_final_rebuttal(
     session_id: str = Form(...),
     chat_api_url: str = Form(...),
     api_key: str = Form(...),
-    model: str = Form("gpt-5.1"),
+    model: str = Form("deepseek-v3.1"),
     email: Optional[str] = Form(None),
     user: Optional[AuthUser] = Depends(get_optional_user),
 ):
@@ -704,9 +674,15 @@ async def generate_final_rebuttal(
         # Check if all questions are satisfied
         unsatisfied = [q for q in session.questions if not q.is_satisfied]
         if unsatisfied:
+            unsatisfied_ids = [q.question_id for q in unsatisfied]
+            unsatisfied_indices = [i for i, q in enumerate(session.questions) if not q.is_satisfied]
             raise HTTPException(
                 status_code=400, 
-                detail=f"还有 {len(unsatisfied)} 个问题未标记为满意。请先处理所有问题。"
+                detail={
+                    "message": f"还有 {len(unsatisfied)} 个问题未标记为满意。请先处理所有问题。",
+                    "unsatisfied_question_ids": unsatisfied_ids,
+                    "unsatisfied_question_indices": unsatisfied_indices,
+                }
             )
         
         # Initialize LLM client
@@ -861,6 +837,10 @@ async def export_rebuttal_zip(
         zip_name = f"paper2rebuttal_{session_id}.zip"
         zip_path = output_dir / zip_name
 
+        def _safe_filename(s: str, max_len: int = 80) -> str:
+            s = re.sub(r'[<>:"/\\|?*]', "_", (s or "").strip())
+            return s[:max_len].strip() or "paper"
+
         count = 0
         with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
             for root, _, files in os.walk(session_dir):
@@ -873,6 +853,41 @@ async def export_rebuttal_zip(
                         count += 1
                     except Exception:
                         continue
+
+            session = rebuttal_service.get_session(session_id) or rebuttal_service.restore_session_from_disk(session_id)
+            if session and getattr(session, "questions", None):
+                ref_dir = f"{session_id}/reference_papers" if include_root_dir else "reference_papers"
+                for q in session.questions:
+                    analyzed = getattr(q, "analyzed_papers", None) or []
+                    for i, paper in enumerate(analyzed):
+                        title = paper.get("title") or "Untitled"
+                        fname = _safe_filename(title)
+                        arcname = f"{ref_dir}/Q{q.question_id}_{i + 1:02d}_{fname}.md"
+                        lines = [
+                            f"# {title}",
+                            "",
+                        ]
+                        if paper.get("authors"):
+                            lines.append(f"**Authors:** {', '.join(paper['authors'][:5])}{' et al.' if len(paper.get('authors', [])) > 5 else ''}")
+                            lines.append("")
+                        if paper.get("abs_url"):
+                            lines.append(f"**Link:** {paper['abs_url']}")
+                            lines.append("")
+                        if paper.get("abstract"):
+                            lines.append("## Abstract")
+                            lines.append("")
+                            lines.append(paper["abstract"])
+                            lines.append("")
+                        if paper.get("analysis"):
+                            lines.append("## Summary (for rebuttal)")
+                            lines.append("")
+                            lines.append(paper["analysis"])
+                        content = "\n".join(lines)
+                        try:
+                            zf.writestr(arcname, content.encode("utf-8"))
+                            count += 1
+                        except Exception:
+                            continue
 
         if not zip_path.exists():
             raise HTTPException(status_code=500, detail="Failed to create zip")

@@ -28,9 +28,10 @@ ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 
 log = get_logger(__name__)
 
+
 class ArxivAgent:
-    def __init__(self, max_results: int = 30, pdf_dir: str = "arxiv_papers", 
-                 md_dir: str = "arxiv_papers_md", ddl: int = 180, 
+    def __init__(self, max_results: int = 30, pdf_dir: str = "arxiv_papers",
+                 md_dir: str = "arxiv_papers_md", ddl: int = 180,
                  download_mode: str = "source_first", download_dir: str | None = None):
 
         self.max_results = max_results
@@ -39,69 +40,69 @@ class ArxivAgent:
         self.ddl = ddl
         self.download_mode = download_mode
         self.download_dir = download_dir if download_dir is not None else pdf_dir
-            
+
         self.last_query_start_ts: Optional[float] = None
-    
+
     def search_and_analyze(self, query: str) -> List[Dict]:
         self.last_query_start_ts = time.time()
-        
+
         search_query = f'all:{query}'
-        
-        raw_results = self._search_arxiv(search_query, max_results=self.max_results * 2) 
+
+        raw_results = self._search_arxiv(search_query, max_results=self.max_results * 2)
 
         final_papers = raw_results[:self.max_results]
-        
+
         for paper in final_papers:
-            paper['relevance_score'] = 1.0 
-        
+            paper['relevance_score'] = 1.0
+
         return final_papers
-    
+
     def download_papers(self, papers: List[Dict]) -> List[str]:
         downloaded_files = []
-        
+
         for i, paper in enumerate(papers, 1):
             title = self._clean_filename(paper['title'])
             arxiv_id = paper.get('arxiv_id', '')
             start_time = time.time()
-            
+
             global_start = self.last_query_start_ts if self.last_query_start_ts else start_time
             deadline = global_start + self.ddl
-            
+
             try:
                 base_name = f"{arxiv_id}_{title[:50]}" if arxiv_id else title[:50]
-                
+
                 existing_md = self._check_existing_markdown(base_name)
                 if existing_md:
                     log.info(f"[{i}/{len(papers)}] Already exists: {title[:50]}... ({existing_md})")
                     downloaded_files.append(existing_md)
                     continue
-                
+
                 if time.time() >= deadline:
                     md_path = self._write_abstract_markdown(paper, base_name)
                     if md_path:
                         log.warning(f"[{i}/{len(papers)}] Timeout, saving abstract: {title[:50]}...")
                         downloaded_files.append(md_path)
                     continue
-                
+
                 result = None
                 if self.download_mode == "source_first":
                     result = self._download_source_first(paper, base_name, deadline)
                 elif self.download_mode == "pdf_first":
                     result = self._download_pdf_first(paper, base_name, deadline)
-                
+
                 if result:
                     log.info(f"[{i}/{len(papers)}] {result['status']}: {title[:50]}...")
                     downloaded_files.append(result['path'])
                 else:
                     log.warning(f"[{i}/{len(papers)}] Download failed: {title[:50]}...")
-                
+
                 time.sleep(1)
-                
+
             except Exception as e:
                 log.error(f"[{i}/{len(papers)}] Processing failed: {str(e)}")
-        
+
         return downloaded_files
-    
+
     def _search_arxiv(self, query: str, max_results: int = 10) -> List[Dict]:
         params = {
             "search_query": query,
@@ -110,47 +111,47 @@ class ArxivAgent:
             "sortBy": "relevance",
             "sortOrder": "descending"
         }
-        
+
         url = f"{ARXIV_API}?{urllib.parse.urlencode(params)}"
         log.debug(f"[DEBUG] Requesting arXiv API: {url[:100]}...")
         req = urllib.request.Request(
             url,
             headers={"User-Agent": "arxiv-agent/1.0 (research@example.com)"}
         )
-        
+
         try:
             log.debug(f"[DEBUG] Sending request, timeout set to 30 seconds...")
             with DIRECT_OPENER.open(req, timeout=30) as resp:
                 xml_text = resp.read()
                 log.debug(f"[DEBUG] Response received, length: {len(xml_text)} bytes")
-            
+
             root = ET.fromstring(xml_text)
             papers = []
-            
+
             for entry in root.findall("atom:entry", ATOM_NS):
                 paper = self._parse_entry(entry)
                 if paper:
                     papers.append(paper)
-            
+
             log.debug(f"[DEBUG] Parsing complete, found {len(papers)} papers")
             return papers
-            
+
         except Exception as e:
             log.error(f"[ERROR] Search failed: {type(e).__name__}: {str(e)}")
             return []
-    
+
     def _parse_entry(self, entry) -> Optional[Dict]:
         title = (entry.findtext("atom:title", default="", namespaces=ATOM_NS) or "").strip()
         summary = (entry.findtext("atom:summary", default="", namespaces=ATOM_NS) or "").strip()
         published = entry.findtext("atom:published", default="", namespaces=ATOM_NS)
         abs_url = entry.findtext("atom:id", default="", namespaces=ATOM_NS)
-        
+
         authors = []
         for a in entry.findall("atom:author", ATOM_NS):
             name = a.findtext("atom:name", default="", namespaces=ATOM_NS)
             if name:
                 authors.append(name)
-        
+
         pdf_url = ""
         source_url = ""
         for link in entry.findall("atom:link", ATOM_NS):
@@ -158,15 +159,15 @@ class ArxivAgent:
                 pdf_url = link.attrib.get("href", "")
             elif link.attrib.get("title") == "pdf":
                 pdf_url = link.attrib.get("href", "")
-        
+
         arxiv_id = abs_url.rsplit("/", 1)[-1] if abs_url else ""
-        
+
         if arxiv_id:
             source_url = f"https://arxiv.org/e-print/{arxiv_id}"
-        
+
         if not all([title, summary, arxiv_id]):
             return None
-        
+
         return {
             "title": " ".join(title.split()),
             "abstract": " ".join(summary.split()),
@@ -177,25 +178,25 @@ class ArxivAgent:
             "source_url": source_url,
             "arxiv_id": arxiv_id,
         }
-    
+
     def _download_pdf(self, paper: Dict, title: str) -> Optional[str]:
         if not paper['pdf_url']:
             return None
-        
+
         filename = f"{paper['arxiv_id']}_{title[:50]}.pdf"
         filepath = os.path.join(self.download_dir, filename)
-        
+
         req = urllib.request.Request(
             paper['pdf_url'],
             headers={"User-Agent": "arxiv-agent/1.0"}
         )
-        
+
         with DIRECT_OPENER.open(req, timeout=60) as response:
             with open(filepath, 'wb') as f:
                 f.write(response.read())
-        
+
         return filepath
-    
+
     def _download_source(self, paper: Dict, title: str, deadline: Optional[float] = None) -> Optional[str]:
         if not paper['source_url']:
             return None
@@ -240,11 +241,11 @@ class ArxivAgent:
             except Exception:
                 pass
             return None
-    
+
     def _clean_filename(self, filename: str) -> str:
         filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
         return filename[:100]
-    
+
     def _check_existing_markdown(self, base_name: str) -> Optional[str]:
         md_paths = glob(os.path.join(self.download_dir, f"{base_name}*.md"))
         if md_paths:
@@ -259,7 +260,7 @@ class ArxivAgent:
             try:
                 log.info(f"[INFO] Attempting to download source: {paper['arxiv_id']}")
                 archive_path = self._download_source(paper, base_name, deadline=deadline)
-                
+
                 if archive_path and time.time() < deadline:
                     log.info(f"[INFO] Attempting to convert source to Markdown: {paper['arxiv_id']}")
                     md_path = self.convert_source_archive_to_markdown(archive_path, deadline=deadline)
@@ -269,7 +270,7 @@ class ArxivAgent:
                         return {'path': target_md_path, 'status': 'Source converted to Markdown'}
             except Exception as e:
                 log.warning(f"[WARNING] Source processing failed: {e}")
-        
+
         return self._download_pdf_first(paper, base_name, deadline)
 
     def _download_pdf_first(self, paper: Dict, base_name: str, deadline: Optional[float] = None) -> Optional[Dict]:
@@ -280,13 +281,13 @@ class ArxivAgent:
                 pdf_path = self._download_pdf(paper, base_name)
             except Exception as e:
                 log.warning(f"[WARNING] PDF download failed: {e}")
-        
+
         md_path = self._write_abstract_markdown(paper, base_name)
         if md_path:
             return {'path': md_path, 'status': 'Saved abstract Markdown'}
-            
+
         return None
-        
+
     def convert_source_archive_to_markdown(self, archive_path: str, deadline: Optional[float] = None) -> Optional[str]:
         try:
             if not os.path.isfile(archive_path) or not archive_path.endswith('.tar.gz'):
@@ -403,7 +404,7 @@ class ArxivAgent:
             return out_path
         except Exception:
             return None
-        
+
 
 def _safe_extract_tar(tar: tarfile.TarFile, path: str, deadline: Optional[float] = None) -> bool:
     for member in tar.getmembers():
@@ -508,8 +509,6 @@ def _latex_to_markdown_basic(tex: str) -> str:
     return s.strip() + "\n"
 
 
-
-
 def search_relevant_papers(query: str, max_results: int = 30) -> List[Dict]:
     log.debug(f"[DEBUG] search_relevant_papers called, query: '{query}', max_results={max_results}")
     agent = ArxivAgent(max_results=max_results)
@@ -559,13 +558,13 @@ def _fetch_metadata_by_id(arxiv_id: str) -> Optional[Dict]:
         summary = (entry.findtext("atom:summary", default="", namespaces=ATOM_NS) or "").strip()
         published = entry.findtext("atom:published", default="", namespaces=ATOM_NS)
         abs_url = entry.findtext("atom:id", default=f"https://arxiv.org/abs/{arxiv_id}", namespaces=ATOM_NS)
-        
+
         authors = []
         for a in entry.findall("atom:author", ATOM_NS):
             name = a.findtext("atom:name", default="", namespaces=ATOM_NS)
             if name:
                 authors.append(name)
-        
+
         pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
         for link in entry.findall("atom:link", ATOM_NS):
             if link.attrib.get("type") == "application/pdf":

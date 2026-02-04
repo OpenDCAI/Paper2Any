@@ -87,11 +87,10 @@ export const DEFAULT_IMAGE2DRAWIO_GEN_FIG_MODEL = firstOr(IMAGE2DRAWIO_GEN_FIG_M
 export const DEFAULT_IMAGE2DRAWIO_VLM_MODEL = firstOr(IMAGE2DRAWIO_VLM_MODELS, 'qwen-vl-ocr-2025-11-20');
 
 export const PAPER2REBUTTAL_MODELS = readEnvList('VITE_PAPER2REBUTTAL_MODEL', [
-  'gpt-5.1',
-  'gpt-5.2',
-  'gemini-3-pro-preview',
+  'deepseek-v3.1',
+  'kimi-k2.5',
 ]);
-export const DEFAULT_PAPER2REBUTTAL_MODEL = firstOr(PAPER2REBUTTAL_MODELS, 'gpt-5.1');
+export const DEFAULT_PAPER2REBUTTAL_MODEL = firstOr(PAPER2REBUTTAL_MODELS, 'deepseek-v3.1');
 
 export const withModelOptions = (base: string[], current?: string) => {
   const seen = new Set<string>();

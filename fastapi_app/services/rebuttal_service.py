@@ -9,9 +9,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import Enum
 
-from fastapi_app.services.rebuttal.llm import LLMClient, TokenUsageTracker
-from fastapi_app.services.rebuttal.arxiv import search_relevant_papers
-from fastapi_app.services.rebuttal.tools import _read_text, load_prompt, pdf_to_md, download_pdf_and_convert_md, _fix_json_escapes
+from dataflow_agent.toolkits.multimodaltool.providers import LLMClient, TokenUsageTracker
+from dataflow_agent.toolkits.rebuttal import (
+    search_relevant_papers,
+    _read_text,
+    load_prompt,
+    pdf_to_md,
+    download_pdf_and_convert_md,
+    _fix_json_escapes,
+)
 from dataflow_agent.logger import get_logger
 
 
@@ -36,63 +42,50 @@ llm_client: Optional[LLMClient] = None
 log = get_logger(__name__)
 
 
-def init_llm_client(api_key: str, chat_api_url: str = None, provider: str = None, model: str = "gpt-5.1") -> LLMClient:
-    """Initialize the LLM client
-    
+def init_llm_client(api_key: str, chat_api_url: str = None, provider: str = None, model: str = "deepseek-v3.1") -> LLMClient:
+    """Initialize the LLM client. URL 与 API key 均由前端传入。
+
     Args:
-        api_key: API key for the LLM service
-        chat_api_url: API URL (e.g., https://api.apiyi.com/v1). If provided, will use this URL directly.
-        provider: Provider name (openrouter, qwen, etc.). Only used if chat_api_url is not provided.
+        api_key: API key for the LLM service (from frontend)
+        chat_api_url: API URL (e.g., https://api.apiyi.com/v1), required (from frontend)
+        provider: Unused; provider is inferred from chat_api_url
         model: Model name to use
     """
     global llm_client
-    
-    # If chat_api_url is provided, infer provider from URL or use "openrouter" as default
-    if chat_api_url:
-        # Infer provider from URL
-        url_lower = chat_api_url.lower()
-        if 'apiyi.com' in url_lower or 'openrouter' in url_lower:
-            inferred_provider = "openrouter"
-        elif 'ai520.ai' in url_lower:
-            inferred_provider = "openrouter"  # AI520 uses OpenAI-compatible API
-        elif 'dashscope' in url_lower or 'qwen' in url_lower:
-            inferred_provider = "qwen"
-        elif 'deepseek' in url_lower:
-            inferred_provider = "deepseek"
-        elif 'openai.com' in url_lower:
-            inferred_provider = "openai"
-        elif 'zhipu' in url_lower or 'bigmodel.cn' in url_lower:
-            inferred_provider = "zhipu"
-        else:
-            # Default to openrouter for OpenAI-compatible APIs
-            inferred_provider = "openrouter"
-        
-        llm_client = LLMClient(
-            provider=inferred_provider,
-            api_key=api_key,
-            base_url=chat_api_url,
-            default_model=model,
-            site_url="https://rebuttal-assistant.local",
-            site_name="Rebuttal Assistant",
-            token_tracker=token_tracker
-        )
+    if not chat_api_url:
+        raise ValueError("chat_api_url is required; URL and API key are passed from frontend.")
+
+    url_lower = chat_api_url.lower()
+    if "apiyi.com" in url_lower or "openrouter" in url_lower:
+        inferred_provider = "openrouter"
+    elif "ai520.ai" in url_lower:
+        inferred_provider = "openrouter"
+    elif "dashscope" in url_lower or "qwen" in url_lower:
+        inferred_provider = "qwen"
+    elif "deepseek" in url_lower:
+        inferred_provider = "deepseek"
+    elif "openai.com" in url_lower:
+        inferred_provider = "openai"
+    elif "zhipu" in url_lower or "bigmodel.cn" in url_lower:
+        inferred_provider = "zhipu"
     else:
-        # Fallback to provider-based initialization
-        provider = provider or "openrouter"
-        llm_client = LLMClient(
-            provider=provider,
-            api_key=api_key,
-            default_model=model,
-            site_url="https://rebuttal-assistant.local",
-            site_name="Rebuttal Assistant",
-            token_tracker=token_tracker
-        )
+        inferred_provider = "openrouter"
+
+    llm_client = LLMClient(
+        provider=inferred_provider,
+        api_key=api_key,
+        base_url=chat_api_url,
+        default_model=model,
+        site_url="https://rebuttal-assistant.local",
+        site_name="Rebuttal Assistant",
+        token_tracker=token_tracker,
+    )
     log.info(
         "[Rebuttal LLM Init]\n"
         f"api_key={api_key}\n"
         f"provider={llm_client.provider}\n"
         f"model={model}\n"
-        f"base_url={chat_api_url or 'default'}"
+        f"base_url={chat_api_url}"
     )
     return llm_client
 
@@ -154,8 +147,8 @@ class QuestionState:
     status: ProcessStatus = ProcessStatus.NOT_STARTED
     
     reference_paper_summary: str = ""
-    agent6_output: str = ""  
-    agent7_output: str = "" 
+    strategy_gen_output: str = ""  
+    strategy_review_output: str = "" 
     
     # Structured todo list (parsed from JSON)
     todo_list: List[Dict] = field(default_factory=list)
@@ -164,8 +157,8 @@ class QuestionState:
     
     # Papers information
     searched_papers: List[Dict] = field(default_factory=list)  # All papers from search
-    selected_papers: List[Dict] = field(default_factory=list)  # Papers selected by Agent4
-    analyzed_papers: List[Dict] = field(default_factory=list)  # Papers analyzed by Agent5
+    selected_papers: List[Dict] = field(default_factory=list)  # Papers selected by ReferenceFilterAgent
+    analyzed_papers: List[Dict] = field(default_factory=list)  # Papers analyzed by ReferenceAnalyzeAgent
     
     # History tracking
     history: List[Dict] = field(default_factory=list)  # Full history of revisions
@@ -199,7 +192,86 @@ class SessionState:
     log_collector: Optional[LogCollector] = None
 
 
-class Agent1:
+class ReviewCheckAgent:
+    """Review extractor: Parse raw review text into structured review items."""
+    def __init__(self, review_text: str, temperature: float = 0.2, log_dir: str = None):
+        self.review_text = review_text
+        self.temperature = temperature
+        self.log_dir = log_dir
+        self.final_text = None
+        self.reviews: List[Dict[str, str]] = []
+
+    def _build_context(self) -> str:
+        instructions = load_prompt("0.txt")
+        return (
+            f"{instructions}\n\n"
+            f"Raw review text:\n"
+            f"---\n"
+            f"{self.review_text}\n"
+            f"---\n\n"
+            f"Extract all review items and output a JSON array with id (review-1, review-2, ...) and content (Markdown formatted)."
+        )
+
+    def run(self) -> List[Dict[str, str]]:
+        model_input = self._build_context()
+        instructions_text = "Output only a valid JSON array; no code blocks or explanations."
+
+        if self.log_dir:
+            os.makedirs(self.log_dir, exist_ok=True)
+            with open(os.path.join(self.log_dir, "agent-review_check_input.txt"), "w", encoding="utf-8") as f:
+                f.write(f"=== INSTRUCTIONS ===\n{instructions_text}\n\n=== MODEL INPUT ===\n{model_input}")
+
+        self.final_text, _ = get_llm_client().generate(
+            instructions=instructions_text,
+            input_text=model_input,
+            enable_reasoning=False,
+            temperature=self.temperature,
+            agent_name="agent-review_check",
+        )
+
+        if self.log_dir:
+            with open(os.path.join(self.log_dir, "agent-review_check_output.txt"), "w", encoding="utf-8") as f:
+                f.write(self.final_text or "(empty)")
+
+        # Parse JSON output
+        out = (self.final_text or "").strip()
+        # Remove ```json ... ``` wrapper if present
+        if out.startswith("```"):
+            lines = out.split("\n")
+            if lines[0].lower().startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            out = "\n".join(lines)
+
+        try:
+            arr = json.loads(out)
+            if not isinstance(arr, list):
+                return []
+            items = []
+            for i, x in enumerate(arr):
+                if isinstance(x, dict):
+                    rid = x.get("id") or f"review-{i + 1}"
+                    content = x.get("content") or str(x.get("content", ""))
+                    items.append({"id": rid, "content": content})
+                elif isinstance(x, str):
+                    items.append({"id": f"review-{i + 1}", "content": x})
+            # If no explicit reviewer markers in raw text, merge into a single review-1
+            reviewer_pattern = re.compile(
+                r"\b(reviewer|review)\s*#?\s*\d+\b|\bR\s*\d+\b|\bR\d+\b",
+                re.IGNORECASE,
+            )
+            if not reviewer_pattern.search(self.review_text) and len(items) > 1:
+                merged = "\n\n".join(i.get("content", "").strip() for i in items if i.get("content"))
+                items = [{"id": "review-1", "content": merged.strip()}] if merged.strip() else items[:1]
+            self.reviews = items
+            return items
+        except json.JSONDecodeError as e:
+            log.warning(f"[agent-review_check] JSON parsing failed: {e}, output: {out[:200]}")
+            return []
+
+
+class PaperSummaryAgent:
     def __init__(self, paper_file_path: str, temperature: float = 0.4, log_dir: str = None):
         self.paper_file_path = paper_file_path
         self.temperature = temperature
@@ -217,7 +289,7 @@ class Agent1:
         instructions_text = "Please think very carefully and rigorously before answering, and never fabricate anything."
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, "agent1_input.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, "agent-paper_summary_input.txt"), "w", encoding="utf-8") as f:
                 f.write(f"=== INSTRUCTIONS ===\n{instructions_text}\n\n=== MODEL INPUT ===\n{model_input}")
         
         self.final_text, self.thinking_text = get_llm_client().generate(
@@ -225,17 +297,17 @@ class Agent1:
             input_text=model_input,
             enable_reasoning=True,
             temperature=self.temperature,
-            agent_name="Agent1_paper_summary",
+            agent_name="agent-paper_summary",
         )
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, "agent1_output.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, "agent-paper_summary_output.txt"), "w", encoding="utf-8") as f:
                 f.write(f"=== FINAL TEXT ===\n{self.final_text or '(empty)'}\n\n=== THINKING ===\n{self.thinking_text or '(empty)'}")
         
         return self.final_text
 
 
-class Agent2:
+class IssueExtractorAgent:
     """Extract review questions"""
     def __init__(self, paper_summary: str, review_file_path: str, temperature: float = 0.4, log_dir: str = None):
         self.paper_summary = paper_summary
@@ -259,7 +331,7 @@ class Agent2:
         instructions_text = "Please think very carefully and rigorously before answering, and never fabricate anything"
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, "agent2_input.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, "agent-issue_extract_input.txt"), "w", encoding="utf-8") as f:
                 f.write(f"=== INSTRUCTIONS ===\n{instructions_text}\n\n=== MODEL INPUT ===\n{model_input}")
         
         self.final_text, _ = get_llm_client().generate(
@@ -267,22 +339,22 @@ class Agent2:
             input_text=model_input,
             enable_reasoning=True,
             temperature=self.temperature,
-            agent_name="Agent2_extract_questions",
+            agent_name="agent-issue_extract",
         )
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, "agent2_output.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, "agent-issue_extract_output.txt"), "w", encoding="utf-8") as f:
                 f.write(self.final_text or "(empty)")
         
         return self.final_text
 
 
-class Agent2Checker:
+class IssueExtractorCheckAgent:
     """Check and correct extracted questions"""
-    def __init__(self, paper_summary: str, review_file_path: str, agent2_output: str, temperature: float = 0.4, log_dir: str = None):
+    def __init__(self, paper_summary: str, review_file_path: str, issue_extract_output: str, temperature: float = 0.4, log_dir: str = None):
         self.paper_summary = paper_summary
         self.review_file_path = review_file_path
-        self.agent2_output = agent2_output
+        self.issue_extract_output = issue_extract_output
         self.temperature = temperature
         self.log_dir = log_dir
         self.final_text = None
@@ -294,7 +366,7 @@ class Agent2Checker:
             f"{instructions}"
             f"[compressed paper]\n\n{self.paper_summary}\n```\n\n"
             f"[review original text]\n\n{review_text}\n```\n"
-            f"[student's output]\n\n{self.agent2_output}"
+            f"[student's output]\n\n{self.issue_extract_output}"
             f"\n**Begin now.**\n"
         )
 
@@ -304,7 +376,7 @@ class Agent2Checker:
         
 
         if self.log_dir:
-            with open(os.path.join(self.log_dir, "agent2_checker_input.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, "agent-issue_check_input.txt"), "w", encoding="utf-8") as f:
                 f.write(f"=== INSTRUCTIONS ===\n{instructions_text}\n\n=== MODEL INPUT ===\n{model_input}")
         
         self.final_text, _ = get_llm_client().generate(
@@ -312,17 +384,17 @@ class Agent2Checker:
             input_text=model_input,
             enable_reasoning=True,
             temperature=self.temperature,
-            agent_name="Agent2_checker",
+            agent_name="agent-issue_check",
         )
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, "agent2_checker_output.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, "agent-issue_check_output.txt"), "w", encoding="utf-8") as f:
                 f.write(self.final_text or "(empty)")
         
         return self.final_text
 
 
-class Agent3:
+class PaperSearchAgent:
     """Determine search queries"""
     def __init__(self, paper_summary: str, review_question: str, temperature: float = 0.5, num: int = 1, log_dir: str = None):
         self.paper_summary = paper_summary
@@ -345,7 +417,7 @@ class Agent3:
         instructions_text = "Be rigorous, don't overly trust your own internal knowledge."
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, f"agent3_q{self.num}_input.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, f"agent-paper_search_q{self.num}_input.txt"), "w", encoding="utf-8") as f:
                 f.write(f"=== INSTRUCTIONS ===\n{instructions_text}\n\n=== MODEL INPUT ===\n{model_input}")
         
         self.final_text, _ = get_llm_client().generate(
@@ -353,11 +425,11 @@ class Agent3:
             input_text=model_input,
             enable_reasoning=True,
             temperature=self.temperature,
-            agent_name=f"Agent3_search_q{self.num}",
+            agent_name=f"agent-paper_search_q{self.num}",
         )
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, f"agent3_q{self.num}_output.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, f"agent-paper_search_q{self.num}_output.txt"), "w", encoding="utf-8") as f:
                 f.write(self.final_text or "(empty)")
         
         return self.final_text
@@ -381,11 +453,11 @@ class Agent3:
             
             return need_search, queries, links, reason
         except (json.JSONDecodeError, ValueError) as e:
-            log.warning(f"[Agent3] JSON parsing failed: {e}")
+            log.warning(f"[agent-paper_search] JSON parsing failed: {e}")
             return False, [], [], ""
 
 
-class Agent4:
+class ReferenceFilterAgent:
     """Filter relevant papers"""
     def __init__(self, paper_list: str, paper_summary: str, review_question: str, 
                  reason: str, temperature: float = 0.5, num: int = 1, log_dir: str = None):
@@ -413,7 +485,7 @@ class Agent4:
         instructions_text = "Be rigorous."
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, f"agent4_q{self.num}_input.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, f"agent-reference_filter_q{self.num}_input.txt"), "w", encoding="utf-8") as f:
                 f.write(f"=== INSTRUCTIONS ===\n{instructions_text}\n\n=== MODEL INPUT ===\n{model_input}")
         
         self.final_text, _ = get_llm_client().generate(
@@ -421,17 +493,17 @@ class Agent4:
             input_text=model_input,
             enable_reasoning=True,
             temperature=self.temperature,
-            agent_name=f"Agent4_select_q{self.num}",
+            agent_name=f"agent-reference_filter_q{self.num}",
         )
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, f"agent4_q{self.num}_output.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, f"agent-reference_filter_q{self.num}_output.txt"), "w", encoding="utf-8") as f:
                 f.write(self.final_text or "(empty)")
         
         return self.final_text
 
 
-class Agent5:
+class ReferenceAnalyzeAgent:
     """Analyze reference papers"""
     def __init__(self, paper_summary: str, review_question: str, reference_paper: str,
                  paper_url: str, temperature: float = 0.5, num: int = 1, log_dir: str = None):
@@ -459,7 +531,7 @@ class Agent5:
         instructions_text = "Be rigorous."
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, f"agent5_ref{self.num}_input.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, f"agent-reference_analyze_ref{self.num}_input.txt"), "w", encoding="utf-8") as f:
                 f.write(f"=== INSTRUCTIONS ===\n{instructions_text}\n\n=== MODEL INPUT ===\n{model_input}")
         
         self.final_text, _ = get_llm_client().generate(
@@ -467,17 +539,17 @@ class Agent5:
             input_text=model_input,
             enable_reasoning=True,
             temperature=self.temperature,
-            agent_name=f"Agent5_analyze_ref_{self.num}",
+            agent_name=f"agent-reference_analyze_ref_{self.num}",
         )
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, f"agent5_ref{self.num}_output.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, f"agent-reference_analyze_ref{self.num}_output.txt"), "w", encoding="utf-8") as f:
                 f.write(self.final_text or "(empty)")
         
         return self.final_text
 
 
-class Agent6:
+class StrategyGenAgent:
     """Generate initial rebuttal strategy"""
     def __init__(self, paper_summary: str, review_question: str, 
                  reference_summary: str, temperature: float = 0.4, num: int = 1, log_dir: str = None):
@@ -504,7 +576,7 @@ class Agent6:
         instructions_text = "Be rigorous."
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, f"agent6_q{self.num}_input.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, f"agent-strategy_gen_q{self.num}_input.txt"), "w", encoding="utf-8") as f:
                 f.write(f"=== INSTRUCTIONS ===\n{instructions_text}\n\n=== MODEL INPUT ===\n{model_input}")
         
         self.final_text, _ = get_llm_client().generate(
@@ -512,17 +584,17 @@ class Agent6:
             input_text=model_input,
             enable_reasoning=True,
             temperature=self.temperature,
-            agent_name=f"Agent6_rebuttal_q{self.num}",
+            agent_name=f"agent-strategy_gen_q{self.num}",
         )
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, f"agent6_q{self.num}_output.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, f"agent-strategy_gen_q{self.num}_output.txt"), "w", encoding="utf-8") as f:
                 f.write(self.final_text or "(empty)")
         
         return self.final_text
 
 
-class Agent7:
+class StrategyReviewAgent:
     """Check and optimize rebuttal strategy"""
     def __init__(self, to_do_list: str, paper_summary: str, review_question: str,
                  reference_summary: str, temperature: float = 0.4, num: int = 1, log_dir: str = None):
@@ -551,7 +623,7 @@ class Agent7:
         instructions_text = "Be rigorous."
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, f"agent7_q{self.num}_input.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, f"agent-strategy_review_q{self.num}_input.txt"), "w", encoding="utf-8") as f:
                 f.write(f"=== INSTRUCTIONS ===\n{instructions_text}\n\n=== MODEL INPUT ===\n{model_input}")
         
         self.final_text, _ = get_llm_client().generate(
@@ -559,17 +631,17 @@ class Agent7:
             input_text=model_input,
             enable_reasoning=True,
             temperature=self.temperature,
-            agent_name=f"Agent7_check_q{self.num}",
+            agent_name=f"agent-strategy_review_q{self.num}",
         )
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, f"agent7_q{self.num}_output.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, f"agent-strategy_review_q{self.num}_output.txt"), "w", encoding="utf-8") as f:
                 f.write(self.final_text or "(empty)")
         
         return self.final_text
 
 
-class Agent7WithHumanFeedback:
+class StrategyHumanAgent:
 
     def __init__(self, current_strategy: str, paper_summary: str, review_question: str,
                  reference_summary: str, human_feedback: str, temperature: float = 0.4, num: int = 1, log_dir: str = None):
@@ -601,8 +673,8 @@ class Agent7WithHumanFeedback:
         instructions_text = "Be rigorous. Carefully consider the human feedback."
         
         if self.log_dir:
-            revision_num = len([f for f in os.listdir(self.log_dir) if f.startswith(f"agent7_hitl_q{self.num}_") and f.endswith("_input.txt")]) + 1
-            with open(os.path.join(self.log_dir, f"agent7_hitl_q{self.num}_r{revision_num}_input.txt"), "w", encoding="utf-8") as f:
+            revision_num = len([f for f in os.listdir(self.log_dir) if f.startswith(f"agent-strategy_human_q{self.num}_") and f.endswith("_input.txt")]) + 1
+            with open(os.path.join(self.log_dir, f"agent-strategy_human_q{self.num}_r{revision_num}_input.txt"), "w", encoding="utf-8") as f:
                 f.write(f"=== INSTRUCTIONS ===\n{instructions_text}\n\n=== MODEL INPUT ===\n{model_input}")
         
         self.final_text, _ = get_llm_client().generate(
@@ -610,45 +682,49 @@ class Agent7WithHumanFeedback:
             input_text=model_input,
             enable_reasoning=True,
             temperature=self.temperature,
-            agent_name=f"Agent7_HITL_q{self.num}",
+            agent_name=f"agent-strategy_human_q{self.num}",
         )
         
         if self.log_dir:
-            revision_num = len([f for f in os.listdir(self.log_dir) if f.startswith(f"agent7_hitl_q{self.num}_") and f.endswith("_output.txt")]) + 1
-            with open(os.path.join(self.log_dir, f"agent7_hitl_q{self.num}_r{revision_num}_output.txt"), "w", encoding="utf-8") as f:
+            revision_num = len([f for f in os.listdir(self.log_dir) if f.startswith(f"agent-strategy_human_q{self.num}_") and f.endswith("_output.txt")]) + 1
+            with open(os.path.join(self.log_dir, f"agent-strategy_human_q{self.num}_r{revision_num}_output.txt"), "w", encoding="utf-8") as f:
                 f.write(self.final_text or "(empty)")
         
         return self.final_text
 
 
-class Agent8:
+class RebuttalDraftAgent:
     def __init__(self, to_do_list: str, paper_summary: str, review_file_path: str,
-                 temperature: float = 0.4, num: int = 1, log_dir: str = None):
+                 reference_summary: str = "", temperature: float = 0.4, num: int = 1, log_dir: str = None):
         self.to_do_list = to_do_list
         self.paper_summary = paper_summary
         self.review_file_path = review_file_path
+        self.reference_summary = (reference_summary or "").strip()
         self.temperature = temperature
         self.num = num
         self.log_dir = log_dir
         self.final_text = None
-    
+
     def _build_context(self) -> str:
         review_text = _read_text(self.review_file_path)
         instructions = load_prompt("8.txt")
-        return (
-            f"{instructions}"
-            f"[original paper]\n```paper\n{self.paper_summary}\n```\n\n"
-            f"[review original text]\n```review\n{review_text}\n```\n\n"
-            f"[rebuttal strategies]\n```rebuttal\n{self.to_do_list}\n```\n"
-            f"Please generate the formal ICLR rebuttal response now."
-        )
+        parts = [
+            instructions,
+            f"[original paper]\n```paper\n{self.paper_summary}\n```\n\n",
+            f"[review original text]\n```review\n{review_text}\n```\n\n",
+            f"[rebuttal strategies]\n```rebuttal\n{self.to_do_list}\n```\n",
+        ]
+        if self.reference_summary:
+            parts.append(f"[reference papers summary]\n```references\n{self.reference_summary}\n```\n\n")
+        parts.append("Please generate the formal rebuttal response now.")
+        return "".join(parts)
 
     def run(self) -> str:
         model_input = self._build_context()
         instructions_text = "Be rigorous."
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, f"agent8_input.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, "agent-rebuttal_draft_input.txt"), "w", encoding="utf-8") as f:
                 f.write(f"=== INSTRUCTIONS ===\n{instructions_text}\n\n=== MODEL INPUT ===\n{model_input}")
         
         self.final_text, _ = get_llm_client().generate(
@@ -656,46 +732,50 @@ class Agent8:
             input_text=model_input,
             enable_reasoning=True,
             temperature=self.temperature,
-            agent_name=f"Agent8_final_{self.num}",
+            agent_name=f"agent-rebuttal_draft_{self.num}",
         )
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, f"agent8_output.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, "agent-rebuttal_draft_output.txt"), "w", encoding="utf-8") as f:
                 f.write(self.final_text or "(empty)")
         
         return self.final_text
 
 
-class Agent9:
-    def __init__(self, draft: str, to_do_list: str, paper_summary: str, 
-                 review_file_path: str, temperature: float = 0.4, num: int = 1, log_dir: str = None):
+class RebuttalFinalAgent:
+    def __init__(self, draft: str, to_do_list: str, paper_summary: str,
+                 review_file_path: str, reference_summary: str = "", temperature: float = 0.4, num: int = 1, log_dir: str = None):
         self.draft = draft
         self.to_do_list = to_do_list
         self.paper_summary = paper_summary
         self.review_file_path = review_file_path
+        self.reference_summary = (reference_summary or "").strip()
         self.temperature = temperature
         self.num = num
         self.log_dir = log_dir
         self.final_text = None
-    
+
     def _build_context(self) -> str:
         review_text = _read_text(self.review_file_path)
         instructions = load_prompt("9.txt")
-        return (
-            f"{instructions}"
-            f"[original paper]\n```\n{self.paper_summary}\n```\n\n"
-            f"[review original text]\n```\n{review_text}\n```\n\n"
-            f"[rebuttal strategies]\n```\n{self.to_do_list}\n```\n"
-            f"[student's version]\n```\n{self.draft}\n```\n"
-            f"Please generate the final ICLR rebuttal response."
-        )
+        parts = [
+            instructions,
+            f"[original paper]\n```\n{self.paper_summary}\n```\n\n",
+            f"[review original text]\n```\n{review_text}\n```\n\n",
+            f"[rebuttal strategies]\n```\n{self.to_do_list}\n```\n",
+        ]
+        if self.reference_summary:
+            parts.append(f"[reference papers summary]\n```references\n{self.reference_summary}\n```\n\n")
+        parts.append(f"[student's version]\n```\n{self.draft}\n```\n")
+        parts.append("Please generate the final rebuttal response.")
+        return "".join(parts)
 
     def run(self) -> str:
         model_input = self._build_context()
         instructions_text = "Be rigorous."
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, f"agent9_input.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, "agent-rebuttal_final_input.txt"), "w", encoding="utf-8") as f:
                 f.write(f"=== INSTRUCTIONS ===\n{instructions_text}\n\n=== MODEL INPUT ===\n{model_input}")
         
         self.final_text, _ = get_llm_client().generate(
@@ -703,11 +783,11 @@ class Agent9:
             input_text=model_input,
             enable_reasoning=True,
             temperature=self.temperature,
-            agent_name=f"Agent9_final_{self.num}",
+            agent_name=f"agent-rebuttal_final_{self.num}",
         )
         
         if self.log_dir:
-            with open(os.path.join(self.log_dir, f"agent9_output.txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(self.log_dir, "agent-rebuttal_final_output.txt"), "w", encoding="utf-8") as f:
                 f.write(self.final_text or "(empty)")
         
         return self.final_text
@@ -716,7 +796,7 @@ class Agent9:
 
 
 def extract_review_questions(review_questions_text: str) -> Tuple[List[str], int]:
-    """Extract question list from Agent2 output"""
+    """Extract question list from IssueExtractorAgent output"""
     all_questions = []
     last_index = 0
     text = review_questions_text.strip()
@@ -764,12 +844,12 @@ def extract_review_questions(review_questions_text: str) -> Tuple[List[str], int
     return all_questions, last_index
 
 
-def extract_reference_paper_indices(agent4_output: str) -> List[int]:
-    json_start = agent4_output.find('{')
-    json_end = agent4_output.rfind('}') + 1
+def extract_reference_paper_indices(reference_filter_output: str) -> List[int]:
+    json_start = reference_filter_output.find('{')
+    json_end = reference_filter_output.rfind('}') + 1
     if json_start != -1 and json_end > json_start:
         try:
-            json_str = _fix_json_escapes(agent4_output[json_start:json_end])
+            json_str = _fix_json_escapes(reference_filter_output[json_start:json_end])
             data = json.loads(json_str)
             numbers = data.get("selected_papers", [])
             numbers = [int(n) for n in numbers if isinstance(n, (int, str)) and str(n).isdigit()]
@@ -781,7 +861,7 @@ def extract_reference_paper_indices(agent4_output: str) -> List[int]:
 
 
 def parse_strategy_json(agent_output: str) -> Tuple[str, List[Dict], str]:
-    """Parse Agent6/Agent7 JSON output to extract strategy, todo_list, and draft_response
+    """Parse StrategyGenAgent/StrategyReviewAgent JSON output to extract strategy, todo_list, and draft_response
     
     Returns:
         Tuple of (strategy_text, todo_list, draft_response)
@@ -856,7 +936,7 @@ class RebuttalService:
         return ""
 
     def _parse_questions_from_logs(self, logs_dir: str) -> List[str]:
-        for filename in ("agent2_checker_output.txt", "agent2_output.txt"):
+        for filename in ("agent-issue_check_output.txt", "agent-issue_extract_output.txt"):
             path = os.path.join(logs_dir, filename)
             if os.path.exists(path):
                 text = self._read_text_safe(path)
@@ -871,11 +951,11 @@ class RebuttalService:
         if not os.path.isdir(logs_dir):
             return []
         for fname in os.listdir(logs_dir):
-            m = re.match(r"agent(?:3|4|6|7)_q(\d+)_", fname)
+            m = re.match(r"agent-(?:paper_search|reference_filter|strategy_gen|strategy_review)_q(\d+)_", fname)
             if m:
                 qids.add(int(m.group(1)))
                 continue
-            m = re.match(r"agent7_hitl_q(\d+)_r", fname)
+            m = re.match(r"agent-strategy_human_q(\d+)_r", fname)
             if m:
                 qids.add(int(m.group(1)))
                 continue
@@ -890,7 +970,7 @@ class RebuttalService:
         if not os.path.isdir(logs_dir):
             return "", 0
         for fname in os.listdir(logs_dir):
-            m = re.match(rf"agent7_hitl_q{question_id}_r(\d+)_output\.txt", fname)
+            m = re.match(rf"agent-strategy_human_q{question_id}_r(\d+)_output\.txt", fname)
             if m:
                 rev = int(m.group(1))
                 if rev >= max_rev:
@@ -898,7 +978,7 @@ class RebuttalService:
                     latest_text = self._read_text_safe(os.path.join(logs_dir, fname))
         if latest_text:
             return latest_text, max_rev
-        base_path = os.path.join(logs_dir, f"agent7_q{question_id}_output.txt")
+        base_path = os.path.join(logs_dir, f"agent-strategy_review_q{question_id}_output.txt")
         if os.path.exists(base_path):
             return self._read_text_safe(base_path), 0
         return "", max_rev
@@ -926,7 +1006,7 @@ class RebuttalService:
         if not os.path.isdir(logs_dir):
             return history, max_rev
         for fname in os.listdir(logs_dir):
-            m = re.match(rf"agent7_hitl_q{question_id}_r(\d+)_input\.txt", fname)
+            m = re.match(rf"agent-strategy_human_q{question_id}_r(\d+)_input\.txt", fname)
             if not m:
                 continue
             rev = int(m.group(1))
@@ -976,8 +1056,8 @@ class RebuttalService:
 
     def _hydrate_question_from_logs(self, q_state: QuestionState, logs_dir: str) -> None:
         strategy, hitl_rev = self._find_latest_agent7_output(logs_dir, q_state.question_id)
-        if strategy and (hitl_rev > 0 or not q_state.agent7_output):
-            q_state.agent7_output = strategy
+        if strategy and (hitl_rev > 0 or not q_state.strategy_review_output):
+            q_state.strategy_review_output = strategy
             # Parse strategy JSON if not already parsed
             if not q_state.strategy_text and not q_state.todo_list:
                 strategy_text, todo_list, draft_response = parse_strategy_json(strategy)
@@ -1005,20 +1085,20 @@ class RebuttalService:
                 q_state.revision_count = max(max_rev, hitl_max, len(q_state.feedback_history))
         
         # Load history if not already loaded
-        if not q_state.history and q_state.agent7_output:
-            strategy_text, todo_list, draft_response = parse_strategy_json(q_state.agent7_output)
+        if not q_state.history and q_state.strategy_review_output:
+            strategy_text, todo_list, draft_response = parse_strategy_json(q_state.strategy_review_output)
             q_state.history.append({
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "revision": q_state.revision_count,
                 "strategy_text": strategy_text,
                 "todo_list": todo_list,
                 "draft_response": draft_response,
-                "agent7_output": q_state.agent7_output
+                "strategy_review_output": q_state.strategy_review_output
             })
         
         if q_state.is_satisfied:
             q_state.status = ProcessStatus.COMPLETED
-        elif q_state.agent7_output:
+        elif q_state.strategy_review_output:
             q_state.status = ProcessStatus.WAITING_FEEDBACK
 
     def _load_session_from_dir(self, session_id: str, session_dir: str) -> Optional[SessionState]:
@@ -1074,7 +1154,7 @@ class RebuttalService:
                     revision_count=int(q.get("revision_count", 0) or 0),
                     is_satisfied=bool(q.get("is_satisfied", False)),
                 )
-                q_state.agent7_output = q.get("final_strategy", "") or ""
+                q_state.strategy_review_output = q.get("final_strategy", "") or ""
                 q_state.feedback_history = q.get("feedback_history", []) or []
                 # Load structured data
                 q_state.strategy_text = q.get("strategy_text", "") or ""
@@ -1104,7 +1184,7 @@ class RebuttalService:
 
         if session.final_rebuttal or (session.questions and all(q.is_satisfied for q in session.questions)):
             session.overall_status = ProcessStatus.COMPLETED
-        elif any(q.agent7_output for q in session.questions):
+        elif any(q.strategy_review_output for q in session.questions):
             session.overall_status = ProcessStatus.WAITING_FEEDBACK
         elif session.questions:
             session.overall_status = ProcessStatus.PROCESSING
@@ -1235,7 +1315,7 @@ class RebuttalService:
                         "question_text": q.question_text,
                         "revision_count": q.revision_count,
                         "is_satisfied": q.is_satisfied,
-                        "final_strategy": q.agent7_output or "",
+                        "final_strategy": q.strategy_review_output or "",
                         "strategy_text": getattr(q, 'strategy_text', '') or "",
                         "todo_list": getattr(q, 'todo_list', []) or [],
                         "draft_response": getattr(q, 'draft_response', '') or "",
@@ -1313,7 +1393,7 @@ class RebuttalService:
                 # Calculate progress
                 total_questions = len(session.questions)
                 completed_questions = sum(1 for q in session.questions if q.is_satisfied)
-                processed_questions = sum(1 for q in session.questions if q.agent7_output)
+                processed_questions = sum(1 for q in session.questions if q.strategy_review_output)
                 
                 # Determine status text
                 if session.overall_status == ProcessStatus.ERROR:
@@ -1365,17 +1445,17 @@ class RebuttalService:
             if not paper_md_path:
                 raise RuntimeError("PDF conversion failed")
             session.paper_file_path = paper_md_path  
-            update_progress("Agent1: Generating paper summary...")
-            agent1 = Agent1(session.paper_file_path, log_dir=session.logs_dir)
-            session.paper_summary = agent1.run()
+            update_progress("agent-paper_summary: Generating paper summary...")
+            paper_summary_agent = PaperSummaryAgent(session.paper_file_path, log_dir=session.logs_dir)
+            session.paper_summary = paper_summary_agent.run()
 
-            update_progress("Agent2: Extracting review questions...")
-            agent2 = Agent2(session.paper_summary, session.review_file_path, log_dir=session.logs_dir)
-            questions_raw = agent2.run()
+            update_progress("agent-issue_extract: Extracting review questions...")
+            issue_extract_agent = IssueExtractorAgent(session.paper_summary, session.review_file_path, log_dir=session.logs_dir)
+            questions_raw = issue_extract_agent.run()
             
-            update_progress("Agent2-Checker: Validating question extraction...")
-            checker = Agent2Checker(session.paper_summary, session.review_file_path, questions_raw, log_dir=session.logs_dir)
-            questions_checked = checker.run()
+            update_progress("agent-issue_check: Validating question extraction...")
+            issue_check_agent = IssueExtractorCheckAgent(session.paper_summary, session.review_file_path, questions_raw, log_dir=session.logs_dir)
+            questions_checked = issue_check_agent.run()
 
             update_progress("Parsing question list...")
             questions, num = extract_review_questions(questions_checked)
@@ -1430,9 +1510,9 @@ class RebuttalService:
             paper_path = session.paper_file_path
             
             update_progress("🔎 正在分析问题并确定搜索策略...")
-            agent3 = Agent3(paper_summary, question_text, num=num, log_dir=session.logs_dir)
-            agent3.run()
-            need_search, queries, links, reason = agent3.extract()
+            paper_search_agent = PaperSearchAgent(paper_summary, question_text, num=num, log_dir=session.logs_dir)
+            paper_search_agent.run()
+            need_search, queries, links, reason = paper_search_agent.extract()
             
             final_target_papers = []
 
@@ -1475,12 +1555,12 @@ class RebuttalService:
 
                 if papers_pool_from_search:
                     update_progress(f"📑 正在从 {len(papers_pool_from_search)} 篇论文中筛选最相关的...")
-                    agent4 = Agent4(papers_list_for_agent4_text, paper_summary, question_text, reason, num=num, log_dir=session.logs_dir)
-                    agent4.run()
+                    reference_filter_agent = ReferenceFilterAgent(papers_list_for_agent4_text, paper_summary, question_text, reason, num=num, log_dir=session.logs_dir)
+                    reference_filter_agent.run()
                     
 
-                    selected_indices = extract_reference_paper_indices(agent4.final_text)
-                    log.info(f"Agent4 selected indices: {selected_indices}")
+                    selected_indices = extract_reference_paper_indices(reference_filter_agent.final_text)
+                    log.info(f"agent-reference_filter selected indices: {selected_indices}")
                     selected_papers_list = []
                     if selected_indices:
                         update_progress(f"✓ 已筛选出 {len(selected_indices)} 篇相关论文")
@@ -1490,7 +1570,7 @@ class RebuttalService:
                                 final_target_papers.append(paper)
                                 selected_papers_list.append(paper)
                     else:
-                        # 相关论文即选中论文：Agent4 未返回选中时，将全部搜索到的论文视为选中并参与分析
+                        # 相关论文即选中论文：ReferenceFilterAgent 未返回选中时，将全部搜索到的论文视为选中并参与分析
                         update_progress(f"✓ 将全部搜索到的 {len(papers_pool_from_search)} 篇论文视为选中并分析")
                         selected_papers_list = [dict(p) for p in papers_pool_from_search]
                         for paper in papers_pool_from_search:
@@ -1543,13 +1623,21 @@ class RebuttalService:
                         log.error(f"[ERROR] Markdown content is empty or too short, skipping")
                         return (ti, "")
                     
-                    log.info("[STEP 3] Starting Agent5 to analyze reference paper...")
-                    agent5 = Agent5(paper_summary, question_text, md_content,
-                                   paper_obj.get('abs_url', ''), num=num*100+ti, log_dir=session.logs_dir)
-                    agent5_output = agent5.run()
-                    log.info(f"[SUCCESS] Agent5 complete, output length: {len(agent5_output)} characters")
-                    
-                    return (ti, agent5_output)
+                    log.info("[STEP 3] Starting agent-reference_analyze to analyze reference paper...")
+                    reference_analyze_agent = ReferenceAnalyzeAgent(
+                        paper_summary,
+                        question_text,
+                        md_content,
+                        paper_obj.get('abs_url', ''),
+                        num=num * 100 + ti,
+                        log_dir=session.logs_dir,
+                    )
+                    reference_analyze_output = reference_analyze_agent.run()
+                    log.info(
+                        f"[SUCCESS] agent-reference_analyze complete, output length: {len(reference_analyze_output)} characters"
+                    )
+
+                    return (ti, reference_analyze_output)
                     
                 except Exception as e:
                     log.exception(f"[ERROR] Processing reference #{ti} failed: {type(e).__name__}: {e}")
@@ -1597,19 +1685,19 @@ class RebuttalService:
             
             update_progress("💡 正在生成反驳策略...")
             original_paper = _read_text(paper_path)
-            agent6 = Agent6(original_paper, question_text, q_state.reference_paper_summary, num=num, log_dir=session.logs_dir)
-            q_state.agent6_output = agent6.run()
+            strategy_gen_agent = StrategyGenAgent(original_paper, question_text, q_state.reference_paper_summary, num=num, log_dir=session.logs_dir)
+            q_state.strategy_gen_output = strategy_gen_agent.run()
             
-            # Parse Agent6 output
-            strategy_text_6, todo_list_6, draft_response_6 = parse_strategy_json(q_state.agent6_output)
+            # Parse StrategyGenAgent output
+            strategy_text_6, todo_list_6, draft_response_6 = parse_strategy_json(q_state.strategy_gen_output)
             
             update_progress("✨ 正在优化反驳策略...")
-            agent7 = Agent7(q_state.agent6_output, original_paper, question_text,
+            strategy_review_agent = StrategyReviewAgent(q_state.strategy_gen_output, original_paper, question_text,
                            q_state.reference_paper_summary, num=num, log_dir=session.logs_dir)
-            q_state.agent7_output = agent7.run()
+            q_state.strategy_review_output = strategy_review_agent.run()
             
-            # Parse Agent7 output and save structured data
-            strategy_text, todo_list, draft_response = parse_strategy_json(q_state.agent7_output)
+            # Parse StrategyReviewAgent output and save structured data
+            strategy_text, todo_list, draft_response = parse_strategy_json(q_state.strategy_review_output)
             q_state.strategy_text = strategy_text
             q_state.todo_list = todo_list
             q_state.draft_response = draft_response
@@ -1621,8 +1709,8 @@ class RebuttalService:
                 "strategy_text": strategy_text,
                 "todo_list": todo_list,
                 "draft_response": draft_response,
-                "agent6_output": q_state.agent6_output,
-                "agent7_output": q_state.agent7_output,
+                "strategy_gen_output": q_state.strategy_gen_output,
+                "strategy_review_output": q_state.strategy_review_output,
                 "searched_papers": q_state.searched_papers.copy() if q_state.searched_papers else [],
                 "selected_papers": q_state.selected_papers.copy() if q_state.selected_papers else [],
                 "analyzed_papers": [p.copy() for p in q_state.analyzed_papers] if q_state.analyzed_papers else []
@@ -1672,8 +1760,8 @@ class RebuttalService:
             
             original_paper = _read_text(session.paper_file_path)
             
-            agent7h = Agent7WithHumanFeedback(
-                current_strategy=q_state.agent7_output,
+            strategy_human_agent = StrategyHumanAgent(
+                current_strategy=q_state.strategy_review_output,
                 paper_summary=original_paper,
                 review_question=q_state.question_text,
                 reference_summary=q_state.reference_paper_summary,
@@ -1682,14 +1770,14 @@ class RebuttalService:
                 log_dir=session.logs_dir
             )
             
-            new_strategy = agent7h.run()
+            new_strategy = strategy_human_agent.run()
 
             # Parse new strategy JSON
             strategy_text, todo_list, draft_response = parse_strategy_json(new_strategy)
             
             q_state.feedback_history.append({
                 "feedback": human_feedback,
-                "previous_strategy": q_state.agent7_output,
+                "previous_strategy": q_state.strategy_review_output,
                 "new_strategy": new_strategy,
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             })
@@ -1702,10 +1790,10 @@ class RebuttalService:
                 "strategy_text": strategy_text,
                 "todo_list": todo_list,
                 "draft_response": draft_response,
-                "agent7_output": new_strategy
+                "strategy_review_output": new_strategy
             })
 
-            q_state.agent7_output = new_strategy
+            q_state.strategy_review_output = new_strategy
             q_state.strategy_text = strategy_text
             q_state.todo_list = todo_list
             q_state.draft_response = draft_response
@@ -1847,7 +1935,7 @@ class RebuttalService:
             lines.append(f"### 评审问题\n\n{q.question_text}\n\n")
             
             # Strategy
-            strategy_text = getattr(q, 'strategy_text', '') or q.agent7_output or ""
+            strategy_text = getattr(q, 'strategy_text', '') or q.strategy_review_output or ""
             if strategy_text:
                 lines.append(f"### 反驳策略\n\n{strategy_text}\n\n")
             
@@ -1948,21 +2036,33 @@ class RebuttalService:
                 block = (
                     f"\n## Q[{q.question_id}]:\n"
                     f"```review_question\n{q.question_text}\n```\n"
-                    f"\n[Rebuttal Strategy & To-Do List]:\n{q.agent7_output}\n"
+                    f"\n[Rebuttal Strategy & To-Do List]:\n{q.strategy_review_output}\n"
                 )
                 all_strategies.append(block)
             
             combined = "\n".join(all_strategies)
-            
+            all_ref_summaries = []
+            for q in session.questions:
+                if getattr(q, "reference_paper_summary", "").strip():
+                    all_ref_summaries.append(f"## Q[{q.question_id}] reference papers\n\n{q.reference_paper_summary}")
+            combined_reference_summary = "\n\n".join(all_ref_summaries) if all_ref_summaries else ""
+
             update_progress("📝 正在生成反驳信草稿...")
             original_paper = _read_text(session.paper_file_path)
-            agent8 = Agent8(combined, original_paper, session.review_file_path, log_dir=session.logs_dir)
-            draft = agent8.run()
-            
+            rebuttal_draft_agent = RebuttalDraftAgent(
+                combined, original_paper, session.review_file_path,
+                reference_summary=combined_reference_summary,
+                log_dir=session.logs_dir,
+            )
+            draft = rebuttal_draft_agent.run()
 
             update_progress("🔍 正在校对并生成最终版本...")
-            agent9 = Agent9(draft, combined, original_paper, session.review_file_path, log_dir=session.logs_dir)
-            session.final_rebuttal = agent9.run()
+            rebuttal_final_agent = RebuttalFinalAgent(
+                draft, combined, original_paper, session.review_file_path,
+                reference_summary=combined_reference_summary,
+                log_dir=session.logs_dir,
+            )
+            session.final_rebuttal = rebuttal_final_agent.run()
             
             session.overall_status = ProcessStatus.COMPLETED
             update_progress("✅ 反驳信生成完成！")
@@ -1986,5 +2086,6 @@ class RebuttalService:
             raise
         
         return session.final_rebuttal
+
 
 rebuttal_service = RebuttalService()

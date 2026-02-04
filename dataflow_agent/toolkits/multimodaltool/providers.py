@@ -1,5 +1,8 @@
 import json
+import os
+import time
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Tuple, Optional, Any, Dict, List
 from dataflow_agent.toolkits.multimodaltool.utils import (
     Provider, detect_provider, extract_base64, 
@@ -1087,3 +1090,299 @@ def get_provider(api_url: str, model: str) -> AIProviderStrategy:
         if strategy.match(api_url, model):
             return strategy
     return OpenAICompatGeminiProvider()
+
+
+# --- Text-only LLM client (rebuttal / chat workflows) ---
+# URL 与 API key 均由前端传入，不再使用本地 PROVIDER_CONFIGS。
+
+
+class TokenUsageTracker:
+    """Tracks token usage across LLM calls; can export to file and print summary."""
+    def __init__(self, log_file: Optional[str] = None):
+        self.log_file = log_file
+        self.usage_records: List[Dict] = []
+        self.total_stats = {
+            "total_prompt_tokens": 0,
+            "total_completion_tokens": 0,
+            "total_tokens": 0,
+            "total_calls": 0,
+        }
+        if log_file:
+            os.makedirs(os.path.dirname(log_file) if os.path.dirname(log_file) else ".", exist_ok=True)
+
+    def add_record(
+        self,
+        provider: str,
+        model: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+        total_tokens: int,
+        agent_name: str = "unknown",
+    ) -> None:
+        record = {
+            "timestamp": datetime.now().isoformat(),
+            "provider": provider,
+            "model": model,
+            "agent_name": agent_name,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+        }
+        self.usage_records.append(record)
+        self.total_stats["total_prompt_tokens"] += prompt_tokens
+        self.total_stats["total_completion_tokens"] += completion_tokens
+        self.total_stats["total_tokens"] += total_tokens
+        self.total_stats["total_calls"] += 1
+
+    def export_to_file(self, file_path: Optional[str] = None) -> Optional[str]:
+        output_file = file_path or self.log_file
+        if not output_file:
+            return None
+        export_data = {
+            "export_time": datetime.now().isoformat(),
+            "summary": self.total_stats,
+            "records": self.usage_records,
+        }
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(export_data, f, ensure_ascii=False, indent=2)
+        log.info(f"Token usage statistics exported to: {output_file}")
+        return output_file
+
+    def print_summary(self) -> None:
+        summary = (
+            "\n"
+            + "=" * 60
+            + "\nToken Usage Summary\n"
+            + "=" * 60
+            + f"\nTotal API calls: {self.total_stats['total_calls']}"
+            + f"\nTotal input tokens: {self.total_stats['total_prompt_tokens']:,}"
+            + f"\nTotal output tokens: {self.total_stats['total_completion_tokens']:,}"
+            + f"\nTotal tokens: {self.total_stats['total_tokens']:,}"
+            + "\n"
+            + "=" * 60
+            + "\n"
+        )
+        log.info(summary)
+
+
+class LLMClient:
+    """
+    Text-only LLM client for rebuttal and other chat workflows.
+    URL 与 API key 均由调用方（如前端）传入；支持 OpenAI 兼容 API 与 Gemini 原生 SDK。
+    """
+    def __init__(
+        self,
+        api_key: str,
+        provider: str = "openrouter",
+        base_url: Optional[str] = None,
+        default_model: str = "google/gemini-3-flash-preview",
+        request_timeout: int = 600,
+        token_tracker: Optional[TokenUsageTracker] = None,
+        site_url: Optional[str] = None,
+        site_name: Optional[str] = None,
+        max_retries: int = 3,
+        retry_delay: float = 2.0,
+    ) -> None:
+        self.api_key = api_key
+        self.provider = provider.lower()
+        self.default_model = default_model
+        self.request_timeout = request_timeout
+        self.token_tracker = token_tracker
+        self.current_agent_name = "unknown"
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+
+        if self.provider == "gemini":
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            self._genai = genai
+            self._client = None
+            self._http_client = None
+        else:
+            if not base_url:
+                raise ValueError("base_url is required for non-Gemini providers (URL and key are passed from frontend).")
+            import httpx
+            from openai import OpenAI
+            self._genai = None
+            extra_headers = {}
+            if self.provider == "openrouter":
+                extra_headers = {
+                    "HTTP-Referer": site_url or "http://localhost",
+                    "X-Title": site_name or "Rebuttal Assistant",
+                }
+            self._http_client = httpx.Client(
+                trust_env=True,
+                timeout=request_timeout,
+                headers=extra_headers,
+            )
+            self._client = OpenAI(
+                base_url=base_url.rstrip("/"),
+                api_key=api_key,
+                http_client=self._http_client,
+            )
+
+    def _log_output(self, model_name: str, final_text: str, reasoning_text: str = "") -> None:
+        if reasoning_text:
+            message = (
+                "[LLM Output]\n"
+                f"api_key={self.api_key}\n"
+                f"provider={self.provider}\n"
+                f"model={model_name}\n"
+                f"agent={self.current_agent_name}\n"
+                f"output=\n{final_text}\n"
+                f"reasoning=\n{reasoning_text}"
+            )
+        else:
+            message = (
+                "[LLM Output]\n"
+                f"api_key={self.api_key}\n"
+                f"provider={self.provider}\n"
+                f"model={model_name}\n"
+                f"agent={self.current_agent_name}\n"
+                f"output=\n{final_text}"
+            )
+        log.info(message)
+
+    def generate(
+        self,
+        instructions: Optional[str],
+        input_text: str,
+        model: Optional[str] = None,
+        enable_reasoning: bool = True,
+        temperature: float = 0.6,
+        agent_name: Optional[str] = None,
+    ) -> Tuple[str, str]:
+        model_name = model or self.default_model
+        if agent_name:
+            self.current_agent_name = agent_name
+        final_text = ""
+        reasoning_text = ""
+        last_error = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                if self.provider == "gemini":
+                    final_text, reasoning_text = self._generate_gemini(
+                        instructions, input_text, model_name, temperature
+                    )
+                else:
+                    final_text, reasoning_text = self._generate_openai_compatible(
+                        instructions, input_text, model_name, temperature
+                    )
+                rate_limit_keywords = ["并发", "rate limit", "too many requests", "quota exceeded", "限流"]
+                if any(kw in (final_text or "").lower() for kw in rate_limit_keywords):
+                    raise RuntimeError(f"Rate limit detected in response: {(final_text or '')[:100]}...")
+                self._log_output(model_name, final_text or "", reasoning_text or "")
+                return final_text or "", reasoning_text or ""
+            except Exception as e:
+                last_error = e
+                if attempt < self.max_retries:
+                    wait_time = self.retry_delay * (2 ** attempt)
+                    log.warning(
+                        "[Retry]\n"
+                        f"api_key={self.api_key}\n"
+                        f"provider={self.provider}\n"
+                        f"model={model_name}\n"
+                        f"agent={self.current_agent_name}\n"
+                        f"attempt={attempt + 1}/{self.max_retries}\n"
+                        f"error={type(e).__name__}: {e}\n"
+                        f"waiting={wait_time:.1f}s"
+                    )
+                    time.sleep(wait_time)
+                else:
+                    log.error(
+                        "[LLM Error]\n"
+                        f"api_key={self.api_key}\n"
+                        f"provider={self.provider}\n"
+                        f"model={model_name}\n"
+                        f"agent={self.current_agent_name}\n"
+                        f"attempts={self.max_retries + 1}\n"
+                        f"error={type(e).__name__}: {e}"
+                    )
+        return f"Error calling {self.provider} after {self.max_retries + 1} attempts: {str(last_error)}", ""
+
+    def _generate_gemini(
+        self,
+        instructions: Optional[str],
+        input_text: str,
+        model_name: str,
+        temperature: float,
+    ) -> Tuple[str, str]:
+        model = self._genai.GenerativeModel(
+            model_name=model_name,
+            system_instruction=instructions or "You are a helpful AI assistant.",
+            generation_config={"temperature": temperature},
+        )
+        response = model.generate_content(input_text)
+        final_text = response.text or ""
+        if self.token_tracker and hasattr(response, "usage_metadata"):
+            usage = response.usage_metadata
+            prompt_tokens = getattr(usage, "prompt_token_count", 0)
+            completion_tokens = getattr(usage, "candidates_token_count", 0)
+            total_tokens = getattr(usage, "total_token_count", 0)
+            self.token_tracker.add_record(
+                provider="gemini",
+                model=model_name,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                agent_name=self.current_agent_name,
+            )
+            log.info(
+                "[Token]\n"
+                f"api_key={self.api_key}\n"
+                f"provider=gemini\n"
+                f"model={model_name}\n"
+                f"agent={self.current_agent_name}\n"
+                f"in={prompt_tokens}\n"
+                f"out={completion_tokens}\n"
+                f"total={total_tokens}"
+            )
+        return final_text, ""
+
+    def _generate_openai_compatible(
+        self,
+        instructions: Optional[str],
+        input_text: str,
+        model_name: str,
+        temperature: float,
+    ) -> Tuple[str, str]:
+        messages = [
+            {"role": "system", "content": (instructions or "You are a helpful AI assistant.")},
+            {"role": "user", "content": input_text},
+        ]
+        response = self._client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            temperature=temperature,
+            stream=False,
+        )
+        final_text = ""
+        if getattr(response, "choices", None):
+            choice0 = response.choices[0]
+            message = getattr(choice0, "message", None)
+            if message is not None:
+                final_text = getattr(message, "content", None) or ""
+        if self.token_tracker and hasattr(response, "usage"):
+            usage = response.usage
+            prompt_tokens = getattr(usage, "prompt_tokens", 0)
+            completion_tokens = getattr(usage, "completion_tokens", 0)
+            total_tokens = getattr(usage, "total_tokens", 0)
+            self.token_tracker.add_record(
+                provider=self.provider,
+                model=model_name,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                agent_name=self.current_agent_name,
+            )
+            log.info(
+                "[Token]\n"
+                f"api_key={self.api_key}\n"
+                f"provider={self.provider}\n"
+                f"model={model_name}\n"
+                f"agent={self.current_agent_name}\n"
+                f"in={prompt_tokens}\n"
+                f"out={completion_tokens}\n"
+                f"total={total_tokens}"
+            )
+        return final_text, ""

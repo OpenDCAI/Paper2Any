@@ -114,6 +114,7 @@ const Paper2RebuttalPage = () => {
   const [feedback, setFeedback] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [unsatisfiedQuestionIds, setUnsatisfiedQuestionIds] = useState<number[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [selectedHistoryIndex, setSelectedHistoryIndex] = useState<number | null>(null);
   const [showPapers, setShowPapers] = useState(false);
@@ -617,6 +618,14 @@ const Paper2RebuttalPage = () => {
         throw new Error(errorData.detail || t('paper2rebuttal:errors.operationFailed'));
       }
 
+      const updatedQuestions = [...session.questions];
+      updatedQuestions[currentQuestionIdx] = {
+        ...updatedQuestions[currentQuestionIdx],
+        is_satisfied: true,
+      };
+      setSession({ ...session, questions: updatedQuestions });
+      setUnsatisfiedQuestionIds(prev => prev.filter(id => id !== updatedQuestions[currentQuestionIdx].question_id));
+
       if (currentQuestionIdx + 1 < session.questions.length) {
         setCurrentQuestionIdx(currentQuestionIdx + 1);
         setFeedback('');
@@ -672,13 +681,23 @@ const Paper2RebuttalPage = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || t('paper2rebuttal:errors.generateFailed'));
+        const detail = errorData?.detail;
+        if (detail && typeof detail === 'object') {
+          const ids = Array.isArray(detail.unsatisfied_question_ids) ? detail.unsatisfied_question_ids : [];
+          if (ids.length > 0) {
+            setUnsatisfiedQuestionIds(ids);
+          }
+          const msg = detail.message || t('paper2rebuttal:errors.generateFailed');
+          throw new Error(msg);
+        }
+        throw new Error(detail || t('paper2rebuttal:errors.generateFailed'));
       }
 
       addLog(t('paper2rebuttal:logs.generatingContent'));
       
       const data = await response.json();
       setSession({ ...session, final_rebuttal: data.final_rebuttal });
+      setUnsatisfiedQuestionIds([]);
       addLog(t('paper2rebuttal:logs.generateComplete'));
       
       // Small delay to show success message
@@ -1176,9 +1195,15 @@ const Paper2RebuttalPage = () => {
                 <h3 className="text-lg font-bold text-white mb-4">{t('paper2rebuttal:review.questionList')}</h3>
                 
                 <div className="space-y-2">
+                  {unsatisfiedQuestionIds.length > 0 && (
+                    <div className="text-xs text-red-300 bg-red-500/10 border border-red-500/30 rounded-md p-2">
+                      还有未确认的问题：{unsatisfiedQuestionIds.join(', ')}
+                    </div>
+                  )}
                   {session.questions.map((q, idx) => {
                     const isCurrent = idx === currentQuestionIdx;
                     const isCompleted = q.is_satisfied;
+                    const isUnsatisfied = unsatisfiedQuestionIds.includes(q.question_id);
                     
                     return (
                       <button
@@ -1194,6 +1219,8 @@ const Paper2RebuttalPage = () => {
                             ? 'bg-blue-500/30 border-2 border-blue-500'
                             : isCompleted
                             ? 'bg-green-500/20 border border-green-500/30 hover:bg-green-500/30'
+                            : isUnsatisfied
+                            ? 'bg-red-500/10 border border-red-500/30 hover:bg-red-500/20'
                             : 'bg-white/5 border border-white/10 hover:bg-white/10'
                         }`}
                       >
