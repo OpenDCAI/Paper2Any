@@ -12,6 +12,7 @@ requires-python = ">=3.9"
 
 dependencies = [
     "openai>=1.0.0",
+    "tqdm>=4.60.0",
     "langgraph==0.6.7",
     "langgraph-checkpoint==2.1.1",
     "langgraph-prebuilt==0.6.4",
@@ -27,6 +28,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-asyncio",
     "pytest-cov",
     "black",
     "ruff",
@@ -60,3 +62,6 @@ exclude = ["tests*"]
 
 [project.scripts]
 dfa = "dataflow_agent.cli:cli"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

@@ -29,6 +29,12 @@ class MainRequest:
 
     def get(self, key, default=None):
         return getattr(self, key, default)
+
+    def __getitem__(self, key):
+        """
+        允许像字典一样通过 request[key] 读取字段，等价于 getattr(self, key)。
+        """
+        return getattr(self, key)
     
     def __setitem__(self, key, value):
         setattr(self, key, value)
@@ -46,6 +52,12 @@ class MainState:
 
     def get(self, key, default=None):
         return getattr(self, key, default)
+
+    def __getitem__(self, key):
+        """
+        允许像字典一样通过 state[key] 读取字段，等价于 getattr(self, key)。
+        """
+        return getattr(self, key)
 
     def __setitem__(self, key, value):
         setattr(self, key, value)
@@ -368,8 +380,54 @@ class Paper2FigureState(MainState):
     # pdf2ppt是否使用AI编辑
     use_ai_edit: bool = False
     use_global_font_clustering: bool = False # 是否使用单页聚类器
-
-
+    
+    
     # img2ppt 专用 ==============================
     bbox_result: List[str] = field(default_factory=list)
     vlm_pages: List[Dict[str, Any]] = field(default_factory=list)
+
+
+# ==================== WebSearch Knowledge Store State ====================
+@dataclass
+class WebsearchKnowledgeRequest(MainRequest):
+    """
+    Web 搜索知识入库任务的 Request
+    - input_urls: 用户初始输入的 URL 列表
+    """
+    input_urls: List[str] = field(default_factory=list)
+
+
+@dataclass
+class WebsearchKnowledgeState(MainState):
+    """
+    Web 搜索知识入库任务的 State，继承自 MainState
+    
+    全局状态字段：
+    - input_urls: 用户初始输入的 URL 列表
+    - research_routes: 由初始 URL 分析得出的不同领域调研路线队列（会被 planner 逐步弹出）
+    - original_research_routes: 原始的研究路线列表（不会被修改，供 curator 使用）
+    - raw_data_store: 追加型列表，存储所有阶段抓取到的原始内容
+    - knowledge_base_summary: 最终清洗后的结构化数据的总结
+    """
+    # 重写 request 类型
+    request: WebsearchKnowledgeRequest = field(default_factory=WebsearchKnowledgeRequest)
+
+    # === 全局状态 ===
+    # Input URLs: 用户初始输入的 URL 列表
+    input_urls: List[str] = field(default_factory=list)
+    
+    # Research Routes (研究计划队列) - 会被 planner 逐步弹出
+    research_routes: List[str] = field(default_factory=list)
+    
+    # Original Research Routes (原始研究路线) - 不会被修改，供 chief_curator 使用
+    original_research_routes: List[str] = field(default_factory=list)
+    
+    # 当前由 Planner 分配给 Web Researcher 执行的任务
+    # 注意：必须作为显式字段存在，避免在 LangGraph 状态合并时被丢弃
+    current_task: str = ""
+    
+    # Raw Data Store: 存储原始内容（文本、多模态资源引用等）
+    raw_data_store: List[Dict[str, Any]] = field(default_factory=list)
+    
+    # Knowledge Base Summary: 最终结构化总结
+    knowledge_base_summary: str = ""

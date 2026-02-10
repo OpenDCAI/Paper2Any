@@ -83,6 +83,9 @@ playwright
 IPython==8.18.1
 opencv-python
 
+# websearch knowledge store
+playwright-stealth
+
 # speech
 librosa
 soundfile
