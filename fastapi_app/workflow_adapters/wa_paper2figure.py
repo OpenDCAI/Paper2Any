@@ -80,29 +80,28 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest, result_path: Path | 
     elif req.input_type == "FIGURE":
         # 如果是图片输入（编辑/重绘模式），将内容设为 prev_image
         image_path_or_url = req.input_content
-        
-        # 尝试将 URL 转换为本地路径
-        if image_path_or_url and image_path_or_url.startswith("http"):
-            if "/outputs/" in image_path_or_url:
-                try:
-                    # 提取 /outputs/ 之后的部分
-                    relative_path = image_path_or_url.split("/outputs/", 1)[1]
-                    # 去掉查询参数
-                    relative_path = relative_path.split('?', 1)[0]
-                    # 解码可能的 URL 编码
-                    import urllib.parse
-                    relative_path = urllib.parse.unquote(relative_path)
-                    
-                    local_path = project_root / "outputs" / relative_path
-                    if local_path.exists():
-                        image_path_or_url = str(local_path)
-                        # 同时更新 req.input_content，确保 workflow 也能读到本地路径
-                        req.input_content = str(local_path)
-                        log.info(f"Converted URL to local path: {image_path_or_url}")
-                    else:
-                        log.warning(f"Local file not found for URL {req.input_content} at {local_path}")
-                except Exception as e:
-                    log.warning(f"Failed to convert URL to local path: {e}")
+
+        # 尝试将 URL 转换为本地路径（支持完整URL和相对路径）
+        if image_path_or_url and "/outputs/" in image_path_or_url:
+            try:
+                # 提取 /outputs/ 之后的部分
+                relative_path = image_path_or_url.split("/outputs/", 1)[1]
+                # 去掉查询参数
+                relative_path = relative_path.split('?', 1)[0]
+                # 解码可能的 URL 编码
+                import urllib.parse
+                relative_path = urllib.parse.unquote(relative_path)
+
+                local_path = project_root / "outputs" / relative_path
+                if local_path.exists():
+                    image_path_or_url = str(local_path)
+                    # 同时更新 req.input_content，确保 workflow 也能读到本地路径
+                    req.input_content = str(local_path)
+                    log.info(f"Converted URL to local path: {image_path_or_url}")
+                else:
+                    log.warning(f"Local file not found for URL {req.input_content} at {local_path}")
+            except Exception as e:
+                log.warning(f"Failed to convert URL to local path: {e}")
 
         state.request.prev_image = image_path_or_url
         # 修复：同时设置 fig_draft_path，供 wf_paper2expfigure 使用
