@@ -143,7 +143,7 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
                     try:
                         with open(file_path, "r", encoding="utf-8") as f:
                             raw_content = f.read()
-                    except:
+                    except Exception:
                         raw_content = "[Unsupported file type]"
 
             except Exception as e:

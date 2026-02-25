@@ -654,7 +654,7 @@ def group_import_for_full_params(op_names: List[str]) -> tuple:
 #             try:
 #                 run_sig = inspect.signature(cls.run)
 #                 run_has_storage = "storage" in run_sig.parameters
-#             except:
+#             except Exception:
 #                 pass
 
 #         # -------- 渲染 __init__ 参数 --------
@@ -742,7 +742,7 @@ def render_operator_blocks_with_full_params(
                 init_sig = inspect.signature(cls.__init__)
                 init_param_names = {p.name for p in list(init_sig.parameters.values())[1:] 
                                    if p.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)}
-            except:
+            except Exception:
                 pass
             
             try:
@@ -750,7 +750,7 @@ def render_operator_blocks_with_full_params(
                 run_param_names = {p.name for p in list(run_sig.parameters.values())[1:] 
                                   if p.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
                                   and p.name != "storage"}
-            except:
+            except Exception:
                 pass
             
             # 分配参数
@@ -778,7 +778,7 @@ def render_operator_blocks_with_full_params(
             try:
                 run_sig = inspect.signature(cls.run)
                 run_has_storage = "storage" in run_sig.parameters
-            except:
+            except Exception:
                 pass
 
         # -------- 渲染 __init__ 参数 --------

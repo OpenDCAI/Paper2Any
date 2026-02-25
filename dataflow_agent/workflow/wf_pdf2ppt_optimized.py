@@ -1007,7 +1007,7 @@ def create_pdf2ppt_optimized_graph() -> GenericGraphBuilder:
                                 with Image.open(img_path) as page_img:
                                     crop = page_img.crop((x1, y1, x2, y2))
                                     crop.save(ipath)
-                            except:
+                            except Exception:
                                 ipath = None
                     
                     if ipath and os.path.exists(ipath):

@@ -1086,7 +1086,7 @@ Produce complete, runnable Python code that:
 [OUTPUT RULES]
 Return only a JSON object with a single key:
 {"code": "<complete runnable source code>"}
-No comments, no extra keys, no extra prints except:
+No comments, no extra keys, no extra prints except Exception:
 - one line: [selected_input_key] <the_key>
 - up to two lines: [preview_output] <result>
 """

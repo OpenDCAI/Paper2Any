@@ -1878,7 +1878,7 @@ class RebuttalService:
                     # Save error state
                     try:
                         self._save_session_summary(session_id)
-                    except:
+                    except Exception:
                         pass
                     return (idx, session.questions[idx])
                 # Return empty state if session is gone

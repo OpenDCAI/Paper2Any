@@ -311,7 +311,7 @@ def _render_table_fallback(
                 try:
                     cell = table[(i, j)]
                     cell.set_facecolor('#D9E2F3' if i % 2 == 0 else 'white')
-                except:
+                except Exception:
                     pass
         
         plt.savefig(str(output_path), dpi=150, bbox_inches='tight', facecolor='white')

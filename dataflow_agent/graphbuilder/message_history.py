@@ -650,7 +650,7 @@ class AdvancedMessageHistory:
             if checkpoint and hasattr(checkpoint, 'id'):
                 return checkpoint.id
             return None
-        except:
+        except Exception:
             return None
 
     def get_message_history(
