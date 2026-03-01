@@ -1,0 +1,235 @@
+"""
+paper2ppt_beamer workflow
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pagecontent（来自 paper2page_content）→ 每页单独生成 Beamer → 每页编译成 PDF → 合并为一份 PDF → _end_。
+调用方需先跑 paper2page_content，再传入带 pagecontent / result_path / mineru_root 的 state。
+"""
+
+from __future__ import annotations
+
+import json
+import shutil
+from pathlib import Path
+
+from dataflow_agent.state import Paper2PptBeamerRequest, Paper2PptBeamerState
+from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
+from dataflow_agent.workflow.registry import register
+from dataflow_agent.toolkits.p2vtool.p2v_tool import (
+    compile_tex,
+    merge_pdfs,
+    is_overfull_warning,
+    is_table_asset,
+    ensure_minueru_output,
+)
+from dataflow_agent.logger import get_logger
+
+log = get_logger(__name__)
+
+
+@register("paper2ppt_beamer_pagecontent")
+def create_paper2ppt_beamer_graph() -> GenericGraphBuilder:
+    """
+    Workflow factory: dfa run --wf paper2ppt_beamer_pagecontent
+    pagecontent → 每页 pagecontent_to_beamer + compile → merge_slides → _end_
+    """
+    builder = GenericGraphBuilder(
+        state_model=Paper2PptBeamerState,
+        entry_point="_start_",
+    )
+
+    def _request_language(state: Paper2PptBeamerState) -> str:
+        req = state.request
+        if isinstance(req, dict):
+            return req.get("language", "en")
+        return getattr(req, "language", "en")
+
+    @builder.pre_tool("pagecontent", "p2b_pagecontent_to_beamer")
+    def get_pagecontent(state: Paper2PptBeamerState):
+        pc = getattr(state, "pagecontent", None)
+        return pc or []
+
+    @builder.pre_tool("output_language", "p2b_pagecontent_to_beamer")
+    def get_output_language(state: Paper2PptBeamerState):
+        language_map = {"en": "English", "zh": "Chinese"}
+        return language_map.get(_request_language(state), "English")
+
+    @builder.pre_tool("pdf_images_working_dir", "p2b_pagecontent_to_beamer")
+    def get_pdf_images_working_dir(state: Paper2PptBeamerState):
+        result_path = getattr(state, "result_path", "") or ""
+        if result_path:
+            return str(Path(result_path).expanduser().resolve() / "auto")
+        return ""
+
+    # ----------------------------------------------------------------------
+    # NODES
+    # ----------------------------------------------------------------------
+
+    async def p2b_pagecontent_to_beamer(
+        state: Paper2PptBeamerState,
+    ) -> Paper2PptBeamerState:
+        from dataflow_agent.agentroles import create_simple_agent, create_react_agent
+
+        pages = getattr(state, "pagecontent", None) or []
+        result_path = Path(getattr(state, "result_path", "") or ".").expanduser().resolve()
+        auto_dir = result_path / "auto"
+        auto_dir.mkdir(parents=True, exist_ok=True)
+
+        max_error_retries = 2
+        max_warning_fixes = 3
+
+        p2b_agent = create_simple_agent(
+            name="p2b_pagecontent_to_beamer",
+            model_name="gpt-5.2-codex-medium",
+            temperature=0.1,
+            parser_type="json",
+        )
+        debug_agent = create_simple_agent(
+            name="p2v_beamer_code_debug",
+            model_name="gpt-5.2-codex-medium",
+            temperature=0.1,
+            parser_type="json",
+        )
+
+        per_page_beamer_paths: list[str] = []
+        per_page_pdf_paths: list[str] = []
+        full_pagecontent = list(pages)
+
+        for i, one_page in enumerate(pages):
+            log.info("生成第 %s/%s 页 Beamer 并编译", i + 1, len(pages))
+            state.pagecontent = [one_page]
+
+            # ---------- Table：asset_ref 为 Table_1 等时先跑 table_extractor，再改写 asset_ref ----------
+            asset_ref = one_page.get("asset_ref") or one_page.get("asset") or ""
+            asset_ref = str(asset_ref).strip() if asset_ref else ""
+            if asset_ref and is_table_asset(asset_ref):
+                table_img_path = one_page.get("table_img_path") or one_page.get("table_png_path") or ""
+                table_img_path = str(table_img_path).strip()
+                if not table_img_path:
+                    ensure_minueru_output(state)
+                    state.asset_ref = asset_ref
+                    state.result_path = str(result_path)
+                    table_agent = create_react_agent(
+                        name="table_extractor",
+                        temperature=0.1,
+                        max_retries=6,
+                        parser_type="json",
+                    )
+                    state = await table_agent.execute(state=state)
+                    table_img_path = str(getattr(state, "table_img_path", "") or "").strip()
+                if table_img_path and Path(table_img_path).exists():
+                    table_in_auto = auto_dir / f"table_page{i}.png"
+                    shutil.copy(table_img_path, table_in_auto)
+                    one_page["asset_ref"] = table_in_auto.name
+                    one_page["table_img_path"] = str(table_in_auto)
+                    state.pagecontent = [one_page]
+                    log.info("第 %s 页表格已提取并写入 %s", i + 1, table_in_auto)
+                else:
+                    log.warning("第 %s 页表格提取未得到 table_img_path，Beamer 中该页表格可能缺失", i + 1)
+
+            page_tex = auto_dir / f"page_{i}.tex"
+            is_wrong = True
+            is_warning = False
+            code_debug_result = ""
+
+            # ---------- Error 重试 ----------
+            for error_attempt in range(max_error_retries):
+                state = await p2b_agent.execute(state=state)
+                if not getattr(state, "beamer_code_path", ""):
+                    log.warning("第 %s 页未得到 beamer 代码，第 %s 次重试", i + 1, error_attempt + 1)
+                    continue
+                shutil.copy(state.beamer_code_path, page_tex)
+                try:
+                    is_wrong, is_warning, code_debug_result = compile_tex(str(page_tex))
+                except Exception as e:
+                    is_wrong, is_warning, code_debug_result = True, True, str(e)
+                    log.warning("第 %s 页编译异常: %s", i + 1, e)
+                if not is_wrong:
+                    break
+                log.warning("第 %s 页编译 error，第 %s/%s 次重新生成", i + 1, error_attempt + 1, max_error_retries)
+
+            if is_wrong:
+                log.warning("第 %s 页经 %s 次重试仍有 error，跳过", i + 1, max_error_retries)
+                per_page_beamer_paths.append(str(page_tex))
+                continue
+
+            # ---------- Warning 修复（Overfull）：通过 state.pre_tool_results 注入，供 debug agent 的 execute_pre_tools 合并进 prompt ----------
+            if is_warning and is_overfull_warning(code_debug_result):
+                for fix_attempt in range(max_warning_fixes):
+                    state.beamer_code_path = str(page_tex)
+                    state.is_beamer_wrong = is_wrong
+                    state.is_beamer_warning = is_warning
+                    state.code_debug_result = code_debug_result
+                    state.pre_tool_results = {
+                        "beamer_code": page_tex.read_text(encoding="utf-8"),
+                        "code_debug_result": code_debug_result,
+                    }
+                    state = await debug_agent.execute(state)
+                    
+                    is_wrong = getattr(state, "is_beamer_wrong", True)
+                    is_warning = getattr(state, "is_beamer_warning", False)
+                    code_debug_result = getattr(state, "code_debug_result", "")
+                    if is_wrong:
+                        break
+                    if not is_warning or not is_overfull_warning(code_debug_result):
+                        break
+                    log.info("第 %s 页 Overfull warning，第 %s/%s 次修复", i + 1, fix_attempt + 1, max_warning_fixes)
+
+            per_page_beamer_paths.append(str(page_tex))
+            pdf_path = page_tex.with_suffix(".pdf")
+            if pdf_path.exists():
+                per_page_pdf_paths.append(str(pdf_path))
+
+        state.pagecontent = full_pagecontent
+        state.per_page_beamer_paths = per_page_beamer_paths
+        state.per_page_pdf_paths = per_page_pdf_paths
+        log.info("每页生成与编译完成: %s 个 tex, %s 个 pdf", len(per_page_beamer_paths), len(per_page_pdf_paths))
+        return state
+
+    def merge_slides_node(state: Paper2PptBeamerState) -> Paper2PptBeamerState:
+        log.info("开始执行 merge_slides_node")
+        pdf_paths = getattr(state, "per_page_pdf_paths", None) or []
+        if not pdf_paths:
+            log.warning("无每页 PDF，无法合并")
+            return state
+        result_path = Path(getattr(state, "result_path", "") or ".").expanduser().resolve()
+        merged_path = result_path / "auto" / "merged.pdf"
+        state.ppt_path = merge_pdfs(pdf_paths, merged_path)
+        log.info("合并完成: %s", state.ppt_path)
+        return state
+
+    def _start_(state: Paper2PptBeamerState) -> Paper2PptBeamerState:
+        return state
+
+    def _end_(state: Paper2PptBeamerState) -> Paper2PptBeamerState:
+        return state
+
+    nodes = {
+        "_start_": _start_,
+        "p2b_pagecontent_to_beamer": p2b_pagecontent_to_beamer,
+        "merge_slides": merge_slides_node,
+        "_end_": _end_,
+    }
+
+    edges = [
+        ("_start_", "p2b_pagecontent_to_beamer"),  
+        ("p2b_pagecontent_to_beamer", "merge_slides"),
+        ("merge_slides", "_end_"),
+    ]   
+
+    builder.add_nodes(nodes).add_edges(edges)
+    return builder
+
+if __name__ == "__main__":
+    import asyncio
+
+    result_path = Path("outputs/default/paper2ppt/1772284521/input")
+    pagecontent = [{'title': 'DataFlow: LLM驱动的统一数据准备与工作流自动化框架', 'layout_description': '整页居中布局，仅包含标题、副标题和汇报人信息。标题大号加粗居中，副标题为论文完整英文标题置于标题下方，作者及汇报人信息放在页面下方居中，不放任何图表。', 'key_points': ['DataFlow: An LLM-Driven Framework for Unified Data Preparation and Workflow Automation in the Era of Data-Centric AI', '作者：Hao Liang 等，机构：Peking University 等', '汇报人：XXX'], 'asset_ref': None}, {'title': '研究背景与问题：LLM时代的数据准备挑战', 'layout_description': '上方简要小结背景，两栏布局：左侧为要点式文本，右侧为对比表格示意区（可用表格或示意图说明现有系统特点对比），下方一行突出本工作目标。', 'key_points': ['LLM 发展依赖大规模、高质量、语义丰富的数据准备流程，涉及合成、精炼、过滤和领域特定转换。', '当前实践以临时脚本和松散工作流为主，缺乏统一抽象、原子算子与可优化、可重现的数据流表示。', '传统大数据引擎（Spark、Dask、Hadoop）对模型闭环、GPU高效批处理和文本语义操作支持不足，工程负担巨大。', '现有数据准备系统如 NeMo Curator、Data-Juicer 主要聚焦提取与过滤，对多步生成与语义精炼的模型闭环工作流支持有限。', '研究问题：如何构建一个以 LLM 为一等公民、可编程、可复用、可扩展的统一数据准备框架？'], 'asset_ref': None}, {'title': 'DataFlow 概览：目标、定位与整体架构', 'layout_description': '上部用一两行文字概述 DataFlow 作为统一系统的定位，中间居中放系统架构示意图（核心执行引擎+管线+CLI+Agent+生态），下方采用两列要点：左列列出六大设计目标，右列说明系统范围与工作流。', 'key_points': ['系统定位：面向多领域 LLM 数据准备的统一、自动化系统，以 LLM 驱动合成与精炼为核心，覆盖文本、数学推理、代码、Text-to-SQL、Agentic RAG 和大规模知识抽取。', '设计目标：易用性（PyTorch 风格、IDE 友好）、可扩展性（模块化算子与管线）、统一范式（跨领域抽象）、性能效率（不牺牲 SOTA 表现）、智能自动化（Agent 解释自然语言意图）、开源与社区生态。', '核心组件：全局存储抽象、统一 LLM Serving、算子库、Prompt 模板、管线 Zoo，以及基于 Python 包的扩展生态 DataFlow-Ecosystem。', '用户控制层：命令行工具链（CLI）用于脚本化执行，DataFlow-Agent 将自然语言规格翻译为可执行管线并迭代调试。', '输出形态：高质量、任务对齐的数据集，可直接用于下游 LLM 训练与评测。'], 'asset_ref': 'images/ba397b4c85a1c1bd0022e9dd145db42f9ab3f956df48273d92694b3cad820a48.jpg'}, {'title': '框架设计：存储抽象、接口层次与算子生态', 'layout_description': '左右分栏布局：左侧重点用流程步骤和要点解释全局存储抽象与算子交互模式，右侧上方放算子执行模式示意图，下方用简短 bullet 解释层次化接口（Serving/Operator/Prompt/Pipeline）。', 'key_points': ['全局存储抽象：以表格化键值结构统一表示指令、回答、CoT、评分与元数据，DataFlowStorage 提供 backend 无关的 read()/write() 接口，算子只面向逻辑视图。', '算子执行模式：遵循统一的 read–transform–write 流程，可以在不修改内部逻辑的前提下重排、复用与批处理；默认实现基于 Pandas，支持 JSON/JSONL/CSV/Parquet 等格式。', '统一 LLM Serving API：generate_from_input(user_inputs, system_prompt, json_schema) 将本地引擎（vLLM、SGLang）与在线服务（ChatGPT、Gemini）统一抽象，屏蔽批处理、重试与限流细节。', '层次化接口：算子定义可复用数据变换单元，Prompt 模板声明输入渲染和输出结构约束，管线将算子按显式依赖组合成多阶段工作流，可编译验证与优化。', '算子与生态：近 200 个可复用算子，分为生成、评估、过滤、精炼四大类，搭配 90+ Prompt 模板，并通过 Python 包实现 DataFlow-Extensions，形成可插拔、社区驱动的 DataFlow-Ecosystem。'], 'asset_ref': 'images/31c09ede8e57c6b583ac2663f145fd113a811470772998506d502e3bb5ebf3ea.jpg'}, {'title': 'DataFlow-Agent 与实验结果：自动化管线构建与性能提升', 'layout_description': '上半部分两列：左列介绍 DataFlow-Agent 的角色设计与智能管线推荐，右列概括六大用例管线（文本、数学、代码、Text-to-SQL、Agentic RAG、知识抽取）。下半部分用要点强调核心实验结果与性能增益。', 'key_points': ['DataFlow-Agent 作为编排层：基于 AgentRoles 理解自然语言规格，执行算子合成、管线规划与迭代验证，可自动构造和调试新的数据准备工作流。', '智能管线推荐：面向目标任务与数据源，自动选择合适的算子组合与模板，降低工程门槛，加速原型迭代。', '六大代表性用例：文本数据准备、数学推理数据、代码处理、Text-to-SQL 数据生成、Agentic RAG 数据构造、从网页/PDF 的大规模知识抽取。', '实验结果（部分）：Text-to-SQL 管线在仅使用 <0.1M 样本的情况下，相比 250 万样本 SynSQL 提升约 +3% 执行准确率；代码管线在多个基准上平均提升超过 7%。', '统一数据集效果：将文本、数学、代码数据融合为 DataFlowInstruct-10K，仅 10K 样本即可让 Qwen2-base/Qwen2.5-base 超过在 100 万 Infinity-Instruct 上训练的同规模模型，并接近对应 Instruct 模型性能。', '整体结论：DataFlow 管线在六个场景中普遍带来 1–3 分甚至更高的性能增益，验证了统一抽象与 LLM 驱动数据合成在质量与数据效率上的优势。'], 'asset_ref': 'images/80627ebb10b377adbb7f5c301c785fa17fd0ba4b8a49b0942f308faba59aa249.jpg'}, {'title': '总结与致谢', 'layout_description': '上方 concise 总结本文贡献，中间用要点强调框架价值与未来方向，下方居中放置“致谢”字样及感谢合作者和数据/代码开源社区，不放图表。', 'key_points': ['工作总结：提出 DataFlow——一个以 LLM 为中心、具备可编程算子与 PyTorch 风格管线抽象的统一数据准备框架，系统性提升了 LLM 数据构造的可复用性、可重现性与可扩展性。', '技术贡献：构建近 200 个算子与六大高性能模板管线，提供统一 LLM Serving、全局存储、层次化接口与扩展生态，并通过 DataFlow-Agent 实现自然语言到可执行管线的自动化映射。', '实证结论：在文本、数学、代码、Text-to-SQL、Agentic RAG、知识抽取等多场景中，DataFlow 生成的数据显著提升下游 LLM 性能和数据效率，部分场景超过精心人工或专用合成数据集。', '未来方向：进一步扩展多模态与多语言算子与管线，强化分布式执行与调优能力，推动 DataFlow 成为数据中心 AI 时代社区共享的统一数据准备协议。', '致谢：感谢合作者、开源社区（模型、数据、工具）及相关项目团队对本工作的支持与启发。'], 'asset_ref': None}]
+
+    graph_builder = create_paper2ppt_beamer_graph().build()
+    state = Paper2PptBeamerState(
+        request=Paper2PptBeamerRequest(language="zh"),
+        pagecontent=pagecontent,
+        result_path=str(result_path),
+        mineru_root=str(result_path),
+    )
+    state = asyncio.run(graph_builder.ainvoke(state))

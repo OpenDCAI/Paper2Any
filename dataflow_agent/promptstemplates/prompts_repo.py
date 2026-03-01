@@ -1796,21 +1796,79 @@ Return a **Valid** JSON object with a single key "latex_code".
 {pdf_markdown}
 """
 
+  system_prompt_for_p2b_pagecontent_to_beamer = """
+You are an expert in LaTeX Beamer. Your task is to convert **one slide's** structured outline (pagecontent) into a **single, structurally complete, compilable** Beamer LaTeX document.
+
+**Context:** You generate slide content **one page at a time**. Each output must be a **full Beamer document** that compiles on its own (with Tectonic or TeX Live). Do not output a bare frame or fragment.
+
+**Required document structure (do not omit any part):**
+1. \\documentclass{{beamer}}
+2. Preamble: \\usetheme, \\usecolortheme (or similar), and font packages (see below).
+3. \\begin{{document}}
+4. **Exactly one** \\begin{{frame}}...\\end{{frame}} containing the slide content.
+5. \\end{{document}}
+
+**CRITICAL:** Ensure every \\begin{{frame}} has a matching \\end{{frame}}, and the document ends with \\end{{document}}. Avoid the error "!File ended while scanning use of \\frame".
+
+**Font and package rules (strict):**
+- **STRICTLY FORBIDDEN:** Times New Roman, Arial, Calibri, TeX Gyre Termes, or any non-standard TeX Live font. Use \\usepackage{{lmodern}} or default LaTeX fonts only.
+- **Do NOT use** \\usepackage{{resizebox}} (invalid/grammar issues).
+- If output_language is Chinese, you **must** include in the preamble: \\usepackage{{fontspec}} and \\usepackage{{ctex}}.
+
+**Syntax rules:**
+- **Do not use & in frame titles** (causes "Misplaced alignment tab character &"). Use "and" or comma instead.
+- **Underscore in plain text:** In LaTeX, underscore `_` is reserved for math subscripts. Any `_` in normal text (e.g. function names like generate_from_input, variable names like user_inputs, system_prompt) **must** be written as \\_ (backslash-underscore). Example: `user_inputs` → `user\\_inputs`, `generate_from_input` → `generate\\_from\\_input`. Otherwise you get "Missing $ inserted" and compilation fails.
+- Use \\alert{{}} for key terms or math symbols when appropriate.
+- For literal percent sign in text use \\% (e.g. 5\\%).
+
+**Content:** Use the given title, layout_description, key_points, and asset_ref. For image paths (e.g. in asset_ref), prepend the absolute base path given by pdf_images_working_dir and use \\includegraphics[width=0.8\\textwidth]{{...}} with \\caption and \\label. For table references (e.g. Table_2) use tabular/booktabs or a placeholder.
+
+**Output:** Return only one JSON object with key "latex_code" containing the **entire** document from \\documentclass to \\end{{document}}, ready to compile.
+"""
+
+  task_prompt_for_p2b_pagecontent_to_beamer = """
+Generate **one** LaTeX Beamer slide as a **complete, compilable document**. The input is a **single slide's** pagecontent (one JSON object). Your output must be a full Beamer file: \\documentclass{{beamer}} + preamble + \\begin{{document}} + **one** \\begin{{frame}}...\\end{{frame}} + \\end{{document}}.
+
+## Output language
+{output_language}
+
+## Images base directory (absolute path prefix for \\includegraphics)
+{pdf_images_working_dir}
+
+## This slide's pagecontent (single object)
+{pagecontent}
+
+## Format requirements
+- Font: use \\usepackage{{lmodern}} or default fonts only. **Do not use** Times New Roman, TeX Gyre Termes, resizebox.
+- Chinese: if output language is Chinese, add \\usepackage{{fontspec}} and \\usepackage{{ctex}} in the preamble.
+- No **&** in frame title (use "and" or comma).
+- **Underscores in text:** Write \\_ for every underscore in normal text (e.g. user\\_inputs, generate\\_from\\_input), or you get "Missing $ inserted".
+- Literal percent: use 5\\% not 5%.
+- Every \\begin{{frame}} must have \\end{{frame}}; document must end with \\end{{document}}.
+
+## Output format
+Return a valid JSON object with a single key "latex_code".
+
+{{
+  "latex_code": "FULL_BEAMER_DOCUMENT_WITH_ONE_FRAME_HERE"
+}}
+"""
+
   system_prompt_for_p2v_beamer_code_debug = """
-You are an expert in repairing LaTeX beamer code. 
+You are an expert in repairing LaTeX beamer code.
 You must preserve all slide content exactly as written (including text, figures, and layout).
-Your goal is to correct LaTeX compilation errors and return clean, compilable LaTeX code.
+Your goal is to fix LaTeX compilation **errors** and **warnings** (e.g. Overfull box) and return clean, compilable LaTeX code.
 
 Your output must:
 - Be directly compilable using **tectonic** (a simplified TeX Live)
 - Never include explanations, comments, or English/Chinese text outside the LaTeX code
-
 """
 
   task_prompt_for_p2v_beamer_code_debug = """
-(Critical!) Do not modify the file path, ignore the folloing message: "warning: accessing absolute path: "
-You are given a LaTeX beamer code for the slides of a research paper and its error information.
-You should correct these errors but do not change the slide content (e.g., text, figures and layout).
+(Critical!) Do not modify the file path; ignore the following message: "warning: accessing absolute path: "
+
+You are given a LaTeX beamer code for the slides of a research paper and its compilation log (errors and/or warnings).
+Fix the reported issues but do not change the slide content (e.g., text, figures and layout).
 
 ## Content Preservation Rules (Strict)
 - You MUST NOT delete, replace, or reduce the number of figures/images.
@@ -1819,23 +1877,30 @@ You should correct these errors but do not change the slide content (e.g., text,
   ONLY if necessary to fix compilation or layout issues.
 - Keep the slide text content unchanged as much as possible.
 
-## Some instruction
+## Overfull box (warning)
+When the log contains **Overfull \\hbox** or **Overfull \\vbox** (content or font too large), fix by:
+- Reducing font size (e.g. \\small, \\footnotesize in the frame or for specific blocks).
+- Reducing image/figure width or scale (e.g. width=0.7\\textwidth instead of 0.9\\textwidth).
+- Do NOT remove or truncate text or figures; only resize or rescale to fit.
+
+## Other instructions
 **Font Safety**: **MUST** remove or comment out any usage of the `fontspec` package if and only if it causes errors (as it depends on system fonts).
-For instance, if you encounter the error message: Package fontspec Error: The font "Latin Modern Roman" cannot be found, just remove or comment out it and use default TeX Live fonts.
+For instance, if you see: Package fontspec Error: The font "Latin Modern Roman" cannot be found, remove or comment it out and use default TeX Live fonts.
 
-**Image Loading Errors**: 
-If the compiler reports an image loading **error**, such as: "Unable to load picture or PDF file" or "! LaTeX Error: Cannot determine size of graphic", the model **MUST** remove the entire command responsible for loading that specific graphic.
+**Image Loading Errors**:
+If the compiler reports an image loading **error** (e.g. "Unable to load picture or PDF file" or "! LaTeX Error: Cannot determine size of graphic"), **MUST** remove the entire command that loads that graphic.
 
-Output Format:
-- Return a JSON object with a single key "latex_code".
+## Output format
+Return a JSON object with a single key "latex_code".
 {{
   "latex_code": "YOUR_GENERATED_latex_beamer_code_HERE"
 }}
-# Only output latex code which should be ready to compile using tectonic (simple version of TeX Live).
+Output only the JSON; the latex code must be ready to compile with tectonic.
 
-The LateX beamer code is:
+The LaTeX beamer code is:
 {beamer_code}
-The compilation error message is:
+
+The compilation log (errors and/or warnings) is:
 {code_debug_result}
 """
 

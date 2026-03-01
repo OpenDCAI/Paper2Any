@@ -8,7 +8,10 @@ class RuntimeRegistry:
     def register(cls, name: str, factory: Callable):
         # 同一个对象重复登记 → 忽略
         if name in cls._workflows:
-            if cls._workflows[name] is factory: 
+            if cls._workflows[name] is factory:
+                return
+            # 同一函数被导入两次（如先被包批量 import，再作为 __main__ 执行）时，忽略第二次
+            if getattr(cls._workflows[name], "__qualname__", None) == getattr(factory, "__qualname__", None):
                 return
             raise ValueError(
                 f"Workflow '{name}' already registered by "

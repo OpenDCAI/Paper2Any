@@ -355,7 +355,7 @@ async def run_paper2ppt_full_pipeline(req: Paper2PPTRequest) -> Paper2PPTRespons
     state_pc.pagecontent = pagecontent
     state_pc.result_path = final_result_path
 
-    state_pp: Paper2FigureState = await run_workflow("paper2ppt", state_pc)
+    state_pp: Paper2FigureState = await run_workflow("paper2ppt_parallel_consistent_style", state_pc)
 
     ppt_pdf_path = getattr(state_pp, "ppt_pdf_path", "")
     ppt_pptx_path = getattr(state_pp, "ppt_pptx_path", "")

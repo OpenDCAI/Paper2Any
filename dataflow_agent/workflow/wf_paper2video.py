@@ -22,9 +22,9 @@ from langchain.tools import tool
 from langgraph.graph import StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 from dataflow_agent.toolkits.p2vtool.p2v_tool import (
-    compile_tex, beamer_code_validator, get_image_paths, parse_script_with_cursor,
+    get_image_paths, parse_script_with_cursor,
     transcribe_with_whisperx, cursor_infer, get_audio_paths, get_audio_length,
-    clean_text, parser_beamer_latex, resize_latex_image,
+    clean_text,
     talking_gen_per_slide, render_video_with_cursor_from_json, add_subtitles,
     merge_wav_files, get_mp4_duration_ffprobe,
     speech_task_wrapper_with_cloud_tts,
@@ -50,74 +50,8 @@ def create_paper2video_graph() -> GenericGraphBuilder:
                                   entry_point="_start_")  # 自行修改入口
 
     # ----------------------------------------------------------------------
-    # TOOLS (pre_tool definitions)
+    # TOOLS (pre_tool definitions，仅 paper2video 相关)
     # ----------------------------------------------------------------------
-
-    @builder.pre_tool("pdf_markdown", "p2v_extract_pdf")
-    def get_markdown(state: Paper2VideoState):
-        import subprocess
-        paper_pdf_path = Path(state.request.get("paper_pdf_path", ""))
-        if not paper_pdf_path.exists():
-            log.error(f"PDF 文件不存在: {paper_pdf_path}")
-            return ""
-        paper_pdf_dir = paper_pdf_path.with_suffix('').parent
-        if not paper_pdf_path.with_suffix('').exists():
-            #fixme: 这里需要修改为部署机器上的mineru
-            # run_mineru_pdf_extract(str(paper_pdf_path), str(paper_pdf_dir), "modelscope")
-            pass
-        paper_base_path = paper_pdf_path.with_suffix('').expanduser().resolve()
-        paper_output_dir = paper_base_path
-        markdown_path = paper_output_dir / "auto" / f"{paper_base_path.name}.md"
-        if not markdown_path.exists():
-            log.error(f"Markdown 文件不存在: {str(markdown_path)}")
-            return ""
-        try:
-            markdown_content = markdown_path.read_text(encoding='utf-8')
-            return markdown_content
-        except Exception as e:
-            log.error(f'读取 markdown 文件内容失败：{markdown_path}. 错误：{e}')
-            return ""
-        
-    @builder.pre_tool("pdf_images_working_dir", "p2v_extract_pdf")
-    def get_images_relative_path(state: Paper2VideoState):
-        paper_pdf_path = Path(state.request.get("paper_pdf_path", ""))
-        if not paper_pdf_path.exists():
-            log.error(f"PDF 文件不存在: {paper_pdf_path}")
-            return ""
-        paper_base_path = paper_pdf_path.with_suffix('').expanduser().resolve()
-        paper_output_dir = paper_base_path
-        images_dir = paper_output_dir/"auto"
-        if not images_dir.exists():
-            log.error(f"没有生成对应的图片，MinerU 识别图像失败：{images_dir}")
-            return ""
-        return str(images_dir)
-    
-    @builder.pre_tool("output_language", "p2v_extract_pdf")
-    def get_language(state: Paper2VideoState):
-        language_map = {
-            'en': "English",
-            'zh': "Chinese",
-        }
-        language = state.request.language
-        return language_map.get(language, "English")
-        
-    @builder.pre_tool("is_beamer_wrong", "p2v_beamer_code_debug")
-    def get_is_code_wrong(state: Paper2VideoState):
-        return state.is_beamer_wrong
-
-    @builder.pre_tool("is_beamer_warning", "p2v_beamer_code_debug")
-    def get_is_code_warning(state: Paper2VideoState):
-        return state.is_beamer_warning
-
-    @builder.pre_tool("code_debug_result", "p2v_beamer_code_debug")
-    def get_compile_result(state: Paper2VideoState):
-        return state.code_debug_result
-    
-    @builder.pre_tool("beamer_code", "p2v_beamer_code_debug")
-    def get_beamer_code(state: Paper2VideoState):
-        beamer_code_path = state.beamer_code_path
-        beamer_code = Path(beamer_code_path).read_text(encoding='utf-8')
-        return beamer_code
 
     @builder.pre_tool("video_language", "p2v_subtitle_and_cursor")
     def get_video_language(state: Paper2VideoState):
@@ -147,128 +81,8 @@ def create_paper2video_graph() -> GenericGraphBuilder:
     # ----------------------------------------------------------------------
 
     # ==============================================================
-    # NODES
+    # NODES (仅 paper2video 相关)
     # ==============================================================
-    async def extract_pdf_node(state: Paper2VideoState) -> Paper2VideoState:
-        from dataflow_agent.agentroles import create_vlm_agent
-        log.info("开始执行extract_pdf_node节点")
-        agent = create_vlm_agent(
-            name="p2v_extract_pdf",
-            vlm_mode="understanding",     # 视觉模式: 'understanding', 'generation', 'edit'
-            image_detail="high",          # 图像细节: 'low', 'high', 'auto'
-            model_name="gpt-4o-2024-11-20",  # 视觉模型
-            temperature=0.1,
-            max_image_size=(2048, 2048),  # 最大图像尺寸
-
-            # additional_params={},        # 额外VLM参数，可以存放图片用法为："input_image": image_path
-        )
-    
-        state = await agent.execute(state=state)
-
-        # 可选：处理执行结果
-        # agent_result = state.agent_results.get(agent.role_name, {})
-        # log.info(f"Agent {agent.role_name} 执行结果: {agent_result}")
-        
-        return state
-
-    def compile_beamer_node(state: Paper2VideoState) -> Paper2VideoState:
-        log.info(f"开始执行compile_beamer_node")
-        beamer_code_path = state.beamer_code_path
-        state.is_beamer_wrong, state.is_beamer_warning, state.code_debug_result = compile_tex(beamer_code_path)
-        if not state.is_beamer_warning:
-            log.info(f"Beamer 代码编译成功，无需调试")
-            state.ppt_path = state.beamer_code_path.replace(".tex", ".pdf")
-        return state
-    
-    async def beamer_code_debug_node(state: Paper2VideoState) -> Paper2VideoState:
-        from dataflow_agent.agentroles import create_react_agent
-        log.info(f"开始执行 p2v_beamer_code_debug node节点")
-        agent = create_react_agent(
-            name="p2v_beamer_code_debug",
-            model_name="gpt-4o-2024-11-20",
-            max_retries=10,
-            validators=[beamer_code_validator],
-        )
-        state = await agent.execute(state)
-        return state
-
-    async def beamer_code_upgrade_node(state: Paper2VideoState) -> Paper2VideoState:
-        log.info(f"开始执行 p2v_beamer_code_debug node节点")
-        from dataflow_agent.agentroles import create_vlm_agent
-        from tempfile import TemporaryDirectory
-        import subprocess
-        from pdf2image import convert_from_path
-
-        beamer_code_path = state.beamer_code_path
-        old_beamer_code = Path(beamer_code_path).read_text(encoding='utf-8')
-
-        head, frames_code = parser_beamer_latex(old_beamer_code)
-        final_frames = []
-        doc_header = ["\\documentclass{beamer}", head, "\\begin{document}"]
-        doc_footer = ["\\end{document}"]
-        
-        for frame_code in frames_code:
-            current_frame_content = ["\\begin{frame}", frame_code, "\\end{frame}"]
-            
-            if "includegraphics" not in frame_code:
-                final_frames.extend(current_frame_content)
-                continue
-            
-            attempt_code = current_frame_content
-            img_size_debug = True
-
-            while img_size_debug:
-                with TemporaryDirectory() as temp_dir_name:
-                    temp_dir = Path(temp_dir_name)
-                    # 在临时目录中创建 .tex 文件
-                    tex_path = temp_dir / "input.tex"
-                    
-                    full_temp_tex = doc_header + attempt_code + doc_footer
-                    tex_path.write_text("\n".join(full_temp_tex), encoding='utf-8')
-                    try:
-                        subprocess.run(
-                            ["tectonic", str(tex_path)],
-                            check=True, capture_output=True, text=True, cwd=temp_dir
-                        )
-                        
-                        frame_pdf_path = tex_path.with_suffix('.pdf')
-                        img_path = tex_path.with_suffix('.png')
-
-                        if frame_pdf_path.exists():
-                            images = convert_from_path(str(frame_pdf_path))
-                            images[0].save(str(img_path))
-                            
-                            agent = create_vlm_agent(
-                                name="p2v_beamer_code_upgrade",
-                                vlm_mode="understanding",
-                                model_name="gpt-4o-2024-11-20",
-                                additional_params={"input_image": str(img_path)},
-                            )
-                            
-                            state = await agent.execute(state=state)
-                            img_size_debug = getattr(state, 'img_size_debug', False)
-                            
-                            if img_size_debug:
-                                log.info(f"当前图片尺寸超出了ppt一页，需要修改：{attempt_code}")
-                                attempt_code = resize_latex_image(attempt_code) 
-                            else:
-                                final_frames.extend(attempt_code)
-                        else:
-                            log.error("PDF 未生成，跳过调试")
-                            final_frames.extend(attempt_code)
-                            break
-                    except Exception as e:
-                        log.error(f"解析单张ppt发生了错误: {e}")
-                        final_frames.extend(attempt_code)
-                        break
-        full_new_code = doc_header + final_frames + doc_footer
-        Path(beamer_code_path).write_text("\n".join(full_new_code), encoding='utf-8')
-        compile_tex(beamer_code_path)
-        state.ppt_path = str(Path(beamer_code_path).with_suffix(".pdf"))
-        log.info(f"将更新好的beamer code写回 {beamer_code_path}")
-
-        return state
-
 
     async def subtitle_and_cursor(state: Paper2VideoState) -> Paper2VideoState:
         '''
@@ -756,25 +570,6 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         state.video_path = str(tmp_merage_3)
         return state
 
-    async def compile_beamer_condition(state: Paper2VideoState):
-        # todo: 暂时先这样判断
-        if state.is_beamer_warning:
-            return "p2v_beamer_code_debug"
-        else:
-            return "_end_"
-
-
-    async def pdf2ppt_node(state: Paper2VideoState) -> Paper2VideoState:
-        
-        log.info(f"开始执行 pdf2ppt node节点")
-        from dataflow_agent.agentroles import create_simple_agent
-        # agent = create_simple_agent(
-        #     name=""
-        # )
-        
-        
-        return state
-
     def _stage_condition(state: Paper2VideoState):
         if state.request.script_stage:
             log.critical("进入subtitle_and_cursor stage")
@@ -797,19 +592,13 @@ def create_paper2video_graph() -> GenericGraphBuilder:
     # ==============================================================
     nodes = {
         "_start_": lambda state: state,
-        "p2v_extract_pdf": extract_pdf_node,
-        "compile_beamer": compile_beamer_node,
-        "p2v_beamer_code_debug": beamer_code_debug_node,
-        "p2v_beamer_code_upgrade": beamer_code_upgrade_node,
         "p2v_subtitle_and_cursor": subtitle_and_cursor,
         "p2v_refine_subtitle_and_cursor": refine_subtitle_and_cursor,
         "p2v_generate_speech": generate_speech,
         "p2v_generate_talking_video": generate_talking_video,
         "p2v_generate_cursor": generate_cursor,
-        "p2v_merge": merge_all,  
-        "pdf2ppt": pdf2ppt_node,
-        
-        '_end_': lambda state: state,  # 终止节点
+        "p2v_merge": merge_all,
+        "_end_": lambda state: state,
     }
 
     # ------------------------------------------------------------------

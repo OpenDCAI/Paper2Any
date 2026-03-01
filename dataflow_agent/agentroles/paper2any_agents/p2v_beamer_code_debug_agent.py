@@ -58,6 +58,15 @@ class P2vBeamerCodeDebug(BaseAgent):
         """若调用方未显式传入，返回默认前置工具结果"""
         return {}
 
+    async def execute_pre_tools(self, state: MainState) -> Dict[str, Any]:
+        """先执行父类前置工具；若 state 上有 pre_tool_results（workflow 内注入），则合并进结果，保证 beamer_code/code_debug_result 能进入 prompt。"""
+        results = await super().execute_pre_tools(state)
+        inject = getattr(state, "pre_tool_results", None) or {}
+        for key in ("beamer_code", "code_debug_result"):
+            if key in inject:
+                results[key] = inject[key]
+        return results
+
     # ---------- 结果写回 ----------
     def update_state_result(
         self,
@@ -73,9 +82,12 @@ class P2vBeamerCodeDebug(BaseAgent):
 
             tex_path = Path(beamer_code_path)
             tex_path.write_text(beamer_code, encoding='utf-8')
-            # 编译最新的tex代码
+            # 编译最新的 tex 代码并写回 state，便于调用方判断是否仍存在 error/warning
             from dataflow_agent.toolkits.p2vtool.p2v_tool import compile_tex
             is_beamer_wrong, is_beamer_warning, code_debug_result = compile_tex(beamer_code_path)
+            state.is_beamer_wrong = is_beamer_wrong
+            state.is_beamer_warning = is_beamer_warning
+            state.code_debug_result = code_debug_result
             state.ppt_path = beamer_code_path.replace(".tex", ".pdf")
             log.info(f"将更新好的beamer code写回 {beamer_code_path}")
         else:

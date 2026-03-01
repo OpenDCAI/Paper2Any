@@ -1121,6 +1121,84 @@ def compile_tex(beamer_code_path: str):
         code_debug_result = e.stderr
         return is_beamer_wrong, is_beamer_warning, code_debug_result
 
+
+def is_overfull_warning(code_debug_result: str) -> bool:
+    """是否包含 Overfull 类 warning（内容过高/过宽），需要尝试修复。"""
+    if not code_debug_result:
+        return False
+    return "Overfull" in code_debug_result
+
+
+def is_ignorable_warning_only(code_debug_result: str) -> bool:
+    """是否仅包含可忽略的 warning（如访问绝对路径），无需修复。"""
+    if not code_debug_result:
+        return True
+    lower = code_debug_result.lower()
+    if "warning" not in lower:
+        return True
+    # 若只有 absolute path 类提示，视为可忽略
+    if "overfull" in lower:
+        return False
+    if "absolute path" in lower or "accessing absolute path" in lower:
+        return True
+    return False
+
+
+def is_table_asset(asset_ref: Any) -> bool:
+    """asset_ref 为 Table 时通常为 'Table_1' / 'Table 2' 等形式，无实际文件路径。"""
+    if not asset_ref:
+        return False
+    return str(asset_ref).strip().lower().startswith("table")
+
+
+def ensure_minueru_output(state: Any) -> None:
+    """若 state 无 minueru_output，尝试从 mineru_root 下首个 .md 读取（供 table_extractor 使用）。"""
+    if getattr(state, "minueru_output", "") and str(state.minueru_output).strip():
+        return
+    mineru_root = getattr(state, "mineru_root", "") or ""
+    if not mineru_root:
+        return
+    root = Path(mineru_root).expanduser().resolve()
+    if not root.is_dir():
+        return
+    md_files = list(root.glob("*.md"))
+    if not md_files:
+        return
+    target = md_files[0]
+    if len(md_files) > 1:
+        for f in md_files:
+            if f.stat().st_size > target.stat().st_size:
+                target = f
+    try:
+        state.minueru_output = target.read_text(encoding="utf-8")[:30000]
+    except Exception as e:
+        log.warning("从 mineru_root 读取 md 失败: %s", e)
+
+
+def merge_pdfs(pdf_paths: List[str], output_path: Union[str, Path]) -> str:
+    """将多份 PDF 按顺序合并为一份。要求 pdf_paths 中路径存在且为 PDF。"""
+    if not pdf_paths:
+        raise ValueError("merge_pdfs: pdf_paths 不能为空")
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        raise ImportError("merge_pdfs 需要 PyMuPDF (pip install pymupdf)")
+    out = Path(output_path).expanduser().resolve()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    merged = fitz.open()
+    for p in pdf_paths:
+        path = Path(p).expanduser().resolve()
+        if not path.is_file():
+            log.warning("merge_pdfs: 跳过不存在的文件 %s", path)
+            continue
+        with fitz.open(path) as src:
+            merged.insert_pdf(src)
+    merged.save(out)
+    merged.close()
+    log.info("merge_pdfs: 已合并 %s 个 PDF -> %s", len(pdf_paths), out)
+    return str(out)
+
+
 def beamer_code_validator(content: str, parsed_result: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     """检查tex是否是正确的"""
     from tempfile import TemporaryDirectory
