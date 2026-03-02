@@ -19,7 +19,6 @@ from dataflow_agent.toolkits.p2vtool.p2v_tool import (
     merge_pdfs,
     is_overfull_warning,
     is_table_asset,
-    ensure_minueru_output,
 )
 from dataflow_agent.logger import get_logger
 
@@ -67,15 +66,16 @@ def create_paper2ppt_beamer_graph() -> GenericGraphBuilder:
     async def p2b_pagecontent_to_beamer(
         state: Paper2PptBeamerState,
     ) -> Paper2PptBeamerState:
-        from dataflow_agent.agentroles import create_simple_agent, create_react_agent
+        from dataflow_agent.agentroles import create_simple_agent
 
         pages = getattr(state, "pagecontent", None) or []
         result_path = Path(getattr(state, "result_path", "") or ".").expanduser().resolve()
         auto_dir = result_path / "auto"
         auto_dir.mkdir(parents=True, exist_ok=True)
 
+        # fixme: 这里硬编码了重试的次数，后续可能需要修改
         max_error_retries = 2
-        max_warning_fixes = 3
+        max_warning_fixes = 5
 
         p2b_agent = create_simple_agent(
             name="p2b_pagecontent_to_beamer",
@@ -98,33 +98,12 @@ def create_paper2ppt_beamer_graph() -> GenericGraphBuilder:
             log.info("生成第 %s/%s 页 Beamer 并编译", i + 1, len(pages))
             state.pagecontent = [one_page]
 
-            # ---------- Table：asset_ref 为 Table_1 等时先跑 table_extractor，再改写 asset_ref ----------
+            # asset_ref 为 Table_1 等时直接忽略，不跑 table_extractor
             asset_ref = one_page.get("asset_ref") or one_page.get("asset") or ""
             asset_ref = str(asset_ref).strip() if asset_ref else ""
             if asset_ref and is_table_asset(asset_ref):
-                table_img_path = one_page.get("table_img_path") or one_page.get("table_png_path") or ""
-                table_img_path = str(table_img_path).strip()
-                if not table_img_path:
-                    ensure_minueru_output(state)
-                    state.asset_ref = asset_ref
-                    state.result_path = str(result_path)
-                    table_agent = create_react_agent(
-                        name="table_extractor",
-                        temperature=0.1,
-                        max_retries=6,
-                        parser_type="json",
-                    )
-                    state = await table_agent.execute(state=state)
-                    table_img_path = str(getattr(state, "table_img_path", "") or "").strip()
-                if table_img_path and Path(table_img_path).exists():
-                    table_in_auto = auto_dir / f"table_page{i}.png"
-                    shutil.copy(table_img_path, table_in_auto)
-                    one_page["asset_ref"] = table_in_auto.name
-                    one_page["table_img_path"] = str(table_in_auto)
-                    state.pagecontent = [one_page]
-                    log.info("第 %s 页表格已提取并写入 %s", i + 1, table_in_auto)
-                else:
-                    log.warning("第 %s 页表格提取未得到 table_img_path，Beamer 中该页表格可能缺失", i + 1)
+                one_page["asset_ref"] = None
+                state.pagecontent = [one_page]
 
             page_tex = auto_dir / f"page_{i}.tex"
             is_wrong = True

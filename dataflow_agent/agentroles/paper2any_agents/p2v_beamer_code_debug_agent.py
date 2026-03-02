@@ -18,6 +18,7 @@ from dataflow_agent.toolkits.tool_manager import ToolManager
 from dataflow_agent.logger import get_logger
 from dataflow_agent.agentroles.cores.base_agent import BaseAgent
 from dataflow_agent.agentroles.cores.registry import register
+from dataflow_agent.toolkits.p2vtool.p2v_tool import extract_beamer_code
 
 log = get_logger(__name__)
 
@@ -67,6 +68,31 @@ class P2vBeamerCodeDebug(BaseAgent):
                 results[key] = inject[key]
         return results
 
+    def _get_beamer_code_from_result(self, result: Dict[str, Any]) -> str:
+        """从 result 中取出 Beamer 代码，兼容规范 dict 或解析失败时的 {"raw": content}。"""
+        raw = result.get("latex_code", "") if isinstance(result, dict) else ""
+        if isinstance(raw, str) and raw:
+            code = extract_beamer_code(raw)
+            if code:
+                return code
+        raw_content = result.get("raw", "") if isinstance(result, dict) else ""
+        if isinstance(raw_content, str) and raw_content:
+            code = extract_beamer_code(raw_content)
+            if code:
+                return code
+            try:
+                from dataflow_agent.utils import robust_parse_json
+                parsed = robust_parse_json(raw_content)
+                if isinstance(parsed, dict):
+                    raw = parsed.get("latex_code", "")
+                    if isinstance(raw, str) and raw:
+                        code = extract_beamer_code(raw)
+                        if code:
+                            return code
+            except Exception:
+                pass
+        return ""
+
     # ---------- 结果写回 ----------
     def update_state_result(
         self,
@@ -75,7 +101,7 @@ class P2vBeamerCodeDebug(BaseAgent):
         pre_tool_results: Dict[str, Any],
     ):
         """将推理结果 {latex_code: xxxx} 写回 MainState"""
-        beamer_code = result.get("latex_code", '')
+        beamer_code = self._get_beamer_code_from_result(result)
         beamer_code_path = state.beamer_code_path
         if beamer_code and beamer_code_path:
             from pathlib import Path

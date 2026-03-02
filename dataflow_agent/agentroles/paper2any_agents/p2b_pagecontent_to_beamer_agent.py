@@ -54,16 +54,39 @@ class P2bPagecontentToBeamer(BaseAgent):
     def get_default_pre_tool_results(self) -> Dict[str, Any]:
         return {}
 
+    def _get_beamer_code_from_result(self, result: Dict[str, Any]) -> str:
+        """从 result 中取出 Beamer 代码，兼容规范 dict 或解析失败时的 {"raw": content}。"""
+        raw = result.get("latex_code", "") if isinstance(result, dict) else ""
+        if isinstance(raw, str) and raw:
+            code = extract_beamer_code(raw)
+            if code:
+                return code
+        # 解析失败时 result 可能为 {"raw": content}，尝试从原始文本提取
+        raw_content = result.get("raw", "") if isinstance(result, dict) else ""
+        if isinstance(raw_content, str) and raw_content:
+            code = extract_beamer_code(raw_content)
+            if code:
+                return code
+            try:
+                from dataflow_agent.utils import robust_parse_json
+                parsed = robust_parse_json(raw_content)
+                if isinstance(parsed, dict):
+                    raw = parsed.get("latex_code", "")
+                    if isinstance(raw, str) and raw:
+                        code = extract_beamer_code(raw)
+                        if code:
+                            return code
+            except Exception:
+                pass
+        return ""
+
     def update_state_result(
         self,
         state: MainState,
         result: Dict[str, Any],
         pre_tool_results: Dict[str, Any],
     ):
-        raw = result.get("latex_code", "") if isinstance(result, dict) else ""
-        beamer_code = ""
-        if isinstance(raw, str):
-            beamer_code = extract_beamer_code(raw)
+        beamer_code = self._get_beamer_code_from_result(result)
         if not beamer_code:
             log.error("p2b_pagecontent_to_beamer: 未得到有效 Beamer 代码")
             super().update_state_result(state, result, pre_tool_results)
