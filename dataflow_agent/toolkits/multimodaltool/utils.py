@@ -4,7 +4,6 @@ import base64
 from enum import Enum
 from io import BytesIO
 from typing import Tuple
-from PIL import Image
 from dataflow_agent.logger import get_logger
 
 log = get_logger(__name__)
@@ -57,6 +56,7 @@ def encode_image_to_base64(image_path: str) -> Tuple[str, str]:
         return b64, fmt
 
     # 否则进行压缩处理
+    from PIL import Image
     log.info(f"[utils] Image {os.path.basename(image_path)} too large ({file_size/1024/1024:.2f}MB), compressing...")
     try:
         with Image.open(image_path) as img:
@@ -97,3 +97,9 @@ def is_gemini_25(model: str) -> bool:
 def is_gemini_3_pro(model: str) -> bool:
     """是否为 Gemini 3 Pro 系列"""
     return "gemini-3-pro" in model.lower()
+
+
+def is_gemini_31_flash_image(model: str) -> bool:
+    """是否为 Gemini 3.1 Flash Image 系列"""
+    lower = model.lower()
+    return "gemini-3.1" in lower and "flash-image" in lower

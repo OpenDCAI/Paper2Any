@@ -3,7 +3,12 @@
 import importlib
 from pathlib import Path
 
+from dataflow_agent.logger import get_logger
+
 from .registry import RuntimeRegistry
+
+log = get_logger(__name__)
+_failed_workflow_imports = {}
 
 # ---- 1. 自动发现并导入所有工作流定义模块 ---------------------------------
 # 遍历当前包目录下所有以 wf_*.py 命名的 Python 文件，并动态导入。
@@ -11,9 +16,12 @@ from .registry import RuntimeRegistry
 # 能够在导入时将相应工作流注册到 RuntimeRegistry。
 _pkg_path = Path(__file__).resolve().parent
 for py in _pkg_path.glob("wf_*.py"):
-    # importlib 需要模块的点分路径（dotted-path），例如 dataflow_agent.workflow.wf_xxx
     mod_name = f"{__name__}.{py.stem}"
-    importlib.import_module(mod_name)
+    try:
+        importlib.import_module(mod_name)
+    except Exception as exc:
+        _failed_workflow_imports[mod_name] = exc
+        log.warning(f"Skip workflow import {mod_name}: {exc}")
 # 模块导入后，各 wf_*.py 文件内的 @register 装饰器会自动注册工作流到 RuntimeRegistry
 
 # ---- 2. 工作流的统一接口 ---------------------------------------------

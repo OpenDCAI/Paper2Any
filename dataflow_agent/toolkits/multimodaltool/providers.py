@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Tuple, Optional, Any, Dict, List
 from dataflow_agent.toolkits.multimodaltool.utils import (
     Provider, detect_provider, extract_base64, 
-    is_gemini_model, is_gemini_25, is_gemini_3_pro
+    is_gemini_model, is_gemini_25, is_gemini_3_pro, is_gemini_31_flash_image
 )
 from dataflow_agent.logger import get_logger
 
@@ -162,6 +162,20 @@ class ApiYiGeminiProvider(AIProviderStrategy):
             }
             return url, payload, False
 
+        if is_gemini_31_flash_image(model):
+            url = f"{base}/v1beta/models/gemini-3.1-flash-image-preview:generateContent"
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "responseModalities": ["IMAGE"],
+                    "imageConfig": {
+                        "aspectRatio": aspect_ratio,
+                        "imageSize": resolution,
+                    },
+                },
+            }
+            return url, payload, False
+
         if is_gemini_3_pro(model):
             url = f"{base}/v1beta/models/gemini-3-pro-image-preview:generateContent"
             payload = {
@@ -201,6 +215,27 @@ class ApiYiGeminiProvider(AIProviderStrategy):
                 },
             }
              return url, payload, False
+
+        if is_gemini_31_flash_image(model):
+            url = f"{base}/v1beta/models/gemini-3.1-flash-image-preview:generateContent"
+            payload = {
+                "contents": [
+                    {
+                        "parts": [
+                            {"text": prompt},
+                            {"inline_data": {"mime_type": f"image/{fmt}", "data": image_b64}}
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "responseModalities": ["IMAGE"],
+                    "imageConfig": {
+                        "aspectRatio": aspect_ratio,
+                        "imageSize": resolution,
+                    },
+                },
+            }
+            return url, payload, False
 
         if is_gemini_3_pro(model):
             url = f"{base}/v1beta/models/gemini-3-pro-image-preview:generateContent"
@@ -249,7 +284,7 @@ class ApiYiGeminiProvider(AIProviderStrategy):
         url = f"{base}/v1beta/models/{model}:generateContent"
         
         image_config = {"aspectRatio": aspect_ratio}
-        if is_gemini_3_pro(model):
+        if is_gemini_3_pro(model) or is_gemini_31_flash_image(model):
             image_config["imageSize"] = resolution
             
         payload = {

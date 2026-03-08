@@ -8,7 +8,7 @@ from dataflow_agent.utils import get_project_root
 from dataflow_agent.logger import get_logger
 from dataflow_agent.toolkits.multimodaltool.utils import (
     Provider, detect_provider, extract_base64, encode_image_to_base64 as _encode_image_to_base64,
-    is_gemini_model as _is_gemini_model, is_gemini_25, is_gemini_3_pro
+    is_gemini_model as _is_gemini_model, is_gemini_25, is_gemini_3_pro, is_gemini_31_flash_image
 )
 from dataflow_agent.toolkits.multimodaltool.providers import get_provider
 
@@ -227,7 +227,7 @@ async def gemini_multi_image_edit_async(
     )
     
     # 动态超时调整 (针对 Gemini-3 Pro)
-    if is_gemini_3_pro(model):
+    if is_gemini_3_pro(model) or is_gemini_31_flash_image(model):
         timeout_map = {"1K": 180, "2K": 300, "4K": 360}
         timeout = max(timeout, timeout_map.get(resolution, 300))
         
@@ -279,7 +279,7 @@ async def generate_or_edit_and_save_image_async(
     重构后：使用 Strategy Pattern 自动匹配 Provider
     """
     # 动态调整超时（保留原有针对 Gemini-3 Pro 的逻辑）
-    if _is_gemini_model(model) and is_gemini_3_pro(model):
+    if _is_gemini_model(model) and (is_gemini_3_pro(model) or is_gemini_31_flash_image(model)):
         timeout_map = {"1K": 60, "2K": 300, "4K": 600}
         timeout = timeout_map.get(resolution, 300)
     
