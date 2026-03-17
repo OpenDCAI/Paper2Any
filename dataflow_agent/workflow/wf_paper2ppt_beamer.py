@@ -7,9 +7,11 @@ pagecontent（来自 paper2page_content）→ 每页单独生成 Beamer → 每�
 
 from __future__ import annotations
 
+import asyncio
 import json
 import shutil
 from pathlib import Path
+from dataclasses import replace
 
 from dataflow_agent.state import Paper2PptBeamerRequest, Paper2PptBeamerState
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
@@ -54,9 +56,9 @@ def create_paper2ppt_beamer_graph() -> GenericGraphBuilder:
 
     @builder.pre_tool("pdf_images_working_dir", "p2b_pagecontent_to_beamer")
     def get_pdf_images_working_dir(state: Paper2PptBeamerState):
-        result_path = getattr(state, "result_path", "") or ""
-        if result_path:
-            return str(Path(result_path).expanduser().resolve() / "auto")
+        mineru_root = getattr(state, "mineru_root", "") or ""
+        if mineru_root:
+            return str(Path(mineru_root).expanduser().resolve())
         return ""
 
     # ----------------------------------------------------------------------
@@ -70,22 +72,23 @@ def create_paper2ppt_beamer_graph() -> GenericGraphBuilder:
 
         pages = getattr(state, "pagecontent", None) or []
         result_path = Path(getattr(state, "result_path", "") or ".").expanduser().resolve()
-        auto_dir = result_path / "auto"
-        auto_dir.mkdir(parents=True, exist_ok=True)
+        output_dir = result_path / "output"
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-        # fixme: 这里硬编码了重试的次数，后续可能需要修改
-        max_error_retries = 2
-        max_warning_fixes = 5
+        # 未得到有效 Beamer 代码（如 LLM 500/usage_limit）或编译失败时重试
+        max_error_retries = 3
+        retry_delay_seconds = 3  # 无有效代码时延迟再试，缓解限流/usage_limit
+        max_warning_fixes = 2
 
         p2b_agent = create_simple_agent(
             name="p2b_pagecontent_to_beamer",
-            model_name="gpt-5.2-codex-medium",
+            model_name="gpt-5-codex",
             temperature=0.1,
             parser_type="json",
         )
         debug_agent = create_simple_agent(
             name="p2v_beamer_code_debug",
-            model_name="gpt-5.2-codex-medium",
+            model_name="gpt-5-codex",
             temperature=0.1,
             parser_type="json",
         )
@@ -94,69 +97,105 @@ def create_paper2ppt_beamer_graph() -> GenericGraphBuilder:
         per_page_pdf_paths: list[str] = []
         full_pagecontent = list(pages)
 
-        for i, one_page in enumerate(pages):
-            log.info("生成第 %s/%s 页 Beamer 并编译", i + 1, len(pages))
-            state.pagecontent = [one_page]
+        # 并行度，避免 API 限流
+        max_concurrent_pages = 4
+        semaphore = asyncio.Semaphore(max_concurrent_pages)
 
-            # asset_ref 为 Table_1 等时直接忽略，不跑 table_extractor
-            asset_ref = one_page.get("asset_ref") or one_page.get("asset") or ""
-            asset_ref = str(asset_ref).strip() if asset_ref else ""
-            if asset_ref and is_table_asset(asset_ref):
-                one_page["asset_ref"] = None
-                state.pagecontent = [one_page]
+        async def process_one_page(
+            i: int,
+            one_page: dict,
+        ) -> tuple[int, str, str | None]:
+            """处理单页，返回 (页索引, tex 路径, pdf 路径或 None)。"""
+            async with semaphore:
+                log.info("生成第 %s/%s 页 Beamer 并编译", i + 1, len(pages))
+                one_page = dict(one_page)
+                # asset_ref 为 Table_1 等时直接忽略，不跑 table_extractor
+                asset_ref = one_page.get("asset_ref") or one_page.get("asset") or ""
+                asset_ref = str(asset_ref).strip() if asset_ref else ""
+                if asset_ref and is_table_asset(asset_ref):
+                    one_page["asset_ref"] = None
 
-            page_tex = auto_dir / f"page_{i}.tex"
-            is_wrong = True
-            is_warning = False
-            code_debug_result = ""
+                page_state = replace(
+                    state,
+                    pagecontent=[one_page],
+                    beamer_code_path="",
+                    is_beamer_wrong=False,
+                    is_beamer_warning=False,
+                    code_debug_result="",
+                )
+                page_tex = output_dir / f"page_{i}.tex"
+                is_wrong = True
+                is_warning = False
+                code_debug_result = ""
 
-            # ---------- Error 重试 ----------
-            for error_attempt in range(max_error_retries):
-                state = await p2b_agent.execute(state=state)
-                if not getattr(state, "beamer_code_path", ""):
-                    log.warning("第 %s 页未得到 beamer 代码，第 %s 次重试", i + 1, error_attempt + 1)
-                    continue
-                shutil.copy(state.beamer_code_path, page_tex)
-                try:
-                    is_wrong, is_warning, code_debug_result = compile_tex(str(page_tex))
-                except Exception as e:
-                    is_wrong, is_warning, code_debug_result = True, True, str(e)
-                    log.warning("第 %s 页编译异常: %s", i + 1, e)
-                if not is_wrong:
-                    break
-                log.warning("第 %s 页编译 error，第 %s/%s 次重新生成", i + 1, error_attempt + 1, max_error_retries)
+                # ---------- Error 重试（含未得到有效代码，如 LLM 500/usage_limit）----------
+                for error_attempt in range(max_error_retries):
+                    page_state = await p2b_agent.execute(state=page_state)
+                    if not getattr(page_state, "beamer_code_path", ""):
+                        log.warning("第 %s 页未得到 beamer 代码（可能 LLM 限流/500），第 %s/%s 次重试", i + 1, error_attempt + 1, max_error_retries)
+                        if error_attempt < max_error_retries - 1:
+                            await asyncio.sleep(retry_delay_seconds)
+                        continue
+                    shutil.copy(page_state.beamer_code_path, page_tex)
+                    try:
+                        is_wrong, is_warning, code_debug_result = compile_tex(str(page_tex))
+                    except Exception as e:
+                        is_wrong, is_warning, code_debug_result = True, True, str(e)
+                        log.warning("第 %s 页编译异常: %s", i + 1, e)
+                    if not is_wrong:
+                        break
+                    log.warning("第 %s 页编译 error，第 %s/%s 次重新生成", i + 1, error_attempt + 1, max_error_retries)
 
-            if is_wrong:
-                log.warning("第 %s 页经 %s 次重试仍有 error，跳过", i + 1, max_error_retries)
-                per_page_beamer_paths.append(str(page_tex))
+                if is_wrong:
+                    log.warning("第 %s 页经 %s 次重试仍有 error，跳过", i + 1, max_error_retries)
+                    return (i, str(page_tex), None)
+
+                # ---------- Warning 修复（Overfull）----------
+                if is_warning and is_overfull_warning(code_debug_result):
+                    for fix_attempt in range(max_warning_fixes):
+                        page_state.beamer_code_path = str(page_tex)
+                        page_state.is_beamer_wrong = is_wrong
+                        page_state.is_beamer_warning = is_warning
+                        page_state.code_debug_result = code_debug_result
+                        page_state.pre_tool_results = {
+                            "beamer_code": page_tex.read_text(encoding="utf-8"),
+                            "code_debug_result": code_debug_result,
+                        }
+                        page_state = await debug_agent.execute(page_state)
+                        is_wrong = getattr(page_state, "is_beamer_wrong", True)
+                        is_warning = getattr(page_state, "is_beamer_warning", False)
+                        code_debug_result = getattr(page_state, "code_debug_result", "")
+                        if is_wrong:
+                            break
+                        if not is_warning or not is_overfull_warning(code_debug_result):
+                            break
+                        log.info("第 %s 页 Overfull warning，第 %s/%s 次修复", i + 1, fix_attempt + 1, max_warning_fixes)
+
+                pdf_path = page_tex.with_suffix(".pdf")
+                pdf_str = str(pdf_path) if pdf_path.exists() else None
+                return (i, str(page_tex), pdf_str)
+
+        # 并行处理所有页，保持页序
+        results = await asyncio.gather(
+            *[process_one_page(i, one_page) for i, one_page in enumerate(pages)],
+            return_exceptions=True,
+        )
+        # 按页索引排序，保证与原始页序一致（gather 完成顺序可能乱序）
+        tex_by_index: dict[int, str] = {}
+        pdf_by_index: dict[int, str] = {}
+        for r in results:
+            if isinstance(r, Exception):
+                log.exception("某页处理异常: %s", r)
                 continue
-
-            # ---------- Warning 修复（Overfull）：通过 state.pre_tool_results 注入，供 debug agent 的 execute_pre_tools 合并进 prompt ----------
-            if is_warning and is_overfull_warning(code_debug_result):
-                for fix_attempt in range(max_warning_fixes):
-                    state.beamer_code_path = str(page_tex)
-                    state.is_beamer_wrong = is_wrong
-                    state.is_beamer_warning = is_warning
-                    state.code_debug_result = code_debug_result
-                    state.pre_tool_results = {
-                        "beamer_code": page_tex.read_text(encoding="utf-8"),
-                        "code_debug_result": code_debug_result,
-                    }
-                    state = await debug_agent.execute(state)
-                    
-                    is_wrong = getattr(state, "is_beamer_wrong", True)
-                    is_warning = getattr(state, "is_beamer_warning", False)
-                    code_debug_result = getattr(state, "code_debug_result", "")
-                    if is_wrong:
-                        break
-                    if not is_warning or not is_overfull_warning(code_debug_result):
-                        break
-                    log.info("第 %s 页 Overfull warning，第 %s/%s 次修复", i + 1, fix_attempt + 1, max_warning_fixes)
-
-            per_page_beamer_paths.append(str(page_tex))
-            pdf_path = page_tex.with_suffix(".pdf")
-            if pdf_path.exists():
-                per_page_pdf_paths.append(str(pdf_path))
+            i, tex_path, pdf_path = r
+            tex_by_index[i] = tex_path
+            if pdf_path:
+                pdf_by_index[i] = pdf_path
+        for idx in range(len(pages)):
+            if idx in tex_by_index:
+                per_page_beamer_paths.append(tex_by_index[idx])
+            if idx in pdf_by_index:
+                per_page_pdf_paths.append(pdf_by_index[idx])
 
         state.pagecontent = full_pagecontent
         state.per_page_beamer_paths = per_page_beamer_paths
@@ -171,7 +210,7 @@ def create_paper2ppt_beamer_graph() -> GenericGraphBuilder:
             log.warning("无每页 PDF，无法合并")
             return state
         result_path = Path(getattr(state, "result_path", "") or ".").expanduser().resolve()
-        merged_path = result_path / "auto" / "merged.pdf"
+        merged_path = result_path / "output" / "merged.pdf"
         state.ppt_path = merge_pdfs(pdf_paths, merged_path)
         log.info("合并完成: %s", state.ppt_path)
         return state
@@ -180,6 +219,7 @@ def create_paper2ppt_beamer_graph() -> GenericGraphBuilder:
         return state
 
     def _end_(state: Paper2PptBeamerState) -> Paper2PptBeamerState:
+        log.info(f"The ppt_path is {state.ppt_path}")
         return state
 
     nodes = {

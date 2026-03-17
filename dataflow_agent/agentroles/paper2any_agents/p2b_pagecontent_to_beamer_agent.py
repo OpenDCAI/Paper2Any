@@ -51,6 +51,15 @@ class P2bPagecontentToBeamer(BaseAgent):
             "pdf_images_working_dir": pre_tool_results.get("pdf_images_working_dir", ""),
         }
 
+    async def execute_pre_tools(self, state: MainState) -> Dict[str, Any]:
+        """执行前置工具；若 state 上带有 pagecontent（并行时每页的 state），则优先使用，避免用到图节点注册时捕获的全量 pagecontent。"""
+        results = await super().execute_pre_tools(state)
+        pagecontent = getattr(state, "pagecontent", None)
+        if pagecontent is not None and isinstance(pagecontent, list) and len(pagecontent) > 0:
+            results["pagecontent"] = pagecontent
+            log.debug("使用 state.pagecontent 作为本页 pagecontent（共 %s 项）", len(pagecontent))
+        return results
+
     def get_default_pre_tool_results(self) -> Dict[str, Any]:
         return {}
 
@@ -99,9 +108,9 @@ class P2bPagecontentToBeamer(BaseAgent):
             req = getattr(state, "request", None)
             paper_pdf_path = getattr(req, "paper_pdf_path", "") if req else ""
             base = Path(paper_pdf_path).expanduser().resolve().parent if paper_pdf_path else Path(".").resolve()
-        auto_dir = base / "auto"
-        auto_dir.mkdir(parents=True, exist_ok=True)
-        beamer_code_path = auto_dir / "beamer_code.tex"
+        output_dir = base / "output"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        beamer_code_path = output_dir / "beamer_code.tex"
         beamer_code_path.write_text(beamer_code, encoding="utf-8")
         state.beamer_code_path = str(beamer_code_path)
         log.info("p2b_pagecontent_to_beamer: Beamer 代码已写入 %s", beamer_code_path)

@@ -8,7 +8,7 @@ import { verifyLlmConnection } from '../../services/llmService';
 import { useAuthStore } from '../../stores/authStore';
 import { getApiSettings, saveApiSettings } from '../../services/apiSettingsService';
 
-import { Step, SlideOutline, GenerateResult, UploadMode, StyleMode, StylePreset } from './types';
+import { Step, SlideOutline, GenerateResult, UploadMode, StyleMode, StylePreset, PptMode } from './types';
 import { MAX_FILE_SIZE, STORAGE_KEY } from './constants';
 
 import Banner from './Banner';
@@ -74,6 +74,7 @@ const Paper2PptPage = () => {
   const [genFigModel, setGenFigModel] = useState(DEFAULT_PAPER2PPT_GEN_FIG_MODEL);
   const [language, setLanguage] = useState<'zh' | 'en'>('en');
   const [resultPath, setResultPath] = useState<string | null>(null);
+  const [pptMode, setPptMode] = useState<PptMode>('image_gen');
 
   // GitHub Stars
   const [stars, setStars] = useState<{dataflow: number | null, agent: number | null, dataflex: number | null}>({
@@ -164,6 +165,8 @@ const Paper2PptPage = () => {
         if (saved.model) setModel(saved.model);
         if (saved.genFigModel) setGenFigModel(saved.genFigModel);
         if (saved.language) setLanguage(saved.language);
+        // paper2ppt 页面仅图生模式，不再从保存恢复 beamer
+        setPptMode('image_gen');
 
         // API settings: prioritize user-specific settings from apiSettingsService
         const userApiSettings = getApiSettings(user?.id || null);
@@ -195,7 +198,8 @@ const Paper2PptPage = () => {
       apiKey,
       model,
       genFigModel,
-      language
+      language,
+      pptMode
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -208,7 +212,7 @@ const Paper2PptPage = () => {
   }, [
     uploadMode, textContent, styleMode, stylePreset, globalPrompt,
     pageCount, useLongPaper, llmApiUrl, apiKey,
-    model, genFigModel, language, user?.id
+    model, genFigModel, language, pptMode, user?.id
   ]);
 
   // 自动加载版本历史
@@ -370,6 +374,7 @@ const Paper2PptPage = () => {
       formData.append('gen_fig_model', genFigModel);
       formData.append('page_count', String(pageCount));
       formData.append('use_long_paper', String(useLongPaper));
+      formData.append('ppt_mode', pptMode);
 
       if (styleMode === 'reference' && referenceImage) {
         formData.append('reference_img', referenceImage);
@@ -416,6 +421,9 @@ const Paper2PptPage = () => {
       
       if (!data.pagecontent || data.pagecontent.length === 0) {
         throw new Error('解析结果为空，请检查输入内容是否正确');
+      }
+      if (data.ppt_mode === 'beamer' || data.ppt_mode === 'image_gen') {
+        setPptMode(data.ppt_mode);
       }
       
       const convertedSlides: SlideOutline[] = data.pagecontent.map((item: any, index: number) => ({
@@ -644,6 +652,7 @@ const Paper2PptPage = () => {
       formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath || '');
       formData.append('get_down', 'false');
+      formData.append('ppt_mode', pptMode);
 
       const pagecontent = outlineData.map((slide) => ({
         title: slide.title,
@@ -859,6 +868,7 @@ const Paper2PptPage = () => {
       formData.append('get_down', 'true');
       formData.append('page_id', String(currentSlideIndex));
       formData.append('edit_prompt', slidePrompt);
+      formData.append('ppt_mode', pptMode);
 
       const pagecontent = outlineData.map((slide, idx) => {
         const result = generateResults[idx];
@@ -978,6 +988,7 @@ const Paper2PptPage = () => {
       formData.append('result_path', resultPath);
       formData.append('get_down', 'false');
       formData.append('all_edited_down', 'true');
+      formData.append('ppt_mode', pptMode);
 
       const pagecontent = outlineData.map((slide) => ({
         title: slide.title,
@@ -1190,6 +1201,7 @@ const Paper2PptPage = () => {
               setCurrentStep={setCurrentStep}
               error={error}
               handleRevertToVersion={handleRevertToVersion}
+              pptMode={pptMode}
             />
           )}
           

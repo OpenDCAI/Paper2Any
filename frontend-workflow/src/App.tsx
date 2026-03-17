@@ -3,6 +3,7 @@ import ParticleBackground from './components/ParticleBackground';
 import Paper2GraphTechExpPage from './components/Paper2GraphTechExpPage';
 import Paper2GraphDrawioPage from './components/Paper2GraphDrawioPage';
 import Paper2PptPage from './components/Paper2PptPage';
+import Paper2PptBeamerPage from './components/Paper2PptBeamerPage';
 import Pdf2PptPage from './components/Pdf2PptPage';
 import Image2PptPage from './components/Image2PptPage';
 import Image2DrawioPage from './components/Image2DrawioPage';
@@ -23,7 +24,7 @@ import { AppSidebar } from './components/AppSidebar';
 
 function App() {
   const { t } = useTranslation('common');
-  const [activePage, setActivePage] = useState<'paper2figure-tech-exp' | 'paper2figure-model-drawio' | 'paper2drawio-ai' | 'paper2ppt' | 'paper2video' | 'pdf2ppt' | 'image2ppt' | 'image2drawio' | 'ppt2polish' | 'knowledge' | 'files' | 'paper2drawio' | 'paper2rebuttal'>('paper2figure-tech-exp');
+  const [activePage, setActivePage] = useState<'paper2figure-tech-exp' | 'paper2figure-model-drawio' | 'paper2drawio-ai' | 'paper2ppt' | 'paper2ppt_beamer' | 'paper2video' | 'pdf2ppt' | 'image2ppt' | 'image2drawio' | 'ppt2polish' | 'knowledge' | 'files' | 'paper2drawio' | 'paper2rebuttal'>('paper2figure-tech-exp');
   const [showFilesModal, setShowFilesModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -84,6 +85,7 @@ function App() {
           {activePage === 'paper2figure-model-drawio' && <Paper2GraphDrawioPage />}
           {activePage === 'paper2drawio-ai' && <Paper2DrawioAiPage />}
           {activePage === 'paper2ppt' && <Paper2PptPage />}
+          {activePage === 'paper2ppt_beamer' && <Paper2PptBeamerPage />}
           {activePage === 'paper2video' && <Paper2VideoPage />}
           {activePage === 'pdf2ppt' && <Pdf2PptPage />}
           {activePage === 'image2ppt' && <Image2PptPage />}

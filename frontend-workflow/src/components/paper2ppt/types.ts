@@ -31,3 +31,5 @@ export interface GenerateResult {
 export type UploadMode = 'file' | 'text' | 'topic';
 export type StyleMode = 'prompt' | 'reference';
 export type StylePreset = 'modern' | 'business' | 'academic' | 'creative';
+/** 生成方式：图生模型 或 Beamer 代码（LaTeX 排版，仅 PDF，无逐页编辑） */
+export type PptMode = 'image_gen' | 'beamer';

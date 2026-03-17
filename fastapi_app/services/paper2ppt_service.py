@@ -189,11 +189,13 @@ class Paper2PPTService:
             page_count=req.page_count,
             use_long_paper=use_long_paper_bool,
             render_dpi=req.render_dpi,
+            ppt_mode=getattr(req, "ppt_mode", "image_gen") or "image_gen",
         )
 
         resp_model = await run_paper2page_content_wf_api(p2ppt_req, result_path=run_dir)
 
         resp_dict = resp_model.model_dump()
+        resp_dict["ppt_mode"] = getattr(req, "ppt_mode", "image_gen") or "image_gen"
         if request is not None:
             resp_dict["pagecontent"] = self._convert_pagecontent_paths_to_urls(
                 resp_dict.get("pagecontent", []), request
@@ -289,8 +291,9 @@ class Paper2PPTService:
                     if key in item and item[key]:
                         item[key] = _from_outputs_url(item[key])
 
-        # 转换字符串布尔值
-        get_down_bool = str(req.get_down).lower() in ("true", "1", "yes")
+        # 转换字符串布尔值；Beamer 模式不支持逐页编辑，强制为生成模式
+        ppt_mode = getattr(req, "ppt_mode", "image_gen") or "image_gen"
+        get_down_bool = str(req.get_down).lower() in ("true", "1", "yes") and ppt_mode != "beamer"
         all_edited_down_bool = str(req.all_edited_down).lower() in ("true", "1", "yes")
 
         # 校验编辑/生成模式
@@ -320,6 +323,7 @@ class Paper2PPTService:
             email=req.email or "",
             all_edited_down=all_edited_down_bool,
             image_resolution=req.image_resolution or "2K",
+            ppt_mode=getattr(req, "ppt_mode", "image_gen") or "image_gen",
         )
 
         resp_model = await run_paper2ppt_wf_api(
@@ -382,6 +386,7 @@ class Paper2PPTService:
             style=req.style,
             email=req.email or "",
             use_long_paper=req.use_long_paper,
+            ppt_mode=getattr(req, "ppt_mode", "image_gen") or "image_gen",
         )
 
         resp_model = await run_paper2ppt_full_pipeline(p2ppt_req)

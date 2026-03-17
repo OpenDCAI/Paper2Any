@@ -1803,7 +1803,7 @@ You are an expert in LaTeX Beamer. Your task is to convert **one slide's** struc
 
 **Required document structure (do not omit any part):**
 1. \\documentclass{{beamer}}
-2. Preamble: \\usetheme, \\usecolortheme (or similar), and font packages (see below).
+2. Preamble: **must** use \\usetheme{{Madrid}} (fixed theme). You may add \\usecolortheme and font packages (see below).
 3. \\begin{{document}}
 4. **Exactly one** \\begin{{frame}}...\\end{{frame}} containing the slide content.
 5. \\end{{document}}
@@ -1839,6 +1839,7 @@ Generate **one** LaTeX Beamer slide as a **complete, compilable document**. The 
 {pagecontent}
 
 ## Format requirements
+- **Theme: use \\usetheme{{Madrid}} in the preamble** (fixed; do not use other themes).
 - Font: use \\usepackage{{lmodern}} or default fonts only. **Do not use** Times New Roman, TeX Gyre Termes, resizebox.
 - Chinese: if output language is Chinese, add \\usepackage{{fontspec}} and \\usepackage{{ctex}} in the preamble.
 - No **&** in frame title (use "and" or comma).

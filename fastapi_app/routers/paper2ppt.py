@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import base64
+import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+
+from fastapi_app.config import settings
 
 from fastapi_app.schemas import (
     ErrorResponse,
@@ -32,8 +35,8 @@ def get_service() -> Paper2PPTService:
 )
 async def paper2ppt_pagecontent_json(
     request: Request,
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
+    chat_api_url: Optional[str] = Form(""),
+    api_key: Optional[str] = Form(""),
     email: Optional[str] = Form(None),
     # 输入相关：支持 text/pdf/pptx/topic
     input_type: str = Form(...),  # 'text' | 'pdf' | 'pptx' | 'topic'
@@ -51,15 +54,23 @@ async def paper2ppt_pagecontent_json(
     pdf_as_slides: str = Form("false"),
     # PPT/PDF 转图片时的渲染 DPI（None 表示默认）
     render_dpi: Optional[int] = Form(None),
+    # 生成方式：image_gen=图生模型，beamer=Beamer 代码
+    ppt_mode: str = Form("image_gen"),
     service: Paper2PPTService = Depends(get_service),
 ):
     """
     只跑 paper2page_content，返回 pagecontent + result_path。
+    beamer 模式下若未传 chat_api_url/api_key，使用服务端默认（DF_API_URL/DF_API_KEY）。
     """
+    _url = (chat_api_url or "").strip()
+    _key = (api_key or "").strip()
+    if ppt_mode == "beamer" and (not _url or not _key):
+        _url = _url or os.getenv("DF_API_URL", "")
+        _key = _key or os.getenv("DF_API_KEY", "")
 
     req = PageContentRequest(
-        chat_api_url=chat_api_url,
-        api_key=api_key,
+        chat_api_url=_url,
+        api_key=_key,
         email=email,
         input_type=input_type,
         text=text,
@@ -71,6 +82,7 @@ async def paper2ppt_pagecontent_json(
         use_long_paper=use_long_paper,
         pdf_as_slides=pdf_as_slides,
         render_dpi=render_dpi,
+        ppt_mode=ppt_mode if ppt_mode in ("image_gen", "beamer") else "image_gen",
     )
 
     data = await service.get_page_content(
@@ -90,8 +102,8 @@ async def paper2ppt_pagecontent_json(
 async def paper2ppt_ppt_json(
     request: Request,
     img_gen_model_name: str = Form(...),
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
+    chat_api_url: Optional[str] = Form(""),
+    api_key: Optional[str] = Form(""),
     email: Optional[str] = Form(None),
     # 控制参数
     style: str = Form(""),
@@ -112,18 +124,26 @@ async def paper2ppt_ppt_json(
     page_id: Optional[int] = Form(None),
     # 页面编辑提示词（get_down=true 时必传）
     edit_prompt: Optional[str] = Form(None),
+    # 生成方式：image_gen=图生模型，beamer=Beamer 代码（beamer 模式下无逐页编辑）
+    ppt_mode: str = Form("image_gen"),
     service: Paper2PPTService = Depends(get_service),
 ):
     """
     只跑 paper2ppt：
     - get_down=false：生成模式（需要 pagecontent）
     - get_down=true：编辑模式（需要 page_id(0-based) + edit_prompt，pagecontent 可选）
+    beamer 模式下若未传 chat_api_url/api_key，使用服务端默认。
     """
+    _url = (chat_api_url or "").strip()
+    _key = (api_key or "").strip()
+    if ppt_mode == "beamer" and (not _url or not _key):
+        _url = _url or settings.DEFAULT_LLM_API_URL
+        _key = _key or os.getenv("DF_API_KEY", "")
 
     req = PPTGenerationRequest(
         img_gen_model_name=img_gen_model_name,
-        chat_api_url=chat_api_url,
-        api_key=api_key,
+        chat_api_url=_url,
+        api_key=_key,
         email=email,
         style=style,
         aspect_ratio=aspect_ratio,
@@ -136,6 +156,7 @@ async def paper2ppt_ppt_json(
         page_id=page_id,
         edit_prompt=edit_prompt,
         image_resolution=image_resolution,
+        ppt_mode=ppt_mode if ppt_mode in ("image_gen", "beamer") else "image_gen",
     )
 
     data = await service.generate_ppt(

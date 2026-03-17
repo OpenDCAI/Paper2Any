@@ -23,7 +23,9 @@
     "navSub": {
       "paper2figureTechExp": "技术路线图/实验图生成",
       "paper2drawioAi": "流程图/架构图生成",
-      "paper2figureModelDrawio": "模型结构图生成"
+      "paper2figureModelDrawio": "模型结构图生成",
+      "paper2pptImageGen": "图生 Paper2PPT",
+      "paper2pptBeamer": "Beamer Paper2PPT"
     },
     "navTooltip": {
       "paper2figure": "根据文档内容生成科研绘图，包括模型架构图、技术路线图、实验数据图等可编辑的PPTX格式图表",
@@ -41,7 +43,9 @@
     "navSubTooltip": {
       "paper2figureTechExp": "从 PDF / 文本生成技术路线图与实验数据图，支持模板与配色，可导出 PPT / SVG",
       "paper2drawioAi": "输入文本生成流程图/架构图（DrawIO），可在线编辑并导出 PNG / SVG / DrawIO",
-      "paper2figureModelDrawio": "生成模型结构图，支持提示词微调与预览，并可转 DrawIO 在线编辑或导出 PPT / PNG / SVG"
+      "paper2figureModelDrawio": "生成模型结构图，支持提示词微调与预览，并可转 DrawIO 在线编辑或导出 PPT / PNG / SVG",
+      "paper2pptImageGen": "图生模型生成幻灯片，支持逐页编辑与风格配置",
+      "paper2pptBeamer": "LaTeX Beamer 排版，输出 PDF，适合学术汇报"
     },
     "sidebar": {
       "toggle": "切换菜单",
