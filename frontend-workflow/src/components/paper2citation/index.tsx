@@ -365,16 +365,16 @@ const SectionCard = ({
   icon: React.ReactNode;
   children: React.ReactNode;
 }) => (
-  <section className="rounded-3xl border border-white/10 bg-slate-950/55 p-5 shadow-[0_24px_60px_rgba(2,6,23,0.45)] backdrop-blur">
+  <section className="rounded-3xl border border-[rgba(110,76,55,0.14)] bg-[rgba(255,250,245,0.84)] p-5 shadow-[0_20px_52px_rgba(87,48,46,0.1)] backdrop-blur">
     <div className="mb-4 flex items-start justify-between gap-3">
       <div>
-        <div className="flex items-center gap-2 text-white">
-          <div className="rounded-xl border border-white/10 bg-white/5 p-2 text-cyan-300">
+        <div className="flex items-center gap-2 text-[#1d1c1a]">
+          <div className="rounded-xl border border-[rgba(110,76,55,0.14)] bg-[rgba(140,29,64,0.08)] p-2 text-[#8c1d40]">
             {icon}
           </div>
           <h3 className="text-lg font-semibold">{title}</h3>
         </div>
-        {subtitle ? <p className="mt-1 text-sm text-slate-400">{subtitle}</p> : null}
+        {subtitle ? <p className="mt-1 text-sm text-[#675f58]">{subtitle}</p> : null}
       </div>
     </div>
     {children}
@@ -383,15 +383,15 @@ const SectionCard = ({
 
 const StatGrid = ({ items, emptyText }: { items: CitationStatItem[]; emptyText: string }) => {
   if (!items.length) {
-    return <p className="text-sm text-slate-500">{emptyText}</p>;
+    return <p className="text-sm text-[#675f58]">{emptyText}</p>;
   }
 
   return (
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {items.map((item) => (
-        <div key={item.label} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <div className="text-xs uppercase tracking-[0.22em] text-slate-500">{item.label}</div>
-          <div className="mt-2 text-2xl font-semibold text-white">{formatNumber(item.value)}</div>
+        <div key={item.label} className="rounded-2xl border border-[rgba(110,76,55,0.14)] bg-white/70 p-4">
+          <div className="text-xs uppercase tracking-[0.22em] text-[#675f58]">{item.label}</div>
+          <div className="mt-2 text-2xl font-semibold text-[#1d1c1a]">{formatNumber(item.value)}</div>
         </div>
       ))}
     </div>
@@ -408,7 +408,7 @@ const TableLikeList = ({
   renderItem: (item: any, index: number) => React.ReactNode;
 }) => {
   if (!items.length) {
-    return <p className="text-sm text-slate-500">{emptyText}</p>;
+    return <p className="text-sm text-[#675f58]">{emptyText}</p>;
   }
 
   return (
@@ -425,22 +425,22 @@ const LoadingPanel = ({
   title: string;
   subtitle: string;
 }) => (
-  <section className="rounded-3xl border border-cyan-300/20 bg-[linear-gradient(135deg,rgba(8,47,73,0.55),rgba(15,23,42,0.72))] p-6 shadow-[0_24px_60px_rgba(8,145,178,0.18)]">
+  <section className="rounded-3xl border border-[rgba(110,76,55,0.14)] bg-[rgba(255,250,245,0.84)] p-6 shadow-[0_20px_52px_rgba(87,48,46,0.1)]">
     <div className="flex items-start gap-4">
-      <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-3 text-cyan-200">
+      <div className="rounded-2xl border border-[rgba(110,76,55,0.14)] bg-[rgba(140,29,64,0.08)] p-3 text-[#8c1d40]">
         <Loader2 size={20} className="animate-spin" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-base font-semibold text-white">{title}</div>
-        <p className="mt-1 text-sm text-slate-300">{subtitle}</p>
+        <div className="text-base font-semibold text-[#1d1c1a]">{title}</div>
+        <p className="mt-1 text-sm text-[#675f58]">{subtitle}</p>
         <div className="mt-5 space-y-3">
-          <div className="h-3 w-5/6 animate-pulse rounded-full bg-white/10" />
-          <div className="h-3 w-4/6 animate-pulse rounded-full bg-white/10" />
-          <div className="h-20 w-full animate-pulse rounded-2xl bg-white/[0.05]" />
+          <div className="h-3 w-5/6 animate-pulse rounded-full bg-[rgba(110,76,55,0.14)]" />
+          <div className="h-3 w-4/6 animate-pulse rounded-full bg-[rgba(110,76,55,0.14)]" />
+          <div className="h-20 w-full animate-pulse rounded-2xl bg-white/70" />
           <div className="grid gap-3 md:grid-cols-3">
-            <div className="h-20 animate-pulse rounded-2xl bg-white/[0.05]" />
-            <div className="h-20 animate-pulse rounded-2xl bg-white/[0.05]" />
-            <div className="h-20 animate-pulse rounded-2xl bg-white/[0.05]" />
+            <div className="h-20 animate-pulse rounded-2xl bg-white/70" />
+            <div className="h-20 animate-pulse rounded-2xl bg-white/70" />
+            <div className="h-20 animate-pulse rounded-2xl bg-white/70" />
           </div>
         </div>
       </div>
@@ -449,7 +449,7 @@ const LoadingPanel = ({
 );
 
 const NoticeBanner = ({ children }: { children: React.ReactNode }) => (
-  <div className="rounded-2xl border border-amber-300/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-50">
+  <div className="rounded-2xl border border-[rgba(197,155,91,0.34)] bg-[rgba(197,155,91,0.16)] px-4 py-3 text-sm text-[#5a4525]">
     {children}
   </div>
 );
@@ -469,23 +469,23 @@ const NotableCitersCard = ({
     <SectionCard title={title} subtitle={subtitle} icon={<Trophy size={18} />}>
       <div className="grid gap-3 md:grid-cols-2">
         {items.slice(0, 8).map((item) => (
-          <div key={`${item.openalexAuthorId || item.name}-${item.honorLabel}`} className="rounded-2xl border border-amber-300/25 bg-amber-500/10 p-4">
+          <div key={`${item.openalexAuthorId || item.name}-${item.honorLabel}`} className="rounded-2xl border border-[rgba(197,155,91,0.3)] bg-[rgba(197,155,91,0.12)] p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold text-white">{item.name}</div>
-                <div className="mt-1 text-xs text-amber-100/80">
+                <div className="text-sm font-semibold text-[#1d1c1a]">{item.name}</div>
+                <div className="mt-1 text-xs text-[#8c1d40]">
                   {item.canonicalName && item.canonicalName !== item.name ? item.canonicalName : item.honorLabel}
                 </div>
               </div>
-              <span className="rounded-full border border-amber-300/30 bg-amber-400/10 px-2 py-1 text-[11px] text-amber-100">
+              <span className="rounded-full border border-[rgba(197,155,91,0.34)] bg-white/60 px-2 py-1 text-[11px] text-[#5a4525]">
                 {item.honorLabel}
               </span>
             </div>
             {item.affiliations.length ? (
-              <div className="mt-3 text-xs text-slate-300">{item.affiliations.join(', ')}</div>
+              <div className="mt-3 text-xs text-[#675f58]">{item.affiliations.join(', ')}</div>
             ) : null}
             {item.citingWorksCount ? (
-              <div className="mt-3 text-xs font-medium text-cyan-200">{formatNumber(item.citingWorksCount)} citing works</div>
+              <div className="mt-3 text-xs font-medium text-[#8c1d40]">{formatNumber(item.citingWorksCount)} citing works</div>
             ) : null}
           </div>
         ))}
@@ -767,20 +767,20 @@ const Paper2CitationPage = () => {
   };
 
   return (
-    <div className="h-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+    <div className="portalize-page paper2citation-page h-full overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <section className="relative overflow-hidden rounded-[32px] border border-cyan-400/20 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.16),_transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.94),rgba(2,6,23,0.92))] p-6 shadow-[0_28px_90px_rgba(8,145,178,0.25)]">
-          <div className="absolute inset-y-0 right-0 hidden w-80 bg-[radial-gradient(circle,_rgba(34,211,238,0.18),_transparent_60%)] lg:block" />
+        <section className="citation-hero relative overflow-hidden rounded-[32px] border p-6">
+          <div className="absolute inset-y-0 right-0 hidden w-80 bg-[radial-gradient(circle,_rgba(197,155,91,0.22),_transparent_60%)] lg:block" />
           <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.26em] text-cyan-200">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(140,29,64,0.12)] bg-[rgba(140,29,64,0.08)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.26em] text-[#8c1d40]">
                 <BadgeInfo size={14} />
                 {t('paper2citation:hero.badge')}
               </div>
-              <h1 className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              <h1 className="mt-4 text-3xl font-bold tracking-tight text-[#1d1c1a] sm:text-4xl">
                 {t('paper2citation:hero.title')}
               </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-[#675f58] sm:text-base">
                 {t('paper2citation:hero.description')}
               </p>
             </div>
@@ -791,24 +791,24 @@ const Paper2CitationPage = () => {
                   onClick={() => resetResults(item)}
                   className={`rounded-2xl border px-4 py-3 text-left transition ${
                     mode === item
-                      ? 'border-cyan-300/40 bg-cyan-300/12 text-white shadow-[0_16px_30px_rgba(34,211,238,0.18)]'
-                      : 'border-white/10 bg-white/[0.04] text-slate-300 hover:border-white/20 hover:bg-white/[0.08]'
+                      ? 'border-[rgba(140,29,64,0.2)] bg-[rgba(140,29,64,0.08)] text-[#1d1c1a] shadow-[0_16px_30px_rgba(140,29,64,0.1)]'
+                      : 'border-[rgba(110,76,55,0.14)] bg-white/70 text-[#675f58] hover:border-[rgba(140,29,64,0.22)] hover:bg-white/92'
                   }`}
                 >
-                  <div className="text-xs uppercase tracking-[0.2em] text-slate-400">{t(`paper2citation:modes.${item}.label`)}</div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-[#8c1d40]">{t(`paper2citation:modes.${item}.label`)}</div>
                   <div className="mt-1 text-sm font-semibold">{t(`paper2citation:modes.${item}.title`)}</div>
-                  <div className="mt-1 text-xs text-slate-400">{t(`paper2citation:modes.${item}.description`)}</div>
+                  <div className="mt-1 text-xs text-[#675f58]">{t(`paper2citation:modes.${item}.description`)}</div>
                 </button>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-slate-950/60 p-5 shadow-[0_24px_60px_rgba(2,6,23,0.42)]">
+        <section className="citation-search rounded-3xl border p-5">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
             {mode === 'author' ? (
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-200">
+                <label className="mb-2 block text-sm font-medium text-[#1d1c1a]">
                   {t('paper2citation:search.authorLabel')}
                 </label>
                 <input
@@ -829,12 +829,12 @@ const Paper2CitationPage = () => {
                     if (event.key === 'Enter') void onSearchAuthor();
                   }}
                   placeholder={t('paper2citation:search.authorPlaceholder')}
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/40 focus:bg-white/[0.06]"
+                  className="w-full rounded-2xl border border-[rgba(110,76,55,0.14)] bg-white/78 px-4 py-3 text-[#1d1c1a] outline-none transition placeholder:text-[#675f58] focus:border-[rgba(140,29,64,0.28)] focus:bg-white"
                 />
               </div>
             ) : (
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-200">
+                <label className="mb-2 block text-sm font-medium text-[#1d1c1a]">
                   {t('paper2citation:search.paperLabel')}
                 </label>
                 <input
@@ -844,26 +844,26 @@ const Paper2CitationPage = () => {
                     if (event.key === 'Enter') void onLoadPaperDetail();
                   }}
                   placeholder={t('paper2citation:search.paperPlaceholder')}
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-300/40 focus:bg-white/[0.06]"
+                  className="w-full rounded-2xl border border-[rgba(110,76,55,0.14)] bg-white/78 px-4 py-3 text-[#1d1c1a] outline-none transition placeholder:text-[#675f58] focus:border-[rgba(140,29,64,0.28)] focus:bg-white"
                 />
               </div>
             )}
             <button
               onClick={() => (mode === 'author' ? void onSearchAuthor() : void onLoadPaperDetail())}
               disabled={isBusy}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:bg-cyan-900/40 disabled:text-slate-300"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#8c1d40,#6c1634)] px-5 py-3 font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:bg-[rgba(110,76,55,0.22)] disabled:text-[#675f58]"
             >
               {isBusy ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
               {mode === 'author' ? t('paper2citation:search.authorButton') : t('paper2citation:search.paperButton')}
             </button>
           </div>
 
-          <div className="mt-3 text-xs text-slate-500">
+          <div className="mt-3 text-xs text-[#675f58]">
             {mode === 'author' ? t('paper2citation:search.authorHint') : t('paper2citation:search.paperHint')}
           </div>
 
           {error ? (
-            <div className="mt-4 flex items-start gap-3 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+            <div className="mt-4 flex items-start gap-3 rounded-2xl border border-[rgba(196,55,74,0.18)] bg-[rgba(196,55,74,0.1)] px-4 py-3 text-sm text-[#b12d3e]">
               <AlertCircle size={18} className="mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>

@@ -123,7 +123,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
   }, []);
 
   return (
-    <div className="glass rounded-xl border border-white/10 p-5 flex flex-col gap-4 text-sm">
+    <div className="portal-panel-dark rounded-xl border border-white/10 p-5 flex flex-col gap-4 text-sm">
       <button
         type="button"
         onClick={() => setShowAdvanced(v => !v)}
@@ -131,12 +131,12 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
       >
         <div className="flex items-center gap-2">
           <Settings2 size={16} className="text-primary-300" />
-          <span className="text-white font-medium">{t('advanced.title')}</span>
+          <span className="text-[#fff4ee] font-medium">{t('advanced.title')}</span>
         </div>
         {showAdvanced ? (
-          <ChevronUp size={16} className="text-gray-400" />
+          <ChevronUp size={16} className="text-[#b8968f]" />
         ) : (
-          <ChevronDown size={16} className="text-gray-400" />
+          <ChevronDown size={16} className="text-[#b8968f]" />
         )}
       </button>
 
@@ -585,14 +585,14 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                       window.open(bwPath, '_blank');
                     }
                   }}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-sky-400/60 text-sky-300 text-xs py-2 bg-sky-500/10 hover:bg-sky-500/20 transition-colors"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-primary-400/60 text-[#f0d7d1] text-xs py-2 bg-primary-500/10 hover:bg-primary-500/20 transition-colors"
                 >
                   <ImageIcon size={14} />
                   <span>黑白 SVG 源文件下载</span>
                 </button>
                 <div className="text-[11px] text-gray-300 bg-black/30 border border-white/10 rounded-md px-2 py-1.5">
                   <div className="font-semibold text-gray-200">黑白 SVG 链接：</div>
-                  <div className="mt-1 break-all text-sky-300 select-all cursor-text font-mono text-[10px] leading-tight p-1 bg-black/20 rounded">
+                  <div className="mt-1 break-all text-[#f0d7d1] select-all cursor-text font-mono text-[10px] leading-tight p-1 bg-black/20 rounded">
                     {svgBwPath || svgPath}
                   </div>
                 </div>
@@ -636,7 +636,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
         )}
 
         {isValidating && (
-          <div className="flex items-start gap-2 text-xs text-blue-300 bg-blue-500/10 border border-blue-500/40 rounded-lg px-3 py-2 mt-1 animate-pulse">
+          <div className="flex items-start gap-2 text-xs text-[#f0d7d1] bg-primary-500/10 border border-primary-500/40 rounded-lg px-3 py-2 mt-1 animate-pulse">
             <Loader2 size={14} className="mt-0.5 animate-spin" />
             <p>{t('validating.apiKey')}</p>
           </div>

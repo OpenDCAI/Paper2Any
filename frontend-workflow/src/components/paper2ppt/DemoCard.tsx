@@ -9,10 +9,10 @@ interface DemoCardProps {
 
 const DemoCard: React.FC<DemoCardProps> = ({ title, desc, inputImg, outputImg }) => {
   return (
-    <div className="glass rounded-lg border border-white/10 p-3 flex flex-col gap-2 hover:bg-white/5 transition-colors">
+    <div className="paper2ppt-panel-soft flex flex-col gap-2 rounded-2xl p-3 transition-colors hover:bg-[rgba(255,255,255,0.84)]">
       <div className="flex gap-2">
         {/* 左侧：输入示例图片 */}
-        <div className="flex-1 rounded-md bg-white/5 border border-dashed border-white/10 flex items-center justify-center demo-input-placeholder overflow-hidden">
+        <div className="demo-input-placeholder flex flex-1 items-center justify-center overflow-hidden rounded-xl border border-dashed border-[rgba(110,76,55,0.16)] bg-[rgba(255,255,255,0.7)]">
           {inputImg ? (
             <img
               src={inputImg}
@@ -20,11 +20,11 @@ const DemoCard: React.FC<DemoCardProps> = ({ title, desc, inputImg, outputImg })
               className="w-full h-full object-cover"
             />
           ) : (
-            <span className="text-[10px] text-gray-400">输入示例图（待替换）</span>
+            <span className="text-[10px] text-[rgba(103,95,88,0.82)]">输入示例图（待替换）</span>
           )}
         </div>
         {/* 右侧：输出 PPTX 示例图片 */}
-        <div className="flex-1 rounded-md bg-primary-500/10 border border-dashed border-primary-300/40 flex items-center justify-center demo-output-placeholder overflow-hidden">
+        <div className="demo-output-placeholder flex flex-1 items-center justify-center overflow-hidden rounded-xl border border-dashed border-[rgba(140,29,64,0.18)] bg-[rgba(140,29,64,0.05)]">
           {outputImg ? (
             <img
               src={outputImg}
@@ -32,13 +32,13 @@ const DemoCard: React.FC<DemoCardProps> = ({ title, desc, inputImg, outputImg })
               className="w-full h-full object-cover"
             />
           ) : (
-            <span className="text-[10px] text-primary-200">PPTX 示例图（待替换）</span>
+            <span className="text-[10px] text-[#8c1d40]">PPTX 示例图（待替换）</span>
           )}
         </div>
       </div>
       <div>
-        <p className="text-[13px] text-white font-medium mb-1">{title}</p>
-        <p className="text-[11px] text-gray-400 leading-snug">{desc}</p>
+        <p className="mb-1 text-[13px] font-semibold text-[#1d1c1a]">{title}</p>
+        <p className="text-[11px] leading-snug text-[#675f58]">{desc}</p>
       </div>
     </div>
   );

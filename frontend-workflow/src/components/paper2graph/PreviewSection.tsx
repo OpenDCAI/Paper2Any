@@ -66,12 +66,12 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
   // 允许 graphStep 为 'done' 时显示，只要 previewImgUrl 存在
   if (graphType !== 'model_arch' || graphStep === 'input' || !previewImgUrl) return null;
   return (
-    <div className="mb-8 glass rounded-xl border border-white/10 p-6 animate-fade-in relative overflow-hidden">
+    <div className="mb-8 portal-panel-dark rounded-xl border border-white/10 p-6 animate-fade-in relative overflow-hidden">
       {/* 装饰光效 */}
-      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500/50 via-purple-500/50 to-pink-500/50"></div>
+      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-500/70 via-primary-400/45 to-amber-500/55"></div>
       
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+        <h3 className="text-lg font-semibold text-[#fff4ee] flex items-center gap-2">
           <ImageIcon size={20} className="text-primary-400" />
           模型结构图预览
         </h3>
@@ -82,24 +82,24 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
           download={`model_arch_preview_${Date.now()}.png`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs text-gray-300 transition-colors"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/8 hover:bg-white/14 text-xs text-[#f2ddd6] transition-colors border border-white/10"
         >
           <Download size={14} />
           下载图片
         </a>
       </div>
       
-      <div className="w-full bg-black/40 rounded-xl border border-white/10 flex items-center justify-center overflow-hidden mb-6 p-4 min-h-[300px]">
+      <div className="w-full bg-black/30 rounded-xl border border-white/10 flex items-center justify-center overflow-hidden mb-6 p-4 min-h-[300px]">
         {imgError ? (
-          <div className="flex flex-col items-center justify-center text-gray-400 p-4">
+          <div className="flex flex-col items-center justify-center text-[#ccb5af] p-4">
             <ImageIcon size={48} className="mb-4 opacity-50" />
             <p className="mb-2 font-medium">图片加载失败</p>
-            <p className="text-xs text-gray-500 text-center max-w-md break-all">{previewImgUrl}</p>
+            <p className="text-xs text-[#b8968f] text-center max-w-md break-all">{previewImgUrl}</p>
             <a 
               href={previewImgUrl} 
               target="_blank" 
               rel="noopener noreferrer"
-              className="mt-4 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors"
+              className="mt-4 px-4 py-2 bg-white/10 hover:bg-white/16 rounded-lg text-sm transition-colors border border-white/10"
             >
               尝试在新标签页打开
             </a>
@@ -116,7 +116,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       
       <div className="flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-1 w-full">
-          <label className="block text-sm text-gray-400 mb-2 flex items-center gap-2">
+          <label className="block text-sm text-[#d7c0bb] mb-2 flex items-center gap-2">
             <MessageSquare size={16} />
             不满意？输入提示词微调重绘
           </label>
@@ -126,7 +126,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
               value={editPrompt}
               onChange={e => setEditPrompt(e.target.value)}
               placeholder="例如：把背景改成深色，增加一些连接线..."
-              className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-3 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-primary-500 pr-24"
+              className="w-full bg-black/30 border border-white/16 rounded-xl px-4 py-3 text-sm text-[#fff6f1] outline-none focus:ring-2 focus:ring-primary-500 pr-24"
             />
             <button
               type="button"
@@ -194,7 +194,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                 }
               }}
               disabled={isLoading || !editPrompt.trim()}
-              className="absolute right-2 top-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs text-gray-300 transition-colors disabled:opacity-50"
+              className="absolute right-2 top-1.5 px-3 py-1.5 rounded-lg bg-primary-500/18 hover:bg-primary-500/28 text-xs text-[#fff4ee] transition-colors disabled:opacity-50"
             >
               {isLoading ? <Loader2 size={12} className="animate-spin" /> : '重新生成'}
             </button>
@@ -211,7 +211,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
               setEditPrompt('');
               onReset?.();
             }}
-            className="px-5 py-3 rounded-xl border border-white/20 text-sm text-gray-300 hover:bg-white/10 flex items-center justify-center gap-2 transition-all"
+            className="px-5 py-3 rounded-xl border border-white/16 text-sm text-[#f0dbd5] hover:bg-white/8 flex items-center justify-center gap-2 transition-all"
           >
             <RotateCcw size={16} />
             放弃
@@ -221,7 +221,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
               type="button"
               onClick={onConvertToDrawio}
               disabled={drawioLoading || isLoading}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-60 disabled:cursor-not-allowed min-w-[200px]"
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-primary-700 to-amber-600 hover:from-primary-600 hover:to-amber-500 text-white font-semibold flex items-center justify-center gap-2 shadow-lg shadow-primary-900/25 transition-all disabled:opacity-60 disabled:cursor-not-allowed min-w-[200px]"
             >
               {drawioLoading ? <Loader2 size={18} className="animate-spin" /> : <ExternalLink size={18} />}
               {drawioLabel || '转成 DrawIO 在线编辑'}
@@ -266,7 +266,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                   if (btn && btn.innerText === '下载中...') btn.innerText = '下载 PPT';
                 }
               }}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 transition-all min-w-[180px]"
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-primary-700 to-amber-600 hover:from-primary-600 hover:to-amber-500 text-white font-semibold flex items-center justify-center gap-2 shadow-lg shadow-primary-900/25 transition-all min-w-[180px]"
             >
               <Download size={18} />
               下载 PPT
@@ -325,7 +325,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                   }
               }}
               disabled={isLoading}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed min-w-[180px]"
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-primary-700 to-primary-500 hover:from-primary-600 hover:to-primary-400 text-white font-semibold flex items-center justify-center gap-2 shadow-lg shadow-primary-900/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed min-w-[180px]"
             >
               {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
               确认并转 PPT

@@ -38,9 +38,9 @@ export function PointsDisplay() {
   // Show loading state if quota hasn't been fetched yet
   if (!quota) {
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-white/5 border-white/10">
-        <Loader2 size={16} className="animate-spin text-gray-400" />
-        <span className="text-sm text-gray-400">...</span>
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full portal-pill">
+        <Loader2 size={16} className="animate-spin text-primary-500" />
+        <span className="text-sm text-primary-700">...</span>
       </div>
     );
   }
@@ -49,9 +49,9 @@ export function PointsDisplay() {
   const isUnlimited = quota.remaining > 1000000;
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-white/5 border-white/10" title={isUnlimited ? "无限次数" : "剩余次数"}>
-      <Coins size={16} className="text-yellow-400" />
-      <span className="text-sm text-gray-300">
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full portal-pill" title={isUnlimited ? "无限次数" : "剩余次数"}>
+      <Coins size={16} className="text-amber-500" />
+      <span className="text-sm text-primary-700">
         {isUnlimited ? "∞" : `${quota.remaining} 次`}
       </span>
     </div>

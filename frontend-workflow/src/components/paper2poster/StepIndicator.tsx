@@ -19,25 +19,29 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep }) => {
   const currentIndex = steps.findIndex(s => s.key === currentStep);
 
   return (
-    <div className="flex items-center justify-center gap-2 mb-8">
+    <div className="mb-8 flex flex-wrap items-center justify-center gap-2">
       {steps.map((step, index) => (
         <div key={step.key} className="flex items-center">
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+          <div className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all ${
             index === currentIndex
-              ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
+              ? 'paper2ppt-tab-active border-white/20'
               : index < currentIndex
-                ? 'bg-green-500/20 text-green-300 border border-green-500/40'
-                : 'bg-white/5 text-gray-500 border border-white/10'
+                ? 'paper2ppt-chip-active border-[rgba(140,29,64,0.18)]'
+                : 'paper2ppt-chip'
           }`}>
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-              index < currentIndex ? 'bg-green-400 text-white' : ''
+            <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${
+              index === currentIndex
+                ? 'bg-white/18 text-white'
+                : index < currentIndex
+                  ? 'bg-[#8c1d40] text-white'
+                  : 'bg-[rgba(140,29,64,0.08)] text-[#6c1634]'
             }`}>
               {index < currentIndex ? <Check size={14} /> : step.num}
             </span>
             <span className="hidden sm:inline">{step.label}</span>
           </div>
           {index < steps.length - 1 && (
-            <ArrowRight size={16} className={`mx-2 ${index < currentIndex ? 'text-green-400' : 'text-gray-600'}`} />
+            <ArrowRight size={16} className={`mx-2 ${index < currentIndex ? 'text-[#8c1d40]' : 'text-[rgba(103,95,88,0.72)]'}`} />
           )}
         </div>
       ))}

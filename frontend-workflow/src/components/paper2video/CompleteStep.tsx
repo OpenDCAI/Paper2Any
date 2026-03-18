@@ -57,11 +57,11 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
   return (
     <div className="max-w-3xl mx-auto text-center">
       <div className="mb-8">
-        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center mx-auto mb-4">
+        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary-600 to-amber-500 flex items-center justify-center mx-auto mb-4">
           <CheckCircle2 size={40} className="text-white" />
         </div>
         <h2 className="text-2xl font-bold text-white mb-2">{t('complete.title')}</h2>
-        <p className="text-gray-400">{t('complete.desc')}</p>
+        <p className="text-[#d8b7b0]">{t('complete.desc')}</p>
       </div>
 
       <div className="glass rounded-xl border border-white/10 p-6 mb-6">
@@ -69,23 +69,23 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
           <div className="py-12">
             {isGenerating ? (
               <div className="animate-in fade-in">
-                <Loader2 size={48} className="animate-spin text-teal-400 mx-auto mb-4" />
-                <p className="text-gray-400 mb-4">{t('complete.generating')}</p>
+                <Loader2 size={48} className="animate-spin text-amber-300 mx-auto mb-4" />
+                <p className="text-[#d8b7b0] mb-4">{t('complete.generating')}</p>
                 <div className="max-w-md mx-auto text-left">
-                  <div className="flex justify-between text-xs text-gray-400 mb-1">
+                  <div className="flex justify-between text-xs text-[#d8b7b0] mb-1">
                     <span>{progressStatus}</span>
                     <span>{Math.round(progress)}%</span>
                   </div>
                   <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-teal-500 to-cyan-500 transition-all duration-300 ease-out"
+                      className="h-full bg-gradient-to-r from-primary-600 to-amber-500 transition-all duration-300 ease-out"
                       style={{ width: `${progress}%` }}
                     />
                   </div>
                 </div>
               </div>
             ) : (
-              <p className="text-gray-500">{t('complete.noVideo')}</p>
+              <p className="text-[#b99189]">{t('complete.noVideo')}</p>
             )}
           </div>
         ) : (
@@ -102,7 +102,7 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
             </div>
             <button
               onClick={handleDownload}
-              className="px-6 py-3 rounded-lg bg-gradient-to-r from-teal-600 to-cyan-600 text-white font-semibold flex items-center justify-center gap-2 mx-auto transition-all hover:from-teal-700 hover:to-cyan-700"
+              className="px-6 py-3 rounded-lg bg-gradient-to-r from-primary-600 to-amber-500 text-white font-semibold flex items-center justify-center gap-2 mx-auto transition-all hover:from-primary-700 hover:to-amber-600"
             >
               <Download size={18} /> {t('complete.download')}
             </button>
@@ -113,7 +113,7 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
       <div>
         <button
           onClick={handleReset}
-          className="text-sm text-gray-400 hover:text-white transition-colors flex items-center justify-center gap-1 mx-auto"
+          className="text-sm text-[#d8b7b0] hover:text-white transition-colors flex items-center justify-center gap-1 mx-auto"
         >
           <RotateCcw size={14} /> {t('complete.newTask')}
         </button>

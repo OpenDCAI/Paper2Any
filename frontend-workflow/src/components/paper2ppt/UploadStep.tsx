@@ -1,4 +1,4 @@
-import React, { ChangeEvent, useState } from 'react';
+import React, { ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { API_URL_OPTIONS, getPurchaseUrl } from '../../config/api';
 import { PAPER2PPT_GEN_FIG_MODELS, PAPER2PPT_MODELS, withModelOptions } from '../../config/models';
@@ -149,129 +149,117 @@ const UploadStep: React.FC<UploadStepProps> = ({
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-10 text-center">
-        <p className="text-xs uppercase tracking-[0.2em] text-purple-300 mb-3 font-semibold">{t('upload.subtitle')}</p>
-        <h1 className="text-4xl md:text-5xl font-bold mb-4">
-          <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-rose-400 bg-clip-text text-transparent">
-            {t('upload.title')}
-          </span>
+        <p className="paper2ppt-kicker mb-3 text-xs font-semibold uppercase">{t('upload.subtitle')}</p>
+        <h1 className="paper2ppt-title mb-4 text-4xl font-bold md:text-5xl">
+          {t('upload.title')} <span className="paper2ppt-accent">{t('upload.descHighlight')}</span>
         </h1>
-        <p className="text-base text-gray-300 max-w-2xl mx-auto leading-relaxed">
-          {t('upload.desc')}<br />
-          <span className="text-purple-400">{t('upload.descHighlight')}</span>
+        <p className="paper2ppt-subtitle mx-auto max-w-3xl text-base leading-relaxed">
+          {t('upload.desc')}
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 左侧：输入区域 */}
-        <div className="glass rounded-xl border border-white/10 p-6 relative overflow-hidden">
-          {/* 装饰背景光 */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-1 bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-50 blur-sm"></div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="paper2ppt-panel relative overflow-hidden rounded-[30px] p-6">
+          <div className="absolute left-8 right-8 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(140,29,64,0.38),transparent)]" />
 
-          {/* 炫酷模式切换 Tabs */}
-          <div className="grid grid-cols-3 gap-3 mb-6 p-1.5 bg-black/40 rounded-2xl border border-white/5">
+          <div className="paper2ppt-tabbar mb-6 grid grid-cols-3 gap-3">
             {[
               { id: 'file', label: t('upload.tabs.file'), icon: FileText, sub: t('upload.tabs.fileSub') },
               { id: 'text', label: t('upload.tabs.text'), icon: Type, sub: t('upload.tabs.textSub') },
               { id: 'topic', label: t('upload.tabs.topic'), icon: Lightbulb, sub: t('upload.tabs.topicSub') },
             ].map((item) => (
-              <button 
+              <button
                 key={item.id}
-                onClick={() => setUploadMode(item.id as any)}
-                className={`relative group flex flex-col items-center justify-center py-3 rounded-xl transition-all duration-300 overflow-hidden ${
-                  uploadMode === item.id 
-                    ? 'bg-gradient-to-br from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/30 scale-[1.02] ring-1 ring-white/20' 
-                    : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200 hover:scale-[1.02]'
+                onClick={() => setUploadMode(item.id as UploadMode)}
+                className={`paper2ppt-tab relative flex flex-col items-center justify-center overflow-hidden rounded-2xl py-3 ${
+                  uploadMode === item.id ? 'paper2ppt-tab-active scale-[1.01]' : ''
                 }`}
               >
-                {/* 选中态的光效扫光动画 */}
                 {uploadMode === item.id && (
-                  <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-shimmer-fast"></div>
+                  <div className="animate-shimmer-fast absolute inset-0 h-full w-full -translate-x-full bg-gradient-to-r from-transparent via-white/18 to-transparent" />
                 )}
-                
-                <item.icon size={22} className={`mb-1.5 transition-colors ${uploadMode === item.id ? 'text-white' : 'text-gray-500 group-hover:text-purple-400'}`} />
-                <span className={`text-sm font-bold tracking-wide ${uploadMode === item.id ? 'text-white' : 'text-gray-300'}`}>{item.label}</span>
-                <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === item.id ? 'text-purple-100' : 'text-gray-600'}`}>{item.sub}</span>
+                <item.icon size={22} className={`mb-1.5 transition-colors ${uploadMode === item.id ? 'text-white' : 'text-[#8c1d40]'}`} />
+                <span className={`text-sm font-bold tracking-wide ${uploadMode === item.id ? 'text-white' : 'text-[#1d1c1a]'}`}>{item.label}</span>
+                <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === item.id ? 'text-[#f7dcb1]' : 'text-[#675f58]'}`}>{item.sub}</span>
               </button>
             ))}
           </div>
 
           <div className="mb-3 flex items-center gap-2 px-1">
-            <span className="w-1 h-4 rounded-full bg-purple-500"></span>
-            <h3 className="text-white font-medium text-sm">
+            <span className="h-4 w-1 rounded-full bg-[#8c1d40]" />
+            <h3 className="text-sm font-semibold text-[#1d1c1a]">
               {uploadMode === 'file' ? t('upload.instruction.file') : uploadMode === 'text' ? t('upload.instruction.text') : t('upload.instruction.topic')}
             </h3>
           </div>
 
           {uploadMode === 'file' ? (
-            <div 
-              className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center gap-4 transition-all h-[300px] ${
-                isDragOver ? 'border-purple-500 bg-purple-500/10' : 'border-white/20 hover:border-purple-400'
-              }`} 
-              onDragOver={e => { e.preventDefault(); setIsDragOver(true); }} 
-              onDragLeave={e => { e.preventDefault(); setIsDragOver(false); }} 
+            <div
+              className={`paper2ppt-dropzone flex h-[300px] flex-col items-center justify-center gap-4 rounded-[24px] p-8 text-center ${
+                isDragOver ? 'paper2ppt-dropzone-active' : ''
+              }`}
+              onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
+              onDragLeave={e => { e.preventDefault(); setIsDragOver(false); }}
               onDrop={handleDrop}
             >
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
-                <UploadCloud size={32} className="text-purple-400" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[rgba(140,29,64,0.08)]">
+                <UploadCloud size={32} className="text-[#8c1d40]" />
               </div>
               <div>
-                <p className="text-white font-medium mb-1">{t('upload.dropzone.dragText')}</p>
-                <p className="text-sm text-gray-400">{t('upload.dropzone.supportText')}</p>
+                <p className="mb-1 text-base font-semibold text-[#1d1c1a]">{t('upload.dropzone.dragText')}</p>
+                <p className="text-sm text-[#675f58]">{t('upload.dropzone.supportText')}</p>
               </div>
-              <label className="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-medium cursor-pointer hover:from-purple-700 hover:to-pink-700 transition-all">
+              <label className="paper2ppt-button-primary cursor-pointer rounded-full px-6 py-2.5 text-sm font-medium">
                 {t('upload.dropzone.button')}
                 <input type="file" accept=".pdf" className="hidden" onChange={handleFileChange} />
               </label>
               {selectedFile && (
-                <div className="px-4 py-2 bg-purple-500/20 border border-purple-500/40 rounded-lg">
-                  <p className="text-sm text-purple-300">✓ {selectedFile.name}</p>
-                  <p className="text-xs text-gray-400 mt-1">✨ {t('upload.dropzone.analyzing')}</p>
+                <div className="paper2ppt-status-success px-4 py-2">
+                  <p className="text-sm font-medium">✓ {selectedFile.name}</p>
+                  <p className="mt-1 text-xs">{t('upload.dropzone.analyzing')}</p>
                 </div>
               )}
             </div>
           ) : (
-            <div className="flex flex-col h-[300px]">
+            <div className="flex h-[300px] flex-col">
               <textarea
                 value={textContent}
                 onChange={e => setTextContent(e.target.value)}
-                placeholder={uploadMode === 'text' 
+                placeholder={uploadMode === 'text'
                   ? t('upload.textInput.placeholderText')
                   : t('upload.textInput.placeholderTopic')}
-                className="flex-1 w-full rounded-xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                className="paper2ppt-input flex-1 rounded-[24px] px-4 py-3 text-sm resize-none"
               />
-              <p className="text-xs text-gray-500 mt-2 text-right">
+              <p className="mt-2 text-right text-xs text-[#675f58]">
                 {uploadMode === 'text' ? `${textContent.length} ${t('upload.textInput.charCount')}` : t('upload.textInput.deepResearch')}
               </p>
             </div>
           )}
         </div>
 
-        {/* 右侧：配置区域 */}
-        <div className="glass rounded-xl border border-white/10 p-6 space-y-4">
-          <h3 className="text-white font-semibold flex items-center gap-2">
-            <Settings2 size={18} className="text-purple-400" /> {t('upload.config.title')}
+        <div className="paper2ppt-panel space-y-4 rounded-[30px] p-6">
+          <h3 className="flex items-center gap-2 text-lg font-semibold text-[#1d1c1a]">
+            <Settings2 size={18} className="text-[#8c1d40]" /> {t('upload.config.title')}
           </h3>
-          
-          {/* API 配置 */}
+
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
+            <div className="col-span-2">
+              <label className="paper2ppt-label mb-1 flex items-center gap-1">
                 <Key size={12} /> {t('upload.config.apiKey')}
               </label>
-              <input 
-                type="password" 
-                value={apiKey} 
+              <input
+                type="password"
+                value={apiKey}
                 onChange={e => setApiKey(e.target.value)}
                 placeholder={t('upload.config.apiKeyPlaceholder')}
-                className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                className="paper2ppt-input rounded-xl px-3 py-2 text-sm"
               />
             </div>
           </div>
-          
+
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs text-gray-400 flex items-center gap-1">
+              <div className="mb-1 flex items-center justify-between">
+                <label className="paper2ppt-label flex items-center gap-1">
                   <Globe size={12} /> {t('upload.config.apiUrl')}
                 </label>
                 <QRCodeTooltip>
@@ -279,14 +267,14 @@ const UploadStep: React.FC<UploadStepProps> = ({
                     href={getPurchaseUrl(llmApiUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[10px] text-purple-300 hover:text-purple-200 hover:underline"
+                    className="paper2ppt-link text-[10px]"
                   >
                     {t('upload.config.buyLink')}
                   </a>
                 </QRCodeTooltip>
               </div>
-              <select 
-                value={llmApiUrl} 
+              <select
+                value={llmApiUrl}
                 onChange={e => {
                   const val = e.target.value;
                   setLlmApiUrl(val);
@@ -294,7 +282,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
                     setGenFigModel('gemini-3-pro-image-preview');
                   }
                 }}
-                className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                className="paper2ppt-input rounded-xl px-3 py-2 text-sm"
               >
                 {API_URL_OPTIONS.map((url: string) => (
                   <option key={url} value={url}>{url}</option>
@@ -302,61 +290,61 @@ const UploadStep: React.FC<UploadStepProps> = ({
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
+              <label className="paper2ppt-label mb-1 flex items-center gap-1">
                 <Cpu size={12} /> {t('upload.config.model')}
               </label>
               <div className="grid grid-cols-2 gap-2">
-                <select 
-                  value={model} 
+                <select
+                  value={model}
                   onChange={e => setModel(e.target.value)}
-                  className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                  className="paper2ppt-input rounded-xl px-3 py-2 text-sm"
                 >
                   {modelOptions.map((option) => (
                     <option key={option} value={option}>{option}</option>
                   ))}
                 </select>
-                <div className="relative group">
+                <div className="group relative">
                   <input
                     type="text"
-                    value={model} 
+                    value={model}
                     onChange={e => setModel(e.target.value)}
                     placeholder="自定义模型"
-                    className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                    className="paper2ppt-input rounded-xl px-3 py-2 text-sm"
                   />
-                  <div className="pointer-events-none absolute left-full top-1/2 z-20 ml-2 w-56 -translate-y-1/2 rounded-md border border-white/10 bg-black/80 px-2 py-1.5 text-[10px] text-gray-100 opacity-0 shadow-lg transition group-hover:opacity-100">
+                  <div className="pointer-events-none absolute left-full top-1/2 z-20 ml-2 w-56 -translate-y-1/2 rounded-xl border border-[rgba(110,76,55,0.14)] bg-[rgba(255,250,245,0.98)] px-2 py-1.5 text-[10px] text-[#675f58] opacity-0 shadow-lg transition group-hover:opacity-100">
                     {t('upload.config.customModelTip')}
                   </div>
                 </div>
               </div>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-gray-400 mb-1">{t('upload.config.genModel')}</label>
+              <label className="paper2ppt-label mb-1">{t('upload.config.genModel')}</label>
               <select
                 value={genFigModel}
                 onChange={e => setGenFigModel(e.target.value)}
                 disabled={llmApiUrl.includes('123.129.219.111')}
-                className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="paper2ppt-input rounded-xl px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {genFigModelOptions.map((option) => (
                   <option key={option} value={option}>{genFigModelLabels[option] || option}</option>
                 ))}
               </select>
               {llmApiUrl.includes('123.129.219.111') && (
-                 <p className="text-[10px] text-gray-500 mt-1">此源仅支持 gemini-3-pro</p>
+                <p className="mt-1 text-[10px] text-[#675f58]">此源仅支持 gemini-3-pro</p>
               )}
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">{t('upload.config.pageCount')}</label>
-              <input 
-                type="number" 
-                value={pageCount} 
+              <label className="paper2ppt-label mb-1">{t('upload.config.pageCount')}</label>
+              <input
+                type="number"
+                value={pageCount}
                 onChange={e => setPageCount(parseInt(e.target.value) || 6)}
                 min={1}
                 max={20}
-                className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                className="paper2ppt-input rounded-xl px-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -365,7 +353,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
             <button
               onClick={() => setUseLongPaper(!useLongPaper)}
               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                useLongPaper ? 'bg-purple-600' : 'bg-gray-600'
+                useLongPaper ? 'bg-[#8c1d40]' : 'bg-[rgba(103,95,88,0.52)]'
               }`}
             >
               <span
@@ -374,59 +362,51 @@ const UploadStep: React.FC<UploadStepProps> = ({
                 }`}
               />
             </button>
-            <span className="text-xs text-gray-300 cursor-pointer" onClick={() => setUseLongPaper(!useLongPaper)}>
+            <span className="cursor-pointer text-xs text-[#1d1c1a]" onClick={() => setUseLongPaper(!useLongPaper)}>
               {t('upload.config.longPaper')}
             </span>
           </div>
 
-          <div className="border-t border-white/10 pt-4 mt-2">
-            <h4 className="text-xs text-gray-400 mb-2">{t('upload.config.styleTitle')}</h4>
-            
+          <div className="mt-2 border-t border-[rgba(110,76,55,0.14)] pt-4">
+            <h4 className="paper2ppt-label mb-2">{t('upload.config.styleTitle')}</h4>
+
             <div className="mb-3">
-              <label className="block text-xs text-gray-400 mb-1">{t('upload.config.language')}</label>
-              <select 
-                value={language} 
-                onChange={e => setLanguage(e.target.value as 'zh' | 'en')} 
-                className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+              <label className="paper2ppt-label mb-1 block">{t('upload.config.language')}</label>
+              <select
+                value={language}
+                onChange={e => setLanguage(e.target.value as 'zh' | 'en')}
+                className="paper2ppt-input rounded-xl px-3 py-2 text-sm"
               >
                 <option value="zh">中文</option>
                 <option value="en">English</option>
               </select>
             </div>
 
-            <div className="flex gap-2 mb-3">
+            <div className="mb-3 flex gap-2">
               <button
                 type="button"
                 onClick={() => setStyleMode('prompt')}
-                className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-all ${
-                  styleMode === 'prompt'
-                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm'
-                    : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
-                }`}
+                className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-medium ${styleMode === 'prompt' ? 'paper2ppt-button-primary' : 'paper2ppt-button-secondary'}`}
               >
-                <Sparkles size={14} /> {t('upload.config.styleMode.prompt')}
+                <span className="flex items-center justify-center gap-1"><Sparkles size={14} /> {t('upload.config.styleMode.prompt')}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setStyleMode('reference')}
-                className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-all ${
-                  styleMode === 'reference'
-                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm'
-                    : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
-                }`}
+                className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-medium ${styleMode === 'reference' ? 'paper2ppt-button-primary' : 'paper2ppt-button-secondary'}`}
               >
-                <UploadCloud size={14} /> {t('upload.config.styleMode.reference')}
+                <span className="flex items-center justify-center gap-1"><UploadCloud size={14} /> {t('upload.config.styleMode.reference')}</span>
               </button>
             </div>
 
             {styleMode === 'prompt' ? (
               <>
                 <div className="mb-3">
-                  <label className="block text-xs text-gray-400 mb-1">{t('upload.config.stylePreset')}</label>
-                  <select 
-                    value={stylePreset} 
-                    onChange={e => setStylePreset(e.target.value as typeof stylePreset)} 
-                    className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                  <label className="paper2ppt-label mb-1 block">{t('upload.config.stylePreset')}</label>
+                  <select
+                    value={stylePreset}
+                    onChange={e => setStylePreset(e.target.value as StylePreset)}
+                    className="paper2ppt-input rounded-xl px-3 py-2 text-sm"
                   >
                     <option value="modern">{t('upload.config.presets.modern')}</option>
                     <option value="business">{t('upload.config.presets.business')}</option>
@@ -434,22 +414,22 @@ const UploadStep: React.FC<UploadStepProps> = ({
                     <option value="creative">{t('upload.config.presets.creative')}</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">{t('upload.config.promptLabel')}</label>
-                  <textarea 
-                    value={globalPrompt} 
-                    onChange={e => setGlobalPrompt(e.target.value)} 
+                <div className="mb-3">
+                  <label className="paper2ppt-label mb-1 block">{t('upload.config.promptLabel')}</label>
+                  <textarea
+                    value={globalPrompt}
+                    onChange={e => setGlobalPrompt(e.target.value)}
                     placeholder={t('upload.config.promptPlaceholder')}
-                    rows={2} 
-                    className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 resize-none" 
+                    rows={2}
+                    className="paper2ppt-input rounded-xl px-3 py-2 text-sm resize-none"
                   />
                 </div>
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-xs text-gray-400">{t('upload.config.promptCardsTitle')}</label>
-                    <span className="text-[10px] text-gray-500">{t('upload.config.promptCardsTip')}</span>
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="paper2ppt-label">{t('upload.config.promptCardsTitle')}</label>
+                    <span className="text-[10px] text-[#675f58]">{t('upload.config.promptCardsTip')}</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {stylePromptCards.map((card) => (
                       <button
                         key={card.title}
@@ -458,13 +438,13 @@ const UploadStep: React.FC<UploadStepProps> = ({
                           setStyleMode('prompt');
                           setGlobalPrompt(card.text);
                         }}
-                        className="group text-left rounded-2xl border border-white/15 bg-white/5 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur transition-all hover:-translate-y-0.5 hover:border-purple-400/60 hover:bg-white/10"
+                        className="paper2ppt-choice-card group rounded-2xl px-4 py-3 text-left"
                       >
-                        <div className="text-sm font-semibold text-white mb-1">{card.title}</div>
-                        <div className="text-[11px] leading-relaxed text-gray-300 whitespace-pre-line line-clamp-4">
+                        <div className="mb-1 text-sm font-semibold text-[#1d1c1a]">{card.title}</div>
+                        <div className="line-clamp-4 whitespace-pre-line text-[11px] leading-relaxed text-[#675f58]">
                           {card.text}
                         </div>
-                        <div className="mt-2 text-[10px] text-purple-300 opacity-0 transition-opacity group-hover:opacity-100">
+                        <div className="mt-2 text-[10px] text-[#8c1d40] opacity-0 transition-opacity group-hover:opacity-100">
                           {t('upload.config.promptCardsUse')}
                         </div>
                       </button>
@@ -474,27 +454,27 @@ const UploadStep: React.FC<UploadStepProps> = ({
               </>
             ) : (
               <div>
-                <label className="block text-xs text-gray-400 mb-1">{t('upload.config.referenceLabel')}</label>
+                <label className="paper2ppt-label mb-1 block">{t('upload.config.referenceLabel')}</label>
                 {referenceImagePreview ? (
                   <div className="relative">
                     <img
                       src={referenceImagePreview}
                       alt="参考风格"
-                      className="w-full h-32 object-cover rounded-lg border border-white/20"
+                      className="h-32 w-full rounded-xl border border-[rgba(110,76,55,0.14)] object-cover"
                     />
                     <button
                       type="button"
                       onClick={handleRemoveReferenceImage}
-                      className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-red-500 transition-colors"
+                      className="absolute right-2 top-2 rounded-full bg-[rgba(140,29,64,0.92)] p-1.5 text-white transition-colors hover:bg-[#b12d3e]"
                     >
                       <X size={14} />
                     </button>
-                    <p className="text-[11px] text-purple-300 mt-1">✓ {t('upload.config.referenceUploaded')}</p>
+                    <p className="mt-1 text-[11px] text-[#8c1d40]">✓ {t('upload.config.referenceUploaded')}</p>
                   </div>
                 ) : (
-                  <label className="border-2 border-dashed border-white/20 rounded-lg p-4 flex flex-col items-center justify-center text-center gap-2 cursor-pointer hover:border-purple-400 transition-all">
-                    <UploadCloud size={20} className="text-gray-400" />
-                    <span className="text-xs text-gray-400">{t('upload.config.referenceUpload')}</span>
+                  <label className="paper2ppt-dropzone flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl p-4 text-center">
+                    <UploadCloud size={20} className="text-[#8c1d40]" />
+                    <span className="text-xs text-[#675f58]">{t('upload.config.referenceUpload')}</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -507,10 +487,10 @@ const UploadStep: React.FC<UploadStepProps> = ({
             )}
           </div>
 
-          <button 
-            onClick={handleUploadAndParse} 
-            disabled={(uploadMode === 'file' && !selectedFile) || ((uploadMode === 'text' || uploadMode === 'topic') && !textContent.trim()) || isUploading} 
-            className="w-full py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold flex items-center justify-center gap-2 transition-all"
+          <button
+            onClick={handleUploadAndParse}
+            disabled={(uploadMode === 'file' && !selectedFile) || ((uploadMode === 'text' || uploadMode === 'topic') && !textContent.trim()) || isUploading}
+            className="paper2ppt-button-primary flex w-full items-center justify-center gap-2 rounded-xl py-3 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isUploading ? (
               <><Loader2 size={18} className="animate-spin" /> {uploadMode === 'topic' ? t('upload.config.startButton.researching') : t('upload.config.startButton.parsing')}</>
@@ -519,20 +499,20 @@ const UploadStep: React.FC<UploadStepProps> = ({
             )}
           </button>
 
-          <div className="flex items-start gap-2 text-xs text-gray-500 mt-3 px-1">
-            <Info size={14} className="mt-0.5 text-gray-400 flex-shrink-0" />
+          <div className="mt-3 flex items-start gap-2 px-1 text-xs text-[#675f58]">
+            <Info size={14} className="mt-0.5 flex-shrink-0 text-[#8c1d40]" />
             <p>{t('upload.config.tip')}</p>
           </div>
 
           {isUploading && (
             <div className="mt-4 animate-in fade-in slide-in-from-top-2">
-              <div className="flex justify-between text-xs text-gray-400 mb-1">
+              <div className="mb-1 flex justify-between text-xs text-[#675f58]">
                 <span>{progressStatus}</span>
                 <span>{Math.round(progress)}%</span>
               </div>
-              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-300 ease-out"
+              <div className="paper2ppt-progress-track h-1.5 overflow-hidden rounded-full">
+                <div
+                  className="paper2ppt-progress-value h-full transition-all duration-300 ease-out"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -542,42 +522,38 @@ const UploadStep: React.FC<UploadStepProps> = ({
       </div>
 
       {isValidating && (
-        <div className="mt-4 flex items-center gap-2 text-sm text-blue-300 bg-blue-500/10 border border-blue-500/40 rounded-lg px-4 py-3 animate-pulse">
-            <Loader2 size={16} className="animate-spin" />
-            <p>正在验证 API Key 有效性...</p>
+        <div className="paper2ppt-status-info mt-4 flex animate-pulse items-center gap-2 px-4 py-3 text-sm">
+          <Loader2 size={16} className="animate-spin" />
+          <p>正在验证 API Key 有效性...</p>
         </div>
       )}
 
       {error && (
-        <div className="mt-4 flex items-center gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-4 py-3">
+        <div className="paper2ppt-status-error mt-4 flex items-center gap-2 px-4 py-3 text-sm">
           <AlertCircle size={16} /> {error}
         </div>
       )}
 
-      {/* 示例区 */}
-      <div className="space-y-4 mt-8">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-3">
-            <h3 className="text-sm font-medium text-gray-200">{t('upload.demo.title')}</h3>
+      <div className="mt-8 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <h3 className="text-sm font-semibold text-[#1d1c1a]">{t('upload.demo.title')}</h3>
             <a
               href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
               target="_blank"
               rel="noopener noreferrer"
-              className="group relative inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/50 border border-white/10 text-xs font-medium text-white overflow-hidden transition-all hover:border-white/30 hover:shadow-[0_0_15px_rgba(168,85,247,0.5)]"
+              className="paper2ppt-button-secondary inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <Sparkles size={12} className="text-yellow-300 animate-pulse" />
-              <span className="bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300 bg-clip-text text-transparent group-hover:from-blue-200 group-hover:via-purple-200 group-hover:to-pink-200">
-                {t('upload.demo.more')}
-              </span>
+              <Sparkles size={12} className="text-[#8c1d40]" />
+              <span className="text-[#8c1d40]">{t('upload.demo.more')}</span>
             </a>
           </div>
-          <span className="text-[11px] text-gray-500">
+          <span className="text-[11px] text-[#675f58]">
             {t('upload.demo.desc')}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <div className="grid grid-cols-1 gap-4 text-xs md:grid-cols-2">
           <DemoCard
             title={t('upload.demo.card1.title')}
             desc={t('upload.demo.card1.desc')}

@@ -62,10 +62,10 @@ const CustomNode = memo(({ data, selected }: CustomNodeProps) => {
           {IconComponent && <IconComponent size={24} />}
         </div>
         <div className="flex-1">
-          <div className="font-semibold text-white text-sm">
+          <div className="font-semibold text-primary-900 text-sm">
             {agentType.displayName}
           </div>
-          <div className="text-xs text-gray-400 mt-1">
+          <div className="text-xs text-primary-700/75 mt-1">
             {agentType.name}
           </div>
         </div>

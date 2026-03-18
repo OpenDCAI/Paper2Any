@@ -39,15 +39,13 @@ const Pdf2PptPage = () => {
   });
   const [copySuccess, setCopySuccess] = useState('');
 
-  const shareText = `发现一个超好用的AI工具 DataFlow-Agent！🚀
-支持论文转PPT、PDF转PPT、PPT美化等功能，科研打工人的福音！
+  const shareText = `Paper2Any 是一站式 AI 科研与演示文稿助手，支持 PDF 转 PPT、论文转 PPT、PPT 润色等能力。
 
-🔗 在线体验：https://dcai-paper2any.nas.cpolar.cn/
-⭐ GitHub Agent：https://github.com/OpenDCAI/Paper2Any
-🌟 GitHub Core：https://github.com/OpenDCAI/DataFlow
+项目主页:
+Paper2Any: https://github.com/OpenDCAI/Paper2Any
+DataFlow: https://github.com/OpenDCAI/DataFlow
 
-转发本文案+截图，联系微信群管理员即可获取免费Key！🎁
-#AI工具 #PPT制作 #科研效率 #开源项目`;
+当前北大内网部署版本已取消登录限制与次数限制，可直接在平台内使用。`;
 
   const handleCopyShareText = async () => {
     try {
@@ -71,11 +69,11 @@ const Pdf2PptPage = () => {
           document.body.removeChild(textArea);
         }
       }
-      setCopySuccess('文案已复制！快去分享吧');
+      setCopySuccess('项目说明已复制');
       setTimeout(() => setCopySuccess(''), 2000);
     } catch (err) {
       console.error('复制失败', err);
-      setCopySuccess('复制失败，请手动复制');
+      setCopySuccess('复制失败，请手动重试');
     }
   };
 
@@ -341,9 +339,9 @@ const Pdf2PptPage = () => {
   };
 
   return (
-    <div className="w-full h-screen flex flex-col bg-[#050512] overflow-hidden">
+    <div className="portalize-page flex h-screen w-full flex-col overflow-hidden">
       {showBanner && (
-        <div className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 relative overflow-hidden flex-shrink-0">
+        <div className="portalized-banner w-full bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 relative overflow-hidden flex-shrink-0">
           <div className="absolute inset-0 bg-black opacity-20"></div>
           <div className="absolute inset-0 animate-pulse">
             <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white to-transparent opacity-10 animate-shimmer"></div>
@@ -655,7 +653,7 @@ const Pdf2PptPage = () => {
                     <div className="w-12 h-12 rounded-full bg-yellow-500/20 text-yellow-300 flex items-center justify-center mb-3">
                       <Star size={24} />
                     </div>
-                    <h4 className="text-white font-semibold mb-2">获取免费 API Key</h4>
+                    <h4 className="text-white font-semibold mb-2">项目资源</h4>
                     <p className="text-xs text-gray-400 mb-4 leading-relaxed">
                       点击下方平台图标复制推广文案<br/>
                       分享至朋友圈/小红书/推特，截图联系微信群管理员领 Key！
@@ -795,7 +793,6 @@ const Pdf2PptPage = () => {
         .animate-shimmer {
           animation: shimmer 3s infinite;
         }
-        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); }
         .demo-input-placeholder {
           min-height: 120px;
         }

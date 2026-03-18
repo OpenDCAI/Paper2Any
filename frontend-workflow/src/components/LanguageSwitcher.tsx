@@ -16,7 +16,7 @@ export function LanguageSwitcher() {
   const currentCode = i18n.language && i18n.language.startsWith('zh') ? 'zh' : 'en';
 
   return (
-    <div className="inline-flex items-center rounded-full bg-white/10 p-1 border border-white/10">
+    <div className="inline-flex items-center rounded-full portal-pill p-1">
       {languages.map((lang) => {
         const isActive = currentCode === lang.code;
         return (
@@ -26,8 +26,8 @@ export function LanguageSwitcher() {
             className={`
               px-3 py-1 text-xs font-medium rounded-full transition-all
               ${isActive 
-                ? 'bg-white text-gray-900 shadow-sm' 
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                ? 'bg-primary-600 text-white shadow-sm' 
+                : 'text-primary-700 hover:text-primary-900 hover:bg-primary-500/5'
               }
             `}
           >

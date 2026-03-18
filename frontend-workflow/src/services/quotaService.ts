@@ -169,15 +169,8 @@ export async function recordUsage(
   const amount = Math.max(1, options.amount ?? 1);
   const isAnonymous = options.isAnonymous ?? false;
 
-  // If Supabase is not configured, use local storage
+  // PKU intranet deployment uses unlimited local mode.
   if (!isSupabaseConfigured()) {
-    const local = getLocalUsage();
-    const today = getTodayDate();
-
-    // Reset if new day
-    const newCount = local.date === today ? local.count + amount : amount;
-    setLocalUsage(today, newCount);
-
     return true;
   }
 

@@ -380,7 +380,7 @@ const Paper2VideoPage = () => {
   };
 
   return (
-    <div className="w-full h-full min-h-0 flex flex-col bg-[#050512] overflow-hidden">
+    <div className="portalize-page flex h-full min-h-0 w-full flex-col overflow-hidden">
       <Banner show={showBanner} onClose={() => setShowBanner(false)} stars={stars} />
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
         <div className="max-w-7xl mx-auto px-6 py-8 pb-24">
@@ -489,7 +489,6 @@ const Paper2VideoPage = () => {
       </div>
 
       <style>{`
-        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); }
       `}</style>
     </div>
   );

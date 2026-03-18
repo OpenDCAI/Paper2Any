@@ -21,22 +21,22 @@ interface CasesSectionProps {
 
 const toneStyles: Record<Tone, { border: string; glow: string; text: string; sparkle: string }> = {
   amber: {
-    border: 'hover:border-amber-400/60',
-    glow: 'hover:shadow-[0_0_20px_rgba(245,158,11,0.35)]',
-    text: 'text-amber-200 group-hover:text-amber-100',
+    border: 'hover:border-amber-300/60',
+    glow: 'hover:shadow-[0_0_20px_rgba(217,167,95,0.30)]',
+    text: 'text-[#ffe4bf] group-hover:text-[#fff0d7]',
     sparkle: 'text-amber-300',
   },
   emerald: {
-    border: 'hover:border-emerald-400/60',
-    glow: 'hover:shadow-[0_0_20px_rgba(16,185,129,0.35)]',
-    text: 'text-emerald-200 group-hover:text-emerald-100',
-    sparkle: 'text-emerald-300',
+    border: 'hover:border-primary-300/60',
+    glow: 'hover:shadow-[0_0_20px_rgba(143,49,71,0.28)]',
+    text: 'text-[#f6d0d9] group-hover:text-[#ffe6ea]',
+    sparkle: 'text-primary-300',
   },
   sky: {
-    border: 'hover:border-sky-400/60',
-    glow: 'hover:shadow-[0_0_20px_rgba(56,189,248,0.35)]',
-    text: 'text-sky-200 group-hover:text-sky-100',
-    sparkle: 'text-sky-300',
+    border: 'hover:border-primary-300/60',
+    glow: 'hover:shadow-[0_0_20px_rgba(143,49,71,0.28)]',
+    text: 'text-[#f6d0d9] group-hover:text-[#ffe6ea]',
+    sparkle: 'text-primary-300',
   },
 };
 
@@ -61,27 +61,27 @@ const CasesSection: React.FC<CasesSectionProps> = ({
     <div className="mt-10">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
         <div className="flex items-center gap-3">
-          <h3 className="text-sm font-semibold text-slate-200">{title}</h3>
+          <h3 className="text-sm font-semibold text-[#fff4ef]">{title}</h3>
           <a
             href={feishuUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={`group inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1.5 text-xs font-medium text-white transition-all ${toneClass.border} ${toneClass.glow}`}
+            className={`group inline-flex items-center gap-2 rounded-full bg-white/6 border border-white/12 px-3 py-1.5 text-xs font-medium text-white transition-all ${toneClass.border} ${toneClass.glow}`}
           >
             <Sparkles size={12} className={`animate-pulse ${toneClass.sparkle}`} />
             <span className={toneClass.text}>{feishuLabel}</span>
           </a>
         </div>
-        {subtitle && <span className="text-xs text-slate-500">{subtitle}</span>}
+        {subtitle && <span className="text-xs text-[#c9a9a1]">{subtitle}</span>}
       </div>
 
       <div className={`grid ${gridClass} gap-4`}>
         {cases.map((item) => (
           <div
             key={`${item.title}-${item.image}`}
-            className="rounded-2xl bg-white/5 border border-white/10 p-3 transition-all duration-300 hover:bg-white/10"
+            className="rounded-2xl bg-white/6 border border-white/12 p-3 transition-all duration-300 hover:bg-white/10"
           >
-            <div className="rounded-xl overflow-hidden border border-white/10 bg-black/30">
+            <div className="rounded-xl overflow-hidden border border-white/12 bg-[#2f1620]">
               <img
                 src={item.image}
                 alt={item.title}
@@ -90,9 +90,9 @@ const CasesSection: React.FC<CasesSectionProps> = ({
               />
             </div>
             <div className="mt-3">
-              <p className="text-sm text-white font-medium">{item.title}</p>
+              <p className="text-sm text-[#fff3ee] font-medium">{item.title}</p>
               {item.description && (
-                <p className="text-xs text-slate-400 leading-relaxed mt-1">{item.description}</p>
+                <p className="text-xs text-[#cfb0aa] leading-relaxed mt-1">{item.description}</p>
               )}
             </div>
           </div>

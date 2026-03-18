@@ -17,8 +17,8 @@ const Banner: React.FC<BannerProps> = ({ show, onClose, stars }) => {
   if (!show) return null;
 
   return (
-    <div className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 relative overflow-hidden">
-      <div className="absolute inset-0 bg-black opacity-20"></div>
+    <div className="w-full bg-gradient-to-r from-primary-800 via-primary-600 to-amber-600 relative overflow-hidden">
+      <div className="absolute inset-0 bg-[rgba(45,17,27,0.18)]"></div>
       <div className="absolute inset-0 animate-pulse">
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white to-transparent opacity-10 animate-shimmer"></div>
       </div>
@@ -50,7 +50,7 @@ const Banner: React.FC<BannerProps> = ({ show, onClose, stars }) => {
             <Github size={14} />
             <span>DataFlow</span>
             <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
-            <span className="bg-purple-600 text-white px-2 py-0.5 rounded-full text-[10px]">HOT</span>
+            <span className="bg-primary-700 text-white px-2 py-0.5 rounded-full text-[10px]">HOT</span>
           </a>
 
           <a
@@ -62,7 +62,7 @@ const Banner: React.FC<BannerProps> = ({ show, onClose, stars }) => {
             <Github size={14} />
             <span>Paper2Any</span>
             <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.agent || 'Star'}</span>
-            <span className="bg-pink-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
+            <span className="bg-amber-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
           </a>
 
           <a
@@ -74,7 +74,7 @@ const Banner: React.FC<BannerProps> = ({ show, onClose, stars }) => {
             <Github size={14} />
             <span>DataFlex</span>
             <span className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-0.5"><Star size={8} fill="currentColor" /> {stars.dataflex || 'Star'}</span>
-            <span className="bg-sky-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
+            <span className="bg-primary-600 text-white px-2 py-0.5 rounded-full text-[10px]">NEW</span>
           </a>
 
           <button

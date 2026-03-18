@@ -42,33 +42,33 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
       icon: Sparkles,
       title: t('features.paper2figure.title'),
       desc: t('features.paper2figure.desc'),
-      color: "text-purple-400",
-      bg: "bg-purple-500/10",
-      border: "border-purple-500/20"
+      color: "text-primary-700",
+      bg: "bg-primary-500/10",
+      border: "border-primary-500/20"
     },
     {
       icon: FileText,
       title: t('features.paper2ppt.title'),
       desc: t('features.paper2ppt.desc'),
-      color: "text-blue-400",
-      bg: "bg-blue-500/10",
-      border: "border-blue-500/20"
+      color: "text-amber-700",
+      bg: "bg-amber-500/10",
+      border: "border-amber-500/20"
     },
     {
       icon: Presentation,
       title: t('features.pdf2ppt.title'),
       desc: t('features.pdf2ppt.desc'),
-      color: "text-pink-400",
-      bg: "bg-pink-500/10",
-      border: "border-pink-500/20"
+      color: "text-primary-600",
+      bg: "bg-primary-500/8",
+      border: "border-primary-500/16"
     },
     {
       icon: Palette,
       title: t('features.pptPolish.title'),
       desc: t('features.pptPolish.desc'),
-      color: "text-emerald-400",
-      bg: "bg-emerald-500/10",
-      border: "border-emerald-500/20"
+      color: "text-amber-600",
+      bg: "bg-amber-500/8",
+      border: "border-amber-500/16"
     }
   ];
 
@@ -113,11 +113,11 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#050512] p-4 relative overflow-hidden">
+    <div className="portal-shell min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
       {/* 动态背景装饰 */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/20 rounded-full blur-[120px] animate-pulse"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px] animate-pulse delay-1000"></div>
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary-500/12 rounded-full blur-[120px] animate-pulse"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-500/12 rounded-full blur-[120px] animate-pulse delay-1000"></div>
       </div>
 
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-center relative z-10">
@@ -125,10 +125,10 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
         {/* 左侧：功能展示区 */}
         <div className="hidden lg:flex flex-col justify-center space-y-8 pr-8">
           <div>
-            <h1 className="text-5xl font-bold text-white mb-4 leading-tight">
-              {t('heroTitlePrefix')} <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">Any</span>
+            <h1 className="text-5xl font-bold font-display text-primary-900 mb-4 leading-tight">
+              {t('heroTitlePrefix')} <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-700 to-amber-600">Any</span>
             </h1>
-            <p className="text-gray-400 text-lg max-w-md">
+            <p className="text-slate-600 text-lg max-w-md">
               {t('heroDesc')}
             </p>
           </div>
@@ -139,23 +139,23 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
                 key={idx}
                 className={`transform transition-all duration-500 border rounded-xl p-4 flex items-center gap-4 ${
                   idx === featureIndex 
-                    ? `scale-105 ${feature.bg} ${feature.border} shadow-lg shadow-purple-900/20 translate-x-4` 
-                    : 'bg-white/5 border-white/5 opacity-60 hover:opacity-80 hover:translate-x-2'
+                    ? `scale-105 ${feature.bg} ${feature.border} shadow-lg shadow-primary-900/10 translate-x-4 portal-hero-card` 
+                    : 'bg-white/60 border-primary-500/8 opacity-75 hover:opacity-100 hover:translate-x-2'
                 }`}
                 onClick={() => setFeatureIndex(idx)}
               >
-                <div className={`p-3 rounded-lg ${idx === featureIndex ? 'bg-white/10' : 'bg-white/5'}`}>
+                <div className={`p-3 rounded-2xl ${idx === featureIndex ? 'bg-white/80' : 'bg-white/60'}`}>
                   <feature.icon className={feature.color} size={24} />
                 </div>
                 <div>
-                  <h3 className={`font-semibold text-lg ${idx === featureIndex ? 'text-white' : 'text-gray-300'}`}>
+                  <h3 className={`font-semibold text-lg ${idx === featureIndex ? 'text-primary-900' : 'text-slate-700'}`}>
                     {feature.title}
                   </h3>
-                  <p className="text-sm text-gray-400">{feature.desc}</p>
+                  <p className="text-sm text-slate-500">{feature.desc}</p>
                 </div>
                 {idx === featureIndex && (
                   <div className="ml-auto">
-                    <ArrowRight className="text-white/50 animate-bounce-x" size={20} />
+                    <ArrowRight className="text-primary-500 animate-bounce-x" size={20} />
                   </div>
                 )}
               </div>
@@ -164,14 +164,14 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
         </div>
 
         {/* 右侧：登录表单 */}
-        <div className="glass-dark p-8 md:p-10 rounded-2xl w-full border border-white/10 shadow-2xl backdrop-blur-xl bg-black/40">
+        <div className="portal-panel p-8 md:p-10 rounded-[28px] w-full shadow-shell">
           <div className="lg:hidden mb-8 text-center">
-             <h2 className="text-3xl font-bold text-white mb-2">{t('title')}</h2>
-             <p className="text-gray-400 text-sm">{t('subtitle')}</p>
+             <h2 className="text-3xl font-bold font-display text-primary-900 mb-2">{t('title')}</h2>
+             <p className="text-slate-500 text-sm">{t('subtitle')}</p>
           </div>
 
-          <h2 className="text-2xl font-bold text-white mb-2">{t('welcome')}</h2>
-          <p className="text-gray-400 mb-6 text-sm">{t('loginSubtitle')}</p>
+          <h2 className="text-2xl font-bold font-display text-primary-900 mb-2">{t('welcome')}</h2>
+          <p className="text-slate-500 mb-6 text-sm">{t('loginSubtitle')}</p>
 
           {error && (
             <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3 text-red-300 animate-in fade-in slide-in-from-top-2">
@@ -181,14 +181,14 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
           )}
 
           {/* Tab 切换 */}
-          <div className="flex mb-6 p-1 bg-white/5 rounded-xl">
+          <div className="flex mb-6 p-1 bg-primary-500/5 rounded-2xl">
             <button
               type="button"
               onClick={() => setLoginMethod("phone")}
               className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                 loginMethod === "phone"
-                  ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg"
-                  : "text-gray-400 hover:text-white"
+                  ? "portal-button-primary text-white shadow-lg"
+                  : "text-slate-500 hover:text-primary-700"
               }`}
             >
               <Phone size={16} />
@@ -199,8 +199,8 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
               onClick={() => setLoginMethod("email")}
               className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                 loginMethod === "email"
-                  ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg"
-                  : "text-gray-400 hover:text-white"
+                  ? "portal-button-primary text-white shadow-lg"
+                  : "text-slate-500 hover:text-primary-700"
               }`}
             >
               <Mail size={16} />
@@ -214,16 +214,16 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
               {/* 第一行：手机号 + 发送按钮 */}
               <div className="flex gap-3">
                 <div className="flex-1 space-y-1.5">
-                  <label className="block text-xs font-medium text-gray-400 ml-1">手机号</label>
+                  <label className="block text-xs font-medium text-slate-600 ml-1">手机号</label>
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Phone className="text-gray-500 group-focus-within:text-purple-400 transition-colors" size={18} />
+                      <Phone className="text-slate-400 group-focus-within:text-primary-600 transition-colors" size={18} />
                     </div>
                     <input
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
+                      className="portal-input w-full pl-10 pr-4 py-3 rounded-xl transition-all"
                       placeholder="输入手机号"
                       disabled={loading}
                     />
@@ -235,7 +235,7 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
                     type="button"
                     onClick={handleSendSms}
                     disabled={sendingSms || !phone.trim()}
-                    className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap flex items-center justify-center gap-2 min-w-[120px]"
+                    className="portal-button-primary px-6 py-3 font-medium rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap flex items-center justify-center gap-2 min-w-[120px]"
                   >
                     {sendingSms ? (
                       <>
@@ -253,7 +253,7 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
 
               {/* 发送成功提示 */}
               {smsSent && (
-                <div className="flex items-center gap-2 text-sm text-green-300 bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2">
                   <CheckCircle2 size={16} className="shrink-0" />
                   <span>验证码已发送，请查收短信</span>
                 </div>
@@ -261,13 +261,13 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
 
               {/* 第二行：验证码输入框（始终显示） */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-gray-400 ml-1">验证码</label>
+                <label className="block text-xs font-medium text-slate-600 ml-1">验证码</label>
                 <input
                   type="text"
                   inputMode="numeric"
                   value={smsCode}
                   onChange={(e) => setSmsCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all tracking-widest text-center text-lg"
+                  className="portal-input w-full px-4 py-3 rounded-xl transition-all tracking-widest text-center text-lg"
                   placeholder="输入 6 位验证码"
                   disabled={sendingSms || loading || smsStep === "idle"}
                   maxLength={6}
@@ -279,7 +279,7 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
                 type="button"
                 onClick={handleVerifySms}
                 disabled={loading || smsCode.trim().length < 4 || smsStep === "idle"}
-                className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-purple-900/30 flex items-center justify-center gap-2"
+                className="portal-button-primary w-full py-3.5 font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
               >
                 {loading && smsStep === "sent" ? (
                   <>
@@ -300,16 +300,16 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
           {loginMethod === "email" && (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-gray-400 ml-1">{t('emailLabel')}</label>
+                <label className="block text-xs font-medium text-slate-600 ml-1">{t('emailLabel')}</label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="text-gray-500 group-focus-within:text-purple-400 transition-colors" size={18} />
+                    <Mail className="text-slate-400 group-focus-within:text-primary-600 transition-colors" size={18} />
                   </div>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
+                    className="portal-input w-full pl-10 pr-4 py-3 rounded-xl transition-all"
                     placeholder={t('emailPlaceholder')}
                     required
                     disabled={loading}
@@ -318,16 +318,16 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-gray-400 ml-1">{t('passwordLabel')}</label>
+                <label className="block text-xs font-medium text-slate-600 ml-1">{t('passwordLabel')}</label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="text-gray-500 group-focus-within:text-purple-400 transition-colors" size={18} />
+                    <Lock className="text-slate-400 group-focus-within:text-primary-600 transition-colors" size={18} />
                   </div>
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
+                    className="portal-input w-full pl-10 pr-4 py-3 rounded-xl transition-all"
                     placeholder={t('passwordPlaceholder')}
                     required
                     disabled={loading}
@@ -338,7 +338,7 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-purple-900/30 flex items-center justify-center gap-2"
+                className="portal-button-primary w-full py-3.5 font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -356,11 +356,11 @@ export function LoginPage({ onSwitchToRegister, footer }: Props) {
           )}
 
           <div className="mt-8 text-center">
-            <p className="text-gray-400 text-sm">
+            <p className="text-slate-500 text-sm">
               {t('noAccount')}{" "}
               <button
                 onClick={onSwitchToRegister}
-                className="text-purple-400 hover:text-purple-300 font-medium hover:underline transition-colors"
+                className="text-primary-700 hover:text-primary-800 font-medium hover:underline transition-colors"
               >
                 {t('registerLink')}
               </button>

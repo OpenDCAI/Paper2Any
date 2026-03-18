@@ -232,20 +232,20 @@ export function AccountPage() {
   if (!user) {
     return (
       <div className="w-full h-full flex items-center justify-center">
-        <p className="text-gray-400">请先登录</p>
+        <p className="text-slate-500">北大内网部署已关闭登录鉴权，此页面暂不展示账户信息。</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full overflow-auto px-6 py-8 bg-gradient-to-br from-[#050512] via-[#0a0a1a] to-[#050512]">
+    <div className="w-full h-full overflow-auto px-6 py-8 portal-shell">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-bold font-display text-primary-900 mb-2">
             👤 我的账户
           </h1>
-          <p className="text-gray-400">
+          <p className="text-slate-500">
             管理您的个人信息、使用次数和 API 配置
           </p>
         </div>
@@ -255,22 +255,22 @@ export function AccountPage() {
           {/* Left Column - User Info Cards */}
           <div className="lg:col-span-1 space-y-6">
             {/* User Info Card */}
-            <div className="glass-dark rounded-xl border border-white/10 p-6 hover:border-purple-500/30 transition-all">
+            <div className="portal-panel-dark rounded-[24px] p-6 transition-all">
               <div className="flex flex-col items-center text-center space-y-4">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-2xl font-bold">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary-500 to-amber-500 flex items-center justify-center text-white text-2xl font-bold">
                   {user.email?.charAt(0).toUpperCase() || 'U'}
                 </div>
                 <div>
                   <p className="text-white font-medium truncate max-w-full">{user.email}</p>
-                  <p className="text-xs text-gray-400 mt-1">PRO MEMBER</p>
+                  <p className="text-xs text-[#d8b7b0] mt-1">PRO MEMBER</p>
                 </div>
               </div>
             </div>
 
             {/* Invite Code Card */}
-            <div className="glass-dark rounded-xl border border-white/10 p-6 hover:border-purple-500/30 transition-all">
+            <div className="portal-panel-dark rounded-[24px] p-6 transition-all">
               <div className="flex items-center gap-2 mb-4">
-                <Ticket size={18} className="text-purple-400" />
+                <Ticket size={18} className="text-amber-300" />
                 <h2 className="text-base font-semibold text-white">我的邀请码</h2>
               </div>
 
@@ -286,28 +286,28 @@ export function AccountPage() {
                   </code>
                   <button
                     onClick={handleCopyInviteCode}
-                    className="w-full py-2.5 rounded-lg bg-purple-600/80 hover:bg-purple-600 text-white text-sm font-medium flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02]"
+                    className="portal-button-primary w-full py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02]"
                   >
                     {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
                     {copied ? "已复制" : "复制邀请码"}
                   </button>
-                  <p className="text-xs text-gray-400 text-center">
+                  <p className="text-xs text-[#d8b7b0] text-center">
                     分享给好友获得奖励
                   </p>
                 </div>
               ) : (
-                <p className="text-gray-400 text-sm text-center">暂无邀请码</p>
+                <p className="text-[#d8b7b0] text-sm text-center">暂无邀请码</p>
               )}
             </div>
 
             {/* Claim Invite Code Card */}
-            <div className="glass-dark rounded-xl border border-white/10 p-6 hover:border-green-500/30 transition-all">
+            <div className="portal-panel-dark rounded-[24px] p-6 transition-all">
               <div className="flex items-center gap-2 mb-4">
-                <Ticket size={18} className="text-green-400" />
+                <Ticket size={18} className="text-amber-300" />
                 <h2 className="text-base font-semibold text-white">填写邀请码</h2>
                 <div className="relative group">
-                  <HelpCircle size={14} className="text-gray-400 cursor-help" />
-                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block w-48 px-3 py-2 bg-gray-900 border border-white/20 rounded-lg text-xs text-gray-300 shadow-xl z-10">
+                  <HelpCircle size={14} className="text-[#d8b7b0] cursor-help" />
+                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block w-48 px-3 py-2 bg-[#3a1622] border border-white/20 rounded-lg text-xs text-[#f0d4cc] shadow-xl z-10">
                     邀请方和被邀请方都能获得 10 次使用机会
                     <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                   </div>
@@ -320,14 +320,14 @@ export function AccountPage() {
                   value={inviteCodeInput}
                   onChange={(e) => setInviteCodeInput(e.target.value.toUpperCase())}
                   placeholder="输入邀请码"
-                  className="w-full px-4 py-2.5 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500/50 text-center font-mono tracking-wider"
+                  className="w-full px-4 py-2.5 bg-black/20 border border-white/10 rounded-lg text-white placeholder-[#b99189] focus:outline-none focus:ring-2 focus:ring-primary-500/30 text-center font-mono tracking-wider"
                   disabled={claiming}
                 />
 
                 <button
                   onClick={handleClaimInvite}
                   disabled={claiming || !inviteCodeInput.trim()}
-                  className="w-full py-2.5 rounded-lg bg-green-600/80 hover:bg-green-600 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2"
+                  className="portal-button-primary w-full py-2.5 rounded-lg text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2"
                 >
                   {claiming ? (
                     <>
@@ -340,14 +340,14 @@ export function AccountPage() {
                 </button>
 
                 {claimSuccess && (
-                  <div className="flex items-start gap-2 text-xs text-green-300 bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2">
+                  <div className="flex items-start gap-2 text-xs text-amber-100 bg-amber-500/12 border border-amber-400/30 rounded-lg px-3 py-2">
                     <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
                     <span>邀请码已成功领取！</span>
                   </div>
                 )}
 
                 {authError && (
-                  <div className="flex items-start gap-2 text-xs text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+                  <div className="flex items-start gap-2 text-xs text-red-200 bg-red-500/12 border border-red-500/30 rounded-lg px-3 py-2">
                     <AlertCircle size={14} className="mt-0.5 shrink-0" />
                     <span>{authError}</span>
                   </div>
@@ -359,47 +359,47 @@ export function AccountPage() {
           {/* Right Column - Functional Areas */}
           <div className="lg:col-span-2 space-y-6">
             {/* Points Balance Card */}
-            <div className="glass-dark rounded-xl border border-white/10 p-8 hover:border-yellow-500/30 transition-all">
+            <div className="portal-panel rounded-[24px] p-8 transition-all">
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-lg bg-yellow-500/20">
-                  <Coins size={24} className="text-yellow-400" />
+                <div className="p-2 rounded-2xl bg-amber-500/12">
+                  <Coins size={24} className="text-amber-600" />
                 </div>
-                <h2 className="text-xl font-semibold text-white">剩余次数</h2>
+                <h2 className="text-xl font-semibold text-primary-900">剩余次数</h2>
               </div>
 
               {loadingPoints ? (
-                <div className="flex items-center gap-2 text-gray-400">
+                <div className="flex items-center gap-2 text-slate-500">
                   <Loader2 size={20} className="animate-spin" />
                   <span>加载中...</span>
                 </div>
               ) : (
                 <div className="flex items-baseline gap-3">
-                  <span className="text-6xl font-bold bg-gradient-to-r from-yellow-400 via-orange-400 to-yellow-500 bg-clip-text text-transparent">
+                  <span className="text-6xl font-bold bg-gradient-to-r from-amber-500 via-primary-500 to-amber-600 bg-clip-text text-transparent">
                     {points?.balance ?? 0}
                   </span>
-                  <span className="text-2xl text-gray-400">次</span>
+                  <span className="text-2xl text-slate-500">次</span>
                 </div>
               )}
             </div>
 
             {/* API Settings Card */}
-            <div className="glass-dark rounded-xl border border-white/10 p-8 hover:border-blue-500/30 transition-all">
+            <div className="portal-panel rounded-[24px] p-8 transition-all">
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-lg bg-blue-500/20">
-                  <Settings size={24} className="text-blue-400" />
+                <div className="p-2 rounded-2xl bg-primary-500/10">
+                  <Settings size={24} className="text-primary-600" />
                 </div>
-                <h2 className="text-xl font-semibold text-white">API 配置</h2>
+                <h2 className="text-xl font-semibold text-primary-900">API 配置</h2>
               </div>
 
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                  <label className="block text-sm font-medium text-slate-600 mb-2">
                     API Base URL
                   </label>
                   <select
                     value={apiUrl}
                     onChange={(e) => setApiUrl(e.target.value)}
-                    className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                    className="portal-input w-full px-4 py-3 rounded-xl transition-all"
                   >
                     {API_URL_OPTIONS.map((url: string) => (
                       <option key={url} value={url}>{url}</option>
@@ -408,7 +408,7 @@ export function AccountPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                  <label className="block text-sm font-medium text-slate-600 mb-2">
                     API Key
                   </label>
                   <input
@@ -416,14 +416,14 @@ export function AccountPage() {
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder="sk-..."
-                    className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                    className="portal-input w-full px-4 py-3 rounded-xl transition-all"
                   />
                 </div>
 
                 <button
                   onClick={handleSaveSettings}
                   disabled={savingSettings}
-                  className="w-full py-3 rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white font-medium disabled:opacity-50 transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2"
+                  className="portal-button-primary w-full py-3 rounded-xl font-medium disabled:opacity-50 transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2"
                 >
                   {savingSettings ? (
                     <>
@@ -443,8 +443,8 @@ export function AccountPage() {
                   )}
                 </button>
 
-                <div className="flex items-start gap-2 text-xs text-gray-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-4 py-3">
-                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                <div className="flex items-start gap-2 text-xs text-slate-600 bg-amber-500/10 border border-amber-500/15 rounded-xl px-4 py-3">
+                  <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-600" />
                   <p>
                     API 配置仅保存在当前设备的浏览器本地存储中（明文），不会上传到服务器。
                     请妥善保管您的 API Key，避免在公共设备上保存。
@@ -454,30 +454,30 @@ export function AccountPage() {
             </div>
 
             {/* Invite History Card */}
-            <div className="glass-dark rounded-xl border border-white/10 p-6 hover:border-purple-500/30 transition-all">
+            <div className="portal-panel-dark rounded-[24px] p-6 transition-all">
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 rounded-lg bg-purple-500/20">
-                  <Users size={20} className="text-purple-400" />
+                <div className="p-2 rounded-lg bg-primary-500/18">
+                  <Users size={20} className="text-[#f4c0cc]" />
                 </div>
                 <h2 className="text-lg font-semibold text-white">邀请历史</h2>
               </div>
 
               {loadingReferrals ? (
-                <div className="flex items-center gap-2 text-gray-400">
+                <div className="flex items-center gap-2 text-[#d8b7b0]">
                   <Loader2 size={16} className="animate-spin" />
                   <span className="text-sm">加载中...</span>
                 </div>
               ) : referrals.length > 0 ? (
                 <div className="space-y-2">
                   {referrals.map((ref) => (
-                    <div key={ref.id} className="flex items-center justify-between px-4 py-3 bg-black/20 border border-white/5 rounded-lg hover:bg-white/5 transition-all">
+                    <div key={ref.id} className="flex items-center justify-between px-4 py-3 bg-black/20 border border-white/8 rounded-lg hover:bg-white/5 transition-all">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500 to-amber-500 flex items-center justify-center text-white text-xs font-bold">
                           {ref.referred_user_id.slice(0, 2).toUpperCase()}
                         </div>
                         <div>
                           <p className="text-sm text-white font-mono">{ref.referred_user_id.slice(0, 8)}...</p>
-                          <p className="text-xs text-gray-400">{new Date(ref.created_at).toLocaleDateString('zh-CN')}</p>
+                          <p className="text-xs text-[#d8b7b0]">{new Date(ref.created_at).toLocaleDateString('zh-CN')}</p>
                         </div>
                       </div>
                       <CheckCircle2 size={16} className="text-green-400" />
@@ -485,31 +485,31 @@ export function AccountPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-400 text-sm text-center py-4">暂无邀请记录</p>
+                <p className="text-[#d8b7b0] text-sm text-center py-4">暂无邀请记录</p>
               )}
             </div>
 
             {/* Points Ledger Card */}
-            <div className="glass-dark rounded-xl border border-white/10 p-6 hover:border-yellow-500/30 transition-all">
+            <div className="portal-panel-dark rounded-[24px] p-6 transition-all">
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 rounded-lg bg-yellow-500/20">
-                  <History size={20} className="text-yellow-400" />
+                <div className="p-2 rounded-lg bg-amber-500/18">
+                  <History size={20} className="text-amber-300" />
                 </div>
                 <h2 className="text-lg font-semibold text-white">使用记录</h2>
               </div>
 
               {loadingLedger ? (
-                <div className="flex items-center gap-2 text-gray-400">
+                <div className="flex items-center gap-2 text-[#d8b7b0]">
                   <Loader2 size={16} className="animate-spin" />
                   <span className="text-sm">加载中...</span>
                 </div>
               ) : pointsLedger.length > 0 ? (
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {pointsLedger.map((record) => (
-                    <div key={record.id} className="flex items-center justify-between px-4 py-3 bg-black/20 border border-white/5 rounded-lg hover:bg-white/5 transition-all">
+                    <div key={record.id} className="flex items-center justify-between px-4 py-3 bg-black/20 border border-white/8 rounded-lg hover:bg-white/5 transition-all">
                       <div className="flex-1">
                         <p className="text-sm text-white">{record.description}</p>
-                        <p className="text-xs text-gray-400">{new Date(record.created_at).toLocaleString('zh-CN')}</p>
+                        <p className="text-xs text-[#d8b7b0]">{new Date(record.created_at).toLocaleString('zh-CN')}</p>
                       </div>
                       <span className={`text-base font-bold ${
                         record.amount > 0 ? 'text-green-400' : 'text-red-400'
@@ -520,7 +520,7 @@ export function AccountPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-400 text-sm text-center py-4">暂无使用记录</p>
+                <p className="text-[#d8b7b0] text-sm text-center py-4">暂无使用记录</p>
               )}
             </div>
           </div>

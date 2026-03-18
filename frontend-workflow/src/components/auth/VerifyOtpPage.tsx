@@ -109,17 +109,17 @@ export function VerifyOtpPage({ email, onBack }: Props) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a1a]">
-      <div className="glass-dark p-8 rounded-xl w-full max-w-md border border-white/10">
+    <div className="portal-shell min-h-screen flex items-center justify-center p-4">
+      <div className="portal-panel p-8 rounded-[28px] w-full max-w-md">
         <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-primary-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Mail className="text-primary-400" size={32} />
+          <div className="w-16 h-16 bg-primary-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Mail className="text-primary-600" size={32} />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">
+          <h2 className="text-2xl font-bold font-display text-primary-900 mb-2">
             Check your email
           </h2>
-          <p className="text-gray-400 text-sm">
-            We sent a verification code to <strong className="text-white">{email}</strong>
+          <p className="text-slate-500 text-sm">
+            We sent a verification code to <strong className="text-primary-900">{email}</strong>
           </p>
         </div>
 
@@ -144,7 +144,7 @@ export function VerifyOtpPage({ email, onBack }: Props) {
               onKeyDown={(e) => handleKeyDown(index, e)}
               onPaste={handlePaste}
               disabled={loading}
-              className="w-10 h-14 sm:w-12 text-center text-xl sm:text-2xl font-bold bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:border-primary-500 disabled:opacity-50 transition-colors"
+              className="portal-input w-10 h-14 sm:w-12 text-center text-xl sm:text-2xl font-bold rounded-xl disabled:opacity-50 transition-colors"
             />
           ))}
         </div>
@@ -153,7 +153,7 @@ export function VerifyOtpPage({ email, onBack }: Props) {
         <div className="text-center mb-6">
           <button
             onClick={() => setOtpLength(otpLength === 6 ? 8 : 6)}
-            className="text-xs text-gray-500 hover:text-gray-400 transition-colors"
+            className="text-xs text-slate-500 hover:text-primary-700 transition-colors"
           >
             {otpLength === 6 ? "Use 8-digit code" : "Use 6-digit code"}
           </button>
@@ -162,7 +162,7 @@ export function VerifyOtpPage({ email, onBack }: Props) {
         <button
           onClick={() => handleSubmit()}
           disabled={loading || otp.some((d) => !d)}
-          className="w-full py-2.5 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+          className="portal-button-primary w-full py-2.5 font-medium rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
         >
           {loading ? (
             <>
@@ -179,7 +179,7 @@ export function VerifyOtpPage({ email, onBack }: Props) {
           <button
             onClick={handleResend}
             disabled={loading || resendCooldown > 0}
-            className="text-sm text-gray-400 hover:text-primary-400 disabled:text-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-1 mx-auto"
+            className="text-sm text-slate-500 hover:text-primary-600 disabled:text-slate-300 disabled:cursor-not-allowed flex items-center justify-center gap-1 mx-auto"
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
             {resendCooldown > 0
@@ -189,7 +189,7 @@ export function VerifyOtpPage({ email, onBack }: Props) {
         </div>
 
         {/* Back button */}
-        <p className="mt-6 text-center text-gray-400 text-sm">
+        <p className="mt-6 text-center text-slate-500 text-sm">
           <button
             onClick={onBack}
             className="text-primary-400 hover:underline"

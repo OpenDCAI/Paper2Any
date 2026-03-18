@@ -296,20 +296,20 @@ const DrawioInlineEditor: React.FC<DrawioInlineEditorProps> = ({
   }, [drawioReady, xmlContent, animateDrawioLoad]);
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.25)]">
+    <div className="rounded-2xl border border-white/12 bg-white/8 p-4 backdrop-blur-xl shadow-[0_20px_60px_rgba(56,16,28,0.28)]">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-white">{title}</h3>
-          <p className="text-xs text-slate-400">{subtitle}</p>
+          <h3 className="text-sm font-semibold text-[#fff3ee]">{title}</h3>
+          <p className="text-xs text-[#cfb0aa]">{subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`text-[11px] ${drawioReady ? 'text-emerald-300' : 'text-slate-500'}`}>
+          <span className={`text-[11px] ${drawioReady ? 'text-amber-300' : 'text-[#c7a7a0]'}`}>
             {drawioReady ? '就绪 / Ready' : (loadingLabel ?? '加载中 / Loading')}
           </span>
           <select
             value={exportFormat}
             onChange={(event) => setExportFormat(event.target.value as 'drawio' | 'png' | 'svg')}
-            className="rounded-lg border border-white/10 bg-white/10 px-2 py-1 text-[11px] text-white outline-none focus:ring-2 focus:ring-white/20"
+            className="rounded-lg border border-white/12 bg-white/12 px-2 py-1 text-[11px] text-[#fff5f0] outline-none focus:ring-2 focus:ring-primary-500/20"
           >
             <option value="drawio">.drawio</option>
             <option value="png">.png</option>
@@ -319,23 +319,23 @@ const DrawioInlineEditor: React.FC<DrawioInlineEditorProps> = ({
             <input
               value={exportFilename}
               onChange={(event) => setExportFilename(event.target.value)}
-              className="rounded-lg border border-white/10 bg-white/10 px-2 py-1 pr-10 text-[11px] text-white outline-none focus:ring-2 focus:ring-white/20"
+              className="rounded-lg border border-white/12 bg-white/12 px-2 py-1 pr-10 text-[11px] text-[#fff5f0] outline-none focus:ring-2 focus:ring-primary-500/20"
               placeholder="diagram"
             />
-            <span className="pointer-events-none absolute right-2 text-[10px] text-slate-400">.{exportFormat}</span>
+            <span className="pointer-events-none absolute right-2 text-[10px] text-[#c7a7a0]">.{exportFormat}</span>
           </div>
           <button
             type="button"
             onClick={handleExport}
             disabled={isExporting || !xmlContent}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs text-white hover:bg-white/20 transition-all disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/12 px-3 py-2 text-xs text-[#fff5f0] hover:bg-white/18 transition-all disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isExporting ? <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" /> : <Download size={14} />}
             导出 / Export
           </button>
         </div>
       </div>
-      <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-[#0b0f17]" style={{ height }}>
+      <div className="mt-4 overflow-hidden rounded-2xl border border-white/12 bg-[#2f1620]" style={{ height }}>
         <iframe
           ref={iframeRef}
           src="https://embed.diagrams.net/?embed=1&spin=1&proto=json&autosave=1&saveAndExit=0&noSaveBtn=1&noExitBtn=1&sidebar=0&layers=0&toolbar=0&menubar=0&status=0&format=0"

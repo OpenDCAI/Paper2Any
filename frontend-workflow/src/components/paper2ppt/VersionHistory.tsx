@@ -38,11 +38,11 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({
   };
 
   return (
-    <div className="glass rounded-xl border border-white/10 p-4 mb-4">
+    <div className="paper2ppt-panel rounded-3xl p-4 mb-4">
       <div className="flex items-center gap-2 mb-3">
-        <History size={16} className="text-purple-400" />
-        <h4 className="text-sm text-gray-300 font-medium">版本历史</h4>
-        <span className="text-xs text-gray-500">
+        <History size={16} className="text-[#8c1d40]" />
+        <h4 className="text-sm font-semibold text-[#1d1c1a]">版本历史</h4>
+        <span className="text-xs text-[#675f58]">
           ({versions.length} 个版本)
         </span>
       </div>
@@ -56,13 +56,13 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({
               key={version.versionNumber}
               className={`flex-shrink-0 w-32 rounded-lg border transition-all ${
                 isCurrent
-                  ? 'border-purple-500 bg-purple-500/10'
-                  : 'border-white/10 bg-white/5 hover:border-purple-400/50'
+                  ? 'border-[rgba(140,29,64,0.28)] bg-[rgba(140,29,64,0.08)]'
+                  : 'border-[rgba(110,76,55,0.14)] bg-white/70 hover:border-[rgba(140,29,64,0.28)]'
               }`}
             >
-              <div className="relative aspect-video rounded-t-lg overflow-hidden bg-white/5">
+              <div className="relative aspect-video overflow-hidden rounded-t-lg bg-[rgba(255,255,255,0.82)]">
                 {imageErrors[version.imageUrl] ? (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-500">
+                  <div className="flex h-full w-full flex-col items-center justify-center text-[#675f58]">
                     <ImageOff size={20} className="mb-1" />
                     <span className="text-xs">加载失败</span>
                   </div>
@@ -78,7 +78,7 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({
                   />
                 )}
                 {isCurrent && (
-                  <div className="absolute top-1 right-1 bg-purple-500 text-white text-xs px-1.5 py-0.5 rounded">
+                  <div className="absolute top-1 right-1 rounded bg-[#8c1d40] px-1.5 py-0.5 text-xs text-white">
                     当前
                   </div>
                 )}
@@ -86,17 +86,17 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({
 
               <div className="p-2">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-[#675f58]">
                     v{version.versionNumber}
                   </span>
-                  <Clock size={10} className="text-gray-500" />
+                  <Clock size={10} className="text-[#8c1d40]" />
                 </div>
 
-                <p className="text-xs text-gray-500 mb-2 line-clamp-2">
+                <p className="mb-2 line-clamp-2 text-xs text-[#675f58]">
                   {version.prompt || '初始生成'}
                 </p>
 
-                <p className="text-xs text-gray-600 mb-2">
+                <p className="mb-2 text-xs text-[#4d4742]">
                   {formatTimestamp(version.timestamp)}
                 </p>
 
@@ -104,7 +104,7 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({
                   <button
                     onClick={() => onRevert(version.versionNumber)}
                     disabled={isGenerating}
-                    className="w-full px-2 py-1 text-xs rounded bg-white/10 hover:bg-white/20 text-gray-300 flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="paper2ppt-button-secondary flex w-full items-center justify-center gap-1 rounded-lg px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <RotateCcw size={10} />
                     恢复

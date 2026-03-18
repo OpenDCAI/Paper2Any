@@ -56,15 +56,13 @@ const Paper2PosterPage = () => {
   const [copySuccess, setCopySuccess] = useState('');
   const [showBanner, setShowBanner] = useState(true);
 
-  const shareText = `发现一个超好用的AI工具 DataFlow-Agent！🚀
-支持论文转PPT、PDF转PPT、论文转海报等功能，科研打工人的福音！
+  const shareText = `Paper2Any 是一站式 AI 科研与演示文稿助手，支持论文转海报、论文转 PPT、PDF 转 PPT 等能力。
 
-🔗 在线体验：https://dcai-paper2any.nas.cpolar.cn/
-⭐ GitHub Agent：https://github.com/OpenDCAI/Paper2Any
-🌟 GitHub Core：https://github.com/OpenDCAI/DataFlow
+项目主页:
+Paper2Any: https://github.com/OpenDCAI/Paper2Any
+DataFlow: https://github.com/OpenDCAI/DataFlow
 
-转发本文案+截图，联系微信群管理员即可获取免费Key！🎁
-#AI工具 #学术海报 #科研效率 #开源项目`;
+当前北大内网部署版本已取消登录限制与次数限制，可直接在平台内使用。`;
 
   const handleCopyShareText = async () => {
     try {
@@ -88,11 +86,11 @@ const Paper2PosterPage = () => {
           document.body.removeChild(textArea);
         }
       }
-      setCopySuccess('文案已复制！快去分享吧');
+      setCopySuccess('项目说明已复制');
       setTimeout(() => setCopySuccess(''), 2000);
     } catch (err) {
       console.error('复制失败', err);
-      setCopySuccess('复制失败，请手动复制');
+      setCopySuccess('复制失败，请手动重试');
     }
   };
 
@@ -362,7 +360,7 @@ const Paper2PosterPage = () => {
   };
 
   return (
-    <div className="w-full h-screen flex flex-col bg-[#050512] overflow-hidden">
+    <div className="portalize-page flex h-screen w-full flex-col overflow-hidden">
       <Banner show={showBanner} onClose={() => setShowBanner(false)} stars={stars} />
 
       <div className="flex-1 overflow-auto">
@@ -419,7 +417,6 @@ const Paper2PosterPage = () => {
         .animate-shimmer {
           animation: shimmer 3s infinite;
         }
-        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); }
       `}</style>
     </div>
   );

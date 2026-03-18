@@ -78,16 +78,16 @@ const NodeConfigPanel = ({ node, onClose, onDelete, onUpdate }: NodeConfigPanelP
   };
 
   return (
-    <div className="w-96 h-full glass-dark border-l border-white/10 flex flex-col animate-slide-in">
+    <div className="w-96 h-full portal-panel-dark border-l border-white/10 flex flex-col animate-slide-in">
       {/* 头部 */}
       <div className="p-6 border-b border-white/10">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-white">节点配置</h2>
+          <h2 className="text-lg font-bold font-display text-[#fff3ee]">节点配置</h2>
           <button
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors"
           >
-            <X size={20} className="text-gray-400" />
+            <X size={20} className="text-[#d8b7b0]" />
           </button>
         </div>
 
@@ -103,10 +103,10 @@ const NodeConfigPanel = ({ node, onClose, onDelete, onUpdate }: NodeConfigPanelP
             {IconComponent && <IconComponent size={28} />}
           </div>
           <div>
-            <div className="font-semibold text-white">
+            <div className="font-semibold text-[#fff3ee]">
               {agentType.displayName}
             </div>
-            <div className="text-sm text-gray-400">{agentType.name}</div>
+            <div className="text-sm text-[#d8b7b0]">{agentType.name}</div>
           </div>
         </div>
       </div>
@@ -115,7 +115,7 @@ const NodeConfigPanel = ({ node, onClose, onDelete, onUpdate }: NodeConfigPanelP
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {/* 基础参数 */}
         <div>
-          <h3 className="text-sm font-semibold text-gray-400 mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-[#d8b7b0] mb-4 flex items-center gap-2">
             <Settings size={16} />
             基础参数
           </h3>
@@ -123,33 +123,33 @@ const NodeConfigPanel = ({ node, onClose, onDelete, onUpdate }: NodeConfigPanelP
           <div className="space-y-4">
             {/* 模型名称 */}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">模型名称</label>
+              <label className="block text-xs text-[#c7a7a0] mb-1">模型名称</label>
               <input
                 type="text"
                 value={config.model_name || ''}
                 onChange={(e) => setConfig({ ...config, model_name: e.target.value })}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg
-                         text-white text-sm focus:outline-none focus:border-primary-500"
+                className="w-full px-3 py-2 bg-white/8 border border-white/10 rounded-xl
+                         text-[#fff6f1] text-sm focus:outline-none focus:border-primary-300"
                 placeholder="gpt-4"
               />
             </div>
 
             {/* API URL */}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Chat API URL (可选)</label>
+              <label className="block text-xs text-[#c7a7a0] mb-1">Chat API URL (可选)</label>
               <input
                 type="text"
                 value={config.chat_api_url || ''}
                 onChange={(e) => setConfig({ ...config, chat_api_url: e.target.value })}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg
-                         text-white text-sm focus:outline-none focus:border-primary-500"
+                className="w-full px-3 py-2 bg-white/8 border border-white/10 rounded-xl
+                         text-[#fff6f1] text-sm focus:outline-none focus:border-primary-300"
                 placeholder="https://api.openai.com/v1"
               />
             </div>
 
             {/* Temperature */}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">
+              <label className="block text-xs text-[#c7a7a0] mb-1">
                 Temperature: {config.temperature?.toFixed(1) || '0.0'}
               </label>
               <input
@@ -165,24 +165,24 @@ const NodeConfigPanel = ({ node, onClose, onDelete, onUpdate }: NodeConfigPanelP
 
             {/* Max Tokens */}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Max Tokens</label>
+              <label className="block text-xs text-[#c7a7a0] mb-1">Max Tokens</label>
               <input
                 type="number"
                 value={config.max_tokens || 16384}
                 onChange={(e) => setConfig({ ...config, max_tokens: parseInt(e.target.value) })}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg
-                         text-white text-sm focus:outline-none focus:border-primary-500"
+                className="w-full px-3 py-2 bg-white/8 border border-white/10 rounded-xl
+                         text-[#fff6f1] text-sm focus:outline-none focus:border-primary-300"
               />
             </div>
 
             {/* Tool Mode */}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Tool Mode</label>
+              <label className="block text-xs text-[#c7a7a0] mb-1">Tool Mode</label>
               <select
                 value={config.tool_mode || 'auto'}
                 onChange={(e) => setConfig({ ...config, tool_mode: e.target.value as any })}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg
-                         text-white text-sm focus:outline-none focus:border-primary-500"
+                className="w-full px-3 py-2 bg-white/8 border border-white/10 rounded-xl
+                         text-[#fff6f1] text-sm focus:outline-none focus:border-primary-300"
               >
                 <option value="auto">Auto</option>
                 <option value="none">None</option>
@@ -192,12 +192,12 @@ const NodeConfigPanel = ({ node, onClose, onDelete, onUpdate }: NodeConfigPanelP
 
             {/* Parser Type */}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Parser Type</label>
+              <label className="block text-xs text-[#c7a7a0] mb-1">Parser Type</label>
               <select
                 value={config.parser_type || 'json'}
                 onChange={(e) => setConfig({ ...config, parser_type: e.target.value as any })}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg
-                         text-white text-sm focus:outline-none focus:border-primary-500"
+                className="w-full px-3 py-2 bg-white/8 border border-white/10 rounded-xl
+                         text-[#fff6f1] text-sm focus:outline-none focus:border-primary-300"
               >
                 <option value="json">JSON</option>
                 <option value="xml">XML</option>

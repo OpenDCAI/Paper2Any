@@ -40,10 +40,10 @@ export function AuthGate({ children }: Props) {
   // Show loading spinner during initial session check
   if (loading && !isAnonymousLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0a0a1a]">
+      <div className="portal-shell min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 size={32} className="animate-spin text-primary-500" />
-          <span className="text-gray-400 text-sm">Loading...</span>
+          <span className="text-slate-500 text-sm">Loading...</span>
         </div>
       </div>
     );
@@ -71,11 +71,11 @@ export function AuthGate({ children }: Props) {
     };
 
     const authFooter = (
-      <div className="mt-4 pt-4 border-t border-white/10">
+      <div className="mt-4 pt-4 border-t border-primary-500/10">
         <button
           onClick={handleAnonymousLogin}
           disabled={isAnonymousLoading}
-          className="w-full py-2 text-gray-400 hover:text-white text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+          className="w-full py-2 text-slate-500 hover:text-primary-700 text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
         >
           {isAnonymousLoading ? (
             <Loader2 size={16} className="animate-spin" />

@@ -4,7 +4,7 @@
  * Uploads files to Storage and saves metadata to user_files table.
  */
 
-import { supabase } from "../lib/supabase";
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { API_KEY } from "../config/api";
 
 export interface FileRecord {
@@ -59,8 +59,9 @@ export async function uploadAndSaveFile(
   workflowType: string
 ): Promise<FileRecord | null> {
   try {
-    // Get JWT token from Supabase (if configured)
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = isSupabaseConfigured()
+      ? (await supabase.auth.getSession()).data.session
+      : null;
 
     // Sanitize filename to avoid special characters
     const sanitizedFileName = sanitizeFileName(fileName, workflowType);
@@ -133,8 +134,9 @@ export async function uploadAndSaveFile(
  */
 export async function getFileRecords(): Promise<FileRecord[]> {
   try {
-    // Get JWT token from Supabase (if configured)
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = isSupabaseConfigured()
+      ? (await supabase.auth.getSession()).data.session
+      : null;
 
     // Prepare headers
     const headers: Record<string, string> = {

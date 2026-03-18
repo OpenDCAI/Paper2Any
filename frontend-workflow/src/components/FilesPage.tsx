@@ -72,15 +72,15 @@ export function FilesPage() {
       <div className="p-6 max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-bold text-white">{t("filesPage.title")}</h1>
+          <h1 className="text-xl font-bold font-display text-primary-900">{t("filesPage.title")}</h1>
           <button
             onClick={loadFiles}
             disabled={loading}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
+            className="p-2 hover:bg-primary-500/5 rounded-xl transition-colors disabled:opacity-50"
           >
             <RefreshCw
               size={18}
-              className={`text-gray-400 ${loading ? "animate-spin" : ""}`}
+              className={`text-primary-500 ${loading ? "animate-spin" : ""}`}
             />
           </button>
         </div>
@@ -92,21 +92,21 @@ export function FilesPage() {
               size={32}
               className="animate-spin text-primary-500 mx-auto"
             />
-            <p className="text-gray-400 mt-3">{t("filesPage.loading")}</p>
+            <p className="text-slate-500 mt-3">{t("filesPage.loading")}</p>
           </div>
         ) : files.length === 0 ? (
-          <div className="text-center py-12 glass-dark rounded-xl border border-white/10">
-            <FileText className="mx-auto text-gray-600 mb-4" size={48} />
-            <p className="text-gray-400">{t("filesPage.empty.title")}</p>
-            <p className="text-gray-500 text-sm mt-1">
+          <div className="text-center py-12 portal-panel rounded-[24px]">
+            <FileText className="mx-auto text-primary-300 mb-4" size={48} />
+            <p className="text-primary-900">{t("filesPage.empty.title")}</p>
+            <p className="text-slate-500 text-sm mt-1">
               {t("filesPage.empty.desc")}
             </p>
           </div>
         ) : (
-          <div className="glass-dark rounded-xl border border-white/10 overflow-hidden">
+          <div className="portal-panel rounded-[24px] overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="text-left text-sm text-gray-500 border-b border-white/10">
+                <tr className="text-left text-sm text-slate-500 border-b border-primary-500/10">
                   <th className="px-4 py-3 font-medium">{t("filesPage.table.fileName")}</th>
                   <th className="px-4 py-3 font-medium">{t("filesPage.table.size")}</th>
                   <th className="px-4 py-3 font-medium">{t("filesPage.table.date")}</th>
@@ -118,25 +118,25 @@ export function FilesPage() {
                 {files.map((file) => (
                   <tr
                     key={file.id}
-                    className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                    className="border-b border-primary-500/5 hover:bg-primary-500/5 transition-colors"
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <FileText size={18} className="text-primary-400" />
-                        <span className="text-white truncate max-w-[200px]">
+                        <FileText size={18} className="text-primary-500" />
+                        <span className="text-slate-900 truncate max-w-[200px]">
                           {file.file_name}
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-400 text-sm">
+                    <td className="px-4 py-3 text-slate-500 text-sm">
                       {formatSize(file.file_size)}
                     </td>
-                    <td className="px-4 py-3 text-gray-400 text-sm">
+                    <td className="px-4 py-3 text-slate-500 text-sm">
                       {formatDate(file.created_at, i18n.language)}
                     </td>
                     <td className="px-4 py-3">
                       {file.workflow_type && (
-                        <span className="px-2 py-0.5 text-xs rounded-full bg-primary-500/20 text-primary-300">
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-primary-500/10 text-primary-700">
                           {file.workflow_type}
                         </span>
                       )}

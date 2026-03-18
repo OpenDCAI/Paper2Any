@@ -12,7 +12,7 @@ interface DemoCardProps {
 
 const DemoCard = ({ title, desc, inputImg, outputImg }: DemoCardProps) => {
   return (
-    <div className="glass rounded-lg border border-white/10 p-3 flex flex-col gap-2 hover:bg-white/5 transition-colors">
+    <div className="portal-panel-dark rounded-xl border border-white/10 p-3 flex flex-col gap-2 hover:border-primary-400/20 hover:bg-white/5 transition-colors">
       <div className="flex gap-2">
         {/* 左侧：输入示例图片 */}
         <div className="flex-1 rounded-md bg-white/5 border border-dashed border-white/10 flex items-center justify-center demo-input-placeholder overflow-hidden">
@@ -23,11 +23,11 @@ const DemoCard = ({ title, desc, inputImg, outputImg }: DemoCardProps) => {
               className="w-full h-full object-cover"
             />
           ) : (
-            <span className="text-[10px] text-gray-400">输入示例图（待替换）</span>
+            <span className="text-[10px] text-[#d7c0bb]">输入示例图（待替换）</span>
           )}
         </div>
         {/* 右侧：输出 PPTX 示例图片 */}
-        <div className="flex-1 rounded-md bg-primary-500/10 border border-dashed border-primary-300/40 flex items-center justify-center demo-output-placeholder overflow-hidden">
+        <div className="flex-1 rounded-md bg-gradient-to-br from-primary-500/12 to-amber-500/10 border border-dashed border-primary-300/35 flex items-center justify-center demo-output-placeholder overflow-hidden">
           {outputImg ? (
             <img
               src={outputImg}
@@ -35,13 +35,13 @@ const DemoCard = ({ title, desc, inputImg, outputImg }: DemoCardProps) => {
               className="w-full h-full object-cover"
             />
           ) : (
-            <span className="text-[10px] text-primary-200">PPTX 示例图（待替换）</span>
+            <span className="text-[10px] text-[#fff1e6]">PPTX 示例图（待替换）</span>
           )}
         </div>
       </div>
       <div>
-        <p className="text-[13px] text-white font-medium mb-1">{title}</p>
-        <p className="text-[11px] text-gray-400 leading-snug">{desc}</p>
+        <p className="text-[13px] text-[#fff4ee] font-medium mb-1">{title}</p>
+        <p className="text-[11px] text-[#d7c0bb] leading-snug">{desc}</p>
       </div>
     </div>
   );
@@ -112,21 +112,21 @@ const ExamplesSection: React.FC<ExamplesSectionProps> = ({ visibleTypes }) => {
     <div className="space-y-4 mb-2">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
-          <h3 className="text-sm font-medium text-gray-200">{t('examples.sectionTitle')}</h3>
+          <h3 className="text-sm font-medium text-[#f6e6dc]">{t('examples.sectionTitle')}</h3>
           <a
             href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
             target="_blank"
             rel="noopener noreferrer"
-            className="group relative inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/50 border border-white/10 text-xs font-medium text-white overflow-hidden transition-all hover:border-white/30 hover:shadow-[0_0_15px_rgba(168,85,247,0.5)]"
+            className="group relative inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/30 border border-primary-300/20 text-xs font-medium text-white overflow-hidden transition-all hover:border-primary-300/40 hover:shadow-[0_0_18px_rgba(143,49,71,0.28)]"
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-            <Sparkles size={12} className="text-yellow-300 animate-pulse" />
-            <span className="bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300 bg-clip-text text-transparent group-hover:from-blue-200 group-hover:via-purple-200 group-hover:to-pink-200">
+            <div className="absolute inset-0 bg-gradient-to-r from-primary-500/22 via-primary-400/16 to-amber-500/18 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <Sparkles size={12} className="text-amber-300 animate-pulse" />
+            <span className="bg-gradient-to-r from-[#f5d1c1] via-[#f8e1b8] to-[#f7cfa4] bg-clip-text text-transparent">
               {t('examples.feishuLink')}
             </span>
           </a>
         </div>
-        <span className="text-[11px] text-gray-500">
+        <span className="text-[11px] text-[#b8968f]">
           {t('examples.sectionSubtitle')}
         </span>
       </div>

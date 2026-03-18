@@ -17,7 +17,7 @@ if [ -f logs/uvicorn.pid ]; then
 fi
 
 # 使用 nohup + stdin 重定向彻底脱离当前 shell
-nohup uvicorn fastapi_app.main:app --workers 16 --port 8000 \
+nohup uvicorn fastapi_app.main:app --workers 2 --port 9012 \
   --log-level info \
   >> logs/app.log 2>&1 < /dev/null &
 

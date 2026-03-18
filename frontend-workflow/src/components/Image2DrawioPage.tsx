@@ -37,9 +37,9 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 const FEISHU_DOC_URL = 'https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh';
 
 const panelClass =
-  'rounded-2xl bg-white/5 border border-white/10 p-4 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.25)]';
+  'rounded-2xl bg-white/8 border border-white/12 p-4 backdrop-blur-xl shadow-[0_20px_60px_rgba(56,16,28,0.28)]';
 const inputClass =
-  'w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-slate-500 outline-none transition focus:border-amber-400/60 focus:ring-2 focus:ring-amber-500/20';
+  'w-full rounded-xl bg-white/10 border border-white/12 px-3 py-2 text-sm text-[#fff5f0] placeholder-[#c7a7a0] outline-none transition focus:border-primary-300/60 focus:ring-2 focus:ring-primary-500/20';
 
 const Image2DrawioPage = () => {
   const { t } = useTranslation(['image2drawio', 'common']);
@@ -493,19 +493,19 @@ const Image2DrawioPage = () => {
   }, [drawioReady, xmlContent, animateDrawioLoad]);
 
   return (
-    <div className="relative w-full h-full overflow-y-auto bg-[#0c0f12] text-slate-100">
-      <div className="pointer-events-none absolute -top-24 right-[-10%] h-72 w-72 rounded-full bg-amber-500/10 blur-[120px]" />
-      <div className="pointer-events-none absolute bottom-[-30%] left-[-5%] h-80 w-80 rounded-full bg-lime-500/10 blur-[140px]" />
+    <div className="relative w-full h-full overflow-y-auto bg-[#221018] text-slate-100">
+      <div className="pointer-events-none absolute -top-24 right-[-10%] h-72 w-72 rounded-full bg-primary-500/16 blur-[120px]" />
+      <div className="pointer-events-none absolute bottom-[-30%] left-[-5%] h-80 w-80 rounded-full bg-amber-500/12 blur-[140px]" />
 
       <div className="relative mx-auto w-full max-w-[1400px] px-6 pt-8 pb-8">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
-              <span className={`h-1.5 w-1.5 rounded-full ${drawioReady ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-[#f0d7d0]">
+              <span className={`h-1.5 w-1.5 rounded-full ${drawioReady ? 'bg-amber-300' : 'bg-[#a4857c]'}`} />
               image2drawio
             </div>
             <h1 className="text-2xl font-semibold text-white">{t('title')}</h1>
-            <p className="text-sm text-slate-400">{t('subtitle')}</p>
+            <p className="text-sm text-[#d8b7b0]">{t('subtitle')}</p>
           </div>
         </div>
 
@@ -527,14 +527,14 @@ const Image2DrawioPage = () => {
                 }}
                 onDrop={handleDrop}
                 className={`flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-4 py-6 text-center transition-all ${
-                  isDragOver ? 'border-amber-400/80 bg-amber-400/10' : 'border-white/10 bg-white/5'
+                  isDragOver ? 'border-primary-300/80 bg-primary-400/10' : 'border-white/10 bg-white/6'
                 }`}
               >
                 {selectedFile ? (
                   <>
                     <FileImage className="h-10 w-10 text-amber-300" />
-                    <div className="text-sm text-slate-200">{selectedFile.name}</div>
-                    <div className="text-xs text-slate-500">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</div>
+                    <div className="text-sm text-[#fff2ec]">{selectedFile.name}</div>
+                    <div className="text-xs text-[#c7a7a0]">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</div>
                     <button
                       onClick={() => setSelectedFile(null)}
                       className="text-xs text-amber-300 hover:text-amber-200"
@@ -545,25 +545,25 @@ const Image2DrawioPage = () => {
                 ) : (
                   <>
                     <UploadCloud className="h-10 w-10 text-amber-300" />
-                    <p className="text-sm text-slate-300">{t('upload.drag')}</p>
-                    <label className="px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-lime-500 text-white text-xs font-semibold cursor-pointer hover:from-amber-400 hover:to-lime-400 transition-all">
+                    <p className="text-sm text-[#f0d7d0]">{t('upload.drag')}</p>
+                    <label className="px-4 py-2 rounded-full bg-gradient-to-r from-primary-600 to-amber-500 text-white text-xs font-semibold cursor-pointer hover:from-primary-500 hover:to-amber-400 transition-all">
                       {t('upload.button')}
                       <input type="file" accept="image/png,image/jpeg,image/jpg" className="hidden" onChange={handleFileChange} />
                     </label>
-                    <p className="text-xs text-slate-500">{t('upload.hint')}</p>
+                    <p className="text-xs text-[#c7a7a0]">{t('upload.hint')}</p>
                   </>
                 )}
               </div>
             </div>
 
             <div className={panelClass}>
-              <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-[#fff2ec] mb-3 flex items-center gap-2">
                 <Sparkles className="text-amber-300" size={18} />
                 {t('config.title')}
               </h3>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="block text-xs text-slate-400">{t('config.apiUrl')}</label>
+                    <label className="block text-xs text-[#d8b7b0]">{t('config.apiUrl')}</label>
                     <QRCodeTooltip>
                       <a
                         href={getPurchaseUrl(apiUrl)}
@@ -585,7 +585,7 @@ const Image2DrawioPage = () => {
                     ))}
                   </select>
 
-                  <label className="block text-xs text-slate-400 flex items-center gap-1">
+                  <label className="block text-xs text-[#d8b7b0] flex items-center gap-1">
                     <Key size={12} /> {t('config.apiKey')}
                   </label>
                   <input
@@ -596,7 +596,7 @@ const Image2DrawioPage = () => {
                     className={inputClass}
                   />
 
-                <label className="block text-xs text-slate-400 flex items-center gap-1 mb-1">
+                <label className="block text-xs text-[#d8b7b0] flex items-center gap-1 mb-1">
                   <ImageIcon size={12} /> {t('config.genModel')}
                 </label>
                 <select
@@ -628,22 +628,22 @@ const Image2DrawioPage = () => {
             <button
               onClick={handleGenerate}
               disabled={isProcessing}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-lime-500 text-white text-sm font-semibold hover:from-amber-400 hover:to-lime-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_10px_30px_rgba(217,119,6,0.25)]"
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-primary-600 to-amber-500 text-white text-sm font-semibold hover:from-primary-500 hover:to-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_10px_30px_rgba(143,49,71,0.28)]"
             >
               {isProcessing ? t('actions.processing') : t('actions.generate')}
             </button>
           </div>
 
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col h-full rounded-3xl bg-white/5 border border-white/10 p-4 md:p-6 backdrop-blur-xl shadow-[0_25px_70px_rgba(0,0,0,0.35)]">
+            <div className="flex flex-col h-full rounded-3xl bg-white/7 border border-white/12 p-4 md:p-6 backdrop-blur-xl shadow-[0_25px_70px_rgba(56,16,28,0.34)]">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-[#fff2ec] flex items-center gap-2">
                   <Wand2 className="text-amber-300" size={18} />
                   {t('preview.title')}
                 </h3>
                 {xmlContent && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center rounded-full bg-white/5 border border-white/10 p-1">
+                    <div className="flex items-center rounded-full bg-white/6 border border-white/10 p-1">
                       {(['drawio', 'svg', 'png'] as const).map(format => (
                         <button
                           key={format}
@@ -651,27 +651,27 @@ const Image2DrawioPage = () => {
                           className={`px-3 py-1 text-xs rounded-full transition ${
                             exportFormat === format
                               ? 'bg-white/20 text-white'
-                              : 'text-slate-400 hover:text-white'
+                              : 'text-[#c7a7a0] hover:text-white'
                           }`}
                         >
                           {format.toUpperCase()}
                         </button>
                       ))}
                     </div>
-                    <div className="flex items-center rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+                    <div className="flex items-center rounded-xl bg-white/6 border border-white/10 px-3 py-2">
                       <input
                         type="text"
                         value={exportFilename}
                         onChange={e => setExportFilename(e.target.value)}
-                        className="w-24 bg-transparent text-xs text-white placeholder-slate-500 outline-none"
+                        className="w-24 bg-transparent text-xs text-white placeholder-[#c7a7a0] outline-none"
                         placeholder="diagram"
                       />
-                      <span className="ml-2 text-xs text-slate-400">.{exportFormat}</span>
+                      <span className="ml-2 text-xs text-[#c7a7a0]">.{exportFormat}</span>
                     </div>
                     <button
                       onClick={handleExport}
                       disabled={isExporting || isProcessing}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white text-xs font-semibold hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/12 text-white text-xs font-semibold hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
                       {isExporting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Download size={14} />}
                       {t('actions.download')}
@@ -684,7 +684,7 @@ const Image2DrawioPage = () => {
                             : filePath;
                           window.open(`${API_BASE}/outputs/${relative}`, '_blank');
                         }}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white text-xs font-semibold hover:bg-white/20 transition-all"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/12 text-white text-xs font-semibold hover:bg-white/20 transition-all"
                       >
                         <ExternalLink size={14} />
                         {t('actions.open')}
@@ -693,7 +693,7 @@ const Image2DrawioPage = () => {
                   </div>
                 )}
               </div>
-              <div className={`mt-4 flex-1 bg-[#0b0f17] rounded-2xl border border-white/10 min-h-[420px] lg:min-h-[720px] overflow-hidden ${xmlContent ? 'relative block' : 'flex items-center justify-center'}`}>
+              <div className={`mt-4 flex-1 bg-[#2f1620] rounded-2xl border border-white/10 min-h-[420px] lg:min-h-[720px] overflow-hidden ${xmlContent ? 'relative block' : 'flex items-center justify-center'}`}>
                 {xmlContent ? (
                   <iframe
                     ref={iframeRef}
@@ -703,8 +703,8 @@ const Image2DrawioPage = () => {
                   />
                 ) : (
                   <div className="text-center animate-fade-in">
-                    <FileImage className="w-12 h-12 mx-auto text-slate-500 mb-3" />
-                    <p className="text-sm text-slate-400">{t('preview.placeholder')}</p>
+                    <FileImage className="w-12 h-12 mx-auto text-[#b99189] mb-3" />
+                    <p className="text-sm text-[#d8b7b0]">{t('preview.placeholder')}</p>
                   </div>
                 )}
               </div>
@@ -712,14 +712,14 @@ const Image2DrawioPage = () => {
 
             <div className={panelClass}>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-[#fff2ec] flex items-center gap-2">
                   <Wand2 className="text-amber-300" size={18} />
                   {t('xml.title')}
                 </h3>
                 <button
                   onClick={handleCopyXml}
                   disabled={!xmlContent}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 text-xs text-slate-200 hover:bg-white/10 disabled:opacity-50"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/8 text-xs text-[#fff2ec] hover:bg-white/10 disabled:opacity-50"
                 >
                   <Copy size={12} />
                   {copySuccess || t('actions.copy')}
@@ -729,7 +729,7 @@ const Image2DrawioPage = () => {
                 value={xmlContent}
                 readOnly
                 placeholder={t('xml.placeholder')}
-                className="w-full h-48 rounded-xl bg-[#0b0f17] border border-white/10 px-3 py-2 text-xs text-slate-200 outline-none"
+                className="w-full h-48 rounded-xl bg-[#2f1620] border border-white/10 px-3 py-2 text-xs text-[#f0d7d0] outline-none"
               />
             </div>
           </div>

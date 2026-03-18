@@ -49,21 +49,21 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
       labelKey: t('app.navSub.paper2figureModelDrawio'),
       tooltipKey: t('app.navSubTooltip.paper2figureModelDrawio'),
       icon: Wand2,
-      gradient: 'from-emerald-500 to-teal-500'
+      gradient: 'from-primary-600 to-amber-500'
     },
     {
       id: 'paper2figure-tech-exp',
       labelKey: t('app.navSub.paper2figureTechExp'),
       tooltipKey: t('app.navSubTooltip.paper2figureTechExp'),
       icon: Sparkles,
-      gradient: 'from-sky-500 to-cyan-500'
+      gradient: 'from-primary-500 to-primary-700'
     },
     {
       id: 'paper2drawio-ai',
       labelKey: t('app.navSub.paper2drawioAi'),
       tooltipKey: t('app.navSubTooltip.paper2drawioAi'),
       icon: Network,
-      gradient: 'from-violet-500 to-fuchsia-500'
+      gradient: 'from-primary-700 to-amber-500'
     }
   ]), [t]);
 
@@ -80,63 +80,63 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
       labelKey: t('app.nav.image2drawio'),
       tooltipKey: t('app.navTooltip.image2drawio'),
       icon: Image,
-      gradient: 'from-amber-500 to-lime-500'
+      gradient: 'from-amber-500 to-primary-500'
     },
     {
       id: 'paper2rebuttal',
       labelKey: t('app.nav.paper2rebuttal'),
       tooltipKey: t('app.navTooltip.paper2rebuttal'),
       icon: MessageSquare,
-      gradient: 'from-rose-500 to-pink-500'
+      gradient: 'from-primary-600 to-primary-500'
     },
     {
       id: 'paper2ppt',
       labelKey: t('app.nav.paper2ppt'),
       tooltipKey: t('app.navTooltip.paper2ppt'),
       icon: Presentation,
-      gradient: 'from-purple-500 to-pink-500'
+      gradient: 'from-primary-700 to-amber-500'
     },
     {
       id: 'paper2video',
       labelKey: t('app.nav.paper2video'),
       tooltipKey: t('app.navTooltip.paper2video'),
       icon: Video,
-      gradient: 'from-teal-500 to-cyan-500'
+      gradient: 'from-primary-600 to-amber-500'
     },
     {
       id: 'paper2poster',
       labelKey: t('app.nav.paper2poster'),
       tooltipKey: t('app.navTooltip.paper2poster'),
       icon: LayoutTemplate,
-      gradient: 'from-fuchsia-500 to-rose-500'
+      gradient: 'from-primary-500 to-amber-500'
     },
     {
       id: 'paper2citation',
       labelKey: t('app.nav.paper2citation'),
       tooltipKey: t('app.navTooltip.paper2citation'),
       icon: Quote,
-      gradient: 'from-cyan-500 to-sky-500'
+      gradient: 'from-primary-600 to-primary-500'
     },
     {
       id: 'ppt2polish',
       labelKey: t('app.nav.ppt2polish'),
       tooltipKey: t('app.navTooltip.ppt2polish'),
       icon: Wand2,
-      gradient: 'from-cyan-500 to-teal-500'
+      gradient: 'from-primary-600 to-amber-500'
     },
     {
       id: 'pdf2ppt',
       labelKey: t('app.nav.pdf2ppt'),
       tooltipKey: t('app.navTooltip.pdf2ppt'),
       icon: FileText,
-      gradient: 'from-orange-500 to-red-500'
+      gradient: 'from-amber-500 to-primary-500'
     },
     {
       id: 'image2ppt',
       labelKey: t('app.nav.image2ppt'),
       tooltipKey: t('app.navTooltip.image2ppt'),
       icon: ImagePlus,
-      gradient: 'from-cyan-500 to-blue-500'
+      gradient: 'from-primary-500 to-amber-500'
     },
     // {
     //   id: 'knowledge',
@@ -150,7 +150,7 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
       labelKey: t('app.nav.files'),
       tooltipKey: t('app.navTooltip.files'),
       icon: FolderOpen,
-      gradient: 'from-emerald-500 to-green-500'
+      gradient: 'from-primary-600 to-amber-500'
     }
   ];
 
@@ -165,35 +165,35 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
     <>
       {/* Backdrop Overlay */}
       <div
-        className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-30 transition-opacity duration-300 ${
+        className={`fixed inset-0 bg-[rgba(69,39,48,0.22)] backdrop-blur-sm z-30 transition-opacity duration-300 ${
           isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
         onClick={onClose}
       />
 
       {/* Sidebar Panel */}
-      <aside className={`fixed top-0 left-0 h-full w-[280px] glass-dark border-r border-white/10 z-40 transition-transform duration-300 ease-in-out overflow-hidden flex flex-col ${
+      <aside className={`portal-sidebar fixed top-0 left-0 h-full w-[280px] z-40 transition-transform duration-300 ease-in-out overflow-hidden flex flex-col ${
         isOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         {/* Header */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-white/10">
+        <div className="portal-sidebar-header h-16 flex items-center justify-between px-4">
           <div className="flex items-center gap-2">
             {menuView === 'paper2figure' && (
               <button
                 onClick={() => setMenuView('main')}
-                className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                className="portal-sidebar-icon-button"
                 aria-label="Back"
               >
                 <ArrowLeft size={18} />
               </button>
             )}
-            <h2 className="text-lg font-bold text-white">
+            <h2 className="text-lg font-bold font-display text-primary-900">
               {menuView === 'paper2figure' ? t('app.nav.paper2figure') : t('app.sidebar.navigation')}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+            className="portal-sidebar-icon-button"
             aria-label="Close sidebar"
           >
             <X size={20} />
@@ -220,16 +220,12 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
                       }
                       handleNavigation(item.id);
                     }}
-                    className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 mb-2 ${
-                      isActive
-                        ? `bg-gradient-to-r ${item.gradient} text-white shadow-lg shadow-${item.gradient.split('-')[1]}-500/30 border border-white/20 scale-[1.02]`
-                        : 'text-gray-300 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 hover:text-white hover:shadow-md hover:scale-[1.02]'
-                    }`}
+                    className={`portal-sidebar-item ${isActive ? 'portal-sidebar-item-active' : ''}`}
                   >
-                    <Icon size={22} className={isActive ? 'drop-shadow-lg' : ''} />
-                    <span className="text-sm font-medium flex-1 text-left">{item.labelKey}</span>
+                    <Icon size={22} className="shrink-0" />
+                    <span className="text-sm font-semibold flex-1 text-left leading-6">{item.labelKey}</span>
                     {isPaper2Figure && (
-                      <ChevronRight size={16} className="text-white/60 group-hover:text-white transition-colors" />
+                      <ChevronRight size={16} className={`shrink-0 ${isActive ? 'text-[rgba(255,241,225,0.86)]' : 'text-[rgba(103,95,88,0.88)]'}`} />
                     )}
                   </button>
                 );
@@ -257,14 +253,10 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
                 <NavTooltip key={child.id} content={child.tooltipKey}>
                   <button
                     onClick={() => handleNavigation(child.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-all mb-2 ${
-                      isChildActive
-                        ? `bg-gradient-to-r ${child.gradient} text-white shadow-lg shadow-${child.gradient.split('-')[1]}-500/20`
-                        : 'text-slate-200 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20'
-                    }`}
+                    className={`portal-sidebar-item ${isChildActive ? 'portal-sidebar-item-active' : ''}`}
                   >
-                    <ChildIcon size={20} />
-                    <span className="text-sm font-semibold">{child.labelKey}</span>
+                    <ChildIcon size={20} className="shrink-0" />
+                    <span className="text-sm font-semibold leading-6">{child.labelKey}</span>
                   </button>
                 </NavTooltip>
               );

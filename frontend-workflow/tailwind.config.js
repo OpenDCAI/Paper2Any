@@ -6,23 +6,27 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        display: ['"Source Serif 4"', 'Georgia', 'serif'],
+        sans: ['"Inter"', '"Helvetica Neue"', 'Arial', 'sans-serif'],
+      },
       colors: {
         primary: {
-          50: '#e6f1ff',
-          100: '#b3d7ff',
-          200: '#80bdff',
-          300: '#4da3ff',
-          400: '#1a89ff',
-          500: '#0070f3',
-          600: '#0059c0',
-          700: '#00428d',
-          800: '#002b5a',
-          900: '#001427',
+          50: '#faf4f5',
+          100: '#f4e7ea',
+          200: '#e6cfd6',
+          300: '#d4aeb8',
+          400: '#b97989',
+          500: '#8f3147',
+          600: '#7d2b40',
+          700: '#672537',
+          800: '#4e1d2c',
+          900: '#2f121b',
         },
         glass: {
-          light: 'rgba(255, 255, 255, 0.1)',
-          medium: 'rgba(255, 255, 255, 0.05)',
-          dark: 'rgba(0, 0, 0, 0.2)',
+          light: 'rgba(255, 252, 247, 0.72)',
+          medium: 'rgba(255, 249, 242, 0.56)',
+          dark: 'rgba(62, 23, 37, 0.82)',
         }
       },
       backgroundImage: {
@@ -40,13 +44,17 @@ export default {
           '50%': { transform: 'translateY(-20px)' },
         },
         glow: {
-          '0%': { boxShadow: '0 0 5px rgba(0, 112, 243, 0.5), 0 0 10px rgba(0, 112, 243, 0.3)' },
-          '100%': { boxShadow: '0 0 20px rgba(0, 112, 243, 0.8), 0 0 30px rgba(0, 112, 243, 0.5)' },
+          '0%': { boxShadow: '0 10px 30px rgba(143, 49, 71, 0.12)' },
+          '100%': { boxShadow: '0 18px 48px rgba(143, 49, 71, 0.22)' },
         }
       },
       backdropBlur: {
         xs: '2px',
-      }
+      },
+      boxShadow: {
+        shell: '0 24px 80px rgba(117, 36, 57, 0.14)',
+        panel: '0 20px 50px rgba(92, 36, 52, 0.12)',
+      },
     },
   },
   plugins: [],
