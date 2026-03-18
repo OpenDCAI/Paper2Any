@@ -12,6 +12,7 @@ interface CompleteStepProps {
   pdfPreviewUrl: string | null;
   isGeneratingFinal: boolean;
   handleGenerateFinal: () => void;
+  handleDownloadPptx: () => void;
   handleDownloadPdf: () => void;
   handleReset: () => void;
   error: string | null;
@@ -31,6 +32,7 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
   pdfPreviewUrl,
   isGeneratingFinal,
   handleGenerateFinal,
+  handleDownloadPptx,
   handleDownloadPdf,
   handleReset,
   error,
@@ -72,17 +74,16 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
       ) : (
         <div className="space-y-4">
           <div className="flex gap-4 justify-center">
-            {/* 已移除 PPTX 下载按钮 */}
+            {downloadUrl && (
+              <button onClick={handleDownloadPptx} className="px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold flex items-center gap-2 transition-all">
+                <Download size={18} /> 下载 PPTX
+              </button>
+            )}
             {pdfPreviewUrl && (
               <button onClick={handleDownloadPdf} className="px-6 py-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold flex items-center gap-2 transition-all">
                 <Download size={18} /> 下载 PDF
               </button>
             )}
-          </div>
-          
-          {/* 引导去 PDF2PPT */}
-          <div className="text-center text-sm text-gray-400 bg-white/5 border border-white/10 rounded-lg p-3">
-            如果需要继续 PDF 转可编辑 PPTX，请前往 <a href="/pdf2ppt" className="text-purple-400 hover:text-purple-300 hover:underline font-medium transition-colors">PDF2PPT 页面</a>
           </div>
 
           <div>

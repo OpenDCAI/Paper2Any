@@ -61,6 +61,7 @@ import os
 
 import numpy as np
 from PIL import Image
+from dataflow_agent.toolkits.sam3_import_helper import add_site_packages_for_packages
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
 
@@ -164,6 +165,8 @@ def _ensure_sam3_available() -> None:
     global build_sam3_image_model, Sam3Processor
     if build_sam3_image_model is not None and Sam3Processor is not None:
         return
+
+    add_site_packages_for_packages(("iopath",))
 
     # Try to locate local sam3 source if user has cloned it.
     candidates: List[Path] = []

@@ -250,6 +250,8 @@ const KnowledgeBase = () => {
       return;
     }
 
+    const fileUrl = previewFile.url;
+
     try {
       setMindmapSaving(true);
       setMindmapStatus(null);
@@ -262,7 +264,7 @@ const KnowledgeBase = () => {
           'X-API-Key': API_KEY
         },
         body: JSON.stringify({
-          file_url: previewFile.url,
+          file_url: fileUrl,
           content: mindmapDraft
         })
       });
@@ -305,6 +307,7 @@ const KnowledgeBase = () => {
       return;
     }
 
+    const currentUrl = previewFile.url;
     let canceled = false;
     const loadMindmap = async () => {
       const tryFetch = async (url: string) => {
@@ -319,10 +322,10 @@ const KnowledgeBase = () => {
         setMindmapLoading(true);
         setMindmapError(null);
         setMindmapStatus(null);
-        let text = await tryFetch(previewFile.url);
+        let text = await tryFetch(currentUrl);
         const isHtml = text.trim().toLowerCase().startsWith('<!doctype html') || text.trim().toLowerCase().startsWith('<html');
         if (isHtml) {
-          const baseUrl = previewFile.url.replace(/\/$/, '');
+          const baseUrl = currentUrl.replace(/\/$/, '');
           if (!baseUrl.toLowerCase().endsWith('.mmd') && !baseUrl.toLowerCase().endsWith('.mermaid')) {
             const fallbackUrl = `${baseUrl}/mindmap.mmd`;
             text = await tryFetch(fallbackUrl);

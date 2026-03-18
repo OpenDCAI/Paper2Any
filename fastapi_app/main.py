@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from fastapi_app.routers import paper2video
-from fastapi_app.routers import paper2any, paper2ppt
+from fastapi_app.routers import paper2any, paper2citation, paper2ppt, paper2poster
 from fastapi_app.routers import pdf2ppt, image2ppt, kb, kb_embedding, files
 from fastapi_app.routers import image2drawio
 from fastapi_app.routers import paper2drawio
@@ -59,8 +59,12 @@ def create_app() -> FastAPI:
     app.include_router(paper2any.router, prefix="/api/v1", tags=["paper2any"])
     # Paper2PPT
     app.include_router(paper2ppt.router, prefix="/api/v1", tags=["paper2ppt"])
+    # Paper2Citation
+    app.include_router(paper2citation.router, prefix="/api/v1", tags=["paper2citation"])
     # paper2video
     app.include_router(paper2video.router, prefix="/api/v1", tags=["paper2video"])
+    # Paper2Poster
+    app.include_router(paper2poster.router, prefix="/api/v1", tags=["paper2poster"])
     # PDF2PPT
     app.include_router(pdf2ppt.router, prefix="/api/v1", tags=["pdf2ppt"])
     # Image2PPT

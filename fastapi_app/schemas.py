@@ -249,6 +249,7 @@ class DeepResearchRequest(BaseModel):
     language: str = "zh"
     email: Optional[str] = None
     user_id: Optional[str] = None
+    notebook_id: Optional[str] = None
     search_provider: Literal["serpapi", "google_cse", "brave"] = "serpapi"
     search_api_key: str = ""
     search_engine: Literal["google", "baidu"] = "google"
@@ -273,6 +274,164 @@ class DeepResearchResponse(BaseModel):
     output_file_id: str = ""
 
 
+# ===================== Paper2Citation 相关 =====================
+
+
+class CitationAuthorCandidate(BaseModel):
+    openalex_author_id: str = ""
+    dblp_id: str = ""
+    orcid: str = ""
+    display_name: str = ""
+    affiliations: List[str] = []
+    works_count: int = 0
+    cited_by_count: int = 0
+    source: str = ""
+
+
+class CitationAuthorItem(BaseModel):
+    openalex_author_id: str = ""
+    display_name: str = ""
+    affiliations: List[str] = []
+    citing_works_count: int = 0
+
+
+class CitationInstitutionStat(BaseModel):
+    openalex_institution_id: str = ""
+    display_name: str = ""
+    country_code: str = ""
+    type: str = ""
+    citing_works_count: int = 0
+
+
+class CitationWorkItem(BaseModel):
+    openalex_work_id: str = ""
+    doi: str = ""
+    title: str = ""
+    year: Optional[int] = None
+    publication_date: str = ""
+    venue: str = ""
+    type: str = ""
+    cited_by_count: int = 0
+    authors: List[str] = []
+    institutions: List[str] = []
+    landing_page_url: str = ""
+
+
+class CitationContextItem(BaseModel):
+    section: str = ""
+    sentence: str = ""
+    paragraph: str = ""
+    marker: str = ""
+    confidence: float = 0.0
+
+
+class CitationHonorStat(BaseModel):
+    honor_label: str = ""
+    count: int = 0
+    matched_authors: List[Dict[str, Any]] = []
+
+
+class Paper2CitationAuthorSearchRequest(BaseModel):
+    author_name: str
+    max_author_candidates: int = 12
+
+
+class Paper2CitationAuthorSearchResponse(BaseModel):
+    success: bool = True
+    mode: str = "author_search"
+    query: str = ""
+    candidates: List[CitationAuthorCandidate] = []
+
+
+class Paper2CitationAuthorDetailRequest(BaseModel):
+    openalex_author_id: str = ""
+    dblp_id: str = ""
+    display_name: str = ""
+    affiliation_hint: str = ""
+    candidate_source: str = ""
+    max_publications: int = 25
+    max_citing_works: int = 60
+    publication_page: int = 1
+    publication_page_size: int = 20
+
+
+class Paper2CitationAuthorDetailResponse(BaseModel):
+    success: bool = True
+    mode: str = "author_detail"
+    query: str = ""
+    best_effort_notice: str = ""
+    author_profile: Dict[str, Any] = {}
+    publication_stats: Dict[str, Any] = {}
+    citation_stats: Dict[str, Any] = {}
+    publication_pagination: Dict[str, Any] = {}
+    publications: List[CitationWorkItem] = []
+    citing_works: List[CitationWorkItem] = []
+    citing_authors: List[CitationAuthorItem] = []
+    citing_institutions: List[CitationInstitutionStat] = []
+    honors_stats: List[CitationHonorStat] = []
+    matched_honorees: List[Dict[str, Any]] = []
+
+
+class Paper2CitationAuthorPublicationsRequest(BaseModel):
+    openalex_author_id: str = ""
+    dblp_id: str = ""
+    display_name: str = ""
+    affiliation_hint: str = ""
+    candidate_source: str = ""
+    max_publications: int = 25
+    publication_page: int = 1
+    publication_page_size: int = 20
+
+
+class Paper2CitationAuthorPublicationsResponse(BaseModel):
+    success: bool = True
+    mode: str = "author_publications"
+    query: str = ""
+    best_effort_notice: str = ""
+    publication_stats: Dict[str, Any] = {}
+    publication_pagination: Dict[str, Any] = {}
+    publications: List[CitationWorkItem] = []
+
+
+class Paper2CitationPaperDetailRequest(BaseModel):
+    doi_or_url: str
+    max_citing_works: int = 60
+
+
+class Paper2CitationPaperDetailResponse(BaseModel):
+    success: bool = True
+    mode: str = "paper_detail"
+    query: str = ""
+    best_effort_notice: str = ""
+    paper_detail: Dict[str, Any] = {}
+    citation_stats: Dict[str, Any] = {}
+    citing_works: List[CitationWorkItem] = []
+    citing_authors: List[CitationAuthorItem] = []
+    citing_institutions: List[CitationInstitutionStat] = []
+    honors_stats: List[CitationHonorStat] = []
+    matched_honorees: List[Dict[str, Any]] = []
+
+
+class Paper2CitationPaperContextRequest(BaseModel):
+    target_doi_or_url: str
+    citing_work_openalex_id: str = ""
+    citing_work_doi_or_url: str = ""
+    citing_work_title: str = ""
+
+
+class Paper2CitationPaperContextResponse(BaseModel):
+    success: bool = True
+    mode: str = "paper_context"
+    query: str = ""
+    best_effort_notice: str = ""
+    source_url: str = ""
+    target_reference_match: Dict[str, Any] = {}
+    citing_paper: Dict[str, Any] = {}
+    contexts: List[CitationContextItem] = []
+    summary: str = ""
+    citation_intents: List[str] = []
+
+
 # ===================== KB Report 相关 =====================
 
 class KBReportRequest(BaseModel):
@@ -285,6 +444,7 @@ class KBReportRequest(BaseModel):
     length: Literal["short", "standard", "long"] = "standard"
     email: Optional[str] = None
     user_id: Optional[str] = None
+    notebook_id: Optional[str] = None
 
 
 class KBReportResponse(BaseModel):

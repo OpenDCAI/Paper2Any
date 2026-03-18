@@ -28,6 +28,7 @@ class LongPaperOutlineAgent:
 当前进度：第 {batch_index} 批 / 共 {total_batches} 批。
 本批次目标页数：{pages_to_generate} 页（包括封面）。
 总目标页数：{page_count} 页。
+当前批次涵盖章节：{section_titles}
 
 **输入数据（当前文本片段）：**
 {current_chunk}
@@ -67,6 +68,7 @@ class LongPaperOutlineAgent:
 这是长文档分批生成 PPT 的**中间批次**。
 当前进度：第 {batch_index} 批 / 共 {total_batches} 批。
 本批次目标页数：{pages_to_generate} 页。
+当前批次涵盖章节：{section_titles}
 
 **输入数据（当前文本片段）：**
 {current_chunk}
@@ -104,6 +106,7 @@ JSON 数组，每个对象代表一页PPT。
 这是长文档分批生成 PPT 的**最后一批次**。
 当前进度：第 {batch_index} 批 / 共 {total_batches} 批。
 本批次目标页数：{pages_to_generate} 页（包括致谢）。
+当前批次涵盖章节：{section_titles}
 
 **输入数据（当前文本片段）：**
 {current_chunk}

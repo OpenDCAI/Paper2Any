@@ -27,6 +27,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-asyncio",
     "pytest-cov",
     "black",
     "ruff",
@@ -60,3 +61,6 @@ exclude = ["tests*"]
 
 [project.scripts]
 dfa = "dataflow_agent.cli:cli"
+
+[tool.pytest.ini_options]
+norecursedirs = ["tests/manual"]

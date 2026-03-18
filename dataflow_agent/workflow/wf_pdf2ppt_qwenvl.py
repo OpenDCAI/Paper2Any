@@ -941,14 +941,25 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                         log.warning(f"[pdf2ppt_qwenvl][Inpainting] page#{page_idx+1} adaptive fill failed: {e}")
             
             mask_path = pinfo.get("text_mask_path")
-            if state.use_ai_edit and api_key and img_path and os.path.exists(img_path):
+            # AI 编辑输入图：优先使用 merged no_text 图，其次原图
+            edit_image_path = None
+            if no_text_path and os.path.exists(no_text_path):
+                edit_image_path = no_text_path
+            elif img_path and os.path.exists(img_path):
+                edit_image_path = img_path
+
+            if state.use_ai_edit and api_key and edit_image_path:
                 ratio_str = "16:9"
                 try:
-                    with Image.open(img_path) as tmp_img:
+                    with Image.open(edit_image_path) as tmp_img:
                         ratio_str = get_closest_aspect_ratio(tmp_img.width, tmp_img.height)
                 except Exception: pass
                 
                 inpainting_prompt = "Fill the masked areas with matching background. Remove text."
+                log.info(
+                    f"[pdf2ppt_qwenvl][Inpainting] page#{page_idx+1} edit_image={edit_image_path}, "
+                    f"mask={mask_path if (mask_path and os.path.exists(mask_path)) else 'None'}"
+                )
                 
                 async with sem:
                     await _call_image_api_with_retry(
@@ -959,7 +970,7 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                             api_key=api_key,
                             model=model_name,
                             use_edit=True,
-                            image_path=img_path,
+                            image_path=edit_image_path,
                             mask_path=mask_path if (mask_path and os.path.exists(mask_path)) else None,
                             aspect_ratio=ratio_str,
                             resolution="2K"
@@ -979,7 +990,9 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
 
             if final_bg_path:
                 cleaned_bg_path = _cleanup_bg_overlay(page_idx, pinfo, final_bg_path, img_w, img_h)
-                pinfo["clean_bg_path"] = cleaned_bg_path or final_bg_path
+                # 保持 clean_bg_path 指向“原始AI编辑背景图”；overlay_free 单独记录
+                if cleaned_bg_path:
+                    pinfo["clean_bg_overlay_free_path"] = cleaned_bg_path
 
         tasks = [_process_inpainting(p) for p in vlm_pages]
         if tasks:
@@ -1045,12 +1058,22 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
             page_idx = pinfo.get("page_idx", 0)
             img_path = pinfo.get("path")
             vlm_data = pinfo.get("vlm_data", [])
-            # 从 vlm_pages 里获取 clean_bg_path，如果并行步骤成功，这里应该有值
-            clean_bg_path = (
-                pinfo.get("clean_bg_path")
-                or pinfo.get("clean_bg_lite_path")
-                or pinfo.get("no_text_path")
+            # 背景图优先级：clean_bg(模型编辑) > overlay_free > clean_bg_lite > no_text > 原图
+            bg_candidates = [
+                pinfo.get("clean_bg_path"),
+                pinfo.get("clean_bg_overlay_free_path"),
+                pinfo.get("clean_bg_lite_path"),
+                pinfo.get("no_text_path"),
+                img_path,
+            ]
+            clean_bg_path = next(
+                (p for p in bg_candidates if p and os.path.exists(p)),
+                None,
             )
+            if clean_bg_path:
+                log.info(
+                    f"[pdf2ppt_qwenvl][PPT] page#{page_idx+1} background={clean_bg_path}"
+                )
 
             if not img_path or not os.path.exists(img_path): continue
 
@@ -1129,6 +1152,7 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
         prs.save(str(out_path))
         state.ppt_path = str(out_path)
         log.info(f"[pdf2ppt_qwenvl] PPT Generated: {out_path}")
+
         return state
 
     nodes = {

@@ -20,9 +20,12 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureState, Paper2FigureRequest
 from dataflow_agent.workflow import run_workflow
 from dataflow_agent.utils import get_project_root
+
+log = get_logger(__name__)
 
 
 # Workflow mapping for different graph types
@@ -234,23 +237,23 @@ async def run_paper2figure_workflow(args, input_content: str, input_type: str, o
     # Select workflow based on graph type
     workflow_name = WORKFLOW_MAP[args.graph_type]
 
-    print(f"\n{'='*60}")
-    print(f"Paper2Figure Workflow Starting")
-    print(f"{'='*60}")
-    print(f"Graph Type: {args.graph_type}")
-    print(f"Input Type: {input_type}")
+    log.info("%s", "=" * 60)
+    log.info("Paper2Figure Workflow Starting")
+    log.info("%s", "=" * 60)
+    log.info("Graph Type: %s", args.graph_type)
+    log.info("Input Type: %s", input_type)
     if input_type in ["PDF", "FIGURE"]:
-        print(f"Input File: {input_content}")
+        log.info("Input File: %s", input_content)
     else:
-        print(f"Input Text: {input_content[:100]}..." if len(input_content) > 100 else f"Input Text: {input_content}")
-    print(f"Output Directory: {output_dir}")
-    print(f"Workflow: {workflow_name}")
-    print(f"Style: {args.style}")
-    print(f"Aspect Ratio: {args.aspect_ratio}")
+        log.info("Input Text: %s", f"{input_content[:100]}..." if len(input_content) > 100 else input_content)
+    log.info("Output Directory: %s", output_dir)
+    log.info("Workflow: %s", workflow_name)
+    log.info("Style: %s", args.style)
+    log.info("Aspect Ratio: %s", args.aspect_ratio)
     if args.graph_type == "model_arch":
-        print(f"Complexity: {args.complexity}")
-    print(f"Language: {args.language}")
-    print(f"{'='*60}\n")
+        log.info("Complexity: %s", args.complexity)
+    log.info("Language: %s", args.language)
+    log.info("%s", "=" * 60)
 
     # Run workflow
     final_state = await run_workflow(workflow_name, state)
@@ -260,33 +263,33 @@ async def run_paper2figure_workflow(args, input_content: str, input_type: str, o
 
 def print_results(final_state: Paper2FigureState, output_dir: Path, graph_type: str):
     """Print workflow results"""
-    print(f"\n{'='*60}")
-    print(f"✓ Paper2Figure Workflow Completed Successfully")
-    print(f"{'='*60}")
-    print(f"Output Directory: {output_dir}")
+    log.info("%s", "=" * 60)
+    log.info("Paper2Figure Workflow Completed Successfully")
+    log.info("%s", "=" * 60)
+    log.info("Output Directory: %s", output_dir)
 
     # Check for PPT file
     ppt_path = getattr(final_state, "ppt_path", None)
     if ppt_path and os.path.exists(ppt_path):
-        print(f"PPT File: {ppt_path}")
+        log.info("PPT File: %s", ppt_path)
 
     # Check for SVG files (tech_route and exp_data)
     if graph_type in ["tech_route", "exp_data"]:
         svg_file_path = getattr(final_state, "svg_file_path", None)
         if svg_file_path and os.path.exists(svg_file_path):
-            print(f"SVG File: {svg_file_path}")
+            log.info("SVG File: %s", svg_file_path)
 
         svg_full_img_path = getattr(final_state, "svg_full_img_path", None)
         if svg_full_img_path and os.path.exists(svg_full_img_path):
-            print(f"SVG Image: {svg_full_img_path}")
+            log.info("SVG Image: %s", svg_full_img_path)
 
     # Check for figure draft (model_arch)
     if graph_type == "model_arch":
         fig_draft_path = getattr(final_state, "fig_draft_path", None)
         if fig_draft_path and os.path.exists(fig_draft_path):
-            print(f"Figure Draft: {fig_draft_path}")
+            log.info("Figure Draft: %s", fig_draft_path)
 
-    print(f"{'='*60}\n")
+    log.info("%s", "=" * 60)
 
 
 def main():
@@ -313,13 +316,13 @@ def main():
         return 0
 
     except FileNotFoundError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        log.error("%s", e)
         return 1
     except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        log.error("%s", e)
         return 1
     except Exception as e:
-        print(f"Error: Workflow execution failed: {e}", file=sys.stderr)
+        log.exception("Workflow execution failed: %s", e)
         import traceback
         traceback.print_exc()
         return 1

@@ -14,7 +14,9 @@ from dataflow_agent.agentroles import create_react_agent, create_simple_agent
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
 
-from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract, _shrink_markdown
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import (
+    run_mineru_pdf_extract_http,
+)
 
 log = get_logger(__name__)
 
@@ -127,9 +129,14 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         # MinerU 内部会创建 <pdf_stem>/auto 结构
         if not auto_dir.exists():
             try:
-                run_mineru_pdf_extract(str(paper_pdf_path), str(result_root), "modelscope")
+                mineru_port = int(getattr(state, "mineru_port", 8010) or 8010)
+                await run_mineru_pdf_extract_http(
+                    str(paper_pdf_path),
+                    str(result_root),
+                    port=mineru_port,
+                )
             except Exception as e:
-                log.error(f"[paper2page_content] run_mineru_pdf_extract 失败: {e}")
+                log.error(f"[paper2page_content] run_mineru_pdf_extract_http 失败: {e}")
                 state.minueru_output = ""
                 return state
 
@@ -146,8 +153,9 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         except Exception as e:
             log.error(f"[paper2page_content] 读取 markdown 失败: {markdown_path}, err={e}")
             md = ""
-        # Avoid passing overly long markdown to downstream agents.
-        state.minueru_output = _shrink_markdown(md, max_h1=8, max_chars=30_000)
+        # Keep the full markdown. The adapter now routes large inputs to the
+        # long-paper workflow instead of truncating the tail of the document.
+        state.minueru_output = md
         # 记录 MinerU 输出根目录 = 实际承载 md 与 images 的 auto 目录
         state.mineru_root = str(auto_dir)
         log.info(f"[paper2page_content] minueru_output : {state.minueru_output[:100]} ")

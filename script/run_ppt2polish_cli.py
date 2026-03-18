@@ -21,9 +21,12 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureState, Paper2FigureRequest
 from dataflow_agent.workflow import run_workflow
 from dataflow_agent.utils import get_project_root
+
+log = get_logger(__name__)
 
 
 def parse_args():
@@ -130,9 +133,9 @@ def convert_pptx_to_pdf(pptx_path: Path, output_dir: Path) -> Path:
     """
     pdf_path = output_dir / "temp_slides.pdf"
 
-    print(f"Converting PPTX to PDF...")
-    print(f"Input: {pptx_path}")
-    print(f"Output: {pdf_path}")
+    log.info("Converting PPTX to PDF...")
+    log.info("Input: %s", pptx_path)
+    log.info("Output: %s", pdf_path)
 
     try:
         # Try using LibreOffice command line
@@ -157,7 +160,7 @@ def convert_pptx_to_pdf(pptx_path: Path, output_dir: Path) -> Path:
         if not pdf_path.exists():
             raise FileNotFoundError(f"PDF file not created: {pdf_path}")
 
-        print(f"✓ PDF created: {pdf_path}\n")
+        log.info("PDF created: %s", pdf_path)
         return pdf_path
 
     except FileNotFoundError:
@@ -188,7 +191,7 @@ def convert_pdf_to_images(pdf_path: Path, output_dir: Path) -> list[str]:
             "  macOS: brew install poppler"
         )
 
-    print(f"Converting PDF to images...")
+    log.info("Converting PDF to images...")
 
     # Create images subdirectory
     images_dir = output_dir / "slide_images"
@@ -203,7 +206,7 @@ def convert_pdf_to_images(pdf_path: Path, output_dir: Path) -> list[str]:
         image.save(str(image_path), "PNG")
         image_paths.append(str(image_path))
 
-    print(f"✓ Created {len(image_paths)} slide images\n")
+    log.info("Created %s slide images", len(image_paths))
     return image_paths
 
 
@@ -249,16 +252,16 @@ async def run_ppt2polish_workflow(args, image_paths: list[str], output_dir: Path
         pagecontent=pagecontent,
     )
 
-    print(f"\n{'='*60}")
-    print(f"PPT2Polish Workflow Starting")
-    print(f"{'='*60}")
-    print(f"Number of Slides: {len(image_paths)}")
-    print(f"Output Directory: {output_dir}")
-    print(f"Workflow: paper2ppt_parallel_consistent_style")
-    print(f"Style: {args.style}")
+    log.info("%s", "=" * 60)
+    log.info("PPT2Polish Workflow Starting")
+    log.info("%s", "=" * 60)
+    log.info("Number of Slides: %s", len(image_paths))
+    log.info("Output Directory: %s", output_dir)
+    log.info("Workflow: paper2ppt_parallel_consistent_style")
+    log.info("Style: %s", args.style)
     if ref_img_path:
-        print(f"Reference Image: {ref_img_path}")
-    print(f"{'='*60}\n")
+        log.info("Reference Image: %s", ref_img_path)
+    log.info("%s", "=" * 60)
 
     # Run workflow
     workflow_name = "paper2ppt_parallel_consistent_style"
@@ -269,23 +272,23 @@ async def run_ppt2polish_workflow(args, image_paths: list[str], output_dir: Path
 
 def print_results(final_state: Paper2FigureState, output_dir: Path):
     """Print workflow results"""
-    print(f"\n{'='*60}")
-    print(f"✓ PPT2Polish Workflow Completed Successfully")
-    print(f"{'='*60}")
-    print(f"Output Directory: {output_dir}")
+    log.info("%s", "=" * 60)
+    log.info("PPT2Polish Workflow Completed Successfully")
+    log.info("%s", "=" * 60)
+    log.info("Output Directory: %s", output_dir)
 
     # Check for PPT PDF file
     ppt_pdf_path = getattr(final_state, "ppt_pdf_path", None)
     if ppt_pdf_path and os.path.exists(ppt_pdf_path):
-        print(f"Beautified PPT (PDF): {ppt_pdf_path}")
+        log.info("Beautified PPT (PDF): %s", ppt_pdf_path)
 
     # Check for slide images directory
     ppt_pages_dir = output_dir / "ppt_pages"
     if ppt_pages_dir.exists():
         slide_count = len(list(ppt_pages_dir.glob("page_*.png")))
-        print(f"Individual Slides: {slide_count} images in {ppt_pages_dir}")
+        log.info("Individual Slides: %s images in %s", slide_count, ppt_pages_dir)
 
-    print(f"{'='*60}\n")
+    log.info("%s", "=" * 60)
 
 
 def main():
@@ -300,9 +303,9 @@ def main():
         # Create output directory
         output_dir = create_output_dir(args)
 
-        print(f"\n{'='*60}")
-        print(f"PPT2Polish - Step 1: Convert PPTX to Images")
-        print(f"{'='*60}\n")
+        log.info("%s", "=" * 60)
+        log.info("PPT2Polish - Step 1: Convert PPTX to Images")
+        log.info("%s", "=" * 60)
 
         # Step 1: Convert PPTX to PDF
         pdf_path = convert_pptx_to_pdf(input_path, output_dir)
@@ -310,9 +313,9 @@ def main():
         # Step 2: Convert PDF to images
         image_paths = convert_pdf_to_images(pdf_path, output_dir)
 
-        print(f"{'='*60}")
-        print(f"PPT2Polish - Step 2: Beautify Slides")
-        print(f"{'='*60}\n")
+        log.info("%s", "=" * 60)
+        log.info("PPT2Polish - Step 2: Beautify Slides")
+        log.info("%s", "=" * 60)
 
         # Step 3: Run workflow to beautify slides
         final_state = asyncio.run(run_ppt2polish_workflow(args, image_paths, output_dir))
@@ -323,16 +326,16 @@ def main():
         return 0
 
     except FileNotFoundError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        log.error("%s", e)
         return 1
     except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        log.error("%s", e)
         return 1
     except RuntimeError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        log.error("%s", e)
         return 1
     except Exception as e:
-        print(f"Error: Workflow execution failed: {e}", file=sys.stderr)
+        log.exception("Workflow execution failed: %s", e)
         import traceback
         traceback.print_exc()
         return 1

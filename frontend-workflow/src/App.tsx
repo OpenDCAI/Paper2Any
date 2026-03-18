@@ -14,6 +14,8 @@ import Paper2DrawioAiPage from './components/Paper2DrawioAiPage';
 import Paper2DrawioPage from './components/paper2drawio';
 import Paper2RebuttalPage from './components/Paper2RebuttalPage';
 import Paper2VideoPage from './components/Paper2VideoPage';
+import Paper2PosterPage from './components/Paper2PosterPage';
+import Paper2CitationPage from './components/Paper2CitationPage';
 import { AccountPage } from './components/AccountPage';
 import { useTranslation } from 'react-i18next';
 import { PointsDisplay } from './components/PointsDisplay';
@@ -24,7 +26,7 @@ import { AppSidebar } from './components/AppSidebar';
 
 function App() {
   const { t } = useTranslation('common');
-  const [activePage, setActivePage] = useState<'paper2figure-tech-exp' | 'paper2figure-model-drawio' | 'paper2drawio-ai' | 'paper2ppt' | 'paper2ppt_beamer' | 'paper2video' | 'pdf2ppt' | 'image2ppt' | 'image2drawio' | 'ppt2polish' | 'knowledge' | 'files' | 'paper2drawio' | 'paper2rebuttal'>('paper2figure-tech-exp');
+  const [activePage, setActivePage] = useState<'paper2figure-tech-exp' | 'paper2figure-model-drawio' | 'paper2drawio-ai' | 'paper2ppt' | 'paper2ppt_beamer' | 'paper2video' | 'paper2poster' | 'paper2citation' | 'pdf2ppt' | 'image2ppt' | 'image2drawio' | 'ppt2polish' | 'knowledge' | 'files' | 'paper2drawio' | 'paper2rebuttal'>('paper2figure-tech-exp');
   const [showFilesModal, setShowFilesModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -87,6 +89,8 @@ function App() {
           {activePage === 'paper2ppt' && <Paper2PptPage />}
           {activePage === 'paper2ppt_beamer' && <Paper2PptBeamerPage />}
           {activePage === 'paper2video' && <Paper2VideoPage />}
+          {activePage === 'paper2poster' && <Paper2PosterPage />}
+          {activePage === 'paper2citation' && <Paper2CitationPage />}
           {activePage === 'pdf2ppt' && <Pdf2PptPage />}
           {activePage === 'image2ppt' && <Image2PptPage />}
           {activePage === 'image2drawio' && <Image2DrawioPage />}

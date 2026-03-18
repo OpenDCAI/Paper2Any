@@ -238,9 +238,33 @@ Paper2Any 当前包含以下几个子能力：
 git clone https://github.com/OpenDCAI/Paper2Any.git
 cd Paper2Any
 
-# 2. 后端环境变量（用于 API Key/模型配置）
+# 2. 配置环境变量
 cp fastapi_app/.env.example fastapi_app/.env
+cp frontend-workflow/.env.example frontend-workflow/.env
+```
 
+**必须修改的配置项：**
+
+`fastapi_app/.env`（后端）：
+```bash
+# 必填：你的 LLM API 地址（替换为你自己的）
+DEFAULT_LLM_API_URL=https://api.openai.com/v1/
+# 可选：Supabase（不填则跳过用户认证，核心功能不受影响）
+# SUPABASE_URL=https://your-project-id.supabase.co
+# SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+`frontend-workflow/.env`（前端）：
+```bash
+# 必填：前端可用的 LLM API 地址（逗号分隔，显示在 UI 下拉菜单中）
+VITE_DEFAULT_LLM_API_URL=https://api.openai.com/v1
+VITE_LLM_API_URLS=https://api.openai.com/v1
+# 可选：Supabase（与后端保持一致）
+# VITE_SUPABASE_URL=https://your-project-id.supabase.co
+# VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+```bash
 # 3. 构建并启动
 docker compose up -d --build
 ```
@@ -248,6 +272,19 @@ docker compose up -d --build
 访问地址：
 - 前端：http://localhost:3000
 - 后端健康检查：http://localhost:8000/health
+
+> **GPU 服务说明：** Docker 默认启动的是前后端服务，不包含 GPU 模型服务。
+> - Paper2PPT、Paper2Figure、知识库等功能仅依赖 LLM API，Docker 启动后即可使用。
+> - **PDF2PPT、Image2PPT、Image2Drawio** 依赖 SAM3 图像分割服务（需要 GPU），需额外部署：
+>   ```bash
+>   # 在有 GPU 的机器上启动 SAM3 服务
+>   python -m dataflow_agent.toolkits.model_servers.sam3_server \
+>       --port 8001 --checkpoint models/sam3/sam3.pt \
+>       --bpe models/sam3/bpe_simple_vocab_16e6.txt.gz --device cuda
+>   ```
+>   然后在 `fastapi_app/.env` 中添加：`SAM3_SERVER_URLS=http://GPU机器IP:8001`
+>
+> 详见下方「高级配置：本地模型服务负载均衡」部分。
 
 修改与更新：
 - 代码或 `.env` 变更后重新构建：`docker compose up -d --build`
@@ -402,12 +439,12 @@ SUPABASE_JWT_SECRET=your-jwt-secret
 
 - **MinerU (PDF 解析)**
   - `MINERU_MODEL_PATH`: 模型路径 (默认 `models/MinerU2.5-2509-1.2B`)
-  - `MINERU_GPU_UTIL`: 显存占用比例 (默认 0.2)
-  - **实例配置**: 脚本默认在 GPU 0 和 GPU 4 上各启动 4 个实例 (共 8 个)，端口范围 8011-8018。
+  - `MINERU_GPU_UTIL`: 显存占用比例 (默认 0.85)
+  - **实例配置**: 脚本默认在每个配置 GPU 上各启动 1 个实例，端口范围 8011-8013。
   - **Load Balancer**: 端口 8010，自动分发请求。
 
 - **SAM3 (Segment Anything Model 3)**
-  - **实例配置**: 默认每个配置 GPU 启动 1 个实例，起始端口 8021。
+  - **实例配置**: 默认每个配置 GPU 启动 1 个实例，端口范围 8021-8022。
   - **模型路径**: 默认使用 `./models/sam3/sam3.pt` 与 `./models/sam3/bpe_simple_vocab_16e6.txt.gz`。
   - **Load Balancer**: 端口 8020。
 
@@ -416,13 +453,6 @@ SUPABASE_JWT_SECRET=your-jwt-secret
   - **端口**: 8003。
 
 > 使用前请根据实际 GPU 数量和显存情况修改脚本中的 `gpu_id` 和实例数量。
-
-若需将 SAM3 资产迁移到本仓库内，可执行：
-
-```bash
-bash script/setup_sam3_assets.sh link
-# 或：bash script/setup_sam3_assets.sh copy
-```
 
 如果你要在单张 GPU 上一条命令联调（SAM3 + 后端 + 前端），可执行：
 

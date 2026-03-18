@@ -85,7 +85,8 @@ opencv-python==4.11.0.86
 
 # rebuttal
 docling==2.71.0
-
+# websearch knowledge store
+playwright-stealth
 # speech
 librosa==0.11.0
 soundfile==0.13.1

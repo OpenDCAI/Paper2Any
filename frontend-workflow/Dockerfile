@@ -5,17 +5,8 @@ WORKDIR /app
 COPY frontend-workflow/package.json frontend-workflow/package-lock.json ./
 RUN npm ci
 
+# 复制前端源码（包含 .env 文件，Vite build 时会自动读取）
 COPY frontend-workflow/ ./
-
-ARG VITE_API_KEY=df-internal-2024-workflow-key
-ARG VITE_DEFAULT_LLM_API_URL=https://api.apiyi.com/v1
-ARG VITE_LLM_API_URLS=https://api.apiyi.com/v1,http://b.apiyi.com:16888/v1,http://123.129.219.111:3000/v1
-ARG VITE_API_BASE_URL=
-
-ENV VITE_API_KEY=$VITE_API_KEY \
-    VITE_DEFAULT_LLM_API_URL=$VITE_DEFAULT_LLM_API_URL \
-    VITE_LLM_API_URLS=$VITE_LLM_API_URLS \
-    VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 RUN npm run build
 

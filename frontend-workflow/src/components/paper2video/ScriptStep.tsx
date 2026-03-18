@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import { ScriptPage, Step } from './types';
+import { VIDEO_GENERATION_COST } from './constants';
 
 interface ScriptStepProps {
   scriptPages: ScriptPage[];
@@ -74,6 +75,10 @@ const ScriptStep: React.FC<ScriptStepProps> = ({
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="mt-6 text-sm text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3">
+        {t('script.costHint', { count: VIDEO_GENERATION_COST })}
       </div>
 
       <div className="flex justify-between mt-8">

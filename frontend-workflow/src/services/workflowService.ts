@@ -112,7 +112,7 @@ export async function callWorkflow(
     }
 
     // 3. Record usage on success
-    await recordUsage(userId, workflowType);
+    await recordUsage(userId, workflowType, { isAnonymous });
 
     // 4. Upload file to Supabase Storage if blob response
     if (options.outputFileName && options.expectBlob) {

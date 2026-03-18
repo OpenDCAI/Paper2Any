@@ -95,9 +95,10 @@ def _ensure_numpy_sctypes_compat() -> None:
     }
 
 
-_ensure_numpy_sctypes_compat()
+# _ensure_numpy_sctypes_compat() — 移到 _get_paddle_ocr() 内部，仅在需要时调用
 
-from paddleocr import PaddleOCR
+# PaddleOCR 懒加载：仅在实际调用 paddle_ocr() 时才 import，避免启动时下载/初始化
+# from paddleocr import PaddleOCR
 
 from pptx import Presentation
 from pptx.util import Inches, Pt
@@ -148,13 +149,21 @@ SUBTITLE_RATIO_MAX = 2.0  # 副标题最大倍率
 BODY_RATIO_MIN = 0.9  # 正文最小倍率
 BODY_RATIO_MAX = 1.1  # 正文最大倍率
 
-# PaddleOCR 配置（全局只初始化一次）
-PADDLE_OCR = PaddleOCR(
-    use_angle_cls=True,  # 角度分类，处理横竖混排
-    lang="ch",  # 中文 + 英文
-    det_db_unclip_ratio=1.2 ,
-    det_db_box_thresh=0.5
-)
+# PaddleOCR 懒加载（仅在调用 paddle_ocr() 时初始化）
+_PADDLE_OCR = None
+
+def _get_paddle_ocr():
+    global _PADDLE_OCR
+    if _PADDLE_OCR is None:
+        _ensure_numpy_sctypes_compat()
+        from paddleocr import PaddleOCR
+        _PADDLE_OCR = PaddleOCR(
+            use_angle_cls=True,
+            lang="ch",
+            det_db_unclip_ratio=1.2,
+            det_db_box_thresh=0.5,
+        )
+    return _PADDLE_OCR
 
 # ----------------------------
 # Font Size Clustering
@@ -325,6 +334,34 @@ def images_to_pdf(image_paths: Sequence[str], output_pdf_path: str) -> str:
         raise ValueError("No images for PDF.")
     imgs[0].save(output_pdf_path, save_all=True, append_images=imgs[1:])
     return output_pdf_path
+
+
+def images_to_full_slide_ppt(image_paths: Sequence[str], output_pptx_path: str) -> str:
+    """
+    将一组图片直接按“整页铺图”的方式导出为 PPTX。
+
+    说明：
+    - 每张图片对应一页幻灯片；
+    - 不做 OCR、文字重建、背景抠图；
+    - 仅按幻灯片尺寸拉伸铺满，满足“PDF 每页作为一张图放进 PPTX”的需求。
+    """
+    prs = Presentation()
+    prs.slide_width = Inches(SLIDE_W_IN)
+    prs.slide_height = Inches(SLIDE_H_IN)
+
+    blank_layout = prs.slide_layouts[6] if len(prs.slide_layouts) > 6 else prs.slide_layouts[-1]
+    for img_path in image_paths:
+        slide = prs.slides.add_slide(blank_layout)
+        slide.shapes.add_picture(
+            str(img_path),
+            0,
+            0,
+            width=prs.slide_width,
+            height=prs.slide_height,
+        )
+
+    prs.save(output_pptx_path)
+    return output_pptx_path
 
 
 def pdf_to_images(pdf_path: str, out_dir: str, dpi: int = 220) -> List[str]:
@@ -500,7 +537,7 @@ def paddle_ocr(bgr: np.ndarray, drop_score: int = DROP_SCORE):
     h, w = bgr.shape[:2]
 
     # ocr_result: List[List[ [box, (text, score)], ... ]]
-    ocr_result = PADDLE_OCR.ocr(bgr, cls=True)
+    ocr_result = _get_paddle_ocr().ocr(bgr, cls=True)
     lines = []
 
     if not ocr_result:
@@ -1223,6 +1260,34 @@ def convert_images_dir_to_pdf_and_ppt(
         clean_background=clean_background,
         extract_text_color=extract_text_color,
     )
+
+
+def convert_images_dir_to_pdf_and_full_slide_ppt(
+    input_dir: str,
+    output_pdf_path: Optional[str] = None,
+    output_pptx_path: Optional[str] = None,
+) -> Dict[str, Optional[str]]:
+    """
+    给定图片目录，生成：
+    - PDF：保留原有图片逐页合成；
+    - PPTX：每张图片直接作为一页整页背景，不做 OCR / 重建。
+    """
+    image_paths = list_images_in_dir(input_dir)
+    version_pattern = re.compile(r'_v\d+\.(png|jpg|jpeg|bmp|tif|tiff)$', re.IGNORECASE)
+    image_paths = [p for p in image_paths if not version_pattern.search(os.path.basename(p))]
+
+    if not image_paths:
+        raise ValueError(f"No images found in {input_dir!r}")
+
+    result: Dict[str, Optional[str]] = {"pdf": None, "pptx": None}
+
+    if output_pdf_path is not None:
+        result["pdf"] = images_to_pdf(image_paths, output_pdf_path)
+
+    if output_pptx_path is not None:
+        result["pptx"] = images_to_full_slide_ppt(image_paths, output_pptx_path)
+
+    return result
 
 
 async def convert_images_dir_to_pdf_and_ppt_api(

@@ -5,8 +5,8 @@
  * default LLM provider settings for the frontend UI.
  */
 
-// API key for backend authentication (read from environment variable)
-export const API_KEY = import.meta.env.VITE_API_KEY || 'df-internal-2024-workflow-key';
+// API key for backend authentication (must match backend BACKEND_API_KEY)
+export const API_KEY = import.meta.env.VITE_API_KEY || '';
 
 // LLM Provider Default Configuration (for frontend UI defaults)
 export const DEFAULT_LLM_API_URL = import.meta.env.VITE_DEFAULT_LLM_API_URL || 'https://api.apiyi.com/v1';

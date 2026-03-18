@@ -49,7 +49,7 @@
       "pptModeBeamer": "Beamer 代码",
       "pptModeBeamerTip": "LaTeX 排版，仅输出 PDF，可预览每页；暂不支持逐页编辑",
       "pageCount": "生成页数",
-      "longPaper": "启用长文档模式，适用于生成40到100页的PPT",
+      "longPaper": "启用长文档模式（系统也会自动识别超长文档并切换分段大纲生成）",
       "styleTitle": "风格配置",
       "language": "语言",
       "styleMode": {

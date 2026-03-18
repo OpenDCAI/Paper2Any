@@ -18,7 +18,7 @@ from dataflow_agent.toolkits.multimodaltool.req_img import (
     generate_or_edit_and_save_image_async, 
     gemini_multi_image_edit_async
 )
-from dataflow_agent.toolkits.multimodaltool.ppt_tool import convert_images_dir_to_pdf_and_ppt_api
+from dataflow_agent.toolkits.multimodaltool.ppt_tool import convert_images_dir_to_pdf_and_full_slide_ppt
 
 log = get_logger(__name__)
 
@@ -45,6 +45,8 @@ def _abs_path(p: str) -> str:
     if not p:
         return ""
     try:
+        # 去掉 URL query string（如 ?t=1234567890），防止前端缓存破坏参数污染文件路径
+        p = p.split("?", 1)[0]
         return str(Path(p).expanduser().resolve())
     except Exception:
         return p
@@ -283,7 +285,12 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
         ) -> Dict[str, Any]:
             
             save_path = str((img_dir / f"page_{idx:03d}.png").resolve())
-            
+
+            # 构建可选的额外风格说明（当同时有参考图和 style 文本时融合使用）
+            style_hint = ""
+            if style and style.strip() and style.strip().lower() != "kartoon":
+                style_hint = f"\nAdditional style guidance: {style.strip()}\n"
+
             # --- Case B: pagecontent 本身就是图片路径 (Direct Image) ---
             direct_img_path = _extract_image_path_from_pagecontent_item(item)
             is_direct_image = bool(direct_img_path) and (
@@ -362,7 +369,7 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
 
             # 策略分支
             use_ref = (ref_img_path and os.path.exists(ref_img_path))
-            
+
             # 1. 如果有 Ref 图
             if use_ref:
                 if is_edit_originally and asset_path:
@@ -376,6 +383,7 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                         f"  - IMAGE 1 (First Image): STYLE REFERENCE. Strictly follow its color palette, and background style.\n"
                         f"  - IMAGE 2 (Second Image): CONTENT ASSET. Incorporate the chart/table/figure from this image into the slide.\n\n"
                         f"INSTRUCTION: Create a cohesive slide that presents the content from Image 2 but looks exactly like it belongs to the deck of Image 1.\n"
+                        f"{style_hint}"
                         f"Language: {state.request.language}"
                     )
                     mode = "multi_edit_ref_asset"
@@ -395,12 +403,13 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                     )
                 else:
                     # 原本是 Text2Img -> 改为 Img2Img (Ref as base)
-                    # 提示词要求“基于此风格生成新内容”
+                    # 提示词要求"基于此风格生成新内容"
                     final_prompt = (
                         f"{base_content}\n\n"
                         f"Reference the style of the provided image (layout, color, background), "
                         f"but generate NEW CONTENT based on the text description above. "
                         f"Keep the background style consistent.\n"
+                        f"{style_hint}"
                         f"Language: {state.request.language}"
                     )
                     mode = "edit_ref_style"
@@ -605,6 +614,11 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
 
         log.info(f"[paper2ppt] edit_single_page idx={idx} old={old_path} temp_save={temp_save_path} ref={user_ref_img}")
 
+        # 构建可选的额外风格说明（当同时有参考图和 style 文本时融合使用）
+        style_hint = ""
+        if style and style.strip() and style.strip().lower() != "kartoon":
+            style_hint = f" Additional style guidance: {style.strip()}."
+
         if user_ref_img:
             # 有参考图 -> 多图融合
             if prompt:
@@ -613,12 +627,14 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                     f"CRITICAL: You MUST strictly match the style of the first image (Reference). "
                     f"Maintain the content layout of the second image but unify the color scheme, background, and design elements "
                     f"to be consistent with the {style} style of the first image."
+                    f"{style_hint}"
                 )
             else:
                 full_prompt = (
                     f"Refine this slide image (second image) to match the style of the first image (Reference). "
                     f"Maintain the content layout of the second image but unify the color scheme, background, and design elements "
                     f"to be consistent with the {style} style of the first image."
+                    f"{style_hint}"
                 )
             
             await gemini_multi_image_edit_async(
@@ -710,18 +726,14 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
 
         log.info(f"[paper2ppt] export_ppt_assets: pdf={pdf_path}, pptx={pptx_path}")
 
-        out = await convert_images_dir_to_pdf_and_ppt_api(
+        out = convert_images_dir_to_pdf_and_full_slide_ppt(
             input_dir=str(img_dir),
             output_pdf_path=str(pdf_path),
-            output_pptx_path=None,
-            api_url=state.request.chat_api_url,
-            api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
-            model=state.request.gen_fig_model,
-            use_api_inpaint=False,
+            output_pptx_path=str(pptx_path),
         )
 
         setattr(state, "ppt_pdf_path", out.get("pdf") or str(pdf_path))
-        setattr(state, "ppt_pptx_path", None)
+        setattr(state, "ppt_pptx_path", out.get("pptx") or str(pptx_path))
         return state
 
     nodes = {

@@ -15,14 +15,15 @@ Usage (as dependency in router):
         ...
 """
 
+import os
+
 from fastapi import HTTPException, Header, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-# Hardcoded API key - frontend uses this to call backend
-# This is not meant for security against determined attackers,
-# just to prevent casual misuse of the API
-API_KEY = "df-internal-2024-workflow-key"
+# Internal API key for frontend-backend communication.
+# Read from environment so deployment can rotate it without code changes.
+API_KEY = (os.getenv("BACKEND_API_KEY", "") or "").strip()
 
 # Paths that don't require API key
 EXCLUDED_PATHS = {
@@ -64,6 +65,11 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
 
         # Only check API key for /api/* and /paper2video/* routes
         if path.startswith("/api/") or path.startswith("/paper2video/"):
+            if not API_KEY:
+                return JSONResponse(
+                    status_code=500,
+                    content={"detail": "BACKEND_API_KEY is not configured"},
+                )
             api_key = request.headers.get("X-API-Key")
             # EventSource 无法带自定义头，progress SSE 允许通过 query 传 key
             if not api_key and request.method == "GET" and "/paper2rebuttal/progress/" in path:
@@ -97,6 +103,12 @@ async def verify_api_key(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="API key required",
+        )
+
+    if not API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="BACKEND_API_KEY is not configured",
         )
 
     if x_api_key != API_KEY:

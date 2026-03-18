@@ -12,6 +12,8 @@
       "paper2drawio": "图表生成 (DrawIO)",
       "paper2ppt": "PPT生成",
       "paper2video": "PPT转视频",
+      "paper2poster": "论文转海报",
+      "paper2citation": "论文引用追踪",
       "pdf2ppt": "PDF转PPT",
       "image2ppt": "图片转PPT",
       "image2drawio": "图片转DrawIO",
@@ -38,7 +40,9 @@
       "knowledge": "管理和检索您的文档知识库，支持智能问答和内容搜索",
       "files": "查看和管理所有工作流生成的文件，支持下载和删除操作",
       "paper2rebuttal": "AI辅助生成学术论文反驳信，自动分析评审意见并给出回复策略",
-      "paper2video": "将论文 PDF 转为汇报视频，可选数字人与语音；AI 按页生成脚本再合成视频"
+      "paper2video": "将论文 PDF 转为汇报视频，可选数字人与语音；AI 按页生成脚本再合成视频",
+      "paper2poster": "将论文 PDF 转为学术海报，自动完成内容提炼、版式设计、配色与导出",
+      "paper2citation": "按作者姓名或 DOI / 论文链接追踪引用网络，查看引用作者、机构与引用统计"
     },
     "navSubTooltip": {
       "paper2figureTechExp": "从 PDF / 文本生成技术路线图与实验数据图，支持模板与配色，可导出 PPT / SVG",

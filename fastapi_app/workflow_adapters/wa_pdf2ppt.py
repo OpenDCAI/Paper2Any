@@ -99,7 +99,7 @@ async def run_pdf2ppt_wf_api(req: Paper2PPTRequest, result_path: Path | None = N
     log.critical(f"[pdf2ppt 是否使用AI： ] state.use_ai_edit = {state.use_ai_edit}")
 
     log.info(
-        f"[pdf2ppt] start workflow 'pdf2ppt_with_sam_ocr_mineru' "
+        f"[pdf2ppt] start workflow 'pdf2ppt_qwenvl' "
         f"with pdf_file={state.pdf_file}, result_path={state.result_path}"
     )
     final_state: Paper2FigureState = await run_workflow("pdf2ppt_qwenvl", state)

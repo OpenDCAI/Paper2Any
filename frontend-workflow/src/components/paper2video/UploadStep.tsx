@@ -17,15 +17,7 @@ export const SYSTEM_AVATARS = [
   { id: 'avatar2', name: 'Avatar 2', url: '/paper2video/avatar/avatar2.png' },
 ];
 
-/** 系统预置语音：id 对应 public/paper2video/sys_audio/{id}.wav */
-export const SYSTEM_AUDIO = [
-  { id: 'woman', name: 'Woman', url: '/paper2video/sys_audio/woman.wav' },
-  { id: 'man', name: 'Man', url: '/paper2video/sys_audio/man.wav' },
-];
-
 export type UseAvatar = 'none' | 'yes';
-export type UseVoice = 'tts' | 'own';
-export type TalkingModel = 'echomimic' | 'liveportrait';
 
 interface UploadStepProps {
   selectedFile: File | null;
@@ -36,13 +28,6 @@ interface UploadStepProps {
   avatarFile: File | null;
   avatarPreview: string | null;
   avatarPreset: string | null;
-  talkingModel: TalkingModel;
-  setTalkingModel: (v: TalkingModel) => void;
-  voiceFile: File | null;
-  voiceFileName: string | null;
-  useVoice: UseVoice;
-  setUseVoice: (v: UseVoice) => void;
-  voicePreset: string | null;
   isUploading: boolean;
   progress: number;
   progressStatus: string;
@@ -64,9 +49,6 @@ interface UploadStepProps {
   handleAvatarChange: (e: ChangeEvent<HTMLInputElement>) => void;
   handleSelectAvatarPreset: (presetId: string) => void;
   handleRemoveAvatar: () => void;
-  handleVoiceChange: (e: ChangeEvent<HTMLInputElement>) => void;
-  handleSelectVoicePreset: (presetId: string) => void;
-  handleRemoveVoice: () => void;
   handleStartParse: () => void;
 }
 
@@ -79,13 +61,6 @@ const UploadStep: React.FC<UploadStepProps> = ({
   avatarFile,
   avatarPreview,
   avatarPreset,
-  talkingModel,
-  setTalkingModel,
-  voiceFile,
-  voiceFileName,
-  useVoice,
-  setUseVoice,
-  voicePreset,
   isUploading,
   progress,
   progressStatus,
@@ -107,14 +82,10 @@ const UploadStep: React.FC<UploadStepProps> = ({
   handleAvatarChange,
   handleSelectAvatarPreset,
   handleRemoveAvatar,
-  handleVoiceChange,
-  handleSelectVoicePreset,
-  handleRemoveVoice,
   handleStartParse,
 }) => {
   const { t } = useTranslation(['paper2video', 'common']);
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
-  const getVoiceDisplayName = (id: string) => (id === 'woman' ? t('upload.voiceWoman') : t('upload.voiceMan'));
   const [voicePlayingId, setVoicePlayingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -126,25 +97,6 @@ const UploadStep: React.FC<UploadStepProps> = ({
       setVoicePlayingId(null);
     };
   }, []);
-
-  const handleVoicePreview = (e: React.MouseEvent, id: string, url: string) => {
-    e.stopPropagation();
-    if (voicePlayingId === id) {
-      voiceAudioRef.current?.pause();
-      voiceAudioRef.current = null;
-      setVoicePlayingId(null);
-      return;
-    }
-    if (voiceAudioRef.current) voiceAudioRef.current.pause();
-    const audio = new Audio(url);
-    voiceAudioRef.current = audio;
-    audio.play().catch(() => {});
-    audio.onended = () => {
-      setVoicePlayingId(null);
-      voiceAudioRef.current = null;
-    };
-    setVoicePlayingId(id);
-  };
 
   const handleTtsVoicePreview = (e: React.MouseEvent, voiceId: string) => {
     e.stopPropagation();
@@ -247,34 +199,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
             <>
               <p className="text-xs text-amber-400/90 mb-2">{t('upload.avatarTipTime')}</p>
               <p className="text-xs text-gray-400 mb-2">{t('upload.avatarChoiceHint')}</p>
-              <p className="text-xs text-gray-500 mb-1 mt-3">{t('upload.talkingModelLabel')}</p>
-              <div className="flex rounded-lg bg-white/5 border border-white/10 p-1 gap-0 mb-3">
-                <button
-                  type="button"
-                  onClick={() => setTalkingModel('liveportrait')}
-                  className={`flex-1 py-2 px-3 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
-                    talkingModel === 'liveportrait'
-                      ? 'bg-teal-500/20 text-teal-300 border border-teal-500/50'
-                      : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
-                  }`}
-                >
-                  {t('upload.talkingModelLiveportrait')}
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/25 text-amber-300 border border-amber-400/40">
-                    {t('upload.talkingModelRecommend')}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTalkingModel('echomimic')}
-                  className={`flex-1 py-2 px-3 rounded-md text-xs font-medium transition-all ${
-                    talkingModel === 'echomimic'
-                      ? 'bg-teal-500/20 text-teal-300 border border-teal-500/50'
-                      : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
-                  }`}
-                >
-                  {t('upload.talkingModelEchomimic')}
-                </button>
-              </div>
+              <p className="text-xs text-teal-300/90 mb-3 mt-3">{t('upload.talkingModelFixed')}</p>
               <p className="text-xs text-gray-500 mb-1">{t('upload.avatarSystemLabel')}</p>
               <div className="flex flex-wrap gap-3 mb-3">
                 {SYSTEM_AVATARS.map((a) => (
@@ -376,131 +301,47 @@ const UploadStep: React.FC<UploadStepProps> = ({
             <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
               <Mic size={12} /> {t('upload.voiceLabel')} <span className="text-gray-500">({t('upload.optional')})</span>
             </label>
-            <div className="flex rounded-xl bg-white/5 border border-white/10 p-1 gap-0 mb-3">
-              <button
-                type="button"
-                onClick={() => setUseVoice('tts')}
-                className={`flex-1 py-2.5 px-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${
-                  useVoice === 'tts'
-                    ? 'bg-teal-500/20 text-teal-300 border border-teal-500/50 shadow-sm'
-                    : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
-                }`}
-              >
-                {t('upload.voiceUseTts')}
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/25 text-amber-300 border border-amber-400/40">
-                  {t('upload.voiceUseTtsRecommend')}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setUseVoice('own')}
-                className={`flex-1 py-2.5 px-3 rounded-lg text-sm font-medium transition-all ${
-                  useVoice === 'own'
-                    ? 'bg-teal-500/20 text-teal-300 border border-teal-500/50 shadow-sm'
-                    : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
-                }`}
-              >
-                {t('upload.voiceUseFile')}
-              </button>
-            </div>
-            {useVoice === 'tts' && (
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
-                    <Mic size={12} /> {t('upload.config.ttsModelLabel')}
-                  </label>
-                  <div className="rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-teal-300">
-                    {TTS_MODEL}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
-                    <Mic size={12} /> {t('upload.config.ttsVoiceLabel')}
-                  </label>
-                  <p className="text-xs text-gray-500 mb-2">{t('upload.config.ttsVoicePresetHint')}</p>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {COSYVOICE_V3_FLASH_VOICES.map((v) => (
-                      <div
-                        key={v.id}
-                        className={`flex items-center gap-0 rounded-xl overflow-hidden border-2 transition-all ${
-                          ttsVoiceName === v.id
-                            ? 'border-teal-500 bg-teal-500/15 shadow-md shadow-teal-500/10'
-                            : 'border-white/20 hover:border-teal-400/50 bg-white/5'
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setTtsVoiceName(v.id)}
-                          className="pl-3 pr-2 py-2.5 text-sm font-medium text-left text-gray-200 flex-1 min-w-0"
-                        >
-                          {v.name}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => handleTtsVoicePreview(e, v.id)}
-                          className="pr-2.5 py-2.5 text-teal-400 hover:text-teal-300 hover:bg-white/10 flex-shrink-0 transition-colors"
-                          title={t('upload.voicePreview')}
-                        >
-                          {voicePlayingId === `tts-${v.id}` ? (
-                            <Square size={16} fill="currentColor" />
-                          ) : (
-                            <Play size={16} fill="currentColor" />
-                          )}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-gray-500 mb-1 flex items-center gap-1 flex-wrap">
-                    <span>{t('upload.config.ttsVoiceCustomHint')}</span>
-                    <a
-                      href={COSYVOICE_VOICE_LIST_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-teal-400 hover:text-teal-300 inline-flex items-center gap-0.5"
-                    >
-                      {t('upload.config.ttsVoiceListLink')}
-                      <ExternalLink size={12} />
-                    </a>
-                  </p>
-                  <input
-                    type="text"
-                    value={ttsVoiceName}
-                    onChange={(e) => setTtsVoiceName(e.target.value)}
-                    placeholder={t('upload.config.ttsVoicePlaceholder')}
-                    spellCheck={false}
-                    className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 placeholder-gray-500 outline-none focus:ring-2 focus:ring-teal-500"
-                  />
+            <div className="space-y-3">
+              <div className="rounded-lg border border-teal-500/30 bg-teal-500/10 px-3 py-2 text-sm text-teal-200">
+                {t('upload.voiceApiOnly')}
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
+                  <Mic size={12} /> {t('upload.config.ttsModelLabel')}
+                </label>
+                <div className="rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-teal-300">
+                  {TTS_MODEL}
                 </div>
               </div>
-            )}
-            {useVoice === 'own' && (
-              <>
-                <p className="text-xs text-gray-400 mb-2">{t('upload.voiceChoiceHint')}</p>
-                <p className="text-xs text-gray-500 mb-1">{t('upload.voiceSystemLabel')}</p>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
+                  <Mic size={12} /> {t('upload.config.ttsVoiceLabel')}
+                </label>
+                <p className="text-xs text-gray-500 mb-2">{t('upload.config.ttsVoicePresetHint')}</p>
                 <div className="flex flex-wrap gap-2 mb-2">
-                  {SYSTEM_AUDIO.map((a) => (
+                  {COSYVOICE_V3_FLASH_VOICES.map((v) => (
                     <div
-                      key={a.id}
+                      key={v.id}
                       className={`flex items-center gap-0 rounded-xl overflow-hidden border-2 transition-all ${
-                        voicePreset === a.id && !voiceFile
+                        ttsVoiceName === v.id
                           ? 'border-teal-500 bg-teal-500/15 shadow-md shadow-teal-500/10'
                           : 'border-white/20 hover:border-teal-400/50 bg-white/5'
                       }`}
                     >
                       <button
                         type="button"
-                        onClick={() => handleSelectVoicePreset(voicePreset === a.id ? '' : a.id)}
+                        onClick={() => setTtsVoiceName(v.id)}
                         className="pl-3 pr-2 py-2.5 text-sm font-medium text-left text-gray-200 flex-1 min-w-0"
                       >
-                        {getVoiceDisplayName(a.id)}
+                        {v.name}
                       </button>
                       <button
                         type="button"
-                        onClick={(e) => handleVoicePreview(e, a.id, a.url)}
+                        onClick={(e) => handleTtsVoicePreview(e, v.id)}
                         className="pr-2.5 py-2.5 text-teal-400 hover:text-teal-300 hover:bg-white/10 flex-shrink-0 transition-colors"
                         title={t('upload.voicePreview')}
                       >
-                        {voicePlayingId === a.id ? (
+                        {voicePlayingId === `tts-${v.id}` ? (
                           <Square size={16} fill="currentColor" />
                         ) : (
                           <Play size={16} fill="currentColor" />
@@ -509,25 +350,28 @@ const UploadStep: React.FC<UploadStepProps> = ({
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-gray-500 mb-1">{t('upload.voiceUploadOwn')}</p>
-                {voiceFileName || voicePreset ? (
-                  <div className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-white/20 bg-black/40">
-                    <span className="text-sm text-teal-300 flex items-center gap-2">
-                      <Mic size={14} /> {voiceFileName ?? (voicePreset && getVoiceDisplayName(voicePreset)) ?? voicePreset}
-                    </span>
-                    <button type="button" onClick={handleRemoveVoice} className="p-1.5 text-gray-400 hover:text-red-400 rounded hover:bg-white/10">
-                      <X size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <label className="border-2 border-dashed border-white/20 rounded-lg p-4 flex flex-col items-center justify-center text-center gap-2 cursor-pointer hover:border-teal-400/60 hover:bg-white/5 transition-all min-h-[56px]">
-                    <Mic size={20} className="text-gray-400" />
-                    <span className="text-xs text-gray-400">{t('upload.voiceUpload')}</span>
-                    <input type="file" accept=".wav,audio/wav" className="hidden" onChange={handleVoiceChange} />
-                  </label>
-                )}
-              </>
-            )}
+                <p className="text-xs text-gray-500 mb-1 flex items-center gap-1 flex-wrap">
+                  <span>{t('upload.config.ttsVoiceCustomHint')}</span>
+                  <a
+                    href={COSYVOICE_VOICE_LIST_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-teal-400 hover:text-teal-300 inline-flex items-center gap-0.5"
+                  >
+                    {t('upload.config.ttsVoiceListLink')}
+                    <ExternalLink size={12} />
+                  </a>
+                </p>
+                <input
+                  type="text"
+                  value={ttsVoiceName}
+                  onChange={(e) => setTtsVoiceName(e.target.value)}
+                  placeholder={t('upload.config.ttsVoicePlaceholder')}
+                  spellCheck={false}
+                  className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 placeholder-gray-500 outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+            </div>
           </div>
 
           <div>
@@ -544,7 +388,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
 
           <button
             onClick={handleStartParse}
-            disabled={!selectedFile || isUploading || (useVoice === 'own' && !voiceFile && !voicePreset)}
+            disabled={!selectedFile || isUploading}
             className="w-full py-3 rounded-lg bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold flex items-center justify-center gap-2 transition-all"
           >
             {isUploading ? (

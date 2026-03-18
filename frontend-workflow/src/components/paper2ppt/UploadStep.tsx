@@ -355,7 +355,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
                 value={pageCount} 
                 onChange={e => setPageCount(parseInt(e.target.value) || 6)}
                 min={1}
-                max={20}
+                max={100}
                 className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>

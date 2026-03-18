@@ -368,7 +368,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
       }
 
       setDrawioXml(data.xml_content);
-      await recordUsage(user?.id || null, 'image2drawio');
+      await recordUsage(user?.id || null, 'image2drawio', { isAnonymous: user?.is_anonymous || false });
       refreshQuota();
     } catch (e) {
       const message = e instanceof Error ? e.message : 'DrawIO 生成失败';
@@ -653,7 +653,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
         }
 
         setSuccessMessage(t('success.previewGenerated', '模型结构图预览已生成，请确认并转为 PPT'));
-        await recordUsage(user?.id || null, 'paper2figure');
+        await recordUsage(user?.id || null, 'paper2figure', { isAnonymous: user?.is_anonymous || false });
         refreshQuota();
 
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -825,7 +825,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
         setSuccessMessage(t('success.techRouteGenerated'));
 
         // 校验通过后才扣积分
-        await recordUsage(user?.id || null, 'paper2figure');
+        await recordUsage(user?.id || null, 'paper2figure', { isAnonymous: user?.is_anonymous || false });
         refreshQuota();
 
         // Fetch PPT file and upload to Supabase Storage
@@ -889,7 +889,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
         setSuccessMessage(t('success.pptGenerated'));
 
         // 校验通过后才扣积分
-        await recordUsage(user?.id || null, 'paper2figure');
+        await recordUsage(user?.id || null, 'paper2figure', { isAnonymous: user?.is_anonymous || false });
         refreshQuota();
 
         console.log('[Paper2GraphPage] Uploading file to storage:', filename);

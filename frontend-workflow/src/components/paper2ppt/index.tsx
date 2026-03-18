@@ -378,10 +378,10 @@ const Paper2PptPage = () => {
 
       if (styleMode === 'reference' && referenceImage) {
         formData.append('reference_img', referenceImage);
-        // 如果有参考图，清空 style 参数，避免混淆
-        formData.set('style', '');
+        // 参考图模式下：保留用户显式输入的风格提示词（globalPrompt），但去掉默认 preset 描述
+        formData.set('style', globalPrompt || '');
       }
-      
+
       console.log(`Sending request to /api/v1/paper2ppt/page-content with input_type=${uploadMode}`);
       
       const res = await fetch('/api/v1/paper2ppt/page-content', {
@@ -654,6 +654,12 @@ const Paper2PptPage = () => {
       formData.append('get_down', 'false');
       formData.append('ppt_mode', pptMode);
 
+      // 如果用户选的是参考图模式，附加参考图，保留用户显式输入的风格提示词
+      if (styleMode === 'reference' && referenceImage) {
+        formData.append('reference_img', referenceImage);
+        formData.set('style', globalPrompt || '');
+      }
+
       const pagecontent = outlineData.map((slide) => ({
         title: slide.title,
         layout_description: slide.layout_description,
@@ -870,6 +876,12 @@ const Paper2PptPage = () => {
       formData.append('edit_prompt', slidePrompt);
       formData.append('ppt_mode', pptMode);
 
+      // 如果用户选的是参考图模式，附加参考图，保留用户显式输入的风格提示词
+      if (styleMode === 'reference' && referenceImage) {
+        formData.append('reference_img', referenceImage);
+        formData.set('style', globalPrompt || '');
+      }
+
       const pagecontent = outlineData.map((slide, idx) => {
         const result = generateResults[idx];
         let generatedPath = '';
@@ -990,6 +1002,12 @@ const Paper2PptPage = () => {
       formData.append('all_edited_down', 'true');
       formData.append('ppt_mode', pptMode);
 
+      // 如果用户选的是参考图模式，附加参考图，保留用户显式输入的风格提示词
+      if (styleMode === 'reference' && referenceImage) {
+        formData.append('reference_img', referenceImage);
+        formData.set('style', globalPrompt || '');
+      }
+
       const pagecontent = outlineData.map((slide) => ({
         title: slide.title,
         layout_description: slide.layout_description,
@@ -1061,7 +1079,7 @@ const Paper2PptPage = () => {
       }
 
       // 校验通过后才扣积分
-      await recordUsage(user?.id || null, 'paper2ppt');
+      await recordUsage(user?.id || null, 'paper2ppt', { isAnonymous: user?.is_anonymous || false });
       refreshQuota();
 
       // Upload generated file to Supabase Storage (either PPTX or PDF)
@@ -1111,6 +1129,32 @@ const Paper2PptPage = () => {
   const handleDownloadPdf = () => {
     if (!pdfPreviewUrl) return;
     window.open(pdfPreviewUrl, '_blank');
+  };
+
+  const handleDownloadPptx = async () => {
+    if (!downloadUrl) {
+      setError('下载链接不存在');
+      return;
+    }
+
+    try {
+      const res = await fetch(downloadUrl);
+      if (!res.ok) {
+        throw new Error('下载失败');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'paper2ppt_editable.pptx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
+      setError(message);
+    }
   };
 
   const handleReset = () => {
@@ -1213,6 +1257,7 @@ const Paper2PptPage = () => {
               pdfPreviewUrl={pdfPreviewUrl}
               isGeneratingFinal={isGeneratingFinal}
               handleGenerateFinal={handleGenerateFinal}
+              handleDownloadPptx={handleDownloadPptx}
               handleDownloadPdf={handleDownloadPdf}
               handleReset={handleReset}
               error={error}

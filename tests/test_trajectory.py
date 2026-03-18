@@ -1,10 +1,4 @@
-"""
-TRJ 功能测试
-
-测试轨迹收集、构建和导出功能
-"""
-
-import asyncio
+"""TRJ 功能测试."""
 from dataflow_agent.trajectory import (
     TrajectoryManager,
     TrajectoryCollector,
@@ -19,7 +13,7 @@ from dataflow_agent.logger import get_logger
 log = get_logger(__name__)
 
 
-async def test_basic_trajectory():
+def test_basic_trajectory():
     """测试基本的轨迹记录流程"""
     log.info("=" * 60)
     log.info("测试 1: 基本轨迹记录")
@@ -97,10 +91,7 @@ async def test_basic_trajectory():
     filepath = manager.export(trajectory, format="json")
     log.info(f"✓ 已导出: {filepath}")
     
-    return trajectory
-
-
-async def test_react_mode_trajectory():
+def test_react_mode_trajectory():
     """测试 ReAct 模式轨迹"""
     log.info("=" * 60)
     log.info("测试 2: ReAct 模式轨迹")
@@ -153,10 +144,7 @@ async def test_react_mode_trajectory():
     filepath = manager.export(trajectory, format="sft")
     log.info(f"✓ 已导出 SFT 格式: {filepath}")
     
-    return trajectory
-
-
-async def test_batch_export():
+def test_batch_export():
     """测试批量导出"""
     log.info("=" * 60)
     log.info("测试 3: 批量导出")
@@ -190,10 +178,7 @@ async def test_batch_export():
     stats_path = exporter.export_statistics(trajectories)
     log.info(f"✓ 导出统计信息: {stats_path}")
     
-    return trajectories
-
-
-async def test_feedback():
+def test_feedback():
     """测试用户反馈"""
     log.info("=" * 60)
     log.info("测试 4: 用户反馈")
@@ -230,10 +215,7 @@ async def test_feedback():
     filepath = manager.export(trajectory, format="json")
     log.info(f"✓ 已导出包含反馈的轨迹: {filepath}")
     
-    return trajectory
-
-
-async def main():
+def main():
     """运行所有测试"""
     log.info("\n" + "=" * 60)
     log.info("开始 TRJ 功能测试")
@@ -241,16 +223,16 @@ async def main():
     
     try:
         # 测试 1: 基本功能
-        await test_basic_trajectory()
+        test_basic_trajectory()
         
         # 测试 2: ReAct 模式
-        await test_react_mode_trajectory()
+        test_react_mode_trajectory()
         
         # 测试 3: 批量导出
-        await test_batch_export()
+        test_batch_export()
         
         # 测试 4: 用户反馈
-        await test_feedback()
+        test_feedback()
         
         log.info("\n" + "=" * 60)
         log.info("✓ 所有测试通过！")
@@ -262,4 +244,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

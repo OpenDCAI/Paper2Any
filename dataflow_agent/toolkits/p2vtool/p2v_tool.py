@@ -76,7 +76,7 @@ def get_image_paths(directory_path: str) -> List[str]:
     
     base_path = Path(directory_path)
     if not base_path.is_dir():
-        print(f"Error: Directory not found at {directory_path}")
+        log.error("Directory not found at %s", directory_path)
         return []
 
     found_image_paths: List[Path] = []
@@ -99,8 +99,8 @@ def create_subtitle_image(text, font_size=32, font_path="arial.ttf"):
         try:
             font = ImageFont.truetype(font_path, font_size, index=2)
         except Exception as e:
-            print(f"[Warning] Failed to load font from '{font_path}': {e}")
-            print("Using default font (fixed size, font_size will be ignored!)")
+            log.warning("Failed to load font from '%s': %s", font_path, e)
+            log.warning("Using default font; font_size will be ignored.")
             font = ImageFont.load_default()
 
     dummy_img = Image.new("RGBA", (70, 70))
@@ -139,11 +139,11 @@ def generate_subtitle_clips(sentence_timesteps_file, video_w, video_h, font_size
 # 从sentece_timesteps_path中读取有关的sentence的时间和文本，实际上就是保存的cursor.json文件中的内容
 def add_subtitles(video_path, output_path, sentence_timesteps_path, font_size):
     from moviepy.editor import VideoFileClip, CompositeVideoClip
-    print("[Step 1] Generating subtitle clips...")
+    log.info("[Step 1] Generating subtitle clips...")
     video = VideoFileClip(video_path)
     subs = generate_subtitle_clips(sentence_timesteps_path, video.w, video.h, font_size)
 
-    print("[Step 2] Rendering final video...")
+    log.info("[Step 2] Rendering final video...")
     final = CompositeVideoClip([video] + subs)
     # 使用cpu
     final.write_videofile(output_path, codec="libx264", audio_codec="aac", threads=12, preset="veryfast")
@@ -177,7 +177,7 @@ def render_cursor_on_video(
         return width, height
 
     w, h = get_video_resolution(input_video)
-    print(f"Video resolution: {w}x{h}")
+    log.info("Video resolution: %sx%s", w, h)
 
     # 记录了鼠标的移动位置信息，以一个列表的形式
     filters = []
@@ -255,7 +255,7 @@ def render_cursor_on_video(
         output_video
     ]
     subprocess.run(cmd, check=True)
-    print(f"\n✅ Done! Output saved to: {output_video}")
+    log.info("Done. Output saved to: %s", output_video)
 
 
 def render_video_with_cursor_from_json(
@@ -848,7 +848,7 @@ def _infer_cursor(instruction, image_path):
         x = float(match.group(1))
         y = float(match.group(2))
     else:
-        print(instruction)
+        log.info("%s", instruction)
     return (x, y)
 
 def cursor_infer(args):
@@ -1061,9 +1061,12 @@ def speech_task_wrapper_with_cloud_tts(task_args):
 
     try:
         speech_result_path = asyncio.run(_run_cloud_tts())
-    except TTSFallbackToF5Error:
+    except TTSFallbackToF5Error as exc:
         if not can_fallback_f5:
-            raise
+            cause = exc.__cause__ or exc
+            raise RuntimeError(
+                f"CosyVoice TTS 重试后仍失败：{cause}"
+            ) from exc
         log.warning(f"云 TTS 5 次均失败，回退 F5-TTS: slide_idx={slide_idx}, idx={idx}")
         # 从 speech_result_path 的父目录中任选一个 .wav 作为 ref_audio
         parent_dir = Path(speech_result_path).resolve().parent

@@ -42,11 +42,26 @@ class AppSettings(BaseSettings):
     # API Configuration
     DEFAULT_LLM_API_URL: str = "http://123.129.219.111:3000/v1/"
 
+    # RMBG-2.0 background removal model path
+    RMBG_MODEL_PATH: str = str(_project_root() / "models" / "RMBG-2.0")
+
     # Paper2Drawio SAM3 + OCR service configuration
+    # 阿里云相关真实 key 统一放在 fastapi_app/.env，本文件不再写死密钥。
     PAPER2DRAWIO_SAM3_CHECKPOINT_PATH: str = str(_project_root() / "models" / "sam3" / "sam3.pt")
     PAPER2DRAWIO_SAM3_BPE_PATH: str = str(_project_root() / "models" / "sam3" / "bpe_simple_vocab_16e6.txt.gz")
     PAPER2DRAWIO_OCR_API_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     PAPER2DRAWIO_OCR_API_KEY: str = ""
+
+    # Paper2Citation optional websearch-LLM enrichment
+    PAPER2CITATION_WEBSEARCH_ENABLED: bool = False
+    PAPER2CITATION_WEBSEARCH_API_URL: str = ""
+    PAPER2CITATION_WEBSEARCH_API_KEY: str = ""
+    PAPER2CITATION_WEBSEARCH_MODEL: str = ""
+    PAPER2CITATION_WEBSEARCH_TOOL: str = "web_search_preview"
+    PAPER2CITATION_WEBSEARCH_TIMEOUT_SECONDS: int = 45
+    PAPER2CITATION_WEBSEARCH_DISABLE_SECONDS: int = 600
+    PAPER2CITATION_WEBSEARCH_MAX_AUTHORS: int = 24
+    PAPER2CITATION_WEBSEARCH_MAX_OUTPUT_TOKENS: int = 1200
 
     # ============================================
     # Layer 2: Workflow-level Default Models

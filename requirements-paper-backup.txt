@@ -249,8 +249,8 @@ orjson==3.11.5
 ormsgpack==1.12.0
 outlines_core==0.2.11
 packaging==25.0
-paddleocr==2.9.1
-paddlepaddle==3.2.0
+# paddleocr==2.9.1  # 懒加载，仅旧版 workflow 需要
+# paddlepaddle==3.2.0  # 懒加载，仅旧版 workflow 需要
 paginate==0.5.7
 pandas==2.3.3
 parso==0.8.5

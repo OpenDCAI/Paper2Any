@@ -70,6 +70,13 @@ async def paper2video_generate_subtitle(
     if not file:
         log.warning("[paper2video] generate-subtitle: missing file")
         raise HTTPException(status_code=400, detail="file is required (PDF)")
+    effective_talking_model = "liveportrait"
+    if (talking_model or "").strip().lower() not in {"", "liveportrait"}:
+        log.info(
+            "[paper2video] generate-subtitle: override talking_model=%s -> %s",
+            talking_model,
+            effective_talking_model,
+        )
     data = await service.run_generate_subtitle(
         email=email,
         api_key=api_key,
@@ -78,7 +85,7 @@ async def paper2video_generate_subtitle(
         tts_model=tts_model,
         tts_voice_name=tts_voice_name or "",
         language=language,
-        talking_model=talking_model or "liveportrait",
+        talking_model=effective_talking_model,
         file=file,
         avatar=avatar,
         avatar_preset=avatar_preset,

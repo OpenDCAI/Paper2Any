@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import re
 import random
+import warnings
 from PIL import Image
 from mineru_vl_utils import MinerUClient
 from dataflow_agent.logger import get_logger
@@ -178,6 +179,13 @@ def run_mineru_pdf_extract(
     返回:
         解析的所有图片、markdown格式的内容
     """
+    warnings.warn(
+        "run_mineru_pdf_extract (CLI mode) is deprecated. "
+        "Use `await run_mineru_pdf_extract_http(...)` instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
     # 1. 解析 mineru 可执行路径
     if mineru_executable is None:
         mineru_executable = (
@@ -232,6 +240,238 @@ def run_mineru_pdf_extract(
         env=env,
     )
 
+
+
+def _normalize_mineru_blocks(page_result: Any) -> List[Dict[str, Any]]:
+    """
+    兼容 MinerU HTTP 不同返回结构，统一提取 blocks 列表。
+    """
+    if isinstance(page_result, list):
+        return [b for b in page_result if isinstance(b, dict)]
+
+    if isinstance(page_result, dict):
+        for key in ("blocks", "layout", "items", "result", "data"):
+            value = page_result.get(key)
+            if isinstance(value, list):
+                return [b for b in value if isinstance(b, dict)]
+
+        pages = page_result.get("pages")
+        if isinstance(pages, list) and pages and isinstance(pages[0], dict):
+            first_page = pages[0]
+            for key in ("blocks", "layout", "items", "result", "data"):
+                value = first_page.get(key)
+                if isinstance(value, list):
+                    return [b for b in value if isinstance(b, dict)]
+    return []
+
+
+def _sort_blocks_for_reading(blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    按 bbox 的上->下、左->右排序，提升 markdown 可读性。
+    """
+    def _key(block: Dict[str, Any]) -> tuple[float, float]:
+        bbox = block.get("bbox") or [1e9, 1e9, 1e9, 1e9]
+        if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+            return (1e9, 1e9)
+        try:
+            return (float(bbox[1]), float(bbox[0]))
+        except Exception:
+            return (1e9, 1e9)
+
+    return sorted(blocks, key=_key)
+
+
+def _extract_block_text(block: Dict[str, Any]) -> str:
+    """
+    尝试从 block 中提取可用文本字段。
+    """
+    for key in ("text", "content", "value", "caption", "title"):
+        value = block.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _crop_block_to_image(
+    page_image_path: Union[str, Path],
+    bbox: Sequence[float],
+    output_path: Union[str, Path],
+) -> bool:
+    """
+    按 bbox 从页面图裁剪一个子图。
+    - 支持归一化 bbox([0,1]) 或像素 bbox。
+    """
+    if not bbox or len(bbox) != 4:
+        return False
+
+    out_path = Path(output_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with Image.open(page_image_path) as img:
+        width, height = img.size
+        x1, y1, x2, y2 = [float(v) for v in bbox]
+
+        if max(abs(x1), abs(y1), abs(x2), abs(y2)) <= 1.5:
+            left = int(round(x1 * width))
+            top = int(round(y1 * height))
+            right = int(round(x2 * width))
+            bottom = int(round(y2 * height))
+        else:
+            left = int(round(x1))
+            top = int(round(y1))
+            right = int(round(x2))
+            bottom = int(round(y2))
+
+        left = max(0, min(width, left))
+        top = max(0, min(height, top))
+        right = max(0, min(width, right))
+        bottom = max(0, min(height, bottom))
+
+        if right <= left or bottom <= top:
+            return False
+
+        cropped = img.crop((left, top, right, bottom))
+        cropped.save(out_path)
+    return True
+
+
+def _render_page_blocks_to_markdown(
+    page_index: int,
+    page_image_path: Union[str, Path],
+    blocks: List[Dict[str, Any]],
+    images_dir: Union[str, Path],
+) -> str:
+    """
+    将单页 MinerU blocks 转换为 markdown。
+    """
+    lines: List[str] = [f"## Page {page_index}"]
+    sorted_blocks = _sort_blocks_for_reading(blocks)
+    images_root = Path(images_dir)
+    images_root.mkdir(parents=True, exist_ok=True)
+
+    for block_idx, block in enumerate(sorted_blocks):
+        block_type = str(block.get("type") or "unknown").lower().strip()
+        text = _extract_block_text(block)
+        bbox = block.get("bbox")
+
+        if block_type in {"title", "heading", "section_title"} and text:
+            lines.append(f"# {text}")
+            continue
+
+        if text:
+            lines.append(text)
+
+        if block_type in {"image", "img", "figure", "table"}:
+            image_name = f"page_{page_index:04d}_blk_{block_idx:04d}.png"
+            image_path = images_root / image_name
+            try:
+                ok = _crop_block_to_image(page_image_path, bbox, image_path)
+            except Exception:
+                ok = False
+            if ok:
+                lines.append(f"![](images/{image_name})")
+
+    cleaned: List[str] = []
+    for line in lines:
+        line = (line or "").rstrip()
+        if not line:
+            if cleaned and cleaned[-1] == "":
+                continue
+            cleaned.append("")
+        else:
+            cleaned.append(line)
+
+    while cleaned and cleaned[-1] == "":
+        cleaned.pop()
+    return "\n\n".join(cleaned)
+
+
+async def run_mineru_pdf_extract_http(
+    pdf_path: str,
+    output_dir: str = "",
+    port: int = 8010,
+    dpi: int = 300,
+) -> tuple[str, str]:
+    """
+    使用 MinerU HTTP 接口提取 PDF 内容（HTTP-only 路径）：
+      PDF -> 按页转图片 -> batch two_step_extract -> blocks 转 markdown
+
+    输出目录结构与 CLI 模式对齐：
+      <output_dir>/<pdf_stem>/auto/<pdf_stem>.md
+      <output_dir>/<pdf_stem>/auto/images/*.png
+
+    Returns:
+      (markdown_text, auto_dir)
+    """
+    pdf_file = Path(pdf_path).expanduser().resolve()
+    if not pdf_file.exists() or not pdf_file.is_file():
+        raise FileNotFoundError(f"PDF file not found: {pdf_file}")
+
+    if output_dir:
+        output_root = Path(output_dir).expanduser().resolve()
+    else:
+        output_root = pdf_file.parent.resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    pdf_stem = pdf_file.stem
+    auto_dir = (output_root / pdf_stem / "auto").resolve()
+    images_dir = auto_dir / "images"
+    pages_dir = auto_dir / "_pages"
+    auto_dir.mkdir(parents=True, exist_ok=True)
+    images_dir.mkdir(parents=True, exist_ok=True)
+    pages_dir.mkdir(parents=True, exist_ok=True)
+
+    markdown_path = auto_dir / f"{pdf_stem}.md"
+    if markdown_path.exists():
+        md = markdown_path.read_text(encoding="utf-8", errors="replace")
+        return md, str(auto_dir)
+
+    try:
+        from pdf2image import convert_from_path
+    except Exception as e:
+        raise RuntimeError(
+            "pdf2image is required for MinerU HTTP PDF extraction. "
+            "Please install it and ensure poppler is available."
+        ) from e
+
+    page_images = convert_from_path(str(pdf_file), dpi=int(dpi))
+    page_image_paths: List[str] = []
+    for idx, page_img in enumerate(page_images, start=1):
+        page_path = pages_dir / f"page_{idx:04d}.png"
+        page_img.save(page_path, "PNG")
+        page_image_paths.append(str(page_path.resolve()))
+
+    if not page_image_paths:
+        markdown_path.write_text("", encoding="utf-8")
+        return "", str(auto_dir)
+
+    log.info(
+        f"[MinerU-HTTP] extracting {len(page_image_paths)} page images "
+        f"for {pdf_file.name} via port={port}"
+    )
+    page_results = await run_aio_batch_two_step_extract(page_image_paths, port=port)
+    if isinstance(page_results, dict):
+        page_results = [page_results]
+    if not isinstance(page_results, list):
+        raise RuntimeError(f"Unexpected MinerU HTTP result type: {type(page_results)}")
+
+    markdown_parts: List[str] = [f"# {pdf_stem}"]
+    for page_idx, page_img_path in enumerate(page_image_paths, start=1):
+        raw = page_results[page_idx - 1] if (page_idx - 1) < len(page_results) else []
+        blocks = _normalize_mineru_blocks(raw)
+        page_md = _render_page_blocks_to_markdown(
+            page_index=page_idx,
+            page_image_path=page_img_path,
+            blocks=blocks,
+            images_dir=images_dir,
+        )
+        if page_md.strip():
+            markdown_parts.append(page_md)
+
+    markdown_text = "\n\n".join(markdown_parts).strip() + "\n"
+    markdown_path.write_text(markdown_text, encoding="utf-8")
+    log.info(f"[MinerU-HTTP] markdown generated: {markdown_path}")
+    return markdown_text, str(auto_dir)
 
 
 def crop_mineru_blocks_with_meta(

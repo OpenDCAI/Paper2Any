@@ -231,7 +231,7 @@ const Image2DrawioPage = () => {
       setFilePath(data.file_path || '');
       setStatusMessage(t('status.complete'));
 
-      await recordUsage(user?.id || null, 'image2drawio');
+      await recordUsage(user?.id || null, 'image2drawio', { isAnonymous: user?.is_anonymous || false });
       if (refreshQuota) refreshQuota();
     } catch (err) {
       const message = err instanceof Error ? err.message : t('errors.apiFail');
@@ -580,7 +580,7 @@ const Image2DrawioPage = () => {
                     onChange={(e) => setApiUrl(e.target.value)}
                     className={inputClass}
                   >
-                    {API_URL_OPTIONS.map((url) => (
+                    {API_URL_OPTIONS.map((url: string) => (
                       <option key={url} value={url}>{url}</option>
                     ))}
                   </select>

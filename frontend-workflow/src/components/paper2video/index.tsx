@@ -3,8 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { API_KEY } from '../../config/api';
 import { useAuthStore } from '../../stores/authStore';
 import { getApiSettings, saveApiSettings } from '../../services/apiSettingsService';
+import { checkQuota, recordUsage } from '../../services/quotaService';
 import { Step, ScriptPage } from './types';
-import { MAX_FILE_SIZE, STORAGE_KEY, TTS_MODEL_DEFAULT, TALKING_MODEL_DEFAULT } from './constants';
+import {
+  MAX_FILE_SIZE,
+  STORAGE_KEY,
+  TTS_MODEL_DEFAULT,
+  TALKING_MODEL_DEFAULT,
+  VIDEO_GENERATION_COST,
+} from './constants';
 import Banner from '../paper2ppt/Banner';
 import StepIndicator from './StepIndicator';
 import UploadStep from './UploadStep';
@@ -29,7 +36,7 @@ function convertToHttpUrl(path: string): string {
 const EXAMPLE_BASE = '/paper2video/example';
 
 const Paper2VideoPage = () => {
-  const { user } = useAuthStore();
+  const { user, refreshQuota } = useAuthStore();
   const { t } = useTranslation(['paper2video', 'common']);
 
   const [currentStep, setCurrentStep] = useState<Step>('upload');
@@ -40,11 +47,6 @@ const Paper2VideoPage = () => {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarPreset, setAvatarPreset] = useState<string | null>(null);
-  const [talkingModel, setTalkingModel] = useState<'echomimic' | 'liveportrait'>(TALKING_MODEL_DEFAULT);
-  const [useVoice, setUseVoice] = useState<'tts' | 'own'>('tts');
-  const [voiceFile, setVoiceFile] = useState<File | null>(null);
-  const [voiceFileName, setVoiceFileName] = useState<string | null>(null);
-  const [voicePreset, setVoicePreset] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressStatus, setProgressStatus] = useState('');
@@ -196,33 +198,6 @@ const Paper2VideoPage = () => {
     setAvatarPreset(null);
   };
 
-  const handleVoiceChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const ext = file.name.split('.').pop()?.toLowerCase();
-    if (ext !== 'wav') {
-      setError('语音仅支持 .wav 格式');
-      return;
-    }
-    setVoicePreset(null);
-    setVoiceFile(file);
-    setVoiceFileName(file.name);
-    setError(null);
-  };
-
-  const handleSelectVoicePreset = (presetId: string) => {
-    setVoiceFile(null);
-    setVoiceFileName(null);
-    setVoicePreset(presetId || null);
-    setError(null);
-  };
-
-  const handleRemoveVoice = () => {
-    setVoiceFile(null);
-    setVoiceFileName(null);
-    setVoicePreset(null);
-  };
-
   const handleStartParse = async () => {
     if (!selectedFile) {
       setError('请先选择 PDF 或 PPTX 文件');
@@ -258,14 +233,10 @@ const Paper2VideoPage = () => {
       formData.append('tts_model', ttsModel);
       formData.append('tts_voice_name', ttsVoiceName.trim() || 'longanyang');
       formData.append('language', language);
-      formData.append('talking_model', useAvatar === 'yes' ? talkingModel : TALKING_MODEL_DEFAULT);
+      formData.append('talking_model', TALKING_MODEL_DEFAULT);
       if (useAvatar === 'yes') {
         if (avatarFile) formData.append('avatar', avatarFile);
         else if (avatarPreset) formData.append('avatar_preset', avatarPreset);
-      }
-      if (useVoice === 'own') {
-        if (voiceFile) formData.append('voice', voiceFile);
-        else if (voicePreset) formData.append('voice_preset', voicePreset);
       }
 
       const res = await fetch('/api/v1/paper2video/generate-subtitle', {
@@ -321,6 +292,16 @@ const Paper2VideoPage = () => {
       return;
     }
 
+    const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
+    if (quota.remaining < VIDEO_GENERATION_COST) {
+      setError(
+        quota.isAuthenticated
+          ? t('errors.quotaUserInsufficient', { count: VIDEO_GENERATION_COST })
+          : t('errors.quotaGuestInsufficient', { count: VIDEO_GENERATION_COST })
+      );
+      return;
+    }
+
     setIsGeneratingVideo(true);
     setError(null);
     setCurrentStep('complete');
@@ -350,7 +331,17 @@ const Paper2VideoPage = () => {
 
       const url = data.video_url || (data.video_path ? convertToHttpUrl(data.video_path) : null);
       if (url) setVideoUrl(url);
-      else setError('后端未返回视频地址');
+      else setError(data.message || '后端未返回视频地址');
+
+      const usageRecorded = await recordUsage(user?.id || null, 'paper2video', {
+        amount: VIDEO_GENERATION_COST,
+        isAnonymous: user?.is_anonymous || false,
+      });
+      if (usageRecorded) {
+        refreshQuota();
+      } else {
+        setError(t('complete.usageRecordFailed', { count: VIDEO_GENERATION_COST }));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '视频生成失败');
       console.error(err);
@@ -377,10 +368,6 @@ const Paper2VideoPage = () => {
     setAvatarFile(null);
     setAvatarPreview(null);
     setAvatarPreset(null);
-    setUseVoice('tts');
-    setVoiceFile(null);
-    setVoiceFileName(null);
-    setVoicePreset(null);
     setScriptPages([]);
     setResultPath(null);
     setStateSnapshot(null);
@@ -409,13 +396,6 @@ const Paper2VideoPage = () => {
               avatarFile={avatarFile}
               avatarPreview={avatarPreview}
               avatarPreset={avatarPreset}
-              talkingModel={talkingModel}
-              setTalkingModel={setTalkingModel}
-              voiceFile={voiceFile}
-              voiceFileName={voiceFileName}
-              useVoice={useVoice}
-              setUseVoice={setUseVoice}
-              voicePreset={voicePreset}
               isUploading={isUploading}
               progress={progress}
               progressStatus={progressStatus}
@@ -437,9 +417,6 @@ const Paper2VideoPage = () => {
               handleAvatarChange={handleAvatarChange}
               handleSelectAvatarPreset={handleSelectAvatarPreset}
               handleRemoveAvatar={handleRemoveAvatar}
-              handleVoiceChange={handleVoiceChange}
-              handleSelectVoicePreset={handleSelectVoicePreset}
-              handleRemoveVoice={handleRemoveVoice}
               handleStartParse={handleStartParse}
             />
           )}

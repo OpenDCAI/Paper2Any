@@ -63,6 +63,8 @@ async def create_embedding(
     multimodal_model: Optional[str] = Body(settings.KB_EMBEDDING_MODEL, embed=True),
     image_model: Optional[str] = Body(None, embed=True),
     video_model: Optional[str] = Body(None, embed=True),
+    notebook_id: Optional[str] = Body(None, embed=True),
+    user_id: Optional[str] = Body(None, embed=True),
 ):
     """
     Generate embeddings for knowledge base files.
@@ -127,10 +129,12 @@ async def create_embedding(
             }
 
         # Define vector store location
-        if user_email:
+        if notebook_id and user_email:
+            from fastapi_app.routers.kb import _vector_store_dir
+            vector_store_dir = _vector_store_dir(user_email, notebook_id, user_id or "default")
+        elif user_email:
             vector_store_dir = project_root / "outputs" / "kb_data" / user_email / "vector_store"
         else:
-            # Fallback to main if email not found
             vector_store_dir = project_root / "outputs" / "kb_data" / "vector_store_main"
         
         manifest = await process_knowledge_base_files(
@@ -160,17 +164,21 @@ async def create_embedding(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/list")
-async def list_kb_files(email: Optional[str] = None):
+async def list_kb_files(
+    email: Optional[str] = None,
+    notebook_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+):
     """
     List all processed files in the knowledge base (with UUIDs).
-    Args:
-        email: Optional user email to list specific user's vector store. 
-               If None, tries to list global (though now we prefer user-specific).
     """
     try:
         project_root = get_project_root()
-        
-        if email:
+
+        if notebook_id and email:
+            from fastapi_app.routers.kb import _vector_store_dir
+            vector_store_dir = _vector_store_dir(email, notebook_id, user_id or "default")
+        elif email:
             vector_store_dir = project_root / "outputs" / "kb_data" / email / "vector_store"
         else:
             vector_store_dir = project_root / "outputs" / "kb_data" / "vector_store_main"
@@ -195,6 +203,8 @@ async def search_kb(
     query: str = Body(..., embed=True),
     top_k: int = Body(5, embed=True),
     email: Optional[str] = Body(None, embed=True),
+    notebook_id: Optional[str] = Body(None, embed=True),
+    user_id: Optional[str] = Body(None, embed=True),
     api_url: Optional[str] = Body(None, embed=True),
     api_key: Optional[str] = Body(None, embed=True),
     model_name: Optional[str] = Body(None, embed=True),
@@ -206,7 +216,10 @@ async def search_kb(
     """
     try:
         project_root = get_project_root()
-        if email:
+        if notebook_id and email:
+            from fastapi_app.routers.kb import _vector_store_dir
+            base_dir = _vector_store_dir(email, notebook_id, user_id or "default")
+        elif email:
             base_dir = project_root / "outputs" / "kb_data" / email / "vector_store"
         else:
             base_dir = project_root / "outputs" / "kb_data" / "vector_store_main"

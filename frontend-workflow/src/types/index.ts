@@ -53,7 +53,7 @@ export interface WorkflowNode extends Node {
   };
 }
 
-export interface WorkflowEdge extends Edge {
+export type WorkflowEdge = Edge & {
   animated?: boolean;
 }
 

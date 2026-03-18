@@ -20,9 +20,12 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureState, Paper2FigureRequest
 from dataflow_agent.workflow import run_workflow
 from dataflow_agent.utils import get_project_root
+
+log = get_logger(__name__)
 
 
 def parse_args():
@@ -217,67 +220,67 @@ async def run_paper2ppt_workflow(args, input_content: str, input_type: str, outp
         # For TEXT, TOPIC, or PPTX
         state.paper_file = input_content
 
-    print(f"\n{'='*60}")
-    print(f"Paper2PPT Workflow Starting (2-Step Process)")
-    print(f"{'='*60}")
-    print(f"Input Type: {input_type}")
+    log.info("%s", "=" * 60)
+    log.info("Paper2PPT Workflow Starting (2-Step Process)")
+    log.info("%s", "=" * 60)
+    log.info("Input Type: %s", input_type)
     if input_type in ["PDF", "PPTX"]:
-        print(f"Input File: {input_content}")
+        log.info("Input File: %s", input_content)
     else:
-        print(f"Input Text: {input_content[:100]}..." if len(input_content) > 100 else f"Input Text: {input_content}")
-    print(f"Output Directory: {output_dir}")
-    print(f"Style: {args.style}")
-    print(f"Page Count: {args.page_count}")
-    print(f"Language: {args.language}")
-    print(f"Aspect Ratio: {args.aspect_ratio}")
-    print(f"{'='*60}\n")
+        log.info("Input Text: %s", f"{input_content[:100]}..." if len(input_content) > 100 else input_content)
+    log.info("Output Directory: %s", output_dir)
+    log.info("Style: %s", args.style)
+    log.info("Page Count: %s", args.page_count)
+    log.info("Language: %s", args.language)
+    log.info("Aspect Ratio: %s", args.aspect_ratio)
+    log.info("%s", "=" * 60)
 
     # Step 1: Generate page content (outline)
     workflow_name_step1 = "paper2page_content_for_long_paper" if args.use_long_paper else "paper2page_content"
-    print(f"Step 1/2: Generating page content outline...")
-    print(f"Workflow: {workflow_name_step1}\n")
+    log.info("Step 1/2: Generating page content outline...")
+    log.info("Workflow: %s", workflow_name_step1)
 
     state = await run_workflow(workflow_name_step1, state)
 
-    print(f"\n✓ Step 1 completed: Page content generated")
+    log.info("Step 1 completed: Page content generated")
     pagecontent_len = len(getattr(state, "pagecontent", []) or [])
-    print(f"Generated {pagecontent_len} pages\n")
+    log.info("Generated %s pages", pagecontent_len)
 
     # Step 2: Generate PPT from page content
     workflow_name_step2 = "paper2ppt_parallel_consistent_style"
-    print(f"Step 2/2: Generating PPT slides...")
-    print(f"Workflow: {workflow_name_step2}\n")
+    log.info("Step 2/2: Generating PPT slides...")
+    log.info("Workflow: %s", workflow_name_step2)
 
     state = await run_workflow(workflow_name_step2, state)
 
-    print(f"\n✓ Step 2 completed: PPT generated")
+    log.info("Step 2 completed: PPT generated")
 
     return state
 
 
 def print_results(final_state: Paper2FigureState, output_dir: Path):
     """Print workflow results"""
-    print(f"\n{'='*60}")
-    print(f"✓ Paper2PPT Workflow Completed Successfully")
-    print(f"{'='*60}")
-    print(f"Output Directory: {output_dir}")
+    log.info("%s", "=" * 60)
+    log.info("Paper2PPT Workflow Completed Successfully")
+    log.info("%s", "=" * 60)
+    log.info("Output Directory: %s", output_dir)
 
     # Check for PPT PDF file
     ppt_pdf_path = getattr(final_state, "ppt_pdf_path", None)
     if ppt_pdf_path and os.path.exists(ppt_pdf_path):
-        print(f"PPT PDF File: {ppt_pdf_path}")
+        log.info("PPT PDF File: %s", ppt_pdf_path)
 
     # Check for editable PPTX file
     ppt_pptx_path = getattr(final_state, "ppt_pptx_path", None)
     if ppt_pptx_path and os.path.exists(ppt_pptx_path):
-        print(f"PPT PPTX File: {ppt_pptx_path}")
+        log.info("PPT PPTX File: %s", ppt_pptx_path)
 
     # Check for page content JSON
     pagecontent = getattr(final_state, "pagecontent", None)
     if pagecontent:
-        print(f"Page Content: {len(pagecontent)} pages generated")
+        log.info("Page Content: %s pages generated", len(pagecontent))
 
-    print(f"{'='*60}\n")
+    log.info("%s", "=" * 60)
 
 
 def main():
@@ -304,13 +307,13 @@ def main():
         return 0
 
     except FileNotFoundError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        log.error("%s", e)
         return 1
     except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        log.error("%s", e)
         return 1
     except Exception as e:
-        print(f"Error: Workflow execution failed: {e}", file=sys.stderr)
+        log.exception("Workflow execution failed: %s", e)
         import traceback
         traceback.print_exc()
         return 1

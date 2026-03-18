@@ -1,0 +1,21 @@
+Analyze this research figure and extract a professional theme color for poster design.
+
+Look for:
+1. Prominent colors used in key data elements (lines, bars, points, regions)
+2. Colors that represent important data or findings
+3. Professional colors suitable for academic posters
+4. Avoid background colors (white/gray) and overly bright colors
+
+Choose colors that are:
+- Professional and readable on white backgrounds
+- Suitable for text highlighting and accents
+- Representative of the research content
+
+Return ONLY a JSON object:
+{
+  "theme_color": "#RRGGBB",
+  "color_name": "descriptive name",
+  "reasoning": "why this color was chosen from the figure"
+}
+
+Default to professional navy (#1E3A8A) if no suitable color is found.

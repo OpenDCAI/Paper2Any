@@ -107,9 +107,8 @@
     "status": "Beautified",
     "generateFinal": "Generate Final File",
     "generating": "Generating final file...",
+    "downloadPptx": "Download PPTX",
     "downloadPdf": "Download PDF",
-    "pdf2pptLink": "If you need to convert PDF to editable PPTX, please go to",
-    "pdf2pptText": "PDF2PPT Page",
     "new": "Process New Document"
   },
   "demo": {

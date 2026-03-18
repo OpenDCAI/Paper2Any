@@ -184,7 +184,7 @@ class Paper2PPTService:
             input_type=wf_input_type,
             input_content=wf_input_content,
             style=req.style,
-            reference_img=str(reference_img_path) if reference_img_path is not None else "",
+            ref_img=str(reference_img_path) if reference_img_path is not None else "",
             email=req.email or "",
             page_count=req.page_count,
             use_long_paper=use_long_paper_bool,
@@ -487,13 +487,14 @@ class Paper2PPTService:
             log.info(f"[Paper2PPTService] Saved reference_img to {reference_img_path}")
             return reference_img_path
 
-        # 尝试复用历史 reference.*
+        # 尝试复用历史参考图（优先 ppt_ref_style.*，兼容旧的 reference.*）
         if input_dir.exists():
-            for ext in [".png", ".jpg", ".jpeg", ".webp"]:
-                candidate = input_dir / f"reference{ext}"
-                if candidate.exists():
-                    log.info(f"[Paper2PPTService] Found cached reference_img at {candidate}")
-                    return candidate
+            for prefix in ["ppt_ref_style", "reference"]:
+                for ext in [".png", ".jpg", ".jpeg", ".webp"]:
+                    candidate = input_dir / f"{prefix}{ext}"
+                    if candidate.exists():
+                        log.info(f"[Paper2PPTService] Found cached reference_img at {candidate}")
+                        return candidate
         return None
 
     async def _prepare_input_for_pagecontent(

@@ -1,0 +1,63 @@
+Extract structured sections from academic paper text for poster creation.
+
+**Paper Text:**
+{{ raw_text }}
+
+**Task:**
+Extract all major sections from the paper and organize them with their content. Focus on sections that would be relevant for an academic poster.
+
+**Section Extraction Guidelines:**
+
+1. **Identify Major Sections:**
+   - Introduction/Background
+   - Related Work (if substantial)
+   - Methodology/Approach
+   - Experiments/Results
+   - Discussion/Analysis
+
+2. **Content Processing:**
+   - Extract the main content for each section
+   - Keep section content under 1000 words
+   - Preserve key technical details, formulas, and findings
+   - Maintain important bullet points and lists
+   - Remove excessive citations and references
+
+3. **Section Classification:**
+   - **foundation**: Introduction, background, motivation, problem statement
+   - **method**: Methodology, approach, algorithm, system design
+   - **evaluation**: Experiments, results, analysis, validation
+
+**Output Format:**
+```json
+{
+  "paper_sections": [
+    {
+      "section_name": "Introduction",
+      "section_type": "foundation",
+      "content": "Main content of the section (max 1000 words)",
+      "key_points": [
+        "Main point 1 from this section",
+        "Main point 2 from this section"
+      ],
+      "importance": "high|medium|low",
+      "contains_figures": ["figure_1", "figure_2"],
+      "contains_tables": ["table_1"]
+    }
+  ],
+  "paper_structure": {
+    "total_sections": 5,
+    "foundation_sections": 2,
+    "method_sections": 2,
+    "evaluation_sections": 1
+  }
+}
+```
+
+**Critical Requirements:**
+- Extract ALL major sections (don't skip any)
+- Keep each section under 1000 words
+- Preserve technical accuracy
+- Identify which figures/tables belong to each section
+- Classify section importance for poster layout
+
+Generate structured sections that provide comprehensive paper coverage for poster creation.

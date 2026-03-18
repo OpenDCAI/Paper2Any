@@ -21,6 +21,11 @@ from .wa_paper2ppt import (
     run_paper2ppt_full_pipeline,
 )
 from .wa_kb_deepresearch import run_kb_deepresearch_wf_api
+from .wa_paper2citation import (
+    run_paper2citation_author_detail_wf_api,
+    run_paper2citation_author_search_wf_api,
+    run_paper2citation_paper_detail_wf_api,
+)
 
 __all__ = [
     "run_paper_to_video_api",
@@ -30,4 +35,7 @@ __all__ = [
     "run_paper2ppt_wf_api",
     "run_paper2ppt_full_pipeline",
     "run_kb_deepresearch_wf_api",
+    "run_paper2citation_author_search_wf_api",
+    "run_paper2citation_author_detail_wf_api",
+    "run_paper2citation_paper_detail_wf_api",
 ]

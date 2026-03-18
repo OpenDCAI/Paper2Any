@@ -6,10 +6,10 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: paper2any-backend
-    ports:
-      - "8000:8000"
+    network_mode: host
     environment:
       - PYTHONUNBUFFERED=1
+      - RMBG_MODEL_PATH=/app/models/RMBG-2.0
     volumes:
       - ./outputs:/app/outputs
       - ./models:/app/models
@@ -21,13 +21,13 @@ services:
       context: .
       dockerfile: frontend-workflow/Dockerfile
       args:
-        VITE_API_KEY: ${VITE_API_KEY:-df-internal-2024-workflow-key}
+        VITE_API_KEY: ${VITE_API_KEY:-}
         VITE_DEFAULT_LLM_API_URL: ${VITE_DEFAULT_LLM_API_URL:-https://api.apiyi.com/v1}
         VITE_LLM_API_URLS: ${VITE_LLM_API_URLS:-https://api.apiyi.com/v1,http://b.apiyi.com:16888/v1,http://123.129.219.111:3000/v1}
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
     container_name: paper2any-frontend
     ports:
-      - "3000:80"
+      - "3001:80"
     depends_on:
       - paper2any-backend
     restart: unless-stopped

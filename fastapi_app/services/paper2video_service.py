@@ -41,6 +41,42 @@ BASE_OUTPUT_DIR = (PROJECT_ROOT / "outputs").resolve()
 class Paper2VideoService:
     """paper2video 两步流程的业务编排。"""
 
+    @staticmethod
+    def _normalize_talking_model(talking_model: str) -> str:
+        normalized = (talking_model or "").strip().lower()
+        if normalized not in {"", "liveportrait"}:
+            log.info(
+                "[Paper2VideoService] force talking_model=%s -> liveportrait",
+                talking_model,
+            )
+        return "liveportrait"
+
+    @staticmethod
+    def _resolve_video_path(base_dir: Path, video_path: str) -> str:
+        candidate = (video_path or "").strip()
+        if candidate:
+            path = Path(candidate)
+            if not path.is_absolute():
+                path = (base_dir / path).resolve()
+            else:
+                path = path.resolve()
+            if path.is_file():
+                return str(path)
+
+        for fallback in (base_dir / "video.mp4", base_dir / "2_merge.mp4", base_dir / "1_merge.mp4"):
+            if fallback.is_file():
+                return str(fallback)
+
+        mp4_files = [
+            p for p in base_dir.rglob("*.mp4")
+            if p.is_file() and "talking_video" not in p.parts and "merge" not in p.parts
+        ]
+        if mp4_files:
+            mp4_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            return str(mp4_files[0])
+
+        return ""
+
     def _create_timestamp_run_dir(self, email: Optional[str]) -> Path:
         """
         根据当前时间戳和邮箱创建本次请求的根输出目录。
@@ -133,6 +169,7 @@ class Paper2VideoService:
         else:
             pdf_path = input_path
         log.info("[Paper2VideoService] using PDF for workflow: %s", pdf_path)
+        talking_model = self._normalize_talking_model(talking_model)
 
         # 可选：数字人头像（上传文件优先；否则使用系统预设 avatar_preset）
         # 如果都没有，则说明没有选择数字人，该字段为 None
@@ -190,29 +227,9 @@ class Paper2VideoService:
             else:
                 log.warning("[Paper2VideoService] no API key for LivePortrait detect, skip validation")
 
-        # 可选：参考语音（仅在选择「本地语音模型」时传入）
-        # 云语音（CosyVoice）：不传 voice/voice_preset，后端仅用 tts_voice_name 作为音色参数。
-        # 本地语音（F5-TTS）：上传 voice 或选择 voice_preset，从 public/paper2video/sys_audio 复制对应 .wav 作为 ref_audio_path。
         voice_path: Optional[Path] = None
-        if voice:
-            ext = Path(voice.filename or "").suffix.lower()
-            if ext != ".wav":
-                raise HTTPException(status_code=400, detail="voice must be .wav")
-            voice_path = (input_dir / "ref_voice.wav").resolve()
-            await self._save_upload(voice_path, voice)
-            log.info("[Paper2VideoService] saved voice to %s", voice_path)
-        elif voice_preset and voice_preset.strip():
-            preset_id = voice_preset.strip()
-            if not re.match(r"^[a-zA-Z0-9_-]+$", preset_id):
-                raise HTTPException(status_code=400, detail="voice_preset must be alphanumeric (e.g. woman, man)")
-            sys_audio_dir = (PROJECT_ROOT / "frontend-workflow" / "public" / "paper2video" / "sys_audio").resolve()
-            src = sys_audio_dir / f"{preset_id}.wav"
-            if not src.is_file():
-                log.warning("[Paper2VideoService] preset voice not found: %s in %s", preset_id, sys_audio_dir)
-                raise HTTPException(status_code=400, detail=f"voice_preset '{preset_id}' not found in public/paper2video/sys_audio")
-            voice_path = (input_dir / "ref_voice.wav").resolve()
-            shutil.copy2(src, voice_path)
-            log.info("[Paper2VideoService] copied preset voice %s to %s", src, voice_path)
+        if voice is not None or (voice_preset and voice_preset.strip()):
+            log.info("[Paper2VideoService] ignore local voice input, paper2video now uses CosyVoice API only")
 
         # 调用 adapter：生成字幕/脚本（工作流内部会读 run_dir/input，写 script_pages 等）
         resp = await run_paper2video_generate_subtitle_wf_api(
@@ -228,9 +245,18 @@ class Paper2VideoService:
             tts_voice_name=tts_voice_name or "",
             language=language,
             email=email or "",
-            talking_model=talking_model or "liveportrait",
+            talking_model=talking_model,
         )
         log.info("[Paper2VideoService] run_generate_subtitle adapter returned success=%s", resp.get("success"))
+        if not resp.get("success", False):
+            return {
+                "success": False,
+                "message": resp.get("message") or "脚本生成失败",
+                "result_path": "",
+                "script_pages": [],
+                "state_snapshot": None,
+                "all_output_files": [],
+            }
 
         result_path = resp.get("result_path", "")
         script_pages_raw = resp.get("script_pages") or []
@@ -321,8 +347,22 @@ class Paper2VideoService:
             state_snapshot=state_snapshot,
         )
         log.info("[Paper2VideoService] run_generate_video adapter returned success=%s", resp.get("success"))
+        if not resp.get("success", False):
+            return {
+                "success": False,
+                "message": resp.get("message") or "视频生成失败",
+                "video_url": "",
+                "video_path": "",
+            }
 
-        video_path = resp.get("video_path") or ""
+        video_path = self._resolve_video_path(base_dir, resp.get("video_path") or "")
+        if not video_path:
+            return {
+                "success": False,
+                "message": "视频生成完成，但后端未找到最终视频文件",
+                "video_url": "",
+                "video_path": "",
+            }
         video_url = ""
         if video_path and request is not None:
             # 若是本地路径，转为前端可访问 URL

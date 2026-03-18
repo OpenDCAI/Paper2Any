@@ -274,7 +274,7 @@ const Image2PptPage = () => {
       setIsComplete(true);
 
       // 校验通过后才扣积分
-      await recordUsage(user?.id || null, 'image2ppt'); // Assuming same quota type or distinct one
+      await recordUsage(user?.id || null, 'image2ppt', { isAnonymous: user?.is_anonymous || false }); // Assuming same quota type or distinct one
       refreshQuota();
       
       // Upload to storage

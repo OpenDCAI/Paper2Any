@@ -5,8 +5,8 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Tuple, Optional, Any, Dict, List
 from dataflow_agent.toolkits.multimodaltool.utils import (
-    Provider, detect_provider, extract_base64, 
-    is_gemini_model, is_gemini_25, is_gemini_3_pro
+    Provider, detect_provider, extract_base64,
+    is_gemini_model, is_gemini_25, is_gemini_3_pro, is_gemini_31_flash
 )
 from dataflow_agent.logger import get_logger
 
@@ -175,7 +175,21 @@ class ApiYiGeminiProvider(AIProviderStrategy):
                 },
             }
             return url, payload, False
-        
+
+        if is_gemini_31_flash(model):
+            url = f"{base}/v1beta/models/gemini-3.1-flash-image-preview:generateContent"
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "responseModalities": ["IMAGE"],
+                    "imageConfig": {
+                        "aspectRatio": aspect_ratio,
+                        "imageSize": resolution,
+                    },
+                },
+            }
+            return url, payload, False
+
         raise ValueError(f"Unsupported Gemini model for APIYI Generation: {model}")
 
     def build_edit_request(self, api_url: str, model: str, prompt: str, image_b64: str, **kwargs) -> Tuple[str, Dict[str, Any], bool]:
@@ -222,7 +236,28 @@ class ApiYiGeminiProvider(AIProviderStrategy):
                 },
             }
             return url, payload, False
-            
+
+        if is_gemini_31_flash(model):
+            url = f"{base}/v1beta/models/gemini-3.1-flash-image-preview:generateContent"
+            payload = {
+                "contents": [
+                    {
+                        "parts": [
+                            {"text": prompt},
+                            {"inline_data": {"mime_type": f"image/{fmt}", "data": image_b64}}
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "responseModalities": ["IMAGE"],
+                    "imageConfig": {
+                        "aspectRatio": aspect_ratio,
+                        "imageSize": resolution,
+                    },
+                },
+            }
+            return url, payload, False
+
         raise ValueError(f"Unsupported Gemini Edit combination for APIYI: {model}")
 
     def build_multi_image_edit_request(
@@ -249,7 +284,7 @@ class ApiYiGeminiProvider(AIProviderStrategy):
         url = f"{base}/v1beta/models/{model}:generateContent"
         
         image_config = {"aspectRatio": aspect_ratio}
-        if is_gemini_3_pro(model):
+        if is_gemini_3_pro(model) or is_gemini_31_flash(model):
             image_config["imageSize"] = resolution
             
         payload = {
@@ -754,14 +789,14 @@ class CosyVoiceProvider(AIProviderStrategy):
         voice_name: str = "longanyang",
         **kwargs,
     ) -> bytes:
-        """同步调用 DashScope CosyVoice，返回音频 bytes（WAV/MP3 等，由 format 决定）。Key 仅从环境变量 COSYVOICE_KEY 读取。"""
+        """同步调用 DashScope CosyVoice，返回音频 bytes（WAV/MP3 等，由 format 决定）。"""
         import os
         import dashscope
         from dashscope.audio.tts_v2 import SpeechSynthesizer
         from dashscope.audio.tts_v2 import AudioFormat
-        key = (os.environ.get("COSYVOICE_KEY", "") or "").strip()
+        key = (os.environ.get("COSYVOICE_KEY", "") or api_key or "").strip()
         if not key:
-            raise RuntimeError("CosyVoice 需要设置环境变量 COSYVOICE_KEY")
+            raise RuntimeError("CosyVoice 需要提供阿里云 DashScope Key（环境变量 COSYVOICE_KEY 或请求 api_key）")
         dashscope.api_key = key
         # 可选：地域（北京/新加坡）
         base_ws = os.environ.get("DASHSCOPE_BASE_WEBSOCKET_URL", "wss://dashscope.aliyuncs.com/api-ws/v1/inference")
@@ -999,6 +1034,7 @@ class ComflyProvider(AIProviderStrategy):
         model_mapping = {
             "gemini-2.5-flash-image": "nano-banana",
             "gemini-3-pro-image-preview": "nano-banana-2-2k",
+            "gemini-3.1-flash-image-preview": "nano-banana-2-2k",
         }
         translated = model_mapping.get(model, model)
         if translated != model:

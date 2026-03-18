@@ -1,14 +1,21 @@
 from __future__ import annotations
 
 """
-paper2figure 工作流封装。
+paper2figure 工作流适配器。
 
-从原来的单文件 workflow_adapters.py / paper2_modules.py 拆分而来，
-只保留与 paper2figure 相关的封装逻辑。
+职责：接收 FastAPI 路由层传来的 Paper2FigureRequest，
+根据 input_type × graph_type 两个维度选择对应的 workflow，
+执行后将结果封装成 Paper2FigureResponse 返回。
+
+支持的组合：
+  input_type: PDF | TEXT | FIGURE
+  graph_type: model_arch | tech_route | exp_data | (其他兜底)
 """
 
 import json
 import time
+import urllib.parse
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -22,11 +29,12 @@ from fastapi_app.schemas import Paper2FigureRequest, Paper2FigureResponse
 log = get_logger(__name__)
 
 
-# -------------------------- Paper2Figure ----------------------------
+# ---------------------------------------------------------------------------
+# 工具函数
+# ---------------------------------------------------------------------------
 
-
-def to_serializable(obj: Any):
-    """递归将对象转成可 JSON 序列化结构"""
+def to_serializable(obj: Any) -> Any:
+    """递归将任意对象转成可 JSON 序列化的结构，无法处理的类型用 str 兜底。"""
     if isinstance(obj, dict):
         return {k: to_serializable(v) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -38,13 +46,8 @@ def to_serializable(obj: Any):
     return str(obj)
 
 
-def save_final_state_json(
-    final_state: dict, out_dir: Path, filename: str = "final_state.json"
-) -> None:
-    """
-    直接把 final_state 用 json.dump 存到 <项目根>/dataflow_agent/tmps/(session_id?)/final_state.json
-    遇到无法序列化的对象用 str 兜底。
-    """
+def save_final_state_json(final_state: dict, out_dir: Path, filename: str = "final_state.json") -> None:
+    """将 final_state 序列化后保存到 out_dir/filename，用于调试。"""
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / filename
     with out_path.open("w", encoding="utf-8") as f:
@@ -52,200 +55,188 @@ def save_final_state_json(
     log.info(f"final_state 已保存到 {out_path}")
 
 
+def _resolve_image_to_local(image_path_or_url: str, project_root: Path) -> str:
+    """
+    将图片路径/URL 统一转换为本地绝对路径。
+
+    前端传来的图片路径有两种形式：
+      - 完整 URL：http://localhost:8000/outputs/xxx/yyy.png
+      - 相对路径：/outputs/xxx/yyy.png
+    两者都包含 /outputs/，统一提取后半段拼成本地绝对路径。
+    如果文件不存在或转换失败，原样返回，由后续 workflow 自行处理。
+    """
+    if not image_path_or_url or "/outputs/" not in image_path_or_url:
+        return image_path_or_url
+
+    try:
+        relative_path = image_path_or_url.split("/outputs/", 1)[1]
+        relative_path = relative_path.split("?", 1)[0]          # 去掉查询参数
+        relative_path = urllib.parse.unquote(relative_path)      # 解码 URL 编码
+        local_path = project_root / "outputs" / relative_path
+        if local_path.exists():
+            log.info(f"[paper2figure] 图片路径转换: {image_path_or_url} -> {local_path}")
+            return str(local_path)
+        else:
+            log.warning(f"[paper2figure] 本地文件不存在: {local_path}")
+    except Exception as e:
+        log.warning(f"[paper2figure] 图片路径转换失败: {e}")
+
+    return image_path_or_url
+
+
+def _resolve_workflow(graph_type: str, input_type: str, edit_prompt: str) -> tuple[str, str]:
+    """
+    根据 graph_type 和 input_type 决定使用哪个 workflow 及对应的 task 目录名。
+
+    model_arch 有一个特殊子分支：
+      - input_type=FIGURE 且没有 edit_prompt → 用户想把图片直接转成 PPT，走 pdf2ppt_qwenvl
+      - 其他情况 → 走标准图像生成 paper2fig_image_only
+
+    返回: (wf_name, task_name)
+    """
+    if graph_type == "model_arch":
+        if input_type == "FIGURE" and not edit_prompt:
+            # 图片转 PPT 模式（无编辑提示词，直接转换）
+            return "pdf2ppt_qwenvl", "paper2fig_ppt"
+        else:
+            # 标准模型架构图生成
+            return "paper2fig_image_only", "paper2fig"
+    elif graph_type == "tech_route":
+        return "paper2technical", "paper2tec"
+    elif graph_type == "exp_data":
+        return "paper2expfigure", "paper2exp"
+    else:
+        # 兜底 workflow
+        return "paper2fig_with_sam", "paper2fig"
+
+
+def _build_result_root(result_path: Path | None, project_root: Path, email: str, task_name: str, ts: str) -> Path:
+    """
+    确定本次任务的输出根目录。
+
+    优先使用调用方传入的 result_path（路由层统一分配）；
+    未传入时按 outputs/{email}/{task_name}/{ts} 自动生成。
+    """
+    if result_path:
+        return Path(result_path).resolve()
+
+    user_dir = email or ""
+    return (project_root / "outputs" / user_dir / task_name / ts).resolve()
+
+
+def _get_state_attr(state: Any, key: str, default: str = "") -> str:
+    """兼容 final_state 为 dict 或 State 对象两种情况，安全取值并转为 str。"""
+    if isinstance(state, dict):
+        return str(state.get(key, default) or default)
+    return str(getattr(state, key, default) or default)
+
+
+# ---------------------------------------------------------------------------
+# 主入口
+# ---------------------------------------------------------------------------
+
 async def run_paper2figure_wf_api(req: Paper2FigureRequest, result_path: Path | None = None) -> Paper2FigureResponse:
     """
-    根据 graph_type 选择不同 workflow，并拆分输出目录。
+    paper2figure 工作流主入口。
 
-    入参 req 通常由 FastAPI 路由层（如 paper2any.generate_paper2figure）
-    根据前端 FormData 映射而来：
-      - input_type: "PDF" / "TEXT" / "FIGURE"
-      - input_content: 文件路径或纯文本
-      - graph_type: "model_arch" | "tech_route" | "exp_data"
-    
-    result_path: 可选，指定输出目录。如果未指定，则根据 req.email 生成。
+    Args:
+        req: 前端通过 FormData 映射而来的请求参数，关键字段：
+             - input_type:   "PDF" | "TEXT" | "FIGURE"
+             - input_content: PDF 路径 / 纯文本 / 图片路径或 URL
+             - graph_type:   "model_arch" | "tech_route" | "exp_data"
+        result_path: 可选，由路由层指定的输出目录；未指定时自动生成。
+
+    Returns:
+        Paper2FigureResponse，包含生成的 PPT/SVG 文件路径列表。
     """
-    # -------- 基础路径与输出目录 -------- #
-    project_root: Path = get_project_root()
-    tmps_dir: Path = project_root / "dataflow_agent" / "tmps"
+    project_root = get_project_root()
+    tmps_dir = project_root / "dataflow_agent" / "tmps"
     tmps_dir.mkdir(parents=True, exist_ok=True)
 
+    ts = time.strftime("%Y%m%d_%H%M%S")
+
+    # ------------------------------------------------------------------
+    # 1. 初始化 State，根据 input_type 设置对应的输入字段
+    # ------------------------------------------------------------------
     state = Paper2FigureState(request=req, messages=[])
     state.temp_data["round"] = 0
-
-    # 根据 input_type / input_content 设置具体输入
-    if req.input_type == "PDF":
-        state.paper_file = req.input_content
-    elif req.input_type == "TEXT":
-        state.paper_idea = req.input_content
-    elif req.input_type == "FIGURE":
-        # 如果是图片输入（编辑/重绘模式），将内容设为 prev_image
-        image_path_or_url = req.input_content
-        
-        # 尝试将 URL 转换为本地路径
-        if image_path_or_url and image_path_or_url.startswith("http"):
-            if "/outputs/" in image_path_or_url:
-                try:
-                    # 提取 /outputs/ 之后的部分
-                    relative_path = image_path_or_url.split("/outputs/", 1)[1]
-                    # 去掉查询参数
-                    relative_path = relative_path.split('?', 1)[0]
-                    # 解码可能的 URL 编码
-                    import urllib.parse
-                    relative_path = urllib.parse.unquote(relative_path)
-                    
-                    local_path = project_root / "outputs" / relative_path
-                    if local_path.exists():
-                        image_path_or_url = str(local_path)
-                        # 同时更新 req.input_content，确保 workflow 也能读到本地路径
-                        req.input_content = str(local_path)
-                        log.info(f"Converted URL to local path: {image_path_or_url}")
-                    else:
-                        log.warning(f"Local file not found for URL {req.input_content} at {local_path}")
-                except Exception as e:
-                    log.warning(f"Failed to convert URL to local path: {e}")
-
-        state.request.prev_image = image_path_or_url
-        # 修复：同时设置 fig_draft_path，供 wf_paper2expfigure 使用
-        state.fig_draft_path = image_path_or_url
-        # 同时也将 input_content 放在 paper_file 或 paper_idea 中作为备用，防止某些地方检查空值
-        state.paper_idea = "Image Edit Mode" 
-    else:
-        raise TypeError("Invalid input type. Available input type: PDF, TEXT, FIGURE.")
-
-    # 其它控制参数
     state.aspect_ratio = req.aspect_ratio
 
-    # -------- 按 graph_type 决定 workflow + 输出根目录 -------- #
-    ts = time.strftime("%Y%m%d_%H%M%S")
-    graph_type = req.graph_type
-    
-    import uuid
-    rid = uuid.uuid4().hex[:6]
+    if req.input_type == "PDF":
+        # PDF 模式：直接把文件路径交给 workflow 解析
+        state.paper_file = req.input_content
 
-    if graph_type == "model_arch":
-        if req.input_type == "FIGURE" and not req.edit_prompt:
-            wf_name = "pdf2ppt_qwenvl"
-            task_name = "paper2fig_ppt"
-        else:
-            wf_name = "paper2fig_image_only"
-            task_name = "paper2fig"
-    elif graph_type == "tech_route":
-        wf_name = "paper2technical"
-        task_name = "paper2tec"
-    elif graph_type == "exp_data":
-        wf_name = "paper2expfigure"
-        task_name = "paper2exp"
+    elif req.input_type == "TEXT":
+        # 文本模式：用户输入的文字描述作为创作素材
+        state.paper_idea = req.input_content
+
+    elif req.input_type == "FIGURE":
+        # 图片编辑/重绘模式：前端传来的可能是 URL 或相对路径，需转为本地绝对路径
+        local_image = _resolve_image_to_local(req.input_content, project_root)
+        req.input_content = local_image          # 同步更新 req，确保 workflow 内部也能读到
+        state.request.prev_image = local_image   # workflow 读取上一张图的字段
+        state.fig_draft_path = local_image       # wf_paper2expfigure 使用的草图路径
+        state.paper_idea = "Image Edit Mode"     # 防止某些节点因 paper_idea 为空而报错
+
     else:
-        wf_name = "paper2fig_with_sam"
-        task_name = "paper2fig"
+        raise TypeError(f"不支持的 input_type: {req.input_type}，可选值: PDF, TEXT, FIGURE")
 
-    if result_path:
-        # 确保传入的路径是绝对路径
-        result_root = Path(result_path).resolve()
-    else:
-        # Fallback: 如果未提供 result_path，则自行计算
-        if req.email:
-            result_root = (project_root / "outputs" / req.email / task_name / ts).resolve()
-        else:
-            # 匿名用户，保持原逻辑 (outputs/{task_name}/{ts})
-            result_root = (project_root / "outputs" / task_name / ts).resolve()
-            
-        if graph_type == "model_arch":
-            if req.input_type == "FIGURE" and not req.edit_prompt:
-                # 覆盖上面的逻辑，因为这里 task_name 变了
-                wf_name = "pdf2ppt_qwenvl"
-                if not result_path: # 只在未指定路径时重新计算
-                    result_root = (project_root / "outputs" / (req.email or "") / "paper2fig_ppt" / ts).resolve()
-            else:
-                wf_name = "paper2fig_image_only"
-                if not result_path:
-                    result_root = (project_root / "outputs" / (req.email or "") / "paper2fig" / ts).resolve()
-        elif graph_type == "tech_route":
-            wf_name = "paper2technical"
-            if not result_path:
-                result_root = (project_root / "outputs" / (req.email or "") / "paper2tec" / ts).resolve()
-        elif graph_type == "exp_data":
-            wf_name = "paper2expfigure"
-            if not result_path:
-                result_root = (project_root / "outputs" / (req.email or "") / "paper2exp" / ts).resolve()
-        else:
-            wf_name = "paper2fig_with_sam"
-            if not result_path:
-                result_root = (project_root / "outputs" / (req.email or "") / "paper2fig" / ts).resolve()
-
+    # ------------------------------------------------------------------
+    # 2. 根据 graph_type × input_type 选择 workflow 和输出目录
+    # ------------------------------------------------------------------
+    wf_name, task_name = _resolve_workflow(req.graph_type, req.input_type, req.edit_prompt)
+    result_root = _build_result_root(result_path, project_root, req.email, task_name, ts)
     result_root.mkdir(parents=True, exist_ok=True)
+
     state.result_path = str(result_root)
-    log.info(f"[paper2figure] result_path: {state.result_path}")
     state.mask_detail_level = 2
+    log.info(f"[paper2figure] workflow={wf_name}, result_path={result_root}")
 
-    # -------- 技术路线图参考图和二次编辑 -------- #
-    if graph_type == "tech_route":
-        # 传递参考图路径到 workflow
+    # ------------------------------------------------------------------
+    # 3. 技术路线图专属参数（参考图 + 二次编辑提示词）
+    # ------------------------------------------------------------------
+    if req.graph_type == "tech_route":
         if req.reference_image_path:
+            # 用户上传的参考图，VLM 会据此生成相似风格的技术路线图
             state.temp_data["reference_image_path"] = req.reference_image_path
-            log.info(f"[paper2figure] Reference image: {req.reference_image_path}")
-
-        # 传递二次编辑提示词到 workflow
+            log.info(f"[paper2figure] 参考图: {req.reference_image_path}")
         if req.tech_route_edit_prompt:
+            # 用户对已生成图的二次编辑指令
             state.temp_data["tech_route_edit_prompt"] = req.tech_route_edit_prompt
-            log.info(f"[paper2figure] Tech route edit prompt: {req.tech_route_edit_prompt}")
+            log.info(f"[paper2figure] 二次编辑提示词: {req.tech_route_edit_prompt}")
 
-    # -------- 异步执行 -------- #
-    log.critical(f"[paper2figure] req language: {req.language} !!!!!!!!\n")
-    log.critical(f"[paper2figure] req tech_route_palette: '{req.tech_route_palette}' !!!!!!!!\n")
+    # ------------------------------------------------------------------
+    # 4. 执行 workflow
+    # ------------------------------------------------------------------
+    log.info(f"[paper2figure] language={req.language}, palette={req.tech_route_palette!r}")
     final_state: Paper2FigureState = await run_workflow(wf_name, state)
 
-    # -------- 保存最终 State -------- #
-    serializable_state = to_serializable(final_state)
-    save_final_state_json(
-        final_state=serializable_state,
-        out_dir=tmps_dir / ts,
-    )
+    # 保存完整 state 到 tmps/ 供调试
+    save_final_state_json(to_serializable(final_state), out_dir=tmps_dir / ts)
+    log.info(f"[paper2figure] 完成，ppt_path={final_state['ppt_path']}")
 
-    log.info(f"[paper2figure] Results saved in directory: {state.result_path}")
-    log.info(f"[paper2figure]: {final_state['ppt_path']}")
+    # ------------------------------------------------------------------
+    # 5. 收集输出文件，构造响应
+    # ------------------------------------------------------------------
+    ppt_filename = _get_state_attr(final_state, "ppt_path")
 
-    # -------- 构造响应：根据 graph_type 返回不同字段 -------- #
-    ppt_filename = str(final_state["ppt_path"])
+    # SVG 相关路径仅 tech_route 会有值，其他类型返回空字符串
+    svg_filename        = _get_state_attr(final_state, "svg_file_path")
+    svg_image_filename  = _get_state_attr(final_state, "svg_img_path")
+    # 黑白版：优先取专用字段，没有则回退到普通 svg
+    svg_bw_filename       = _get_state_attr(final_state, "svg_bw_file_path") or svg_filename
+    svg_bw_image_filename = _get_state_attr(final_state, "svg_bw_img_path") or svg_image_filename
+    # 彩色版
+    svg_color_filename       = _get_state_attr(final_state, "svg_color_file_path")
+    svg_color_image_filename = _get_state_attr(final_state, "svg_color_img_path")
 
-    # 默认空字符串，避免 None 影响前端
-    svg_filename = ""
-    svg_image_filename = ""
-    svg_bw_filename = ""
-    svg_bw_image_filename = ""
-    svg_color_filename = ""
-    svg_color_image_filename = ""
-
-    try:
-        # final_state 可能是 State 或 dict，两种方式都考虑
-        if isinstance(final_state, dict):
-            svg_filename = str(final_state.get("svg_file_path", "") or "")
-            svg_image_filename = str(final_state.get("svg_img_path", "") or "")
-            svg_bw_filename = str(final_state.get("svg_bw_file_path", "") or "") or svg_filename
-            svg_bw_image_filename = str(final_state.get("svg_bw_img_path", "") or "") or svg_image_filename
-            svg_color_filename = str(final_state.get("svg_color_file_path", "") or "")
-            svg_color_image_filename = str(final_state.get("svg_color_img_path", "") or "")
-        else:
-            svg_filename = str(getattr(final_state, "svg_file_path", "") or "")
-            svg_image_filename = str(getattr(final_state, "svg_img_path", "") or "")
-            svg_bw_filename = str(getattr(final_state, "svg_bw_file_path", "") or "") or svg_filename
-            svg_bw_image_filename = str(getattr(final_state, "svg_bw_img_path", "") or "") or svg_image_filename
-            svg_color_filename = str(getattr(final_state, "svg_color_file_path", "") or "")
-            svg_color_image_filename = str(getattr(final_state, "svg_color_img_path", "") or "")
-    except Exception as e:  # pragma: no cover - 仅日志兜底
-        log.warning(f"[paper2figure] 提取 SVG 路径失败: {e}")
-        svg_filename = ""
-        svg_image_filename = ""
-
-    # 收集本次任务输出目录下的所有 PPTX / PNG / SVG 文件绝对路径
+    # 扫描输出目录，收集所有 PPTX / PNG / SVG 文件供前端展示
     all_output_files: list[str] = []
     try:
-        result_root_path = Path(state.result_path)
-        if result_root_path.exists():
-            for p in result_root_path.rglob("*"):
-                if p.is_file() and p.suffix.lower() in {".pptx", ".png", ".svg"}:
-                    all_output_files.append(str(p))
-    except Exception as e:  # pragma: no cover
+        for p in Path(state.result_path).rglob("*"):
+            if p.is_file() and p.suffix.lower() in {".pptx", ".png", ".svg"}:
+                all_output_files.append(str(p))
+    except Exception as e:
         log.warning(f"[paper2figure] 收集输出文件列表失败: {e}")
 
     return Paper2FigureResponse(

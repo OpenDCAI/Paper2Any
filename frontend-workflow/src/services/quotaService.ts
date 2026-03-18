@@ -25,6 +25,11 @@ export interface QuotaInfo {
   isAuthenticated: boolean;
 }
 
+export interface RecordUsageOptions {
+  amount?: number;
+  isAnonymous?: boolean;
+}
+
 /**
  * Get today's date string in YYYY-MM-DD format.
  */
@@ -158,15 +163,19 @@ export async function checkQuota(userId: string | null, isAnonymous: boolean = f
  */
 export async function recordUsage(
   userId: string | null,
-  workflowType: string
+  workflowType: string,
+  options: RecordUsageOptions = {}
 ): Promise<boolean> {
+  const amount = Math.max(1, options.amount ?? 1);
+  const isAnonymous = options.isAnonymous ?? false;
+
   // If Supabase is not configured, use local storage
   if (!isSupabaseConfigured()) {
     const local = getLocalUsage();
     const today = getTodayDate();
 
     // Reset if new day
-    const newCount = local.date === today ? local.count + 1 : 1;
+    const newCount = local.date === today ? local.count + amount : amount;
     setLocalUsage(today, newCount);
 
     return true;
@@ -174,10 +183,10 @@ export async function recordUsage(
 
   try {
     // For authenticated users, deduct 1 point
-    if (userId) {
+    if (userId && !isAnonymous) {
       const { data, error: rpcError } = await supabase.rpc('deduct_points', {
         p_user_id: userId,
-        p_amount: 1,
+        p_amount: amount,
         p_reason: `workflow_${workflowType}`
       });
 
@@ -198,7 +207,7 @@ export async function recordUsage(
     // For anonymous users, use local storage (cannot insert non-UUID into usage_records)
     const local = getLocalUsage();
     const today = getTodayDate();
-    const newCount = local.date === today ? local.count + 1 : 1;
+    const newCount = local.date === today ? local.count + amount : amount;
     setLocalUsage(today, newCount);
 
     return true;

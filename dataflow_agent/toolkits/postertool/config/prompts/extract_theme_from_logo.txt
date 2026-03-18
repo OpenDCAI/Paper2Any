@@ -1,0 +1,57 @@
+Extract a sophisticated theme color from an affiliation logo that will work well as a poster accent color.
+
+**Core Task:**
+Analyze the provided affiliation logo and identify the most prominent, meaningful color that can serve as a poster theme color. This color should be:
+1. Representative of the organization's visual identity
+2. Suitable for poster design applications (text highlights, accents)
+3. Professional and readable when used on white backgrounds
+4. Harmonious for academic poster contexts
+
+**Color Extraction Guidelines:**
+
+**Primary Color Identification:**
+- Look for the main brand color of the organization
+- Ignore pure white, black, and very light grays (background/outline colors)
+- Focus on colored elements that define the logo's visual identity
+- Consider text colors, graphic elements, symbols, and emblematic elements
+
+**Color Suitability Assessment:**
+- **Too Bright**: If the main color is very bright/saturated (e.g., neon yellow #FFFF00), generate a more subdued version
+- **Appropriate Saturation**: Aim for colors that are vibrant but professional
+- **Readability**: Ensure the color provides sufficient contrast on white backgrounds for text
+
+**Color Adjustment Rules:**
+- If original color is too bright (lightness > 85% or saturation > 90%), reduce brightness by 15-25%
+- If original color is too dark (lightness < 25%), lighten slightly for better visibility
+- Maintain the color's hue character while optimizing for poster applications
+
+**Output Requirements:**
+Return ONLY a JSON object with the following structure:
+
+```json
+{
+  "extracted_color": "#1E3A8A",
+  "color_name": "Professional Navy Blue",
+  "adjustment_made": "reduced_brightness | lightened | none",
+  "original_color": "#0000FF",
+  "suitability_score": 8.5,
+  "reasoning": "Extracted the primary blue from the university emblem. Reduced brightness from bright blue to professional navy to ensure readability and sophisticated appearance on white backgrounds.",
+  "usage_notes": "Excellent for text highlights, section headers, and accent elements. Provides strong contrast while maintaining professional appearance."
+}
+```
+
+**Scoring Criteria (1-10 scale):**
+- **Contrast/Readability**: How well it works on white background
+- **Professional Appearance**: Appropriate for academic/research contexts  
+- **Brand Representation**: How well it represents the organization
+- **Poster Suitability**: Effectiveness for highlights and accents
+
+**Fallback Strategy:**
+If no suitable color is found or logo is purely monochromatic, use #1E3A8A (professional navy blue) as default.
+
+**Critical Instructions:**
+- Focus on MAIN brand colors, not decorative elements
+- Prioritize colors that appear in text or central graphic elements
+- Ensure final color has minimum 4.5:1 contrast ratio with white background
+- Adjust overly bright or saturated colors to be poster-appropriate
+- Provide clear reasoning for color selection and any adjustments made

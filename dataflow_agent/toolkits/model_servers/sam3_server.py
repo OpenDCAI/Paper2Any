@@ -17,9 +17,13 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from PIL import Image
 
+from dataflow_agent.toolkits.sam3_import_helper import add_site_packages_for_packages
+
 
 def _ensure_sam3_importable() -> None:
     import sys
+
+    add_site_packages_for_packages(("iopath",))
 
     candidates = []
     sam3_home = os.environ.get("SAM3_HOME", "").strip()

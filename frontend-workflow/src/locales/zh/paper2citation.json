@@ -1,0 +1,147 @@
+{
+  "hero": {
+    "badge": "Citation Explorer",
+    "title": "追踪作者或论文的引用网络",
+    "description": "支持按作者姓名或 DOI / 论文链接查询，在一个页面里查看论文列表、引用作者、引用机构，以及学术影响力标签统计。"
+  },
+  "modes": {
+    "author": {
+      "label": "作者",
+      "title": "查找作者画像",
+      "description": "先搜索同名作者候选，再进入目标学者的论文与引用网络详情。"
+    },
+    "paper": {
+      "label": "论文",
+      "title": "查看论文被谁引用",
+      "description": "输入 DOI 或论文链接，聚合查看引用该论文的作者、机构与统计信息。"
+    }
+  },
+  "search": {
+    "authorLabel": "作者姓名",
+    "authorPlaceholder": "例如：Bin Cui、Wentao Zhang",
+    "authorButton": "搜索作者",
+    "authorHint": "作者模式会先返回候选作者，点击候选后再加载详细引用视图。",
+    "paperLabel": "DOI 或论文链接",
+    "paperPlaceholder": "例如：10.1145/3746027.3758205 或 https://doi.org/...",
+    "paperButton": "加载论文详情",
+    "paperHint": "论文模式会解析 DOI / URL，并聚合引用作者与机构信息。"
+  },
+  "sections": {
+    "candidates": {
+      "title": "作者候选列表",
+      "subtitle": "先选中正确的学者，再加载引用详情。"
+    },
+    "authorProfileStats": {
+      "title": "作者画像总量",
+      "subtitle": "来自已确认作者画像的作者级总量统计。"
+    },
+    "publicationStats": {
+      "title": "当前已加载论文样本",
+      "subtitle": "当前详情页已加载论文样本的统计，不代表作者全部论文。"
+    },
+    "authorCitationStats": {
+      "title": "当前已加载引用网络样本",
+      "subtitle": "这是本次用部分论文做入口抓到的引用样本统计，不是作者完整引用网络。"
+    },
+    "citationBuildInfo": {
+      "title": "本次引用网络构建方式"
+    },
+    "citationStats": {
+      "title": "引用统计",
+      "subtitle": "当前论文的被引侧聚合结果。"
+    },
+    "honors": {
+      "title": "学术影响力标签统计",
+      "subtitle": "基于 Fellow、院士、代表性奖项与学术头衔的 best-effort 统计。"
+    },
+    "publications": {
+      "title": "论文列表",
+      "subtitle": "当前作者的代表性或近期论文。"
+    },
+    "citingWorks": {
+      "title": "引用论文列表",
+      "subtitle": "引用当前论文的工作。"
+    },
+    "citationContext": {
+      "summaryTitle": "引用方式总结",
+      "referenceTitle": "匹配到的参考文献"
+    },
+    "institutions": {
+      "title": "引用机构",
+      "subtitle": "引用网络中出现的机构。"
+    },
+    "authors": {
+      "title": "引用作者",
+      "subtitle": "引用网络中出现的人。"
+    },
+    "notableCiters": {
+      "title": "重点引用者",
+      "subtitle": "优先展示带 Fellow、院士、代表性奖项与学术头衔标签的引用作者。"
+    },
+    "selectedCandidate": {
+      "title": "当前选中的候选作者"
+    }
+  },
+  "states": {
+    "searching": "正在搜索...",
+    "searchingAuthorsTitle": "正在搜索作者候选：{{query}}",
+    "searchingAuthorsSubtitle": "正在从 OpenAlex 和 DBLP 里匹配同名学者，请稍等片刻。",
+    "loadingDetail": "正在加载详情...",
+    "loadingPinned": "正在跳转并加载详情区域，学术大牛的数据会更慢一些，请稍等。",
+    "loadingAuthorTitle": "正在加载 {{name}} 的引用详情",
+    "loadingAuthorSubtitle": "正在聚合作者论文、引用作者、机构与统计信息。学术大牛的数据会明显更慢一些。",
+    "loadingPaperTitle": "正在加载论文 {{query}} 的引用详情",
+    "loadingPaperSubtitle": "正在解析 DOI / 链接，并聚合引用这篇论文的作者、机构与统计信息。",
+    "loadingFallbackAuthor": "该作者",
+    "loadingFallbackPaper": "该论文",
+    "candidatePage": "候选第 {{page}} / {{total}} 页，共 {{count}} 个结果",
+    "publicationPage": "论文第 {{page}} / {{total}} 页，共 {{count}} 篇",
+    "noCandidates": "暂无作者候选结果。",
+    "noSummary": "后端未返回更多摘要信息。",
+    "noStats": "暂无统计结果。",
+    "noHonors": "暂无学术影响力标签匹配结果。",
+    "noInstitutions": "暂无机构信息。",
+    "noAuthors": "暂无作者信息。",
+    "noAffiliation": "暂无机构信息",
+    "dblpCandidate": "DBLP 候选，详细统计需点击后加载",
+    "noPublications": "暂无论文列表。",
+    "noCitingWorks": "暂无引用论文列表。",
+    "noCitationContexts": "未在当前抓取到的 HTML 正文里定位到明确的引用句或段落。",
+    "emptyPaper": "请输入 DOI 或论文链接以查看引用网络。"
+  },
+  "actions": {
+    "openHomepage": "打开主页",
+    "openPaper": "打开论文",
+    "extractContext": "提取引用上下文",
+    "extractingContext": "提取中",
+    "openContextSource": "打开正文来源",
+    "prevPage": "上一页",
+    "nextPage": "下一页"
+  },
+  "stats": {
+    "totalWorks": "作者总论文数",
+    "totalCitations": "作者总被引数",
+    "hIndex": "H 指数",
+    "loadedPublications": "已加载论文数",
+    "linkedPublications": "已映射 OpenAlex 的论文数",
+    "unlinkedPublications": "未映射 OpenAlex 的论文数",
+    "loadedCitingWorks": "本次抓到的引用论文数",
+    "loadedCitingAuthors": "本次出现的引用作者数",
+    "loadedCitingInstitutions": "本次出现的引用机构数",
+    "paperTotalCitations": "论文总被引数"
+  },
+  "buildInfo": {
+    "seedPublications": "本次从作者全量论文里选了 {{count}} 篇 seed papers 来抓引用。",
+    "citingWorksPerSeed": "每篇 seed paper 最多抓取 {{count}} 篇 citing works。",
+    "builtFromPage": "当前 citation network 是在你加载作者详情时构建的，当时前端停留在论文第 {{page}} 页，每页 {{pageSize}} 篇。"
+  },
+  "errors": {
+    "authorQueryRequired": "请先输入作者姓名。",
+    "paperQueryRequired": "请先输入 DOI 或论文链接。",
+    "searchFailed": "作者搜索失败。",
+    "detailFailed": "引用详情加载失败。",
+    "contextFailed": "引用上下文提取失败。",
+    "quotaUserExhausted": "当前剩余额度已用完。",
+    "quotaGuestExhausted": "游客额度已用完，请先登录。"
+  }
+}

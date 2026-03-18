@@ -25,9 +25,12 @@ from typing import Any, List
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2VideoRequest, Paper2VideoState
 from dataflow_agent.workflow import run_workflow
 from dataflow_agent.utils import get_project_root
+
+log = get_logger(__name__)
 
 
 # Snapshot keys for passing state from step1 to step2 (same as wa_paper2video)
@@ -210,22 +213,22 @@ async def run_paper2video_workflow(args, paper_pdf_path: str, output_dir: Path):
         result_path=str(output_dir),
     )
 
-    print(f"\n{'='*60}")
-    print("Paper2Video Workflow Starting (2-Step Process)")
-    print(f"{'='*60}")
-    print(f"Input PDF: {paper_pdf_path}")
-    print(f"Output Directory: {output_dir}")
-    print(f"Language: {args.language}")
-    print(f"TTS Model: {args.tts_model}")
+    log.info("%s", "=" * 60)
+    log.info("Paper2Video Workflow Starting (2-Step Process)")
+    log.info("%s", "=" * 60)
+    log.info("Input PDF: %s", paper_pdf_path)
+    log.info("Output Directory: %s", output_dir)
+    log.info("Language: %s", args.language)
+    log.info("TTS Model: %s", args.tts_model)
     if args.ref_img:
-        print(f"Ref Image: {args.ref_img}")
+        log.info("Ref Image: %s", args.ref_img)
     if args.ref_audio:
-        print(f"Ref Audio: {args.ref_audio}")
-    print(f"{'='*60}\n")
+        log.info("Ref Audio: %s", args.ref_audio)
+    log.info("%s", "=" * 60)
 
     # Step 1: Generate subtitle / script_pages
-    print("Step 1/2: Generating subtitle and script pages...")
-    print("Workflow: paper2video (script_stage=True)\n")
+    log.info("Step 1/2: Generating subtitle and script pages...")
+    log.info("Workflow: paper2video (script_stage=True)")
 
     state = await run_workflow("paper2video", state)
 
@@ -235,43 +238,43 @@ async def run_paper2video_workflow(args, paper_pdf_path: str, output_dir: Path):
     if not script_pages:
         raise ValueError("Step 1 did not produce script_pages. Check PDF and workflow.")
 
-    print(f"\n✓ Step 1 completed: {len(script_pages)} script page(s) generated\n")
+    log.info("Step 1 completed: %s script page(s) generated", len(script_pages))
 
     # Step 2: Generate video from script_pages
     snapshot = _state_to_snapshot(state)
     state2 = _state_from_snapshot(snapshot, script_pages)
     state2.result_path = str(output_dir)
 
-    print("Step 2/2: Generating video...")
-    print("Workflow: paper2video (script_stage=False)\n")
+    log.info("Step 2/2: Generating video...")
+    log.info("Workflow: paper2video (script_stage=False)")
 
     final_state = await run_workflow("paper2video", state2)
 
-    print("\n✓ Step 2 completed: Video generated")
+    log.info("Step 2 completed: Video generated")
 
     return final_state
 
 
 def print_results(final_state: Any, output_dir: Path):
     """Print workflow results."""
-    print(f"\n{'='*60}")
-    print("✓ Paper2Video Workflow Completed Successfully")
-    print(f"{'='*60}")
-    print(f"Output Directory: {output_dir}")
+    log.info("%s", "=" * 60)
+    log.info("Paper2Video Workflow Completed Successfully")
+    log.info("%s", "=" * 60)
+    log.info("Output Directory: %s", output_dir)
 
     video_path = getattr(final_state, "video_path", None)
     if isinstance(final_state, dict):
         video_path = video_path or final_state.get("video_path")
     if video_path and os.path.exists(str(video_path)):
-        print(f"Video File: {video_path}")
+        log.info("Video File: %s", video_path)
 
     script_pages = getattr(final_state, "script_pages", None)
     if isinstance(final_state, dict):
         script_pages = script_pages or final_state.get("script_pages")
     if script_pages:
-        print(f"Script Pages: {len(script_pages)} page(s)")
+        log.info("Script Pages: %s page(s)", len(script_pages))
 
-    print(f"{'='*60}\n")
+    log.info("%s", "=" * 60)
 
 
 def main():
@@ -287,13 +290,13 @@ def main():
         return 0
 
     except FileNotFoundError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        log.error("%s", e)
         return 1
     except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        log.error("%s", e)
         return 1
     except Exception as e:
-        print(f"Error: Workflow execution failed: {e}", file=sys.stderr)
+        log.exception("Workflow execution failed: %s", e)
         import traceback
         traceback.print_exc()
         return 1

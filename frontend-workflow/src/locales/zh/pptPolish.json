@@ -107,9 +107,8 @@
     "status": "已美化",
     "generateFinal": "生成最终文件",
     "generating": "正在生成最终文件...",
+    "downloadPptx": "下载 PPTX",
     "downloadPdf": "下载 PDF",
-    "pdf2pptLink": "如果需要继续 PDF 转可编辑 PPTX，请前往",
-    "pdf2pptText": "PDF2PPT 页面",
     "new": "处理新的文档"
   },
   "demo": {

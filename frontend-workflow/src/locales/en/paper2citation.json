@@ -1,0 +1,147 @@
+{
+  "hero": {
+    "badge": "Citation Explorer",
+    "title": "Track who cites an author or paper",
+    "description": "Search by author name or DOI/paper URL, then inspect publications, citing authors, institutions, and academic-prestige label summaries in one page."
+  },
+  "modes": {
+    "author": {
+      "label": "Author",
+      "title": "Find an author profile",
+      "description": "Search ambiguous names, choose the right scholar, and inspect publications and citation network."
+    },
+    "paper": {
+      "label": "Paper",
+      "title": "Inspect a paper's citations",
+      "description": "Resolve a DOI or URL, then see who cites the paper and where those citations come from."
+    }
+  },
+  "search": {
+    "authorLabel": "Author name",
+    "authorPlaceholder": "e.g. Bin Cui, Wentao Zhang",
+    "authorButton": "Search Authors",
+    "authorHint": "Author search returns candidate profiles first. Click a candidate to load details.",
+    "paperLabel": "DOI or paper URL",
+    "paperPlaceholder": "e.g. 10.1145/3746027.3758205 or https://doi.org/...",
+    "paperButton": "Load Paper Detail",
+    "paperHint": "Paper mode resolves DOI or paper URL, then aggregates citing authors and institutions."
+  },
+  "sections": {
+    "candidates": {
+      "title": "Candidate Authors",
+      "subtitle": "Pick the correct person before loading the citation view."
+    },
+    "authorProfileStats": {
+      "title": "Author Profile Totals",
+      "subtitle": "Author-level totals from the resolved profile."
+    },
+    "publicationStats": {
+      "title": "Loaded Publication Sample",
+      "subtitle": "Counts for the publications currently loaded for this author."
+    },
+    "authorCitationStats": {
+      "title": "Loaded Citation Network Sample",
+      "subtitle": "Counts from this run's citation crawl over a subset of seed publications, not the author's full citation graph."
+    },
+    "citationBuildInfo": {
+      "title": "How This Citation Network Was Built"
+    },
+    "citationStats": {
+      "title": "Citation Statistics",
+      "subtitle": "Citation-side aggregates for the current paper."
+    },
+    "honors": {
+      "title": "Academic Prestige Labels",
+      "subtitle": "Best-effort labels such as fellows, academy memberships, major awards, and comparable academic distinctions."
+    },
+    "publications": {
+      "title": "Publication List",
+      "subtitle": "Recent or representative works for the selected author."
+    },
+    "citingWorks": {
+      "title": "Citing Works",
+      "subtitle": "Papers citing the current work."
+    },
+    "citationContext": {
+      "summaryTitle": "How This Paper Cites the Target",
+      "referenceTitle": "Matched Reference Entry"
+    },
+    "institutions": {
+      "title": "Citing Institutions",
+      "subtitle": "Organizations appearing in the citation network."
+    },
+    "authors": {
+      "title": "Citing Authors",
+      "subtitle": "People appearing in the citation network."
+    },
+    "notableCiters": {
+      "title": "Notable Citers",
+      "subtitle": "Highlighted citing authors with fellow, academy, award, or comparable prestige labels."
+    },
+    "selectedCandidate": {
+      "title": "Selected Candidate"
+    }
+  },
+  "states": {
+    "searching": "Searching...",
+    "searchingAuthorsTitle": "Searching author candidates for {{query}}",
+    "searchingAuthorsSubtitle": "Matching ambiguous scholar names from OpenAlex and DBLP. This can take a moment.",
+    "loadingDetail": "Loading detail...",
+    "loadingPinned": "Jumping to the detail area and loading the citation view. Well-known scholars can take longer.",
+    "loadingAuthorTitle": "Loading citation detail for {{name}}",
+    "loadingAuthorSubtitle": "Aggregating publications, citing authors, institutions, and summary statistics. Well-known scholars can take noticeably longer.",
+    "loadingPaperTitle": "Loading citation detail for {{query}}",
+    "loadingPaperSubtitle": "Resolving the DOI or link, then aggregating citing authors, institutions, and summary statistics.",
+    "loadingFallbackAuthor": "this author",
+    "loadingFallbackPaper": "this paper",
+    "candidatePage": "Page {{page}} / {{total}}, {{count}} candidates total",
+    "publicationPage": "Page {{page}} / {{total}}, {{count}} publications total",
+    "noCandidates": "No candidate authors yet.",
+    "noSummary": "No additional summary returned.",
+    "noStats": "No statistics returned.",
+    "noHonors": "No academic-prestige label matches returned.",
+    "noInstitutions": "No institutions returned.",
+    "noAuthors": "No authors returned.",
+    "noAffiliation": "No affiliation info",
+    "dblpCandidate": "DBLP candidate, detailed stats load after selection",
+    "noPublications": "No publications returned.",
+    "noCitingWorks": "No citing works returned.",
+    "noCitationContexts": "No explicit citation sentence or paragraph was found in the fetched HTML full text.",
+    "emptyPaper": "Enter a DOI or paper URL to inspect the citation graph."
+  },
+  "actions": {
+    "openHomepage": "Open homepage",
+    "openPaper": "Open paper",
+    "extractContext": "Extract Citation Context",
+    "extractingContext": "Extracting",
+    "openContextSource": "Open text source",
+    "prevPage": "Previous",
+    "nextPage": "Next"
+  },
+  "stats": {
+    "totalWorks": "Total works",
+    "totalCitations": "Total citations",
+    "hIndex": "H-index",
+    "loadedPublications": "Loaded publications",
+    "linkedPublications": "OpenAlex-linked publications",
+    "unlinkedPublications": "Unlinked publications",
+    "loadedCitingWorks": "Citing works found in this run",
+    "loadedCitingAuthors": "Citing authors found in this run",
+    "loadedCitingInstitutions": "Citing institutions found in this run",
+    "paperTotalCitations": "Paper total citations"
+  },
+  "buildInfo": {
+    "seedPublications": "This run selected {{count}} seed publications from the author's global publication list.",
+    "citingWorksPerSeed": "Each seed publication fetched up to {{count}} citing works.",
+    "builtFromPage": "The current citation network was built when author detail was loaded from publication page {{page}}, with page size {{pageSize}}."
+  },
+  "errors": {
+    "authorQueryRequired": "Enter an author name first.",
+    "paperQueryRequired": "Enter a DOI or paper URL first.",
+    "searchFailed": "Failed to search authors.",
+    "detailFailed": "Failed to load citation detail.",
+    "contextFailed": "Failed to extract citation context.",
+    "quotaUserExhausted": "Your remaining credits are exhausted.",
+    "quotaGuestExhausted": "Guest quota is exhausted. Please sign in."
+  }
+}

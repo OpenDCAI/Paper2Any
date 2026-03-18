@@ -21,7 +21,11 @@ def _ensure_result_path(email: str | None) -> Path:
 
 
 async def run_kb_deepresearch_wf_api(req: DeepResearchRequest) -> DeepResearchResponse:
-    result_root = _ensure_result_path(req.email)
+    if req.notebook_id and req.email:
+        from fastapi_app.routers.kb import _generated_dir
+        result_root = _generated_dir(req.email, req.notebook_id, "deepresearch", req.user_id or "default")
+    else:
+        result_root = _ensure_result_path(req.email)
 
     kb_req = KBDeepResearchRequest(
         mode=req.mode,

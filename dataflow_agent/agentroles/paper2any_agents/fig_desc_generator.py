@@ -75,7 +75,6 @@ class FigureDescGenerator(BaseAgent):
     def update_state_result(self, state: Paper2FigureState, result: Dict[str, Any], pre_tool_results: Dict[str, Any]):
         try:
             figure_desc = result.get("figure_desc", "") if isinstance(result, dict) else ""
-            # print(result)
             if figure_desc:
                 state.fig_desc = figure_desc
         except Exception:

@@ -7,7 +7,7 @@
   "upload": {
     "subtitle": "PPT → 视频",
     "title": "PPT转视频",
-    "desc": "上传 PPT 或 PDF 格式的 PPT，可选数字人头像与语音文件。AI 按页生成语音脚本，再生成视频。",
+    "desc": "上传 PPT 或 PDF 格式的 PPT，可选数字人头像。语音统一通过阿里云 API 合成，AI 按页生成语音脚本后再生成视频。",
     "instruction": {
       "pdf": "上传 PPT（必填）"
     },
@@ -20,11 +20,9 @@
     "avatarSystemLabel": "系统数字人",
     "avatarUploadOwn": "上传自己的数字人",
     "avatarChoiceHint": "选择系统数字人或上传自己的数字人（二选一）",
-    "talkingModelLabel": "数字人模型",
-    "talkingModelEchomimic": "本地模型 (Echomimic)",
-    "talkingModelLiveportrait": "云数字人 (LivePortrait)",
-    "talkingModelRecommend": "推荐",
+    "talkingModelFixed": "数字人视频统一使用云端 LivePortrait API 生成",
     "voiceLabel": "语音",
+    "voiceApiOnly": "语音统一通过阿里云 CosyVoice API 生成，不再提供本地语音模型选项",
     "voiceUseTts": "云语音模型（API）",
     "voiceUseTtsRecommend": "推荐",
     "voiceUseFile": "本地语音模型（F5-TTS）",
@@ -66,9 +64,14 @@
     "scriptLabel": "语音脚本",
     "scriptPlaceholder": "编辑本页脚本...",
     "loadingImage": "加载图片中...",
+    "costHint": "确认生成后将扣除 {{count}} 次使用次数",
     "back": "返回上传",
     "confirmAndGenerate": "确认并生成视频",
     "generating": "正在生成视频..."
+  },
+  "errors": {
+    "quotaUserInsufficient": "当前剩余次数不足 {{count}} 次，无法生成视频",
+    "quotaGuestInsufficient": "游客剩余次数不足 {{count}} 次，无法生成视频"
   },
   "complete": {
     "title": "视频已生成",
@@ -78,6 +81,7 @@
     "progressTts": "正在合成语音...",
     "progressVideo": "正在生成口播视频...",
     "noVideo": "暂无视频地址。",
+    "usageRecordFailed": "视频已生成，但扣减 {{count}} 次使用次数失败，请检查额度记录",
     "download": "下载视频",
     "videoNotSupported": "您的浏览器不支持视频播放。",
     "newTask": "处理新论文"

@@ -8,7 +8,7 @@ from dataflow_agent.utils import get_project_root
 from dataflow_agent.logger import get_logger
 from dataflow_agent.toolkits.multimodaltool.utils import (
     Provider, detect_provider, extract_base64, encode_image_to_base64 as _encode_image_to_base64,
-    is_gemini_model as _is_gemini_model, is_gemini_25, is_gemini_3_pro
+    is_gemini_model as _is_gemini_model, is_gemini_25, is_gemini_3_pro, is_gemini_31_flash
 )
 from dataflow_agent.toolkits.multimodaltool.providers import get_provider
 
@@ -230,6 +230,10 @@ async def gemini_multi_image_edit_async(
     if is_gemini_3_pro(model):
         timeout_map = {"1K": 180, "2K": 300, "4K": 360}
         timeout = max(timeout, timeout_map.get(resolution, 300))
+    elif is_gemini_31_flash(model):
+        # Nano Banana 2: Flash 级速度
+        timeout_map = {"512": 60, "1K": 60, "2K": 120, "4K": 180}
+        timeout = max(timeout, timeout_map.get(resolution, 120))
         
     log.info(f"[Multi-Image] POST {url} (images={len(image_paths)})")
     
@@ -280,8 +284,12 @@ async def generate_or_edit_and_save_image_async(
     """
     # 动态调整超时（保留原有针对 Gemini-3 Pro 的逻辑）
     if _is_gemini_model(model) and is_gemini_3_pro(model):
-        timeout_map = {"1K": 40, "2K": 180, "4K": 350}
-        timeout = timeout_map.get(resolution, 180)
+        timeout_map = {"1K": 60, "2K": 300, "4K": 600}
+        timeout = timeout_map.get(resolution, 300)
+    elif _is_gemini_model(model) and is_gemini_31_flash(model):
+        # Nano Banana 2: Flash 级速度，比 Pro 快（1K ~10s, 2K ~15s, 4K ~25s）
+        timeout_map = {"512": 60, "1K": 60, "2K": 120, "4K": 180}
+        timeout = timeout_map.get(resolution, 120)
     
     log.info(f"generate_or_edit: model={model}, provider_check={detect_provider(api_url)}")
 

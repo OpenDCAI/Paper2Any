@@ -322,10 +322,12 @@ if __name__ == "__main__":
     
     async def _test():
         url = os.getenv("DF_API_URL", "wss://dashscope.aliyuncs.com/api-ws/v1/inference")
-        key = os.getenv("DF_API_KEY", "sk-4a290ed8704047b3870b04cbff040d98")
+        key = os.getenv("COSYVOICE_KEY") or os.getenv("DF_API_KEY", "")
         model = os.getenv("DF_TTS_MODEL", "cosyvoice-v3-flash")
         log.info(f"Testing TTS with URL: {url}, Model: {model}")
         voice_name = "longanhuan"
+        if not key:
+            raise RuntimeError("Please set COSYVOICE_KEY or DF_API_KEY before running req_tts.py directly")
         try:
             path = await generate_speech_and_save_async(
                 "Hello this is a test",

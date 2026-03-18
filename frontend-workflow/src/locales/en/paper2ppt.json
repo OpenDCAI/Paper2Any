@@ -49,7 +49,7 @@
       "pptModeBeamer": "Beamer (LaTeX)",
       "pptModeBeamerTip": "LaTeX typesetting, PDF only; page preview supported, no per-page edit.",
       "pageCount": "Page Count",
-      "longPaper": "Enable Long Paper Mode (40-100 pages)",
+      "longPaper": "Enable Long Paper Mode (the backend will also auto-switch for oversized documents)",
       "styleTitle": "Style Config",
       "language": "Language",
       "styleMode": {

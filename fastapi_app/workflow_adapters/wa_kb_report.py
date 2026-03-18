@@ -20,7 +20,11 @@ def _ensure_result_path(email: str | None) -> Path:
 
 
 async def run_kb_report_wf_api(req: KBReportRequestModel) -> KBReportResponse:
-    result_root = _ensure_result_path(req.email)
+    if req.notebook_id and req.email:
+        from fastapi_app.routers.kb import _generated_dir
+        result_root = _generated_dir(req.email, req.notebook_id, "report", req.user_id or "default")
+    else:
+        result_root = _ensure_result_path(req.email)
 
     kb_req = KBReportRequest(
         file_paths=req.file_paths or [],

@@ -51,7 +51,7 @@ interface ImageVersion {
   imageUrl: string;
   prompt: string;
   timestamp: number;
-  isCurrentVersion?: boolean;
+  isCurrentVersion: boolean;
 }
 
 interface BeautifyResult {
@@ -1265,7 +1265,7 @@ const Ppt2PolishPage = () => {
       }
 
       // Record usage
-      await recordUsage(user?.id || null, 'ppt2polish');
+      await recordUsage(user?.id || null, 'ppt2polish', { isAnonymous: user?.is_anonymous || false });
       refreshQuota();
 
       // Upload generated file to Supabase Storage (either PPTX or PDF)
@@ -1949,17 +1949,16 @@ const Ppt2PolishPage = () => {
       ) : (
         <div className="space-y-4">
           <div className="flex gap-4 justify-center">
-            {/* 已移除 PPTX 下载按钮 */}
+            {downloadUrl && (
+              <button onClick={handleDownload} className="px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white font-semibold flex items-center gap-2 transition-all">
+                <Download size={18} /> {t('complete.downloadPptx')}
+              </button>
+            )}
             {pdfDownloadUrl && (
               <a href={pdfDownloadUrl} target="_blank" rel="noopener noreferrer" className="px-6 py-3 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold flex items-center gap-2 transition-all">
                 <Download size={18} /> {t('complete.downloadPdf')}
               </a>
             )}
-          </div>
-
-          {/* 引导去 PDF2PPT */}
-          <div className="text-center text-sm text-gray-400 bg-white/5 border border-white/10 rounded-lg p-3">
-            {t('complete.pdf2pptLink')} <a href="/pdf2ppt" className="text-teal-400 hover:text-teal-300 hover:underline font-medium transition-colors">{t('complete.pdf2pptText')}</a>
           </div>
 
           <div>

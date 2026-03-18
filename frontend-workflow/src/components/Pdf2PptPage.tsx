@@ -303,7 +303,7 @@ const Pdf2PptPage = () => {
       setIsComplete(true);
 
       // 校验通过后才扣积分
-      await recordUsage(user?.id || null, 'pdf2ppt');
+      await recordUsage(user?.id || null, 'pdf2ppt', { isAnonymous: user?.is_anonymous || false });
       refreshQuota();
       const outputName = selectedFile?.name.replace('.pdf', '.pptx') || 'pdf2ppt_output.pptx';
       console.log('[Pdf2PptPage] Uploading file to storage:', outputName);

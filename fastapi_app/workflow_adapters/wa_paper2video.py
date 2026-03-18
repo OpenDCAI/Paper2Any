@@ -46,6 +46,28 @@ _STATE_SNAPSHOT_KEYS = [
 ]
 
 
+def _find_generated_video(base_dir: Path) -> str:
+    """在工作流没有正确回填 video_path 时，尽量从输出目录回捞最终视频。"""
+    preferred = [
+        base_dir / "video.mp4",
+        base_dir / "2_merge.mp4",
+        base_dir / "1_merge.mp4",
+    ]
+    for candidate in preferred:
+        if candidate.is_file():
+            return str(candidate)
+
+    mp4_files = [
+        p for p in base_dir.rglob("*.mp4")
+        if p.is_file() and "talking_video" not in p.parts and "merge" not in p.parts
+    ]
+    if mp4_files:
+        mp4_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        return str(mp4_files[0])
+
+    return ""
+
+
 def _state_to_snapshot(state: Paper2VideoState | dict) -> dict:
     """将第一步的 state 序列化为可 JSON 的 dict，不含 script_pages。LangGraph 返回 dict，故需兼容。"""
     if isinstance(state, dict):
@@ -125,6 +147,14 @@ async def run_paper2video_generate_subtitle_wf_api(
     result_root = Path(result_path).resolve() if result_path else _ensure_result_path(None, email)
     log.info("[wa_paper2video] run_paper2video_generate_subtitle_wf_api: result_path=%s, paper_pdf_path=%s", result_root, paper_pdf_path)
 
+    normalized_talking_model = "liveportrait"
+    if (talking_model or "").strip().lower() not in {"", "liveportrait"}:
+        log.info(
+            "[wa_paper2video] force talking_model=%s -> %s",
+            talking_model,
+            normalized_talking_model,
+        )
+
     req = Paper2VideoRequest(
         language=language,
         chat_api_url=chat_api_url or "",
@@ -138,7 +168,7 @@ async def run_paper2video_generate_subtitle_wf_api(
         tts_model=tts_model or "",
         tts_voice_name=(tts_voice_name or "").strip(),
         script_stage=True,
-        talking_model=(talking_model or "liveportrait").strip() or "liveportrait",
+        talking_model=normalized_talking_model,
     )
     state = Paper2VideoState(request=req, messages=[])
     setattr(state, "result_path", str(result_root))
@@ -216,17 +246,24 @@ async def run_paper2video_generate_video_wf_api(
         final_state = await run_workflow(workflow_name, state)
         log.info("[wa_paper2video] workflow %s finished", workflow_name)
     except Exception as e:
-        log.warning("[wa_paper2video] workflow %s not found or failed: %s; returning placeholder video_path", workflow_name, e)
-        # 占位：返回空 video_path，便于前端先联调；你可在 wf_paper2video 中实现并注册 paper2video_generate_video
+        log.exception("[wa_paper2video] workflow %s failed during generate_video: %s", workflow_name, e)
         return {
-            "success": True,
+            "success": False,
+            "message": f"视频生成失败：{str(e)}",
             "video_path": "",
         }
 
     video_path = getattr(final_state, "video_path", None)
     if isinstance(final_state, dict):
         video_path = video_path or final_state.get("video_path")
-    video_path = video_path or ""
+    video_path = video_path or _find_generated_video(base_dir)
+    if not video_path:
+        log.warning("[wa_paper2video] generate_video finished but no video_path was produced under %s", base_dir)
+        return {
+            "success": False,
+            "message": "视频生成流程已结束，但未找到最终视频文件",
+            "video_path": "",
+        }
     log.info("[wa_paper2video] generate_video done, video_path=%s", video_path)
     return {
         "success": True,

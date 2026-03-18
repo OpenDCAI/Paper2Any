@@ -20,9 +20,12 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureState, Paper2FigureRequest
 from dataflow_agent.workflow import run_workflow
 from dataflow_agent.utils import get_project_root
+
+log = get_logger(__name__)
 
 
 def parse_args():
@@ -179,16 +182,16 @@ async def run_image2ppt_workflow(args, input_path: Path, output_dir: Path):
     # Select workflow based on use_ai_edit flag (reuses PDF2PPT workflows)
     workflow_name = "pdf2ppt_qwenvl" if args.use_ai_edit else "pdf2ppt_parallel"
 
-    print(f"\n{'='*60}")
-    print(f"Image2PPT Workflow Starting")
-    print(f"{'='*60}")
-    print(f"Input Image: {input_path}")
-    print(f"Output Directory: {output_dir}")
-    print(f"Workflow: {workflow_name}")
-    print(f"AI Enhancement: {'Enabled' if args.use_ai_edit else 'Disabled'}")
-    print(f"Style: {args.style}")
-    print(f"Language: {args.language}")
-    print(f"{'='*60}\n")
+    log.info("%s", "=" * 60)
+    log.info("Image2PPT Workflow Starting")
+    log.info("%s", "=" * 60)
+    log.info("Input Image: %s", input_path)
+    log.info("Output Directory: %s", output_dir)
+    log.info("Workflow: %s", workflow_name)
+    log.info("AI Enhancement: %s", "Enabled" if args.use_ai_edit else "Disabled")
+    log.info("Style: %s", args.style)
+    log.info("Language: %s", args.language)
+    log.info("%s", "=" * 60)
 
     # Run workflow
     final_state = await run_workflow(workflow_name, state)
@@ -198,18 +201,18 @@ async def run_image2ppt_workflow(args, input_path: Path, output_dir: Path):
 
 def print_results(final_state: Paper2FigureState, output_dir: Path):
     """Print workflow results"""
-    print(f"\n{'='*60}")
-    print(f"✓ Image2PPT Workflow Completed Successfully")
-    print(f"{'='*60}")
-    print(f"Output Directory: {output_dir}")
+    log.info("%s", "=" * 60)
+    log.info("Image2PPT Workflow Completed Successfully")
+    log.info("%s", "=" * 60)
+    log.info("Output Directory: %s", output_dir)
 
     ppt_path = getattr(final_state, "ppt_path", None)
     if ppt_path and os.path.exists(ppt_path):
-        print(f"PPT File: {ppt_path}")
+        log.info("PPT File: %s", ppt_path)
     else:
-        print("Warning: PPT file not found in output")
+        log.warning("PPT file not found in output")
 
-    print(f"{'='*60}\n")
+    log.info("%s", "=" * 60)
 
 
 def main():
@@ -233,13 +236,13 @@ def main():
         return 0
 
     except FileNotFoundError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        log.error("%s", e)
         return 1
     except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        log.error("%s", e)
         return 1
     except Exception as e:
-        print(f"Error: Workflow execution failed: {e}", file=sys.stderr)
+        log.exception("Workflow execution failed: %s", e)
         import traceback
         traceback.print_exc()
         return 1

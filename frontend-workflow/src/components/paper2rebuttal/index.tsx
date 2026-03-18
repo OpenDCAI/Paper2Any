@@ -879,7 +879,7 @@ const Paper2RebuttalPage = () => {
                         onChange={(e) => setLlmApiUrl(e.target.value)}
                         className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
                       >
-                        {API_URL_OPTIONS.map((url) => (
+                        {API_URL_OPTIONS.map((url: string) => (
                           <option key={url} value={url}>
                             {url}
                           </option>

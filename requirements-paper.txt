@@ -28,7 +28,6 @@ lmdb>=1.4.1
 cairosvg
 vtracer
 ultralytics
-transformers
 scikit-image
 pdf2image
 imgaug>=0.4.0
@@ -36,9 +35,9 @@ imgaug>=0.4.0
 pillow
 # pytesseract  # 已改用 PaddleOCR
 
-# Paddle OCR (CPU)
-paddlepaddle==3.2.0
-paddleocr==2.9.1
+# Paddle OCR (CPU) — 懒加载，仅旧版 workflow 需要，Docker 构建可跳过
+# paddlepaddle==3.2.0
+# paddleocr==2.9.1
 
 PyMuPDF
 img2pdf

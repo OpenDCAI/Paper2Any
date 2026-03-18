@@ -97,3 +97,7 @@ def is_gemini_25(model: str) -> bool:
 def is_gemini_3_pro(model: str) -> bool:
     """是否为 Gemini 3 Pro 系列"""
     return "gemini-3-pro" in model.lower()
+
+def is_gemini_31_flash(model: str) -> bool:
+    """是否为 Gemini 3.1 Flash 系列 (Nano Banana 2)"""
+    return "gemini-3.1-flash" in model.lower()
