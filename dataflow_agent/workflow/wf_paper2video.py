@@ -377,39 +377,21 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         raw_subtitle_and_cursor_content = Path(subtitle_and_cursor_path).read_text(encoding='utf-8')
         parsed_subtitle_w_cursor = parse_script_with_cursor(raw_subtitle_and_cursor_content)
 
-        # 2、并行的生成cursor的坐标等信息
+        # 2、生成 cursor 坐标（调用 GUI-Plus API，无需本地 GPU，多进程仅用于并行请求）
         slide_image_path_list = get_image_paths(slide_img_dir)
 
         task_list = []
-        cursor_result = []
-        # fixme: 这里后续需要修改，生成cursor相关的代码貌似只需要1张卡就可以，时间较短
-        gpu_list = [5,6]
-        num_gpus = len(gpu_list)
-
         for slide_idx in range(len(parsed_subtitle_w_cursor)):
             slide_image_path = slide_image_path_list[slide_idx]
             speech_with_cursor = parsed_subtitle_w_cursor[slide_idx]
             for sentence_idx, (prompt, cursor_prompt) in enumerate(speech_with_cursor):
                 task_list.append((slide_idx, sentence_idx, prompt, cursor_prompt, slide_image_path))
-            
-        if num_gpus == 0:
-            log.error("没有可用的GPU")
-            return state
-        if num_gpus == 1:
-            # 串行执行
-            ctx = multiprocessing.get_context("spawn")
-            with ctx.Pool(processes=num_gpus) as pool:
-                gpu_id = gpu_list[0]
-                cursor_result = pool.map(cursor_infer, [t + (gpu_id,) for t in task_list]) 
-        else:
-            parallel_tasks = []
-            for i, task in enumerate(task_list):
-                gpu_id = gpu_list[i % num_gpus]
-                parallel_tasks.append(task + (gpu_id,))
-            
-            ctx = multiprocessing.get_context("spawn")
-            with ctx.Pool(processes=num_gpus) as pool:
-                cursor_result = pool.map(cursor_infer, parallel_tasks)
+
+        num_workers = min(4, len(task_list)) if task_list else 1
+        parallel_tasks = [t + (None,) for t in task_list]  # gpu_id 已废弃，传 None
+        ctx = multiprocessing.get_context("spawn")
+        with ctx.Pool(processes=num_workers) as pool:
+            cursor_result = pool.map(cursor_infer, parallel_tasks)
         cursor_result.sort(key=lambda x: (x['slide'], x['sentence']))
 
         slide_h, slide_w= cv2.imread(slide_image_path_list[0]).shape[:2]

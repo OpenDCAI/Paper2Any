@@ -1,10 +1,10 @@
-import React, { useState, ChangeEvent } from 'react';
+import React, { useState, ChangeEvent, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { API_KEY } from '../config/api';
 import { getApiSettings } from '../services/apiSettingsService';
 import { useAuthStore } from '../stores/authStore';
 import {
-  UploadCloud, Settings2, Loader2, Download, RotateCcw, FileText, Type, Lightbulb
+  UploadCloud, Settings2, Loader2, FileText, Type, Lightbulb
 } from 'lucide-react';
 import type { UploadMode } from './paper2ppt/types';
 import type { Step, SlideOutline, GenerateResult } from './paper2ppt/types';
@@ -12,6 +12,7 @@ import { MAX_FILE_SIZE } from './paper2ppt/constants';
 import StepIndicator from './paper2ppt/StepIndicator';
 import OutlineStep from './paper2ppt/OutlineStep';
 import GenerateStep from './paper2ppt/GenerateStep';
+import CompleteStep from './paper2ppt/CompleteStep';
 
 const Paper2PptBeamerPage: React.FC = () => {
   const { t } = useTranslation(['paper2ppt', 'common']);
@@ -43,6 +44,13 @@ const Paper2PptBeamerPage: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [slidePrompt, setSlidePrompt] = useState('');
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+
+  const [stars, setStars] = useState<{ dataflow: number | null; agent: number | null; dataflex: number | null }>({
+    dataflow: null,
+    agent: null,
+    dataflex: null,
+  });
+  const [copySuccess, setCopySuccess] = useState('');
 
   const apiSettings = getApiSettings(user?.id || null);
   const chatApiUrl = apiSettings?.apiUrl || '';
@@ -348,37 +356,89 @@ const Paper2PptBeamerPage: React.FC = () => {
     setTextContent('');
   };
 
-  // ---------- 完成页：下载 PDF ----------
+  const shareText = `发现一个超好用的AI工具 DataFlow-Agent！🚀
+支持论文转PPT、PDF转PPT、PPT美化等功能，科研打工人的福音！
+
+🔗 在线体验：https://dcai-paper2any.nas.cpolar.cn/
+⭐ GitHub Agent：https://github.com/OpenDCAI/Paper2Any
+🌟 GitHub Core：https://github.com/OpenDCAI/DataFlow
+
+转发本文案+截图，联系微信群管理员即可获取免费Key！🎁
+#AI工具 #PPT制作 #科研效率 #开源项目`;
+
+  const handleCopyShareText = async () => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareText);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = shareText;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setCopySuccess('文案已复制！快去分享吧');
+      setTimeout(() => setCopySuccess(''), 2000);
+    } catch {
+      setCopySuccess('复制失败，请手动复制');
+    }
+  };
+
+  useEffect(() => {
+    const fetchStars = async () => {
+      try {
+        const [res1, res2, res3] = await Promise.all([
+          fetch('https://api.github.com/repos/OpenDCAI/DataFlow'),
+          fetch('https://api.github.com/repos/OpenDCAI/Paper2Any'),
+          fetch('https://api.github.com/repos/OpenDCAI/DataFlex'),
+        ]);
+        const [data1, data2, data3] = await Promise.all([res1.json(), res2.json(), res3.json()]);
+        setStars({
+          dataflow: data1.stargazers_count,
+          agent: data2.stargazers_count,
+          dataflex: data3.stargazers_count,
+        });
+      } catch (e) {
+        console.error('Failed to fetch stars', e);
+      }
+    };
+    fetchStars();
+  }, []);
+
+  const handleDownloadPdf = () => {
+    if (downloadUrl) window.open(downloadUrl, '_blank');
+  };
+
+  // ---------- 完成页：与 paper2ppt 一致布局，仅保留「下载 PDF」与「处理新的论文」，无「下载 PPTX」----------
   if (currentStep === 'complete') {
     return (
       <div className="w-full h-screen flex flex-col bg-[#050512] overflow-hidden">
-        <div className="flex-1 overflow-auto flex items-center justify-center p-8">
-          <div className="max-w-lg mx-auto text-center">
-            <h2 className="text-2xl font-bold text-white mb-2">生成完成</h2>
-            <p className="text-gray-400 mb-6">Beamer PDF 已生成，可下载。</p>
-            {downloadUrl && (
-              <div className="space-y-4">
-                <a
-                  href={downloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold hover:opacity-90"
-                >
-                  <Download size={18} /> 下载 PDF
-                </a>
-                <div>
-                  <button
-                    onClick={handleReset}
-                    className="text-sm text-gray-400 hover:text-white transition-colors inline-flex items-center gap-1"
-                  >
-                    <RotateCcw size={14} /> 处理新的论文
-                  </button>
-                </div>
-              </div>
-            )}
-            {error && <div className="mt-4 text-sm text-red-300">{error}</div>}
+        <div className="flex-1 overflow-auto">
+          <div className="max-w-7xl mx-auto px-6 py-8 pb-24">
+            <StepIndicator currentStep="complete" />
+            <CompleteStep
+              outlineData={outlineData}
+              generateResults={generateResults}
+              downloadUrl={null}
+              pdfPreviewUrl={downloadUrl}
+              isGeneratingFinal={false}
+              handleGenerateFinal={() => {}}
+              handleDownloadPptx={() => {}}
+              handleDownloadPdf={handleDownloadPdf}
+              handleReset={handleReset}
+              error={error}
+              handleCopyShareText={handleCopyShareText}
+              copySuccess={copySuccess}
+              stars={stars}
+              pdfOnly
+            />
           </div>
         </div>
+        <style>{`.glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); }`}</style>
       </div>
     );
   }

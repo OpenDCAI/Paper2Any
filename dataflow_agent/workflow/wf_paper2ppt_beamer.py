@@ -19,6 +19,7 @@ from dataflow_agent.workflow.registry import register
 from dataflow_agent.toolkits.p2vtool.p2v_tool import (
     compile_tex,
     merge_pdfs,
+    is_missing_image_error,
     is_overfull_warning,
     is_table_asset,
 )
@@ -82,13 +83,13 @@ def create_paper2ppt_beamer_graph() -> GenericGraphBuilder:
 
         p2b_agent = create_simple_agent(
             name="p2b_pagecontent_to_beamer",
-            model_name="gpt-5-codex",
+            model_name="gpt-5",
             temperature=0.1,
             parser_type="json",
         )
         debug_agent = create_simple_agent(
             name="p2v_beamer_code_debug",
-            model_name="gpt-5-codex",
+            model_name="gpt-5",
             temperature=0.1,
             parser_type="json",
         )
@@ -144,6 +145,18 @@ def create_paper2ppt_beamer_graph() -> GenericGraphBuilder:
                         log.warning("第 %s 页编译异常: %s", i + 1, e)
                     if not is_wrong:
                         break
+                    # 若为「无法加载图片/PDF」类错误，视为模型幻觉路径，清掉 asset_ref 后重试
+                    if is_missing_image_error(code_debug_result) and one_page.get("asset_ref") is not None:
+                        log.warning("第 %s 页编译报错「Unable to load picture or PDF file」，将 asset_ref 置空后重试", i + 1)
+                        one_page["asset_ref"] = None
+                        page_state = replace(
+                            state,
+                            pagecontent=[one_page],
+                            beamer_code_path="",
+                            is_beamer_wrong=False,
+                            is_beamer_warning=False,
+                            code_debug_result="",
+                        )
                     log.warning("第 %s 页编译 error，第 %s/%s 次重新生成", i + 1, error_attempt + 1, max_error_retries)
 
                 if is_wrong:

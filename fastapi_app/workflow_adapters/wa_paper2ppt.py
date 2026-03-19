@@ -17,7 +17,10 @@ from typing import Any, List, Tuple
 
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureState, Paper2PptBeamerState, Paper2PptBeamerRequest
-from dataflow_agent.toolkits.multimodaltool.mineru_tool import _shrink_markdown
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import (
+    _shrink_markdown,
+    run_mineru_pdf_extract_http,
+)
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.utils_markdown_sections import (
     estimate_text_tokens,

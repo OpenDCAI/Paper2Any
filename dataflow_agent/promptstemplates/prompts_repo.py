@@ -1803,7 +1803,7 @@ You are an expert in LaTeX Beamer. Your task is to convert **one slide's** struc
 
 **Required document structure (do not omit any part):**
 1. \\documentclass{{beamer}}
-2. Preamble: **must** use \\usetheme{{Madrid}} (fixed theme). You may add \\usecolortheme and font packages (see below).
+2. Preamble: **must** use \\usetheme{{Madrid}} (fixed theme).
 3. \\begin{{document}}
 4. **Exactly one** \\begin{{frame}}...\\end{{frame}} containing the slide content.
 5. \\end{{document}}
@@ -1821,7 +1821,7 @@ You are an expert in LaTeX Beamer. Your task is to convert **one slide's** struc
 - Use \\alert{{}} for key terms or math symbols when appropriate.
 - For literal percent sign in text use \\% (e.g. 5\\%).
 
-**Content:** Use the given title, layout_description, key_points, and asset_ref. For image paths (e.g. in asset_ref), prepend the absolute base path given by pdf_images_working_dir and use \\includegraphics[width=0.8\\textwidth]{{...}} with \\caption and \\label. For table references (e.g. Table_2) use tabular/booktabs or a placeholder.
+**Content:** Use the given title, layout_description, key_points, and asset_ref. For image paths (e.g. in asset_ref), prepend the absolute base path given by pdf_images_working_dir and use \\includegraphics[width=0.8\\textwidth]{{...}} with \\caption and \\label. For table references (e.g. Table_2) use tabular/booktabs.
 
 **Output:** Return only one JSON object with key "latex_code" containing the **entire** document from \\documentclass to \\end{{document}}, ready to compile.
 """
@@ -1837,6 +1837,9 @@ Generate **one** LaTeX Beamer slide as a **complete, compilable document**. The 
 
 ## This slide's pagecontent (single object)
 {pagecontent}
+
+## Asset / image rule
+- If **asset_ref** is null or missing: do **not** output any figure, image block, or placeholder (e.g. do not write "配图占位" or "当前页未提供图片资源"). 
 
 ## Format requirements
 - **Theme: use \\usetheme{{Madrid}} in the preamble** (fixed; do not use other themes).
