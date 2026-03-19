@@ -25,7 +25,7 @@ const Timeline = ({ nodes, currentIndex, onNodeClick, horizontal = false }: Time
     return (
       <div className="relative w-full">
         {/* Timeline line */}
-        <div className="absolute top-6 left-0 right-0 h-0.5 bg-white/20" />
+        <div className="absolute top-6 left-0 right-0 h-0.5 bg-primary-100" />
         
         <div className="relative flex items-start justify-between gap-2">
           {nodes.map((node, index) => {
@@ -57,11 +57,11 @@ const Timeline = ({ nodes, currentIndex, onNodeClick, horizontal = false }: Time
                 {/* Content */}
                 <div className="text-center max-w-[120px]">
                   <div className={`font-semibold text-sm ${
-                    isCompleted ? 'text-green-400' : isCurrent ? 'text-blue-400' : 'text-gray-400'
+                    isCompleted ? 'text-green-700' : isCurrent ? 'text-blue-700' : 'text-[var(--text-secondary)]'
                   }`}>
                     {node.title}
                   </div>
-                  <div className="text-xs text-gray-400 mt-1 line-clamp-2">
+                  <div className="mt-1 line-clamp-2 text-xs text-[var(--text-secondary)]">
                     {node.description}
                   </div>
                 </div>
@@ -77,7 +77,7 @@ const Timeline = ({ nodes, currentIndex, onNodeClick, horizontal = false }: Time
   return (
     <div className="relative">
       {/* Timeline line */}
-      <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-white/20" />
+      <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-primary-100" />
       
       <div className="space-y-4">
         {nodes.map((node, index) => {
@@ -109,15 +109,15 @@ const Timeline = ({ nodes, currentIndex, onNodeClick, horizontal = false }: Time
               {/* Content */}
               <div className="flex-1 pt-1">
                 <div className={`font-semibold ${
-                  isCompleted ? 'text-green-400' : isCurrent ? 'text-blue-400' : 'text-gray-400'
+                  isCompleted ? 'text-green-700' : isCurrent ? 'text-blue-700' : 'text-[var(--text-secondary)]'
                 }`}>
                   {node.title}
                 </div>
-                <div className="text-sm text-gray-400 mt-1">
+                <div className="mt-1 text-sm text-[var(--text-secondary)]">
                   {node.description}
                 </div>
                 {node.timestamp && (
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="mt-1 text-xs text-[#8b726b]">
                     {node.timestamp}
                   </div>
                 )}

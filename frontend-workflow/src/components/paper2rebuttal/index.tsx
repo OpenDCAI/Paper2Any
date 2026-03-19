@@ -822,16 +822,16 @@ const Paper2RebuttalPage = () => {
   const currentTimelineIndex = globalTimelineNodes.findIndex(n => n.status === 'current');
 
   return (
-    <div className="w-full h-full overflow-y-auto p-6">
+    <div className="paper2ppt-page w-full h-full overflow-y-auto p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-slate-300">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/82 border border-primary-100 px-3 py-1.5 text-[11px] text-[var(--text-secondary)]">
             <span className="w-2 h-2 rounded-full bg-[#0A84FF] shadow-[0_0_10px_rgba(10,132,255,0.6)]" />
             · {t('paper2rebuttal:header.badge')}
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-white">{t('paper2rebuttal:header.title')}</h1>
-          <p className="text-gray-400">{t('paper2rebuttal:header.description')}</p>
+          <h1 className="text-3xl md:text-4xl font-bold text-[var(--text-primary)]">{t('paper2rebuttal:header.title')}</h1>
+          <p className="text-[var(--text-secondary)]">{t('paper2rebuttal:header.description')}</p>
         </div>
 
         {/* Global Timeline - Always show at top, horizontal */}
@@ -849,25 +849,25 @@ const Paper2RebuttalPage = () => {
         {step === 'upload' && (
           <div className="glass-dark rounded-3xl p-6 md:p-8 space-y-6 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
             <div className="flex items-center justify-between flex-wrap gap-3">
-              <h2 className="text-xl font-bold text-white">{t('paper2rebuttal:upload.title')}</h2>
-              <span className="text-xs text-gray-500">{t('paper2rebuttal:upload.supportedFormats')}</span>
+              <h2 className="text-xl font-bold text-[var(--text-primary)]">{t('paper2rebuttal:upload.title')}</h2>
+              <span className="text-xs text-[#8b726b]">{t('paper2rebuttal:upload.supportedFormats')}</span>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
                   {t('paper2rebuttal:upload.apiConfig')}
                 </label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-2xl bg-white/5 border border-white/10">
+                <div className="grid grid-cols-1 gap-4 rounded-2xl border border-primary-100 bg-white/72 p-4 md:grid-cols-3">
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs text-gray-400">{t('paper2rebuttal:upload.apiUrl')}</label>
+                      <label className="block text-xs text-[var(--text-secondary)]">{t('paper2rebuttal:upload.apiUrl')}</label>
                       <QRCodeTooltip>
                         <a
                           href={getPurchaseUrl(llmApiUrl)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[10px] text-purple-300 hover:text-purple-200 hover:underline"
+                          className="text-[10px] text-primary-700 hover:text-primary-800 hover:underline"
                         >
                           {t('paper2rebuttal:upload.buyLink')}
                         </a>
@@ -877,7 +877,7 @@ const Paper2RebuttalPage = () => {
                       <select
                         value={llmApiUrl}
                         onChange={(e) => setLlmApiUrl(e.target.value)}
-                        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
+                        className="portal-input-soft w-full rounded-lg px-3 py-2"
                       >
                         {API_URL_OPTIONS.map((url: string) => (
                           <option key={url} value={url}>
@@ -890,17 +890,17 @@ const Paper2RebuttalPage = () => {
                         type="text"
                         value={llmApiUrl}
                         onChange={(e) => setLlmApiUrl(e.target.value)}
-                        className="w-full px-3 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#0A84FF]/60 focus:bg-black/30 transition"
+                        className="portal-input-soft w-full rounded-xl px-3 py-2.5 transition focus:outline-none focus:border-[#0A84FF]/60"
                         placeholder="https://api.apiyi.com/v1"
                       />
                     )}
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">{t('paper2rebuttal:upload.model')}</label>
+                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">{t('paper2rebuttal:upload.model')}</label>
                     <select
                       value={model}
                       onChange={(e) => setModel(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#0A84FF]/60 focus:bg-black/30 transition"
+                      className="portal-input-soft w-full rounded-xl px-3 py-2.5 transition focus:outline-none focus:border-[#0A84FF]/60"
                     >
                       {modelOptions.map((option) => (
                         <option key={option} value={option} className="bg-slate-900">
@@ -910,12 +910,12 @@ const Paper2RebuttalPage = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">{t('paper2rebuttal:upload.apiKey')}</label>
+                    <label className="mb-1 block text-xs text-[var(--text-secondary)]">{t('paper2rebuttal:upload.apiKey')}</label>
                     <input
                       type="password"
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#0A84FF]/60 focus:bg-black/30 transition"
+                      className="portal-input-soft w-full rounded-xl px-3 py-2.5 transition focus:outline-none focus:border-[#0A84FF]/60"
                       placeholder={t('paper2rebuttal:upload.apiKeyPlaceholder')}
                     />
                   </div>
@@ -923,7 +923,7 @@ const Paper2RebuttalPage = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
                   <FileText className="inline mr-2" size={16} />
                   {t('paper2rebuttal:upload.paperPdf')}
                 </label>
@@ -931,20 +931,20 @@ const Paper2RebuttalPage = () => {
                   type="file"
                   accept=".pdf"
                   onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#0A84FF] file:text-white hover:file:bg-[#0974E0]"
+                  className="portal-input-soft w-full rounded-2xl px-4 py-3 file:mr-4 file:rounded-xl file:border-0 file:bg-[#0A84FF] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#0974E0]"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">{t('paper2rebuttal:upload.reviewContent')}</label>
-                <div className="inline-flex items-center gap-1 p-1 rounded-full bg-black/30 border border-white/10 mb-3">
+                <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">{t('paper2rebuttal:upload.reviewContent')}</label>
+                <div className="mb-3 inline-flex items-center gap-1 rounded-full border border-primary-100 bg-white/82 p-1">
                   <button
                     type="button"
                     onClick={() => setReviewInputMode('file')}
                     className={`px-4 py-2 text-xs rounded-full transition ${
                       reviewInputMode === 'file'
-                        ? 'bg-white/15 text-white shadow-[0_6px_16px_rgba(0,0,0,0.25)]'
-                        : 'text-gray-400 hover:text-white'
+                        ? 'bg-primary-600 text-white shadow-[0_6px_16px_rgba(140,29,64,0.22)]'
+                        : 'text-[var(--text-secondary)] hover:text-primary-800'
                     }`}
                   >
                     {t('paper2rebuttal:upload.uploadFile')}
@@ -954,13 +954,13 @@ const Paper2RebuttalPage = () => {
                     onClick={() => setReviewInputMode('text')}
                     className={`px-4 py-2 text-xs rounded-full transition ${
                       reviewInputMode === 'text'
-                        ? 'bg-white/15 text-white shadow-[0_6px_16px_rgba(0,0,0,0.25)]'
-                        : 'text-gray-400 hover:text-white'
+                        ? 'bg-primary-600 text-white shadow-[0_6px_16px_rgba(140,29,64,0.22)]'
+                        : 'text-[var(--text-secondary)] hover:text-primary-800'
                     }`}
                   >
                     {t('paper2rebuttal:upload.directInput')}
                   </button>
-                  <span className="text-[11px] text-gray-500 px-2">
+                  <span className="px-2 text-[11px] text-[#8b726b]">
                     {t('paper2rebuttal:upload.reviewFormats')}
                   </span>
                 </div>
@@ -969,7 +969,7 @@ const Paper2RebuttalPage = () => {
                     type="file"
                     accept=".pdf,.txt,.md"
                     onChange={(e) => setReviewFile(e.target.files?.[0] || null)}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#0A84FF] file:text-white hover:file:bg-[#0974E0]"
+                    className="portal-input-soft w-full rounded-2xl px-4 py-3 file:mr-4 file:rounded-xl file:border-0 file:bg-[#0A84FF] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#0974E0]"
                   />
                 ) : (
                   <div className="space-y-3">
@@ -977,15 +977,15 @@ const Paper2RebuttalPage = () => {
                       value={reviewTextDirect}
                       onChange={(e) => setReviewTextDirect(e.target.value)}
                       placeholder={t('paper2rebuttal:upload.reviewPlaceholder')}
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 min-h-[140px] focus:outline-none focus:border-[#0A84FF]/60 focus:bg-black/30 transition"
+                      className="portal-input-soft min-h-[140px] w-full rounded-2xl px-4 py-3 placeholder-[#8b726b] transition focus:outline-none focus:border-[#0A84FF]/60"
                     />
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-gray-500">{t('paper2rebuttal:upload.exampleHint')}</span>
+                      <span className="text-[11px] text-[#8b726b]">{t('paper2rebuttal:upload.exampleHint')}</span>
                       {reviewTextDirect.trim() && (
                         <button
                           type="button"
                           onClick={() => setReviewTextDirect('')}
-                          className="text-[11px] text-gray-400 hover:text-gray-200 transition"
+                          className="text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition"
                         >
                           {t('paper2rebuttal:upload.clearInput')}
                         </button>
@@ -997,10 +997,10 @@ const Paper2RebuttalPage = () => {
                           key={example.title}
                           type="button"
                           onClick={() => setReviewTextDirect(example.text)}
-                          className="text-left p-3 rounded-2xl bg-white/5 border border-white/10 hover:border-[#0A84FF]/50 hover:bg-white/10 transition"
+                          className="rounded-2xl border border-primary-100 bg-white/82 p-3 text-left transition hover:border-[#0A84FF]/40 hover:bg-white"
                         >
-                          <div className="text-xs font-semibold text-white">{example.title}</div>
-                          <div className="mt-2 text-[11px] text-gray-400 line-clamp-4 whitespace-pre-wrap">
+                          <div className="text-xs font-semibold text-[var(--text-primary)]">{example.title}</div>
+                          <div className="mt-2 line-clamp-4 whitespace-pre-wrap text-[11px] text-[var(--text-secondary)]">
                             {example.text}
                           </div>
                         </button>
@@ -1034,16 +1034,16 @@ const Paper2RebuttalPage = () => {
                 )}
               </button>
 
-              <div className="rounded-2xl p-4 bg-white/5 border border-white/10 space-y-3">
+              <div className="space-y-3 rounded-2xl border border-primary-100 bg-white/72 p-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-white">
+                  <div className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
                     <History size={16} className="text-[#0A84FF]" />
                     {t('paper2rebuttal:history.title')}
                   </div>
                   <button
                     type="button"
                     onClick={fetchHistory}
-                    className="text-xs text-gray-400 hover:text-gray-200 flex items-center gap-1"
+                    className="flex items-center gap-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                   >
                     <RefreshCw size={12} />
                     {t('paper2rebuttal:history.refresh')}
@@ -1051,7 +1051,7 @@ const Paper2RebuttalPage = () => {
                 </div>
 
                 {historyLoading && (
-                  <div className="text-xs text-gray-400">{t('paper2rebuttal:history.loading')}</div>
+                  <div className="text-xs text-[var(--text-secondary)]">{t('paper2rebuttal:history.loading')}</div>
                 )}
 
                 {historyError && (
@@ -1061,7 +1061,7 @@ const Paper2RebuttalPage = () => {
                 )}
 
                 {!historyLoading && historySessions.length === 0 && (
-                  <div className="text-xs text-gray-500">{t('paper2rebuttal:history.empty')}</div>
+                  <div className="text-xs text-[#8b726b]">{t('paper2rebuttal:history.empty')}</div>
                 )}
 
                 {!historyLoading && historySessions.length > 0 && (
@@ -1078,12 +1078,12 @@ const Paper2RebuttalPage = () => {
                       return (
                         <div
                           key={item.session_id}
-                          className="flex flex-col md:flex-row md:items-center gap-3 p-3 rounded-xl bg-black/30 border border-white/5"
+                          className="flex flex-col gap-3 rounded-xl border border-primary-100 bg-white/82 p-3 md:flex-row md:items-center"
                         >
                           <div className="flex-1">
-                            <div className="text-sm font-semibold text-white">{item.session_id}</div>
-                            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-gray-400">
-                              <span className="px-2 py-0.5 rounded-full bg-white/10 text-gray-300">{statusLabel}</span>
+                            <div className="text-sm font-semibold text-[var(--text-primary)]">{item.session_id}</div>
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-secondary)]">
+                              <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[var(--text-primary)]">{statusLabel}</span>
                               {progressText && <span>{progressText}</span>}
                               {item.updated_at && <span>{t('paper2rebuttal:history.updatedAt', { time: item.updated_at })}</span>}
                             </div>
@@ -1108,16 +1108,16 @@ const Paper2RebuttalPage = () => {
         {/* Review check step: 展示解析出的 review-1, review-2... */}
         {step === 'review_check' && (
           <div className="glass-dark rounded-3xl p-6 md:p-8 space-y-6 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
-            <h2 className="text-xl font-bold text-white">{t('paper2rebuttal:reviewCheck.title')}</h2>
-            <p className="text-gray-400 text-sm">{t('paper2rebuttal:reviewCheck.description')}</p>
+            <h2 className="text-xl font-bold text-[var(--text-primary)]">{t('paper2rebuttal:reviewCheck.title')}</h2>
+            <p className="text-sm text-[var(--text-secondary)]">{t('paper2rebuttal:reviewCheck.description')}</p>
             <div className="space-y-4 max-h-[60vh] overflow-y-auto">
               {parsedReviews.length === 0 ? (
-                <div className="text-gray-400 py-4">{t('paper2rebuttal:reviewCheck.noResults')}</div>
+                <div className="py-4 text-[var(--text-secondary)]">{t('paper2rebuttal:reviewCheck.noResults')}</div>
               ) : (
                 parsedReviews.map((item, idx) => (
-                  <div key={`${item.id}-${idx}`} className="p-4 bg-white/5 border border-white/10 rounded-lg">
+                  <div key={`${item.id}-${idx}`} className="rounded-lg border border-primary-100 bg-white/82 p-4">
                     <h3 className="text-sm font-semibold text-blue-300 mb-2">{item.id}</h3>
-                    <div className="text-gray-300 text-sm [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1 [&_h1]:font-bold [&_h2]:font-bold [&_strong]:font-semibold">
+                    <div className="text-sm text-[var(--text-secondary)] [&_h1]:font-bold [&_h2]:font-bold [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1 [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:pl-5">
                       <ReactMarkdown>{item.content}</ReactMarkdown>
                     </div>
                   </div>
@@ -1157,14 +1157,14 @@ const Paper2RebuttalPage = () => {
           <div className="glass-dark rounded-3xl p-6 md:p-8 space-y-4 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
             <div className="flex items-center gap-3">
               <Loader2 className="animate-spin text-blue-400" size={24} />
-              <h2 className="text-xl font-bold text-white">{t('paper2rebuttal:processing.title')}</h2>
+              <h2 className="text-xl font-bold text-[var(--text-primary)]">{t('paper2rebuttal:processing.title')}</h2>
             </div>
             <div className="space-y-2">
               {logs.length > 0 && (
-                <div className="bg-black/30 rounded-lg p-4 max-h-96 overflow-y-auto">
+                <div className="max-h-96 overflow-y-auto rounded-lg bg-white/82 p-4 border border-primary-100">
                   <div className="space-y-1">
                     {logs.map((log, idx) => (
-                      <div key={idx} className="text-sm text-gray-300 font-mono hover:bg-white/5 p-1 rounded transition-colors">
+                      <div key={idx} className="rounded p-1 font-mono text-sm text-[var(--text-secondary)] transition-colors hover:bg-primary-50">
                         {log}
                       </div>
                     ))}
@@ -1172,13 +1172,13 @@ const Paper2RebuttalPage = () => {
                 </div>
               )}
               {logs.length === 0 && (
-                <div className="text-center py-8 text-gray-400">
+                <div className="py-8 text-center text-[var(--text-secondary)]">
                   <Loader2 className="animate-spin mx-auto mb-2" size={32} />
                   <p>{t('paper2rebuttal:processing.initializing')}</p>
                 </div>
               )}
               {logs.length > 0 && (
-                <div className="mt-4 text-xs text-gray-500 text-center">
+                <div className="mt-4 text-center text-xs text-[#8b726b]">
                   {t('paper2rebuttal:processing.logCount', { count: logs.length })}
                 </div>
               )}
@@ -1192,7 +1192,7 @@ const Paper2RebuttalPage = () => {
             {/* Left Column: Question Navigation */}
             <div className="lg:col-span-1">
               <div className="glass-dark rounded-3xl p-6 space-y-4 sticky top-6 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
-                <h3 className="text-lg font-bold text-white mb-4">{t('paper2rebuttal:review.questionList')}</h3>
+                <h3 className="mb-4 text-lg font-bold text-[var(--text-primary)]">{t('paper2rebuttal:review.questionList')}</h3>
                 
                 <div className="space-y-2">
                   {unsatisfiedQuestionIds.length > 0 && (
@@ -1221,12 +1221,12 @@ const Paper2RebuttalPage = () => {
                             ? 'bg-green-500/20 border border-green-500/30 hover:bg-green-500/30'
                             : isUnsatisfied
                             ? 'bg-red-500/10 border border-red-500/30 hover:bg-red-500/20'
-                            : 'bg-white/5 border border-white/10 hover:bg-white/10'
+                            : 'bg-white/82 border border-primary-100 hover:bg-white'
                         }`}
                       >
                         <div className="flex items-center justify-between">
                           <span className={`font-semibold ${
-                            isCurrent ? 'text-blue-300' : isCompleted ? 'text-green-300' : 'text-gray-300'
+                            isCurrent ? 'text-blue-700' : isCompleted ? 'text-green-700' : 'text-[var(--text-primary)]'
                           }`}>
                             问题 {q.question_id}
                           </span>
@@ -1234,7 +1234,7 @@ const Paper2RebuttalPage = () => {
                           {isCurrent && <Clock className="w-4 h-4 text-blue-400 animate-pulse" />}
                         </div>
                         {q.question_text && (
-                          <div className="text-xs text-gray-400 mt-1 line-clamp-2">
+                          <div className="mt-1 line-clamp-2 text-xs text-[var(--text-secondary)]">
                             {q.question_text.substring(0, 60)}...
                           </div>
                         )}
@@ -1249,11 +1249,11 @@ const Paper2RebuttalPage = () => {
             <div className="lg:col-span-2 space-y-6">
               <div className="glass-dark rounded-3xl p-6 md:p-8 space-y-6 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-white">
+                  <h2 className="text-xl font-bold text-[var(--text-primary)]">
                     {t('paper2rebuttal:review.questionTitle', { current: currentQuestionIdx + 1, total: session?.questions.length })}
                   </h2>
                   <div className="flex items-center gap-4">
-                    <div className="text-sm text-gray-400">
+                    <div className="text-sm text-[var(--text-secondary)]">
                       {t('paper2rebuttal:review.revisionCount', { count: currentQuestion.revision_count })}
                     </div>
                     <button
@@ -1267,10 +1267,10 @@ const Paper2RebuttalPage = () => {
 
                 <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
                         {t('paper2rebuttal:review.reviewQuestion')}
                       </label>
-                      <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-2xl text-white">
+                      <div className="rounded-2xl border border-yellow-300/40 bg-yellow-50 p-4 text-[var(--text-primary)]">
                         {currentQuestion.question_text}
                       </div>
                     </div>
@@ -1284,10 +1284,10 @@ const Paper2RebuttalPage = () => {
 
                     return strategyText ? (
                       <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                        <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
                           {t('paper2rebuttal:review.strategy')}
                         </label>
-                        <div className="p-4 bg-white/5 border border-white/10 rounded-2xl text-white whitespace-pre-wrap">
+                        <div className="rounded-2xl border border-primary-100 bg-white/82 p-4 text-[var(--text-primary)] whitespace-pre-wrap">
                           {strategyText}
                         </div>
                       </div>
@@ -1303,7 +1303,7 @@ const Paper2RebuttalPage = () => {
 
                     return todoList.length > 0 ? (
                       <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                        <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
                           {t('paper2rebuttal:review.todoList')}
                         </label>
                         <TodoList todos={todoList} />
@@ -1320,10 +1320,10 @@ const Paper2RebuttalPage = () => {
 
                     return draftResponse ? (
                       <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                        <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
                           {t('paper2rebuttal:review.draftResponse')}
                         </label>
-                        <div className="p-4 bg-white/5 border border-white/10 rounded-2xl text-white whitespace-pre-wrap max-h-64 overflow-y-auto">
+                        <div className="max-h-64 overflow-y-auto rounded-2xl border border-primary-100 bg-white/82 p-4 text-[var(--text-primary)] whitespace-pre-wrap">
                           {draftResponse}
                         </div>
                       </div>
@@ -1333,7 +1333,7 @@ const Paper2RebuttalPage = () => {
                   {/* Papers List */}
                   {showPapers && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
                         {t('paper2rebuttal:review.relatedPapers')}
                       </label>
                       <PaperList
@@ -1348,14 +1348,14 @@ const Paper2RebuttalPage = () => {
                   {/* Feedback Section */}
                   {selectedHistoryIndex === null && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
                         {t('paper2rebuttal:review.feedback')}
                       </label>
                       <textarea
                         value={feedback}
                         onChange={(e) => setFeedback(e.target.value)}
                         placeholder={t('paper2rebuttal:review.feedbackPlaceholder')}
-                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 min-h-[100px] focus:outline-none focus:border-[#0A84FF]/60 focus:bg-black/30 transition"
+                        className="portal-input-soft min-h-[100px] w-full rounded-2xl px-4 py-3 placeholder-[#8b726b] transition focus:outline-none focus:border-[#0A84FF]/60"
                       />
                       <button
                         onClick={handleRevise}
@@ -1423,7 +1423,7 @@ const Paper2RebuttalPage = () => {
           <div className="glass-dark rounded-3xl p-6 md:p-8 space-y-6 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
             <div className="flex items-center gap-3">
               <Loader2 className="animate-spin text-purple-400" size={32} />
-              <h2 className="text-2xl font-bold text-white">{t('paper2rebuttal:generating.title')}</h2>
+              <h2 className="text-2xl font-bold text-[var(--text-primary)]">{t('paper2rebuttal:generating.title')}</h2>
             </div>
 
             <div className="space-y-4">
@@ -1431,16 +1431,16 @@ const Paper2RebuttalPage = () => {
                 <p className="text-purple-300 mb-2">
                   ✨ {t('paper2rebuttal:generating.message')}
                 </p>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-[var(--text-secondary)]">
                   {t('paper2rebuttal:generating.wait')}
                 </p>
               </div>
 
               {logs.length > 0 && (
-                <div className="p-4 bg-black/30 rounded-lg max-h-96 overflow-y-auto">
+                <div className="max-h-96 overflow-y-auto rounded-lg border border-primary-100 bg-white/82 p-4">
                   <div className="space-y-2 text-sm">
                     {logs.map((log, idx) => (
-                      <div key={idx} className="text-gray-300 font-mono">
+                      <div key={idx} className="font-mono text-[var(--text-secondary)]">
                         {log}
                       </div>
                     ))}
@@ -1449,7 +1449,7 @@ const Paper2RebuttalPage = () => {
               )}
 
               {logs.length === 0 && (
-                <div className="text-center py-8 text-gray-400">
+                <div className="py-8 text-center text-[var(--text-secondary)]">
                   <Loader2 className="animate-spin mx-auto mb-2" size={32} />
                   <p>{t('paper2rebuttal:generating.initializing')}</p>
                 </div>
@@ -1467,7 +1467,7 @@ const Paper2RebuttalPage = () => {
         {/* Empty State - Show if step is review but no valid data */}
         {step === 'review' && (!session || !session.questions || session.questions.length === 0 || !currentQuestion) && !loading && (
           <div className="glass-dark rounded-3xl p-6 md:p-8 space-y-6 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
-            <h2 className="text-xl font-bold text-white">
+            <h2 className="text-xl font-bold text-[var(--text-primary)]">
               {error ? t('paper2rebuttal:errors.dataLoadFailed') : t('paper2rebuttal:errors.dataLoading')}
             </h2>
             {error && (
@@ -1485,7 +1485,7 @@ const Paper2RebuttalPage = () => {
               </div>
             )}
             {!error && (
-              <div className="text-gray-400">
+              <div className="text-[var(--text-secondary)]">
                 <div className="flex items-center gap-2 mb-4">
                   <Loader2 className="animate-spin" size={20} />
                   <p>{t('paper2rebuttal:emptyState.loading')}</p>
@@ -1511,7 +1511,7 @@ const Paper2RebuttalPage = () => {
         {step === 'result' && session && (
           <div className="glass-dark rounded-3xl p-6 md:p-8 space-y-6 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white">{t('paper2rebuttal:result.title')}</h2>
+              <h2 className="text-xl font-bold text-[var(--text-primary)]">{t('paper2rebuttal:result.title')}</h2>
               <button
                 onClick={() => {
                   setStep('review');
@@ -1527,10 +1527,10 @@ const Paper2RebuttalPage = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
                   {t('paper2rebuttal:result.finalRebuttal')}
                 </label>
-                <div className="p-4 bg-white/5 border border-white/10 rounded-lg text-white whitespace-pre-wrap max-h-96 overflow-y-auto">
+                <div className="max-h-96 overflow-y-auto rounded-lg border border-primary-100 bg-white/82 p-4 text-[var(--text-primary)] whitespace-pre-wrap">
                   {session.final_rebuttal || t('paper2rebuttal:result.generating')}
                 </div>
               </div>
@@ -1598,7 +1598,7 @@ const Paper2RebuttalPage = () => {
                   setLogs([]);
                   setCanGoBack(false);
                 }}
-                className="w-full px-6 py-3 bg-white/10 text-white rounded-lg font-semibold hover:bg-white/20"
+                className="portal-button-secondary w-full rounded-lg px-6 py-3 font-semibold text-primary-800 hover:bg-white"
               >
                 {t('paper2rebuttal:result.restart')}
               </button>
@@ -1608,15 +1608,15 @@ const Paper2RebuttalPage = () => {
 
         {/* Feishu Doc */}
         <div className="pt-4">
-          <div className="glass-dark rounded-2xl px-6 py-4 border border-white/10 flex flex-col md:flex-row items-center justify-between gap-3">
-            <div className="text-sm text-gray-300">
+          <div className="glass-dark flex flex-col items-center justify-between gap-3 rounded-2xl border border-primary-100 px-6 py-4 md:flex-row">
+            <div className="text-sm text-[var(--text-primary)]">
               {t('paper2rebuttal:feishu.title')}
             </div>
             <a
               href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
               target="_blank"
               rel="noopener noreferrer"
-              className="group relative inline-flex items-center gap-2 px-4 py-2 rounded-full bg-black/50 border border-white/10 text-xs font-medium text-white overflow-hidden transition-all hover:border-white/30 hover:shadow-[0_0_15px_rgba(10,132,255,0.4)]"
+              className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full border border-primary-100 bg-white/82 px-4 py-2 text-xs font-medium text-primary-800 transition-all hover:border-primary-200 hover:shadow-[0_0_15px_rgba(10,132,255,0.18)]"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-[#0A84FF]/20 via-[#5AC8FA]/20 to-[#AF52DE]/20 opacity-0 group-hover:opacity-100 transition-opacity" />
               <span className="bg-gradient-to-r from-[#7FD0FF] via-[#AF52DE] to-[#FF9F0A] bg-clip-text text-transparent">

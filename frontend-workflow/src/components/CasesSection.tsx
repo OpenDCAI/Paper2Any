@@ -23,19 +23,19 @@ const toneStyles: Record<Tone, { border: string; glow: string; text: string; spa
   amber: {
     border: 'hover:border-amber-300/60',
     glow: 'hover:shadow-[0_0_20px_rgba(217,167,95,0.30)]',
-    text: 'text-[#ffe4bf] group-hover:text-[#fff0d7]',
+    text: 'text-amber-800 group-hover:text-amber-900',
     sparkle: 'text-amber-300',
   },
   emerald: {
     border: 'hover:border-primary-300/60',
     glow: 'hover:shadow-[0_0_20px_rgba(143,49,71,0.28)]',
-    text: 'text-[#f6d0d9] group-hover:text-[#ffe6ea]',
+    text: 'text-primary-800 group-hover:text-primary-900',
     sparkle: 'text-primary-300',
   },
   sky: {
     border: 'hover:border-primary-300/60',
     glow: 'hover:shadow-[0_0_20px_rgba(143,49,71,0.28)]',
-    text: 'text-[#f6d0d9] group-hover:text-[#ffe6ea]',
+    text: 'text-primary-800 group-hover:text-primary-900',
     sparkle: 'text-primary-300',
   },
 };
@@ -61,27 +61,27 @@ const CasesSection: React.FC<CasesSectionProps> = ({
     <div className="mt-10">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
         <div className="flex items-center gap-3">
-          <h3 className="text-sm font-semibold text-[#fff4ef]">{title}</h3>
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
           <a
             href={feishuUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={`group inline-flex items-center gap-2 rounded-full bg-white/6 border border-white/12 px-3 py-1.5 text-xs font-medium text-white transition-all ${toneClass.border} ${toneClass.glow}`}
+            className={`group inline-flex items-center gap-2 rounded-full bg-white/80 border border-primary-200 px-3 py-1.5 text-xs font-medium text-primary-800 transition-all ${toneClass.border} ${toneClass.glow}`}
           >
             <Sparkles size={12} className={`animate-pulse ${toneClass.sparkle}`} />
             <span className={toneClass.text}>{feishuLabel}</span>
           </a>
         </div>
-        {subtitle && <span className="text-xs text-[#c9a9a1]">{subtitle}</span>}
+        {subtitle && <span className="text-xs text-[var(--text-secondary)]">{subtitle}</span>}
       </div>
 
       <div className={`grid ${gridClass} gap-4`}>
         {cases.map((item) => (
           <div
             key={`${item.title}-${item.image}`}
-            className="rounded-2xl bg-white/6 border border-white/12 p-3 transition-all duration-300 hover:bg-white/10"
+            className="portal-card-soft rounded-2xl p-3 transition-all duration-300 hover:bg-white/90"
           >
-            <div className="rounded-xl overflow-hidden border border-white/12 bg-[#2f1620]">
+            <div className="rounded-xl overflow-hidden border border-primary-100 bg-[#faf4ee]">
               <img
                 src={item.image}
                 alt={item.title}
@@ -90,9 +90,9 @@ const CasesSection: React.FC<CasesSectionProps> = ({
               />
             </div>
             <div className="mt-3">
-              <p className="text-sm text-[#fff3ee] font-medium">{item.title}</p>
+              <p className="text-sm text-[var(--text-primary)] font-medium">{item.title}</p>
               {item.description && (
-                <p className="text-xs text-[#cfb0aa] leading-relaxed mt-1">{item.description}</p>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">{item.description}</p>
               )}
             </div>
           </div>

@@ -36,7 +36,7 @@ const TodoList = ({ todos, onToggle }: TodoListProps) => {
 
   if (!todos || todos.length === 0) {
     return (
-      <div className="text-gray-400 text-sm py-4">
+      <div className="py-4 text-sm text-[var(--text-secondary)]">
         {t('paper2rebuttal:todo.noTodos')}
       </div>
     );
@@ -54,8 +54,8 @@ const TodoList = ({ todos, onToggle }: TodoListProps) => {
             className={`p-4 rounded-lg border ${
               todo.status === 'completed' 
                 ? 'bg-green-500/10 border-green-500/30' 
-                : 'bg-white/5 border-white/10'
-            } hover:bg-white/10 transition-colors`}
+                : 'bg-white/82 border-primary-100'
+            } hover:bg-white transition-colors`}
           >
             <div className="flex items-start gap-3">
               <button
@@ -73,7 +73,7 @@ const TodoList = ({ todos, onToggle }: TodoListProps) => {
                 <div className="flex items-center gap-2 mb-2">
                   <Icon className="w-4 h-4" />
                   <h4 className={`font-semibold ${
-                    todo.status === 'completed' ? 'text-green-300 line-through' : 'text-white'
+                    todo.status === 'completed' ? 'text-green-700 line-through' : 'text-[var(--text-primary)]'
                   }`}>
                     {todo.title}
                   </h4>
@@ -83,14 +83,14 @@ const TodoList = ({ todos, onToggle }: TodoListProps) => {
                 </div>
                 
                 <p className={`text-sm ${
-                  todo.status === 'completed' ? 'text-gray-400' : 'text-gray-300'
+                  todo.status === 'completed' ? 'text-[#8b726b]' : 'text-[var(--text-secondary)]'
                 } whitespace-pre-wrap`}>
                   {todo.description}
                 </p>
                 
                 {todo.related_papers && todo.related_papers.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-white/10">
-                    <div className="text-xs text-gray-400 mb-1">{t('paper2rebuttal:todo.relatedPapers')}</div>
+                  <div className="mt-2 border-t border-primary-100 pt-2">
+                    <div className="mb-1 text-xs text-[var(--text-secondary)]">{t('paper2rebuttal:todo.relatedPapers')}</div>
                     <div className="flex flex-wrap gap-1">
                       {todo.related_papers.map((paper, idx) => (
                         <span

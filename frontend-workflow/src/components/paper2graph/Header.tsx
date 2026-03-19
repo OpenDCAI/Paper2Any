@@ -18,13 +18,13 @@ const Header: React.FC<HeaderProps> = ({ badge, title, subtitle, align = 'center
 
   return (
     <div className={`mb-8 ${alignClass}`}>
-      <p className="text-xs uppercase tracking-[0.2em] text-primary-300 mb-2">
+      <p className="mb-2 text-xs uppercase tracking-[0.2em] text-primary-700">
         {resolvedBadge}
       </p>
-      <h1 className="text-3xl font-semibold text-white mb-2">
+      <h1 className="mb-2 text-3xl font-semibold text-[var(--text-primary)]">
         {resolvedTitle}
       </h1>
-      <p className="text-sm text-gray-400 max-w-2xl mx-auto">
+      <p className="mx-auto max-w-2xl text-sm text-[var(--text-secondary)]">
         {resolvedSubtitle}
       </p>
     </div>

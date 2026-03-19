@@ -66,12 +66,12 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
   // 允许 graphStep 为 'done' 时显示，只要 previewImgUrl 存在
   if (graphType !== 'model_arch' || graphStep === 'input' || !previewImgUrl) return null;
   return (
-    <div className="mb-8 portal-panel-dark rounded-xl border border-white/10 p-6 animate-fade-in relative overflow-hidden">
+    <div className="portal-panel-dark relative mb-8 overflow-hidden rounded-xl border border-primary-100 p-6 animate-fade-in">
       {/* 装饰光效 */}
       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-500/70 via-primary-400/45 to-amber-500/55"></div>
       
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold text-[#fff4ee] flex items-center gap-2">
+        <h3 className="flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]">
           <ImageIcon size={20} className="text-primary-400" />
           模型结构图预览
         </h3>
@@ -82,24 +82,24 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
           download={`model_arch_preview_${Date.now()}.png`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/8 hover:bg-white/14 text-xs text-[#f2ddd6] transition-colors border border-white/10"
+          className="flex items-center gap-2 rounded-lg border border-primary-100 bg-white/82 px-3 py-1.5 text-xs text-primary-800 transition-colors hover:bg-white"
         >
           <Download size={14} />
           下载图片
         </a>
       </div>
       
-      <div className="w-full bg-black/30 rounded-xl border border-white/10 flex items-center justify-center overflow-hidden mb-6 p-4 min-h-[300px]">
+      <div className="portal-preview-canvas mb-6 flex min-h-[300px] w-full items-center justify-center overflow-hidden rounded-xl p-4">
         {imgError ? (
-          <div className="flex flex-col items-center justify-center text-[#ccb5af] p-4">
+          <div className="flex flex-col items-center justify-center p-4 text-[var(--text-secondary)]">
             <ImageIcon size={48} className="mb-4 opacity-50" />
             <p className="mb-2 font-medium">图片加载失败</p>
-            <p className="text-xs text-[#b8968f] text-center max-w-md break-all">{previewImgUrl}</p>
+            <p className="max-w-md break-all text-center text-xs text-[#8b726b]">{previewImgUrl}</p>
             <a 
               href={previewImgUrl} 
               target="_blank" 
               rel="noopener noreferrer"
-              className="mt-4 px-4 py-2 bg-white/10 hover:bg-white/16 rounded-lg text-sm transition-colors border border-white/10"
+              className="mt-4 rounded-lg border border-primary-100 bg-white/86 px-4 py-2 text-sm text-primary-800 transition-colors hover:bg-white"
             >
               尝试在新标签页打开
             </a>
@@ -116,7 +116,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       
       <div className="flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-1 w-full">
-          <label className="block text-sm text-[#d7c0bb] mb-2 flex items-center gap-2">
+          <label className="mb-2 flex items-center gap-2 text-sm text-[var(--text-secondary)]">
             <MessageSquare size={16} />
             不满意？输入提示词微调重绘
           </label>
@@ -126,7 +126,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
               value={editPrompt}
               onChange={e => setEditPrompt(e.target.value)}
               placeholder="例如：把背景改成深色，增加一些连接线..."
-              className="w-full bg-black/30 border border-white/16 rounded-xl px-4 py-3 text-sm text-[#fff6f1] outline-none focus:ring-2 focus:ring-primary-500 pr-24"
+              className="portal-input-soft w-full rounded-xl px-4 py-3 pr-24 text-sm outline-none focus:ring-2 focus:ring-primary-500"
             />
             <button
               type="button"
@@ -194,7 +194,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                 }
               }}
               disabled={isLoading || !editPrompt.trim()}
-              className="absolute right-2 top-1.5 px-3 py-1.5 rounded-lg bg-primary-500/18 hover:bg-primary-500/28 text-xs text-[#fff4ee] transition-colors disabled:opacity-50"
+              className="absolute right-2 top-1.5 rounded-lg bg-primary-500 px-3 py-1.5 text-xs text-white transition-colors hover:bg-primary-600 disabled:opacity-50"
             >
               {isLoading ? <Loader2 size={12} className="animate-spin" /> : '重新生成'}
             </button>
@@ -211,7 +211,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
               setEditPrompt('');
               onReset?.();
             }}
-            className="px-5 py-3 rounded-xl border border-white/16 text-sm text-[#f0dbd5] hover:bg-white/8 flex items-center justify-center gap-2 transition-all"
+            className="flex items-center justify-center gap-2 rounded-xl border border-primary-100 bg-white/78 px-5 py-3 text-sm text-[var(--text-primary)] transition-all hover:bg-white"
           >
             <RotateCcw size={16} />
             放弃

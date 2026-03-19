@@ -123,27 +123,27 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
   }, []);
 
   return (
-    <div className="portal-panel-dark rounded-xl border border-white/10 p-5 flex flex-col gap-4 text-sm">
+    <div className="portal-panel-dark rounded-xl border border-primary-100 p-5 flex flex-col gap-4 text-sm">
       <button
         type="button"
         onClick={() => setShowAdvanced(v => !v)}
         className="flex items-center justify-between gap-2 mb-1 w-full text-left"
       >
         <div className="flex items-center gap-2">
-          <Settings2 size={16} className="text-primary-300" />
-          <span className="text-[#fff4ee] font-medium">{t('advanced.title')}</span>
+          <Settings2 size={16} className="text-primary-700" />
+          <span className="font-medium text-[var(--text-primary)]">{t('advanced.title')}</span>
         </div>
         {showAdvanced ? (
-          <ChevronUp size={16} className="text-[#b8968f]" />
+          <ChevronUp size={16} className="text-[#8b726b]" />
         ) : (
-          <ChevronDown size={16} className="text-[#b8968f]" />
+          <ChevronDown size={16} className="text-[#8b726b]" />
         )}
       </button>
 
       {showAdvanced && (
         <div className="space-y-3">
           <div>
-            <label className="block text-xs text-gray-400 mb-1">{t('advanced.apiUrlLabel')}</label>
+            <label className="mb-1 block text-xs text-[var(--text-secondary)]">{t('advanced.apiUrlLabel')}</label>
             <div className="flex items-center gap-2">
               <select
                 value={llmApiUrl}
@@ -154,7 +154,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                     setModel('gemini-3-pro-image-preview');
                   }
                 }}
-                className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="portal-input-soft flex-1 rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               >
                 {API_URL_OPTIONS.map((url: string) => (
                   <option key={url} value={url}>{url}</option>
@@ -165,7 +165,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                   href={getPurchaseUrl(llmApiUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="whitespace-nowrap text-[10px] text-primary-300 hover:text-primary-200 hover:underline px-2"
+                  className="whitespace-nowrap px-2 text-[10px] text-primary-700 hover:text-primary-800 hover:underline"
                 >
                   {t('advanced.buyLink')}
                 </a>
@@ -174,7 +174,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs text-gray-400 mb-1">
+            <label className="mb-1 block text-xs text-[var(--text-secondary)]">
               {t('advanced.apiKeyLabel')}
             </label>
             <input
@@ -182,17 +182,17 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
               value={apiKey}
               onChange={e => setApiKey(e.target.value)}
               placeholder={t('advanced.apiKeyPlaceholder')}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="portal-input-soft w-full rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             />
           </div>
 
           <div>
-            <label className="block text-xs text-gray-400 mb-1">{t('advanced.modelLabel')}</label>
+            <label className="mb-1 block text-xs text-[var(--text-secondary)]">{t('advanced.modelLabel')}</label>
             <select
               value={model}
               onChange={e => setModel(e.target.value)}
               disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="portal-input-soft w-full rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {graphType === 'tech_route' ? (
                 <>
@@ -213,18 +213,18 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
               )}
             </select>
             {llmApiUrl === 'http://123.129.219.111:3000/v1' && (
-               <p className="text-[10px] text-gray-500 mt-1">{t('advanced.modelOnlyHint')}</p>
+               <p className="mt-1 text-[10px] text-[#8b726b]">{t('advanced.modelOnlyHint')}</p>
             )}
           </div>
 
           {graphType === 'model_arch' ? (
             <>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">{t('advanced.figureComplexLabel')}</label>
+                <label className="mb-1 block text-xs text-[var(--text-secondary)]">{t('advanced.figureComplexLabel')}</label>
                 <select
                   value={figureComplex}
                   onChange={e => setFigureComplex(e.target.value as FigureComplex)}
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="portal-input-soft w-full rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   <option value="easy">{t('advanced.figureComplex.easy')}</option>
                   <option value="mid">{t('advanced.figureComplex.mid')}</option>
@@ -232,22 +232,22 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">{t('advanced.languageLabel')}</label>
+                <label className="mb-1 block text-xs text-[var(--text-secondary)]">{t('advanced.languageLabel')}</label>
                 <select
                   value={language}
                   onChange={e => setLanguage(e.target.value as Language)}
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="portal-input-soft w-full rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   <option value="zh">{t('advanced.language.zh')}</option>
                   <option value="en">{t('advanced.language.en')}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">{t('advanced.resolutionLabel')}</label>
+                <label className="mb-1 block text-xs text-[var(--text-secondary)]">{t('advanced.resolutionLabel')}</label>
                 <select
                   value={resolution}
                   onChange={e => setResolution(e.target.value as '2K' | '4K')}
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="portal-input-soft w-full rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   <option value="2K">{t('advanced.resolution.2k')}</option>
                   <option value="4K">{t('advanced.resolution.4k')}</option>
@@ -256,11 +256,11 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
             </>
           ) : (
             <div>
-              <label className="block text-xs text-gray-400 mb-1">{t('advanced.languageLabel')}</label>
+              <label className="mb-1 block text-xs text-[var(--text-secondary)]">{t('advanced.languageLabel')}</label>
               <select
                 value={language}
                 onChange={e => setLanguage(e.target.value as Language)}
-                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="portal-input-soft w-full rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               >
                 <option value="zh">{t('advanced.language.zh')}</option>
                 <option value="en">{t('advanced.language.en')}</option>
@@ -271,11 +271,11 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
           {/* 技术路线图不显示风格选择 */}
           {graphType !== 'tech_route' && (
             <div>
-              <label className="block text-xs text-gray-400 mb-1">{t('advanced.styleLabel')}</label>
+              <label className="mb-1 block text-xs text-[var(--text-secondary)]">{t('advanced.styleLabel')}</label>
               <select
                 value={style}
                 onChange={e => setStyle(e.target.value as StyleType)}
-                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="portal-input-soft w-full rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               >
                 <option value="cartoon">{t('advanced.style.cartoon')}</option>
                 {graphType !== 'exp_data' && <option value="realistic">{t('advanced.style.realistic')}</option>}
@@ -292,7 +292,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
 
           {graphType === 'tech_route' && (
             <div className="space-y-2">
-              <label className="block text-xs text-gray-400">{t('techRoute.templateLabel')}</label>
+              <label className="block text-xs text-[var(--text-secondary)]">{t('techRoute.templateLabel')}</label>
               <div className="grid grid-cols-2 gap-2">
                 {TECH_ROUTE_TEMPLATES.map((tpl) => {
                   const isActive = techRouteTemplate === tpl.id;
@@ -304,11 +304,11 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                       className={`rounded-lg border text-left transition-all ${
                         isActive
                           ? 'border-primary-400/80 bg-primary-500/10'
-                          : 'border-white/10 bg-black/20 hover:bg-white/5'
+                          : 'border-primary-100 bg-white/72 hover:bg-white'
                       }`}
                     >
                       <div className="p-2">
-                        <div className="relative overflow-hidden rounded-md border border-white/10 bg-black/30 h-20 flex items-center justify-center group">
+                        <div className="relative flex h-20 items-center justify-center overflow-hidden rounded-md border border-primary-100 bg-[#faf4ee] group">
                           {tpl.preview ? (
                             <img
                               src={tpl.preview}
@@ -316,7 +316,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <div className="text-[10px] text-gray-400 px-2 text-center">
+                            <div className="px-2 text-center text-[10px] text-[var(--text-secondary)]">
                               {t('techRoute.templateAuto')}
                             </div>
                           )}
@@ -327,7 +327,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                                 e.stopPropagation();
                                 setTemplatePreview({ src: tpl.preview, label: t(tpl.labelKey) });
                               }}
-                              className="absolute bottom-1 right-1 text-[9px] px-1.5 py-0.5 rounded-full bg-black/70 text-white border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="absolute bottom-1 right-1 rounded-full border border-primary-200 bg-white/92 px-1.5 py-0.5 text-[9px] text-primary-800 opacity-0 transition-opacity group-hover:opacity-100"
                             >
                               {t('techRoute.templateZoom')}
                             </button>
@@ -338,24 +338,24 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                             </span>
                           )}
                         </div>
-                        <div className="mt-1 text-[10px] text-gray-200">{t(tpl.labelKey)}</div>
+                        <div className="mt-1 text-[10px] text-[var(--text-primary)]">{t(tpl.labelKey)}</div>
                       </div>
                     </button>
                   );
                 })}
               </div>
-              <p className="text-[10px] text-gray-500">{t('techRoute.templateHint')}</p>
+              <p className="text-[10px] text-[#8b726b]">{t('techRoute.templateHint')}</p>
             </div>
           )}
 
           {graphType === 'tech_route' && (
             <div ref={paletteDropdownRef} className="relative">
-              <label className="block text-xs text-gray-400 mb-1">{t('techRoute.paletteLabel')}</label>
+              <label className="mb-1 block text-xs text-[var(--text-secondary)]">{t('techRoute.paletteLabel')}</label>
               {/* 自定义下拉框触发器 */}
               <button
                 type="button"
                 onClick={() => setPaletteDropdownOpen(!paletteDropdownOpen)}
-                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 flex items-center justify-between"
+                className="portal-input-soft flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               >
                 <div className="flex items-center gap-2">
                   <span>{selectedPalette.label}</span>
@@ -375,7 +375,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
               </button>
               {/* 下拉选项列表 */}
               {paletteDropdownOpen && (
-                <div className="absolute z-50 w-full mt-1 rounded-lg border border-white/10 bg-gray-900 shadow-lg max-h-48 overflow-y-auto">
+                <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-primary-100 bg-[#fffaf6] shadow-lg">
                   {TECH_ROUTE_PALETTES.map(palette => (
                     <button
                       key={palette.id || 'none'}
@@ -384,8 +384,8 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                         setTechRoutePalette(palette.id);
                         setPaletteDropdownOpen(false);
                       }}
-                      className={`w-full px-3 py-2 text-xs text-left flex items-center gap-2 hover:bg-white/10 transition-colors ${
-                        techRoutePalette === palette.id ? 'bg-primary-500/20 text-primary-300' : 'text-gray-200'
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-primary-50 ${
+                        techRoutePalette === palette.id ? 'bg-primary-100 text-primary-800' : 'text-[var(--text-primary)]'
                       }`}
                     >
                       <span className="flex-shrink-0">{palette.label}</span>
@@ -411,8 +411,8 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
           {/* 技术路线图参考图上传 */}
           {graphType === 'tech_route' && (
             <div className="mt-3">
-              <label className="block text-xs text-gray-400 mb-1">参考图（可选）</label>
-              <div className="border border-dashed border-white/20 rounded-lg p-3">
+              <label className="mb-1 block text-xs text-[var(--text-secondary)]">参考图（可选）</label>
+              <div className="rounded-lg border border-dashed border-primary-200 bg-white/60 p-3">
                 {referenceImagePreview ? (
                   <div className="relative">
                     <img
@@ -433,8 +433,8 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                   </div>
                 ) : (
                   <label className="flex flex-col items-center cursor-pointer py-2">
-                    <ImageIcon size={24} className="text-gray-500 mb-1" />
-                    <span className="text-xs text-gray-500">点击上传参考图</span>
+                    <ImageIcon size={24} className="mb-1 text-[#8b726b]" />
+                    <span className="text-xs text-[var(--text-secondary)]">点击上传参考图</span>
                     <input
                       type="file"
                       accept="image/png,image/jpeg,image/jpg,image/webp"
@@ -457,7 +457,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                   </label>
                 )}
               </div>
-              <p className="text-[10px] text-gray-500 mt-1">
+              <p className="mt-1 text-[10px] text-[#8b726b]">
                 上传参考图后，AI将分析其布局风格生成类似的技术路线图
               </p>
             </div>
@@ -476,8 +476,8 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
           <span>{isLoading ? t('submit.buttonLoading') : t('submit.buttonIdle')}</span>
         </button>
 
-        <div className="flex items-start gap-2 text-xs text-gray-400 bg-white/5 border border-white/10 rounded-lg px-3 py-2">
-          <Info size={14} className="mt-0.5 text-gray-500 flex-shrink-0" />
+        <div className="portal-card-soft flex items-start gap-2 rounded-lg px-3 py-2 text-xs text-[var(--text-secondary)]">
+          <Info size={14} className="mt-0.5 flex-shrink-0 text-[#8b726b]" />
           <p>{t('submit.hintText')}</p>
         </div>
 
@@ -585,14 +585,14 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                       window.open(bwPath, '_blank');
                     }
                   }}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-primary-400/60 text-[#f0d7d1] text-xs py-2 bg-primary-500/10 hover:bg-primary-500/20 transition-colors"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-primary-400/60 bg-primary-500/10 py-2 text-xs text-primary-800 transition-colors hover:bg-primary-500/20"
                 >
                   <ImageIcon size={14} />
                   <span>黑白 SVG 源文件下载</span>
                 </button>
-                <div className="text-[11px] text-gray-300 bg-black/30 border border-white/10 rounded-md px-2 py-1.5">
-                  <div className="font-semibold text-gray-200">黑白 SVG 链接：</div>
-                  <div className="mt-1 break-all text-[#f0d7d1] select-all cursor-text font-mono text-[10px] leading-tight p-1 bg-black/20 rounded">
+                <div className="rounded-md border border-primary-100 bg-white/72 px-2 py-1.5 text-[11px] text-[var(--text-secondary)]">
+                  <div className="font-semibold text-[var(--text-primary)]">黑白 SVG 链接：</div>
+                  <div className="mt-1 cursor-text break-all rounded bg-white/88 p-1 font-mono text-[10px] leading-tight text-primary-800 select-all">
                     {svgBwPath || svgPath}
                   </div>
                 </div>
@@ -619,14 +619,14 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
                       window.open(svgColorPath, '_blank');
                     }
                   }}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-amber-400/60 text-amber-300 text-xs py-2 bg-amber-500/10 hover:bg-amber-500/20 transition-colors"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-amber-400/60 bg-amber-500/10 py-2 text-xs text-amber-800 transition-colors hover:bg-amber-500/20"
                 >
                   <ImageIcon size={14} />
                   <span>彩色 SVG 源文件下载</span>
                 </button>
-                <div className="text-[11px] text-gray-300 bg-black/30 border border-white/10 rounded-md px-2 py-1.5">
-                  <div className="font-semibold text-gray-200">彩色 SVG 链接：</div>
-                  <div className="mt-1 break-all text-amber-300 select-all cursor-text font-mono text-[10px] leading-tight p-1 bg-black/20 rounded">
+                <div className="rounded-md border border-amber-100 bg-white/72 px-2 py-1.5 text-[11px] text-[var(--text-secondary)]">
+                  <div className="font-semibold text-[var(--text-primary)]">彩色 SVG 链接：</div>
+                  <div className="mt-1 cursor-text break-all rounded bg-[#fff8ef] p-1 font-mono text-[10px] leading-tight text-amber-800 select-all">
                     {svgColorPath}
                   </div>
                 </div>
@@ -659,24 +659,24 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
 
       {templatePreview && (
         <div
-          className="fixed inset-0 z-[999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-[rgba(54,24,33,0.32)] p-6 backdrop-blur-sm"
           onClick={() => setTemplatePreview(null)}
         >
           <div
-            className="max-w-4xl w-full bg-black/80 border border-white/10 rounded-xl p-4"
+            className="portal-card-strong max-w-4xl w-full rounded-xl p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">
-              <div className="text-sm text-gray-200">{templatePreview.label}</div>
+              <div className="text-sm text-[var(--text-primary)]">{templatePreview.label}</div>
               <button
                 type="button"
                 onClick={() => setTemplatePreview(null)}
-                className="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-gray-200"
+                className="rounded bg-white/82 px-2 py-1 text-xs text-primary-800 hover:bg-white"
               >
                 {t('techRoute.templateClose')}
               </button>
             </div>
-            <div className="w-full max-h-[70vh] overflow-auto rounded-lg border border-white/10 bg-black/40">
+            <div className="w-full max-h-[70vh] overflow-auto rounded-lg border border-primary-100 bg-[#faf4ee]">
               <img
                 src={templatePreview.src}
                 alt={templatePreview.label}

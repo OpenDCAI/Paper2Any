@@ -12,10 +12,10 @@ interface DemoCardProps {
 
 const DemoCard = ({ title, desc, inputImg, outputImg }: DemoCardProps) => {
   return (
-    <div className="portal-panel-dark rounded-xl border border-white/10 p-3 flex flex-col gap-2 hover:border-primary-400/20 hover:bg-white/5 transition-colors">
+    <div className="portal-card-soft rounded-xl border border-primary-100 p-3 flex flex-col gap-2 transition-colors hover:border-primary-300/30 hover:bg-white/92">
       <div className="flex gap-2">
         {/* 左侧：输入示例图片 */}
-        <div className="flex-1 rounded-md bg-white/5 border border-dashed border-white/10 flex items-center justify-center demo-input-placeholder overflow-hidden">
+        <div className="demo-input-placeholder flex flex-1 items-center justify-center overflow-hidden rounded-md border border-dashed border-primary-100 bg-white/75">
           {inputImg ? (
             <img
               src={inputImg}
@@ -23,7 +23,7 @@ const DemoCard = ({ title, desc, inputImg, outputImg }: DemoCardProps) => {
               className="w-full h-full object-cover"
             />
           ) : (
-            <span className="text-[10px] text-[#d7c0bb]">输入示例图（待替换）</span>
+            <span className="text-[10px] text-[var(--text-secondary)]">输入示例图（待替换）</span>
           )}
         </div>
         {/* 右侧：输出 PPTX 示例图片 */}
@@ -40,8 +40,8 @@ const DemoCard = ({ title, desc, inputImg, outputImg }: DemoCardProps) => {
         </div>
       </div>
       <div>
-        <p className="text-[13px] text-[#fff4ee] font-medium mb-1">{title}</p>
-        <p className="text-[11px] text-[#d7c0bb] leading-snug">{desc}</p>
+        <p className="mb-1 text-[13px] font-medium text-[var(--text-primary)]">{title}</p>
+        <p className="text-[11px] leading-snug text-[var(--text-secondary)]">{desc}</p>
       </div>
     </div>
   );
@@ -112,12 +112,12 @@ const ExamplesSection: React.FC<ExamplesSectionProps> = ({ visibleTypes }) => {
     <div className="space-y-4 mb-2">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
-          <h3 className="text-sm font-medium text-[#f6e6dc]">{t('examples.sectionTitle')}</h3>
+          <h3 className="text-sm font-medium text-[var(--text-primary)]">{t('examples.sectionTitle')}</h3>
           <a
             href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
             target="_blank"
             rel="noopener noreferrer"
-            className="group relative inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/30 border border-primary-300/20 text-xs font-medium text-white overflow-hidden transition-all hover:border-primary-300/40 hover:shadow-[0_0_18px_rgba(143,49,71,0.28)]"
+            className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full border border-primary-200 bg-white/82 px-3 py-1 text-xs font-medium text-primary-800 transition-all hover:border-primary-300/50 hover:shadow-[0_0_18px_rgba(143,49,71,0.18)]"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-primary-500/22 via-primary-400/16 to-amber-500/18 opacity-0 group-hover:opacity-100 transition-opacity" />
             <Sparkles size={12} className="text-amber-300 animate-pulse" />
@@ -126,7 +126,7 @@ const ExamplesSection: React.FC<ExamplesSectionProps> = ({ visibleTypes }) => {
             </span>
           </a>
         </div>
-        <span className="text-[11px] text-[#b8968f]">
+        <span className="text-[11px] text-[var(--text-secondary)]">
           {t('examples.sectionSubtitle')}
         </span>
       </div>

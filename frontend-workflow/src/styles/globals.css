@@ -48,11 +48,12 @@ body {
 
 .glass-dark {
   background:
-    linear-gradient(180deg, rgba(72, 28, 43, 0.95), rgba(49, 19, 29, 0.95));
-  backdrop-filter: blur(18px) saturate(130%);
-  -webkit-backdrop-filter: blur(18px) saturate(130%);
-  border: 1px solid rgba(255, 232, 214, 0.1);
-  box-shadow: 0 24px 60px rgba(49, 19, 29, 0.24);
+    linear-gradient(180deg, rgba(255, 248, 241, 0.94), rgba(255, 252, 247, 0.9));
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(143, 49, 71, 0.14);
+  box-shadow: 0 22px 60px rgba(99, 33, 49, 0.12);
+  color: var(--text-primary);
 }
 
 .portal-shell {
@@ -72,9 +73,66 @@ body {
 
 .portal-panel-dark {
   background:
-    linear-gradient(180deg, rgba(91, 28, 45, 0.96), rgba(54, 15, 28, 0.98));
-  border: 1px solid rgba(255, 234, 217, 0.12);
-  box-shadow: 0 24px 64px rgba(45, 17, 27, 0.32);
+    linear-gradient(180deg, rgba(255, 248, 241, 0.94), rgba(255, 252, 247, 0.9));
+  border: 1px solid rgba(143, 49, 71, 0.14);
+  box-shadow: 0 22px 60px rgba(99, 33, 49, 0.12);
+  color: var(--text-primary);
+}
+
+.portal-card-strong {
+  background:
+    linear-gradient(180deg, rgba(255, 248, 241, 0.94), rgba(255, 252, 247, 0.9));
+  border: 1px solid rgba(143, 49, 71, 0.14);
+  box-shadow: 0 22px 60px rgba(99, 33, 49, 0.12);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+.portal-card-soft {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(143, 49, 71, 0.12);
+  box-shadow: 0 18px 46px rgba(87, 48, 46, 0.08);
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+}
+
+.portal-input-soft {
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(143, 49, 71, 0.14);
+  color: #2f2024;
+}
+
+.portal-input-soft::placeholder {
+  color: rgba(95, 73, 68, 0.58);
+}
+
+.portal-input-soft:focus {
+  outline: none;
+  border-color: rgba(143, 49, 71, 0.38);
+  box-shadow: 0 0 0 3px rgba(143, 49, 71, 0.12);
+}
+
+.portal-preview-shell {
+  background: rgba(255, 252, 247, 0.8);
+  border: 1px solid rgba(143, 49, 71, 0.12);
+}
+
+.portal-preview-canvas {
+  background:
+    linear-gradient(180deg, rgba(255, 248, 241, 0.98), rgba(248, 240, 233, 0.94));
+  border: 1px solid rgba(143, 49, 71, 0.1);
+}
+
+.portal-text-main {
+  color: var(--text-primary);
+}
+
+.portal-text-muted {
+  color: var(--text-secondary);
+}
+
+.portal-text-soft {
+  color: #8b726b;
 }
 
 .portal-pill {

@@ -69,14 +69,14 @@ const UploadCard: React.FC<UploadCardProps> = ({
   };
 
   return (
-    <div className="glass rounded-xl border border-white/10 p-6 lg:p-8 relative overflow-hidden flex flex-col">
+    <div className="glass rounded-xl border border-primary-100 p-6 lg:p-8 relative overflow-hidden flex flex-col">
       {/* 装饰背景光 */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-1 bg-gradient-to-r from-transparent via-primary-500 to-transparent opacity-50 blur-sm"></div>
 
       <div className="relative">
         {/* 绘图类型选择 (Dynamic Cards) */}
         <div className="mb-6">
-          <label className="block text-xs font-medium text-gray-400 mb-2">{t('graphType.label')}</label>
+          <label className="mb-2 block text-xs font-medium text-[var(--text-secondary)]">{t('graphType.label')}</label>
           <div className={`grid grid-cols-1 ${gridColsClass} gap-3`}>
             {visibleGraphTypeOptions.map((option) => (
               <button
@@ -88,13 +88,13 @@ const UploadCard: React.FC<UploadCardProps> = ({
                 className={`relative group flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-300 overflow-hidden border ${
                   graphType === option.value
                     ? 'bg-gradient-to-br from-primary-600 to-primary-400 text-white shadow-lg shadow-primary-500/30 border-white/20 scale-[1.02]'
-                    : 'bg-black/40 text-gray-400 border-white/5 hover:bg-white/5 hover:text-gray-200 hover:border-white/10'
+                    : 'bg-white/78 text-[var(--text-secondary)] border-primary-100 hover:bg-white hover:text-primary-800 hover:border-primary-200'
                 }`}
               >
                 {graphType === option.value && (
                   <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-shimmer-fast"></div>
                 )}
-                <div className={`mb-2 transition-colors ${graphType === option.value ? 'text-white' : 'text-gray-500 group-hover:text-primary-400'}`}>
+                <div className={`mb-2 transition-colors ${graphType === option.value ? 'text-white' : 'text-[#8b726b] group-hover:text-primary-600'}`}>
                   {option.icon}
                 </div>
                 <span className="text-xs font-bold tracking-wide text-center leading-tight">
@@ -106,22 +106,22 @@ const UploadCard: React.FC<UploadCardProps> = ({
         </div>
 
         {/* 上传模式 Tab (炫酷卡片式 - 蓝色系) */}
-        <div className="grid grid-cols-2 gap-3 mb-6 p-1.5 bg-black/40 rounded-2xl border border-white/5">
+        <div className="mb-6 grid grid-cols-2 gap-3 rounded-2xl border border-primary-100 bg-white/70 p-1.5">
           <button
             type="button"
             onClick={() => setUploadMode('file')}
             className={`relative group flex flex-col items-center justify-center py-3 rounded-xl transition-all duration-300 overflow-hidden ${
               uploadMode === 'file'
                 ? 'bg-gradient-to-br from-primary-600 to-primary-500 text-white shadow-lg shadow-primary-500/30 scale-[1.02] ring-1 ring-white/20'
-                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200 hover:scale-[1.02]'
+                : 'bg-transparent text-[var(--text-secondary)] hover:bg-white hover:text-primary-800 hover:scale-[1.02]'
             }`}
           >
              {uploadMode === 'file' && (
                 <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-shimmer-fast"></div>
              )}
-             <FileText size={22} className={`mb-1.5 transition-colors ${uploadMode === 'file' ? 'text-white' : 'text-gray-500 group-hover:text-primary-400'}`} />
-             <span className={`text-sm font-bold tracking-wide ${uploadMode === 'file' ? 'text-white' : 'text-gray-300'}`}>{t('uploadTabs.file')}</span>
-             <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === 'file' ? 'text-primary-100' : 'text-gray-600'}`}>{t('uploadTabs.fileSub')}</span>
+             <FileText size={22} className={`mb-1.5 transition-colors ${uploadMode === 'file' ? 'text-white' : 'text-[#8b726b] group-hover:text-primary-600'}`} />
+             <span className={`text-sm font-bold tracking-wide ${uploadMode === 'file' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{t('uploadTabs.file')}</span>
+             <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === 'file' ? 'text-primary-100' : 'text-[#8b726b]'}`}>{t('uploadTabs.fileSub')}</span>
           </button>
 
           <button
@@ -130,15 +130,15 @@ const UploadCard: React.FC<UploadCardProps> = ({
             className={`relative group flex flex-col items-center justify-center py-3 rounded-xl transition-all duration-300 overflow-hidden ${
               uploadMode === 'text'
                 ? 'bg-gradient-to-br from-primary-600 to-primary-500 text-white shadow-lg shadow-primary-500/30 scale-[1.02] ring-1 ring-white/20'
-                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200 hover:scale-[1.02]'
+                : 'bg-transparent text-[var(--text-secondary)] hover:bg-white hover:text-primary-800 hover:scale-[1.02]'
             }`}
           >
              {uploadMode === 'text' && (
                 <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-shimmer-fast"></div>
              )}
-             <Type size={22} className={`mb-1.5 transition-colors ${uploadMode === 'text' ? 'text-white' : 'text-gray-500 group-hover:text-primary-400'}`} />
-             <span className={`text-sm font-bold tracking-wide ${uploadMode === 'text' ? 'text-white' : 'text-gray-300'}`}>{t('uploadTabs.text')}</span>
-             <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === 'text' ? 'text-primary-100' : 'text-gray-600'}`}>{t('uploadTabs.textSub')}</span>
+             <Type size={22} className={`mb-1.5 transition-colors ${uploadMode === 'text' ? 'text-white' : 'text-[#8b726b] group-hover:text-primary-600'}`} />
+             <span className={`text-sm font-bold tracking-wide ${uploadMode === 'text' ? 'text-white' : 'text-[var(--text-primary)]'}`}>{t('uploadTabs.text')}</span>
+             <span className={`text-[10px] uppercase tracking-wider font-medium ${uploadMode === 'text' ? 'text-primary-100' : 'text-[#8b726b]'}`}>{t('uploadTabs.textSub')}</span>
           </button>
         </div>
 
@@ -146,7 +146,7 @@ const UploadCard: React.FC<UploadCardProps> = ({
         {uploadMode === 'file' && (
           <div
             className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center gap-4 transition-all h-[300px] ${
-              isDragOver ? 'border-primary-500 bg-primary-500/10' : 'border-white/20 hover:border-primary-400 bg-black/20'
+              isDragOver ? 'border-primary-500 bg-primary-500/10' : 'border-primary-100 hover:border-primary-300 bg-white/72'
             }`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -156,13 +156,13 @@ const UploadCard: React.FC<UploadCardProps> = ({
               <UploadCloud size={32} className="text-primary-400" />
             </div>
             <div>
-              <p className="text-white font-medium mb-1">
+              <p className="mb-1 font-medium text-[var(--text-primary)]">
                 {t('upload.fileDragTitleFile')}
               </p>
-              <p className="text-xs text-primary-300/80 mb-1">
+              <p className="mb-1 text-xs text-primary-700/80">
                  {graphType === 'exp_data' ? '(支持 PDF 或 图片)' : '(仅支持 PDF)'}
               </p>
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-[var(--text-secondary)]">
                 {showFileHint()}
               </p>
             </div>
@@ -181,7 +181,7 @@ const UploadCard: React.FC<UploadCardProps> = ({
             </label>
             {selectedFile && (
                 <div className="px-4 py-2 bg-primary-500/20 border border-primary-500/40 rounded-lg animate-fade-in">
-                  <p className="text-sm text-primary-300 font-medium">✓ {selectedFile.name}</p>
+                  <p className="text-sm font-medium text-primary-800">✓ {selectedFile.name}</p>
                 </div>
             )}
           </div>
@@ -189,16 +189,16 @@ const UploadCard: React.FC<UploadCardProps> = ({
 
         {uploadMode === 'text' && (
           <div className="space-y-3 h-[300px] flex flex-col">
-            <label className="block text-xs font-medium text-gray-400">
+            <label className="block text-xs font-medium text-[var(--text-secondary)]">
               {t('upload.textLabel')}
             </label>
             <textarea
               value={textContent}
               onChange={e => setTextContent(e.target.value)}
               placeholder={t('upload.textPlaceholder')}
-              className="flex-1 w-full rounded-xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-primary-500 resize-none placeholder:text-gray-600"
+              className="portal-input-soft flex-1 w-full rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-500 resize-none"
             />
-            <p className="text-[11px] text-gray-500 text-right">
+            <p className="text-right text-[11px] text-[#8b726b]">
               {t('upload.textTip')}
             </p>
           </div>

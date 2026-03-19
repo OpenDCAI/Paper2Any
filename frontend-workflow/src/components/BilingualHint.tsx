@@ -36,16 +36,16 @@ const BilingualHint: React.FC<BilingualHintProps> = ({ title, zh, en, tone = 'sk
   const styles = toneStyles[tone];
 
   return (
-    <div className={`relative overflow-hidden rounded-2xl border border-white/12 bg-white/6 p-4 ring-1 ${styles.ring} ${className || ''}`}>
+    <div className={`portal-card-soft relative overflow-hidden rounded-2xl p-4 ring-1 ${styles.ring} ${className || ''}`}>
       <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${styles.glow}`} />
       <div className="relative flex items-start gap-3">
         <div className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl border ${styles.badge}`}>
           <Info size={16} className={styles.icon} />
         </div>
         <div className="flex-1 space-y-1">
-          <p className="text-sm font-semibold text-[#fff3ee]">{title}</p>
-          <p className="text-xs text-[#f4d8d1]">{zh}</p>
-          <p className="text-[11px] text-[#d6b7b0]">{en}</p>
+          <p className="text-sm font-semibold text-[var(--text-primary)]">{title}</p>
+          <p className="text-xs text-[var(--text-secondary)]">{zh}</p>
+          <p className="text-[11px] text-[#8b726b]">{en}</p>
         </div>
       </div>
     </div>

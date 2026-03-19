@@ -76,7 +76,7 @@ const PaperList = ({ searchedPapers = [], selectedPapers = [], analyzedPapers = 
   return (
     <div className="space-y-4">
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-white/10">
+      <div className="flex gap-2 border-b border-primary-100">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -86,7 +86,7 @@ const PaperList = ({ searchedPapers = [], selectedPapers = [], analyzedPapers = 
               className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
                 activeTab === tab.id
                   ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-gray-300'
+                  : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -106,7 +106,7 @@ const PaperList = ({ searchedPapers = [], selectedPapers = [], analyzedPapers = 
       {/* Papers list */}
       <div className="space-y-3 max-h-96 overflow-y-auto">
         {papers.length === 0 ? (
-          <div className="text-gray-400 text-sm py-8 text-center">
+          <div className="py-8 text-center text-sm text-[var(--text-secondary)]">
             {t('paper2rebuttal:papers.noPapers')}
           </div>
         ) : (
@@ -117,23 +117,23 @@ const PaperList = ({ searchedPapers = [], selectedPapers = [], analyzedPapers = 
             return (
               <div
                 key={index}
-                className="p-4 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors"
+                className="rounded-lg border border-primary-100 bg-white/82 p-4 transition-colors hover:bg-white"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold text-white mb-1 line-clamp-2">
+                    <h4 className="mb-1 line-clamp-2 font-semibold text-[var(--text-primary)]">
                       {paper.title || t('paper2rebuttal:papers.noTitle')}
                     </h4>
                     
                     {paper.authors && paper.authors.length > 0 && (
-                      <div className="text-sm text-gray-400 mb-2">
+                      <div className="mb-2 text-sm text-[var(--text-secondary)]">
                         {paper.authors.slice(0, 3).join(', ')}
                         {paper.authors.length > 3 && ' et al.'}
                       </div>
                     )}
                     
                     {paper.abstract && (
-                      <p className="text-sm text-gray-300 line-clamp-2 mb-2">
+                      <p className="mb-2 line-clamp-2 text-sm text-[var(--text-secondary)]">
                         {paper.abstract}
                       </p>
                     )}
@@ -147,7 +147,7 @@ const PaperList = ({ searchedPapers = [], selectedPapers = [], analyzedPapers = 
                           {isExpanded ? t('paper2rebuttal:papers.hideAnalysis') : t('paper2rebuttal:papers.showAnalysis')}
                         </button>
                         {isExpanded && (
-                          <div className="mt-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded text-sm text-gray-300 whitespace-pre-wrap">
+                          <div className="mt-2 rounded border border-blue-200 bg-blue-50 p-3 text-sm text-[var(--text-secondary)] whitespace-pre-wrap">
                             {paper.analysis}
                           </div>
                         )}

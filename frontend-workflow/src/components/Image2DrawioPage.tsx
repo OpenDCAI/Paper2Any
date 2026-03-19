@@ -37,9 +37,9 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 const FEISHU_DOC_URL = 'https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh';
 
 const panelClass =
-  'rounded-2xl bg-white/8 border border-white/12 p-4 backdrop-blur-xl shadow-[0_20px_60px_rgba(56,16,28,0.28)]';
+  'portal-card-strong rounded-2xl border border-primary-100 p-4';
 const inputClass =
-  'w-full rounded-xl bg-white/10 border border-white/12 px-3 py-2 text-sm text-[#fff5f0] placeholder-[#c7a7a0] outline-none transition focus:border-primary-300/60 focus:ring-2 focus:ring-primary-500/20';
+  'portal-input-soft w-full rounded-xl px-3 py-2 text-sm outline-none transition focus:border-primary-300/60 focus:ring-2 focus:ring-primary-500/20';
 
 const Image2DrawioPage = () => {
   const { t } = useTranslation(['image2drawio', 'common']);
@@ -493,27 +493,27 @@ const Image2DrawioPage = () => {
   }, [drawioReady, xmlContent, animateDrawioLoad]);
 
   return (
-    <div className="relative w-full h-full overflow-y-auto bg-[#221018] text-slate-100">
+    <div className="paper2ppt-page relative w-full h-full overflow-y-auto text-[var(--text-primary)]">
       <div className="pointer-events-none absolute -top-24 right-[-10%] h-72 w-72 rounded-full bg-primary-500/16 blur-[120px]" />
       <div className="pointer-events-none absolute bottom-[-30%] left-[-5%] h-80 w-80 rounded-full bg-amber-500/12 blur-[140px]" />
 
       <div className="relative mx-auto w-full max-w-[1400px] px-6 pt-8 pb-8">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-[#f0d7d0]">
-              <span className={`h-1.5 w-1.5 rounded-full ${drawioReady ? 'bg-amber-300' : 'bg-[#a4857c]'}`} />
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary-100 bg-white/82 px-3 py-1 text-xs text-[var(--text-secondary)]">
+              <span className={`h-1.5 w-1.5 rounded-full ${drawioReady ? 'bg-amber-500' : 'bg-[#a4857c]'}`} />
               image2drawio
             </div>
-            <h1 className="text-2xl font-semibold text-white">{t('title')}</h1>
-            <p className="text-sm text-[#d8b7b0]">{t('subtitle')}</p>
+            <h1 className="text-2xl font-semibold text-[var(--text-primary)]">{t('title')}</h1>
+            <p className="text-sm text-[var(--text-secondary)]">{t('subtitle')}</p>
           </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)] mt-6" style={{ minHeight: '720px' }}>
           <div className="flex flex-col gap-4">
             <div className={panelClass}>
-              <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
-                <UploadCloud className="text-amber-300" size={18} />
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                <UploadCloud className="text-amber-600" size={18} />
                 {t('upload.title')}
               </h3>
               <div
@@ -527,49 +527,49 @@ const Image2DrawioPage = () => {
                 }}
                 onDrop={handleDrop}
                 className={`flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-4 py-6 text-center transition-all ${
-                  isDragOver ? 'border-primary-300/80 bg-primary-400/10' : 'border-white/10 bg-white/6'
+                  isDragOver ? 'border-primary-300/80 bg-primary-400/10' : 'border-primary-100 bg-white/72'
                 }`}
               >
                 {selectedFile ? (
                   <>
-                    <FileImage className="h-10 w-10 text-amber-300" />
-                    <div className="text-sm text-[#fff2ec]">{selectedFile.name}</div>
-                    <div className="text-xs text-[#c7a7a0]">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</div>
+                    <FileImage className="h-10 w-10 text-amber-600" />
+                    <div className="text-sm text-[var(--text-primary)]">{selectedFile.name}</div>
+                    <div className="text-xs text-[var(--text-secondary)]">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</div>
                     <button
                       onClick={() => setSelectedFile(null)}
-                      className="text-xs text-amber-300 hover:text-amber-200"
+                      className="text-xs text-amber-700 hover:text-amber-800"
                     >
                       {t('actions.clear')}
                     </button>
                   </>
                 ) : (
                   <>
-                    <UploadCloud className="h-10 w-10 text-amber-300" />
-                    <p className="text-sm text-[#f0d7d0]">{t('upload.drag')}</p>
+                    <UploadCloud className="h-10 w-10 text-amber-600" />
+                    <p className="text-sm text-[var(--text-primary)]">{t('upload.drag')}</p>
                     <label className="px-4 py-2 rounded-full bg-gradient-to-r from-primary-600 to-amber-500 text-white text-xs font-semibold cursor-pointer hover:from-primary-500 hover:to-amber-400 transition-all">
                       {t('upload.button')}
                       <input type="file" accept="image/png,image/jpeg,image/jpg" className="hidden" onChange={handleFileChange} />
                     </label>
-                    <p className="text-xs text-[#c7a7a0]">{t('upload.hint')}</p>
+                    <p className="text-xs text-[var(--text-secondary)]">{t('upload.hint')}</p>
                   </>
                 )}
               </div>
             </div>
 
             <div className={panelClass}>
-              <h3 className="text-sm font-semibold text-[#fff2ec] mb-3 flex items-center gap-2">
-                <Sparkles className="text-amber-300" size={18} />
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                <Sparkles className="text-amber-600" size={18} />
                 {t('config.title')}
               </h3>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="block text-xs text-[#d8b7b0]">{t('config.apiUrl')}</label>
+                    <label className="block text-xs text-[var(--text-secondary)]">{t('config.apiUrl')}</label>
                     <QRCodeTooltip>
                       <a
                         href={getPurchaseUrl(apiUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="whitespace-nowrap text-[10px] text-amber-300 hover:text-amber-200 hover:underline px-1"
+                        className="whitespace-nowrap px-1 text-[10px] text-amber-700 hover:text-amber-800 hover:underline"
                       >
                         {t('config.buyLink')}
                       </a>
@@ -585,7 +585,7 @@ const Image2DrawioPage = () => {
                     ))}
                   </select>
 
-                  <label className="block text-xs text-[#d8b7b0] flex items-center gap-1">
+                  <label className="block text-xs text-[var(--text-secondary)] flex items-center gap-1">
                     <Key size={12} /> {t('config.apiKey')}
                   </label>
                   <input
@@ -596,7 +596,7 @@ const Image2DrawioPage = () => {
                     className={inputClass}
                   />
 
-                <label className="block text-xs text-[#d8b7b0] flex items-center gap-1 mb-1">
+                <label className="mb-1 block text-xs text-[var(--text-secondary)] flex items-center gap-1">
                   <ImageIcon size={12} /> {t('config.genModel')}
                 </label>
                 <select
@@ -635,43 +635,43 @@ const Image2DrawioPage = () => {
           </div>
 
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col h-full rounded-3xl bg-white/7 border border-white/12 p-4 md:p-6 backdrop-blur-xl shadow-[0_25px_70px_rgba(56,16,28,0.34)]">
+            <div className="portal-card-strong flex flex-col h-full rounded-3xl border border-primary-100 p-4 md:p-6">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <h3 className="text-sm font-semibold text-[#fff2ec] flex items-center gap-2">
-                  <Wand2 className="text-amber-300" size={18} />
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                  <Wand2 className="text-amber-600" size={18} />
                   {t('preview.title')}
                 </h3>
                 {xmlContent && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center rounded-full bg-white/6 border border-white/10 p-1">
+                    <div className="flex items-center rounded-full bg-white/82 border border-primary-100 p-1">
                       {(['drawio', 'svg', 'png'] as const).map(format => (
                         <button
                           key={format}
                           onClick={() => setExportFormat(format)}
                           className={`px-3 py-1 text-xs rounded-full transition ${
                             exportFormat === format
-                              ? 'bg-white/20 text-white'
-                              : 'text-[#c7a7a0] hover:text-white'
+                              ? 'bg-primary-600 text-white'
+                              : 'text-[var(--text-secondary)] hover:text-primary-800'
                           }`}
                         >
                           {format.toUpperCase()}
                         </button>
                       ))}
                     </div>
-                    <div className="flex items-center rounded-xl bg-white/6 border border-white/10 px-3 py-2">
+                    <div className="flex items-center rounded-xl bg-white/82 border border-primary-100 px-3 py-2">
                       <input
                         type="text"
                         value={exportFilename}
                         onChange={e => setExportFilename(e.target.value)}
-                        className="w-24 bg-transparent text-xs text-white placeholder-[#c7a7a0] outline-none"
+                        className="w-24 bg-transparent text-xs text-[var(--text-primary)] outline-none"
                         placeholder="diagram"
                       />
-                      <span className="ml-2 text-xs text-[#c7a7a0]">.{exportFormat}</span>
+                      <span className="ml-2 text-xs text-[var(--text-secondary)]">.{exportFormat}</span>
                     </div>
                     <button
                       onClick={handleExport}
                       disabled={isExporting || isProcessing}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/12 text-white text-xs font-semibold hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      className="portal-button-primary flex items-center gap-2 px-4 py-2 rounded-xl text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
                       {isExporting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Download size={14} />}
                       {t('actions.download')}
@@ -684,7 +684,7 @@ const Image2DrawioPage = () => {
                             : filePath;
                           window.open(`${API_BASE}/outputs/${relative}`, '_blank');
                         }}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/12 text-white text-xs font-semibold hover:bg-white/20 transition-all"
+                        className="portal-button-secondary flex items-center gap-2 px-4 py-2 rounded-xl text-primary-800 text-xs font-semibold transition-all"
                       >
                         <ExternalLink size={14} />
                         {t('actions.open')}
@@ -693,7 +693,7 @@ const Image2DrawioPage = () => {
                   </div>
                 )}
               </div>
-              <div className={`mt-4 flex-1 bg-[#2f1620] rounded-2xl border border-white/10 min-h-[420px] lg:min-h-[720px] overflow-hidden ${xmlContent ? 'relative block' : 'flex items-center justify-center'}`}>
+              <div className={`portal-preview-canvas mt-4 flex-1 rounded-2xl border border-primary-100 min-h-[420px] lg:min-h-[720px] overflow-hidden ${xmlContent ? 'relative block' : 'flex items-center justify-center'}`}>
                 {xmlContent ? (
                   <iframe
                     ref={iframeRef}
@@ -704,7 +704,7 @@ const Image2DrawioPage = () => {
                 ) : (
                   <div className="text-center animate-fade-in">
                     <FileImage className="w-12 h-12 mx-auto text-[#b99189] mb-3" />
-                    <p className="text-sm text-[#d8b7b0]">{t('preview.placeholder')}</p>
+                    <p className="text-sm text-[var(--text-secondary)]">{t('preview.placeholder')}</p>
                   </div>
                 )}
               </div>
@@ -712,14 +712,14 @@ const Image2DrawioPage = () => {
 
             <div className={panelClass}>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-[#fff2ec] flex items-center gap-2">
-                  <Wand2 className="text-amber-300" size={18} />
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                  <Wand2 className="text-amber-600" size={18} />
                   {t('xml.title')}
                 </h3>
                 <button
                   onClick={handleCopyXml}
                   disabled={!xmlContent}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/8 text-xs text-[#fff2ec] hover:bg-white/10 disabled:opacity-50"
+                  className="portal-button-secondary flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-primary-800 disabled:opacity-50"
                 >
                   <Copy size={12} />
                   {copySuccess || t('actions.copy')}
@@ -729,7 +729,7 @@ const Image2DrawioPage = () => {
                 value={xmlContent}
                 readOnly
                 placeholder={t('xml.placeholder')}
-                className="w-full h-48 rounded-xl bg-[#2f1620] border border-white/10 px-3 py-2 text-xs text-[#f0d7d0] outline-none"
+                className="portal-input-soft w-full h-48 rounded-xl px-3 py-2 text-xs outline-none"
               />
             </div>
           </div>

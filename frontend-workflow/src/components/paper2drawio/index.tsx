@@ -118,10 +118,10 @@ export default function Paper2DrawioPage({
     reject: ((error: Error) => void) | null;
     format: 'xml' | 'png' | 'svg' | null;
   }>({ resolve: null, reject: null, format: null });
-  const panelClass = 'rounded-2xl bg-white/5 border border-white/10 p-4 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.25)] transition-all duration-300';
-  const inputClass = 'w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-slate-500 outline-none transition focus:border-sky-400/60 focus:ring-2 focus:ring-sky-500/20';
-  const modeButtonActive = 'bg-gradient-to-r from-sky-500 to-cyan-500 text-white shadow-[0_0_30px_rgba(14,165,233,0.6),0_0_60px_rgba(6,182,212,0.4)] border border-sky-400/50 scale-105';
-  const modeButtonIdle = 'bg-white/5 text-slate-300 hover:bg-gradient-to-r hover:from-sky-500/20 hover:to-cyan-500/20 hover:text-white hover:shadow-[0_0_20px_rgba(14,165,233,0.3)] hover:border-sky-400/30 hover:scale-105 border border-white/10';
+  const panelClass = 'portal-card-strong rounded-2xl border border-primary-100 p-4 transition-all duration-300';
+  const inputClass = 'portal-input-soft w-full rounded-xl px-3 py-2 text-sm outline-none transition focus:border-primary-400/60 focus:ring-2 focus:ring-primary-500/20';
+  const modeButtonActive = 'portal-button-primary border border-primary-200/40 scale-105 text-white';
+  const modeButtonIdle = 'portal-button-secondary border border-primary-100 text-[var(--text-secondary)] hover:border-primary-200 hover:text-primary-800 hover:scale-105';
 
   // 自动滚动到底部
   useEffect(() => {
@@ -736,22 +736,22 @@ export default function Paper2DrawioPage({
   }, [drawioReady, xmlContent, animateDrawioLoad]);
 
   return (
-    <div className="relative w-full h-full overflow-y-auto bg-[#0b0d12] text-slate-100">
+    <div className="paper2ppt-page relative h-full w-full overflow-y-auto text-[var(--text-primary)]">
       {showBannerProp && <Banner show={showBanner} onClose={() => setShowBanner(false)} stars={stars} />}
-      <div className="pointer-events-none absolute -top-40 right-[-10%] h-72 w-72 rounded-full bg-sky-500/10 blur-[120px]" />
-      <div className="pointer-events-none absolute bottom-[-25%] left-[-5%] h-80 w-80 rounded-full bg-cyan-500/10 blur-[140px]" />
+      <div className="pointer-events-none absolute -top-40 right-[-10%] h-72 w-72 rounded-full bg-primary-500/10 blur-[120px]" />
+      <div className="pointer-events-none absolute bottom-[-25%] left-[-5%] h-80 w-80 rounded-full bg-amber-400/10 blur-[140px]" />
       <div className="relative mx-auto w-full max-w-[1400px] px-6 pt-8 pb-8">
         {showHeader && (
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between animate-fade-in shrink-0">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
-                <span className={`h-1.5 w-1.5 rounded-full ${drawioReady ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary-100 bg-white/82 px-3 py-1 text-xs text-[var(--text-secondary)]">
+                <span className={`h-1.5 w-1.5 rounded-full ${drawioReady ? 'bg-emerald-500' : 'bg-[#8b726b]'}`} />
                 paper2diagram
               </div>
-              <h1 className="text-2xl font-semibold text-white">
+              <h1 className="text-2xl font-semibold text-[var(--text-primary)]">
                 {t('title')}
               </h1>
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-[var(--text-secondary)]">
                 {t('subtitle')}
               </p>
             </div>
@@ -764,8 +764,8 @@ export default function Paper2DrawioPage({
           <div className="flex flex-col gap-4 animate-slide-in" style={{ animationDelay: '40ms' }}>
             {showModePanel && (
               <div className={panelClass}>
-                <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
-                  <Wand2 className="text-sky-300" size={18} />
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                  <Wand2 className="text-primary-700" size={18} />
                   选择功能
                 </h3>
                 <div className="flex gap-2 mb-3">
@@ -786,16 +786,16 @@ export default function Paper2DrawioPage({
                     DrawIO 版本科研绘图生成
                   </button>
                 </div>
-                <div className="space-y-2 text-xs text-slate-400">
-                  <div className="relative group rounded-xl border border-white/10 bg-white/5 p-3 hover:border-sky-400/40 hover:bg-white/10 transition-all cursor-pointer">
-                    <p className="text-slate-200 font-semibold mb-1">Demo · AI 驱动</p>
+                <div className="space-y-2 text-xs text-[var(--text-secondary)]">
+                  <div className="group relative cursor-pointer rounded-xl border border-primary-100 bg-white/78 p-3 transition-all hover:border-primary-300/40 hover:bg-white">
+                    <p className="mb-1 font-semibold text-[var(--text-primary)]">Demo · AI 驱动</p>
                     <p>输入文本或论文 PDF，直接生成可编辑流程图、架构图等通用 DrawIO 图。</p>
                     {/* Hover 预览框 - 显示在上方 */}
                     <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 pointer-events-none" style={{ zIndex: 9999 }}>
-                      <div className="rounded-lg border border-sky-400/60 bg-slate-900/98 backdrop-blur-xl shadow-2xl overflow-hidden">
-                        <div className="px-2.5 py-1.5 border-b border-white/10 flex items-center justify-between">
-                          <p className="text-[11px] font-semibold text-sky-300">AI 驱动演示</p>
-                          <span className="text-[9px] text-slate-400">悬停查看</span>
+                      <div className="overflow-hidden rounded-lg border border-primary-200 bg-white/96 shadow-2xl backdrop-blur-xl">
+                        <div className="flex items-center justify-between border-b border-primary-100 px-2.5 py-1.5">
+                          <p className="text-[11px] font-semibold text-primary-800">AI 驱动演示</p>
+                          <span className="text-[9px] text-[var(--text-secondary)]">悬停查看</span>
                         </div>
                         <div className="p-1.5">
                           <img
@@ -810,15 +810,15 @@ export default function Paper2DrawioPage({
                       </div>
                     </div>
                   </div>
-                  <div className="relative group rounded-xl border border-white/10 bg-white/5 p-3 hover:border-sky-400/40 hover:bg-white/10 transition-all cursor-pointer">
-                    <p className="text-slate-200 font-semibold mb-1">Demo · 科研绘图</p>
+                  <div className="group relative cursor-pointer rounded-xl border border-primary-100 bg-white/78 p-3 transition-all hover:border-primary-300/40 hover:bg-white">
+                    <p className="mb-1 font-semibold text-[var(--text-primary)]">Demo · 科研绘图</p>
                     <p>先生成模型结构图图片，再自动转为可编辑 DrawIO 图元。</p>
                     {/* Hover 预览框 - 显示在中央 */}
                     <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 pointer-events-none" style={{ zIndex: 9999 }}>
-                      <div className="rounded-lg border border-sky-400/60 bg-slate-900/98 backdrop-blur-xl shadow-2xl overflow-hidden">
-                        <div className="px-2.5 py-1.5 border-b border-white/10 flex items-center justify-between">
-                          <p className="text-[11px] font-semibold text-sky-300">科研绘图演示</p>
-                          <span className="text-[9px] text-slate-400">悬停查看</span>
+                      <div className="overflow-hidden rounded-lg border border-primary-200 bg-white/96 shadow-2xl backdrop-blur-xl">
+                        <div className="flex items-center justify-between border-b border-primary-100 px-2.5 py-1.5">
+                          <p className="text-[11px] font-semibold text-primary-800">科研绘图演示</p>
+                          <span className="text-[9px] text-[var(--text-secondary)]">悬停查看</span>
                         </div>
                         <div className="p-1.5">
                           <img
@@ -841,19 +841,19 @@ export default function Paper2DrawioPage({
               <>
             {/* API 配置 */}
             <div className={panelClass}>
-              <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
-                <Wand2 className="text-sky-300" size={18} />
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                <Wand2 className="text-primary-700" size={18} />
                 {t('apiConfig')}
               </h3>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs text-slate-400">{t('apiUrl')}</label>
+                  <label className="block text-xs text-[var(--text-secondary)]">{t('apiUrl')}</label>
                   <QRCodeTooltip>
                     <a
                       href={getPurchaseUrl(apiUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="whitespace-nowrap text-[10px] text-sky-300 hover:text-sky-200 hover:underline px-1"
+                      className="whitespace-nowrap px-1 text-[10px] text-primary-700 hover:text-primary-800 hover:underline"
                     >
                       {t('buyLink')}
                     </a>
@@ -901,8 +901,8 @@ export default function Paper2DrawioPage({
 
             {/* 输入模式切换 */}
             <div className={panelClass}>
-              <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
-                <Wand2 className="text-sky-300" size={18} />
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                <Wand2 className="text-primary-700" size={18} />
                 输入内容
               </h3>
               <div className="flex gap-2 mb-3">
@@ -910,8 +910,8 @@ export default function Paper2DrawioPage({
                   onClick={() => setUploadMode('text')}
                   className={`flex-1 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
                     uploadMode === 'text'
-                      ? 'bg-white/10 text-white shadow-[0_12px_30px_rgba(59,130,246,0.2)]'
-                      : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                      ? 'portal-button-primary text-white'
+                      : 'portal-button-secondary text-[var(--text-secondary)] hover:text-primary-800'
                   }`}
                 >
                   <FileText className="inline-block mr-2" size={16} />
@@ -921,8 +921,8 @@ export default function Paper2DrawioPage({
                   onClick={() => setUploadMode('file')}
                   className={`flex-1 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
                     uploadMode === 'file'
-                      ? 'bg-white/10 text-white shadow-[0_12px_30px_rgba(59,130,246,0.2)]'
-                      : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                      ? 'portal-button-primary text-white'
+                      : 'portal-button-secondary text-[var(--text-secondary)] hover:text-primary-800'
                   }`}
                 >
                   <Upload className="inline-block mr-2" size={16} />
@@ -935,10 +935,10 @@ export default function Paper2DrawioPage({
                   placeholder={t('textPlaceholder')}
                   value={textContent}
                   onChange={e => setTextContent(e.target.value)}
-                  className="w-full h-40 rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-slate-500 outline-none transition focus:border-sky-400/60 focus:ring-2 focus:ring-sky-500/20 resize-none"
+                  className="portal-input-soft h-40 w-full rounded-xl px-3 py-2 text-sm outline-none transition focus:border-primary-400/60 focus:ring-2 focus:ring-primary-500/20 resize-none"
                 />
               ) : (
-                <div className="border border-dashed border-white/20 rounded-xl p-6 text-center hover:border-white/40 transition-colors">
+                <div className="rounded-xl border border-dashed border-primary-200 bg-white/72 p-6 text-center transition-colors hover:border-primary-300">
                   <input
                     type="file"
                     accept=".pdf"
@@ -947,11 +947,11 @@ export default function Paper2DrawioPage({
                     id="pdf-upload"
                   />
                   <label htmlFor="pdf-upload" className="cursor-pointer">
-                    <Upload className="w-10 h-10 mx-auto text-slate-400 mb-2" />
-                    <p className="text-sm text-slate-200 font-medium mb-1">
+                    <Upload className="mx-auto mb-2 h-10 w-10 text-[#8b726b]" />
+                    <p className="mb-1 text-sm font-medium text-[var(--text-primary)]">
                       {file ? file.name : t('uploadPlaceholder')}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-[var(--text-secondary)]">
                       {t('uploadHint')}
                     </p>
                   </label>
@@ -961,8 +961,8 @@ export default function Paper2DrawioPage({
 
             {generationMode === 'paper2drawio' && (
               <div className={panelClass}>
-                <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
-                  <Wand2 className="text-sky-300" size={18} />
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                  <Wand2 className="text-primary-700" size={18} />
                   {t('modelParams.title')}
                 </h3>
                 <div className="space-y-2">
@@ -1009,8 +1009,8 @@ export default function Paper2DrawioPage({
             {/* 图表类型选择 */}
             {generationMode === 'ai' && (
               <div className={panelClass}>
-              <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
-                <Wand2 className="text-sky-300" size={18} />
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                <Wand2 className="text-primary-700" size={18} />
                 {t('diagramType')}
               </h3>
               <select
@@ -1030,12 +1030,12 @@ export default function Paper2DrawioPage({
 
             {generationMode === 'ai' && (
               <div className={panelClass}>
-                <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
-                  <Wand2 className="text-sky-300" size={18} />
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                  <Wand2 className="text-primary-700" size={18} />
                   {t('diagramOptions')}
                 </h3>
                 <div className="space-y-2">
-                  <div className="text-xs text-slate-400">{t('diagramLanguage')}</div>
+                  <div className="text-xs text-[var(--text-secondary)]">{t('diagramLanguage')}</div>
                   <select
                     value={drawioLanguage}
                     onChange={e => setDrawioLanguage(e.target.value as 'zh' | 'en')}
@@ -1044,7 +1044,7 @@ export default function Paper2DrawioPage({
                     <option value="zh" className="bg-slate-900">{t('modelParams.language.zh')}</option>
                     <option value="en" className="bg-slate-900">{t('modelParams.language.en')}</option>
                   </select>
-                  <label className="flex items-center gap-3 text-sm text-slate-300">
+                  <label className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
                     <input
                       type="checkbox"
                       checked={enableVlmValidation}
@@ -1053,7 +1053,7 @@ export default function Paper2DrawioPage({
                     />
                     {t('vlmValidation')}
                   </label>
-                  <p className="text-xs text-slate-500">{t('vlmValidationHint')}</p>
+                  <p className="text-xs text-[#8b726b]">{t('vlmValidationHint')}</p>
                 </div>
               </div>
             )}
@@ -1069,7 +1069,7 @@ export default function Paper2DrawioPage({
             <button
               onClick={handleGenerate}
               disabled={isLoading || isValidating || (!textContent && !file)}
-              className="w-full py-3 rounded-2xl font-semibold text-white bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_18px_45px_rgba(14,165,233,0.35)] flex items-center justify-center gap-2"
+              className="portal-button-primary flex w-full items-center justify-center gap-2 rounded-2xl py-3 font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isValidating ? (
                 <>
@@ -1094,11 +1094,11 @@ export default function Paper2DrawioPage({
             {/* 对话编辑 - 仅 AI 驱动模式支持 */}
             {xmlContent && generationMode === 'ai' && (
               <div className={panelClass}>
-                <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
-                  <Send className="text-sky-300" size={18} />
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                  <Send className="text-primary-700" size={18} />
                   {t('chatEdit')}
                 </h3>
-                <div className="bg-white/5 rounded-xl border border-white/10 flex flex-col" style={{ height: '280px' }}>
+                <div className="portal-preview-shell flex flex-col rounded-xl" style={{ height: '280px' }}>
                   {/* 聊天内容区 */}
                   <div ref={chatListRef} className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
                     {chatHistory.map((msg, i) => (
@@ -1134,7 +1134,7 @@ export default function Paper2DrawioPage({
                   </div>
                   
                   {/* 底部输入区 - iOS 胶囊风格 */}
-                  <div className="p-3 bg-white/5 border-t border-white/10 backdrop-blur-md">
+                  <div className="border-t border-primary-100 bg-white/72 p-3 backdrop-blur-md">
                     <div className="relative flex items-center">
                       <input
                         type="text"
@@ -1142,12 +1142,12 @@ export default function Paper2DrawioPage({
                         value={chatInput}
                         onChange={e => setChatInput(e.target.value)}
                         onKeyPress={e => e.key === 'Enter' && handleSendChat()}
-                        className="w-full pl-4 pr-12 py-3 rounded-full bg-black/20 border border-white/10 text-sm text-white placeholder-slate-500 outline-none transition focus:border-sky-500/50 focus:bg-black/30"
+                        className="portal-input-soft w-full rounded-full py-3 pl-4 pr-12 text-sm outline-none transition focus:border-primary-500/50"
                       />
                       <button
                         onClick={handleSendChat}
                         disabled={isLoading || !chatInput.trim()}
-                        className="absolute right-1.5 p-1.5 rounded-full bg-[#007AFF] text-white hover:bg-[#006ee6] disabled:opacity-0 disabled:pointer-events-none transition-all duration-200 shadow-lg"
+                        className="absolute right-1.5 rounded-full bg-primary-600 p-1.5 text-white shadow-lg transition-all duration-200 hover:bg-primary-700 disabled:pointer-events-none disabled:opacity-0"
                       >
                         <Send size={16} className="translate-x-[-1px] translate-y-[1px]" />
                       </button>
@@ -1159,10 +1159,10 @@ export default function Paper2DrawioPage({
           </div>
 
           {/* 右侧：预览区域 */}
-          <div className="flex flex-col h-full rounded-3xl bg-white/5 border border-white/10 p-4 md:p-6 backdrop-blur-xl shadow-[0_25px_70px_rgba(0,0,0,0.35)] animate-fade-in" style={{ animationDelay: '80ms' }}>
+          <div className="portal-card-strong flex h-full flex-col rounded-3xl border border-primary-100 p-4 md:p-6 animate-fade-in" style={{ animationDelay: '80ms' }}>
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                <Wand2 className="text-sky-300" size={18} />
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                <Wand2 className="text-primary-700" size={18} />
                 {t('preview')}
               </h3>
               {xmlContent && (
@@ -1171,49 +1171,49 @@ export default function Paper2DrawioPage({
                     <>
                       <button
                         onClick={() => setShowP2dPng(prev => !prev)}
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 text-white text-xs font-semibold hover:bg-white/20 transition-all"
+                        className="portal-button-secondary flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-primary-800 transition-all"
                       >
                         <ImageIcon size={14} />
                         {showP2dPng ? '隐藏科研图PNG' : '查看科研图PNG'}
                       </button>
                       <button
                         onClick={() => window.open(p2dPngUrl, '_blank', 'noopener')}
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 text-white text-xs font-semibold hover:bg-white/20 transition-all"
+                        className="portal-button-secondary flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-primary-800 transition-all"
                       >
                         <Download size={14} />
                         下载PNG
                       </button>
                     </>
                   )}
-                  <div className="flex items-center rounded-full bg-white/5 border border-white/10 p-1">
+                  <div className="flex items-center rounded-full border border-primary-100 bg-white/72 p-1">
                     {(['drawio', 'svg', 'png'] as const).map(format => (
                       <button
                         key={format}
                         onClick={() => setExportFormat(format)}
                         className={`px-3 py-1 text-xs rounded-full transition ${
                           exportFormat === format
-                            ? 'bg-white/20 text-white'
-                            : 'text-slate-400 hover:text-white'
+                            ? 'bg-primary-600 text-white'
+                            : 'text-[var(--text-secondary)] hover:text-primary-800'
                         }`}
                       >
                         {format.toUpperCase()}
                       </button>
                     ))}
                   </div>
-                  <div className="flex items-center rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+                  <div className="flex items-center rounded-xl border border-primary-100 bg-white/72 px-3 py-2">
                     <input
                       type="text"
                       value={exportFilename}
                       onChange={e => setExportFilename(e.target.value)}
-                      className="w-24 bg-transparent text-xs text-white placeholder-slate-500 outline-none"
+                      className="w-24 bg-transparent text-xs text-[var(--text-primary)] outline-none"
                       placeholder="diagram"
                     />
-                    <span className="ml-2 text-xs text-slate-400">.{exportFormat}</span>
+                    <span className="ml-2 text-xs text-[var(--text-secondary)]">.{exportFormat}</span>
                   </div>
                   <button
                     onClick={handleExport}
                     disabled={isExporting || isLoading}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white text-xs font-semibold hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    className="portal-button-primary flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isExporting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Download size={14} />}
                     {t('export')}
@@ -1222,14 +1222,14 @@ export default function Paper2DrawioPage({
               )}
             </div>
             {generationMode === 'paper2drawio' && showP2dPng && p2dPngUrl && (
-              <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3">
-                <div className="text-xs text-slate-400 mb-2">科研绘图 PNG 预览</div>
-                <div className="rounded-xl overflow-hidden border border-white/10 bg-black/30">
+              <div className="portal-preview-shell mt-4 rounded-2xl p-3">
+                <div className="mb-2 text-xs text-[var(--text-secondary)]">科研绘图 PNG 预览</div>
+                <div className="portal-preview-canvas overflow-hidden rounded-xl">
                   <img src={p2dPngUrl} alt="paper2drawio png preview" className="w-full h-auto object-contain" />
                 </div>
               </div>
             )}
-            <div className={`mt-4 flex-1 bg-[#0b0f17] rounded-2xl border border-white/10 min-h-[420px] lg:min-h-[720px] overflow-hidden ${xmlContent ? 'relative block' : 'flex items-center justify-center'}`}>
+            <div className={`portal-preview-canvas mt-4 min-h-[420px] flex-1 overflow-hidden rounded-2xl lg:min-h-[720px] ${xmlContent ? 'relative block' : 'flex items-center justify-center'}`}>
               {xmlContent ? (
                 <iframe
                   ref={iframeRef}
@@ -1239,8 +1239,8 @@ export default function Paper2DrawioPage({
                 />
               ) : (
                 <div className="text-center animate-fade-in">
-                  <Wand2 className="w-12 h-12 mx-auto text-slate-500 mb-3" />
-                  <p className="text-sm text-slate-400">{t('previewPlaceholder')}</p>
+                  <Wand2 className="mx-auto mb-3 h-12 w-12 text-primary-300" />
+                  <p className="text-sm text-[var(--text-secondary)]">{t('previewPlaceholder')}</p>
                 </div>
               )}
             </div>
