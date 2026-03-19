@@ -18,6 +18,7 @@ from dataflow_agent.toolkits.tool_manager import ToolManager
 from dataflow_agent.logger import get_logger
 from dataflow_agent.agentroles.cores.base_agent import BaseAgent
 from dataflow_agent.agentroles.cores.registry import register
+from dataflow_agent.toolkits.p2vtool.p2v_tool import extract_beamer_code
 
 log = get_logger(__name__)
 
@@ -58,6 +59,40 @@ class P2vBeamerCodeDebug(BaseAgent):
         """若调用方未显式传入，返回默认前置工具结果"""
         return {}
 
+    async def execute_pre_tools(self, state: MainState) -> Dict[str, Any]:
+        """先执行父类前置工具；若 state 上有 pre_tool_results（workflow 内注入），则合并进结果，保证 beamer_code/code_debug_result 能进入 prompt。"""
+        results = await super().execute_pre_tools(state)
+        inject = getattr(state, "pre_tool_results", None) or {}
+        for key in ("beamer_code", "code_debug_result"):
+            if key in inject:
+                results[key] = inject[key]
+        return results
+
+    def _get_beamer_code_from_result(self, result: Dict[str, Any]) -> str:
+        """从 result 中取出 Beamer 代码，兼容规范 dict 或解析失败时的 {"raw": content}。"""
+        raw = result.get("latex_code", "") if isinstance(result, dict) else ""
+        if isinstance(raw, str) and raw:
+            code = extract_beamer_code(raw)
+            if code:
+                return code
+        raw_content = result.get("raw", "") if isinstance(result, dict) else ""
+        if isinstance(raw_content, str) and raw_content:
+            code = extract_beamer_code(raw_content)
+            if code:
+                return code
+            try:
+                from dataflow_agent.utils import robust_parse_json
+                parsed = robust_parse_json(raw_content)
+                if isinstance(parsed, dict):
+                    raw = parsed.get("latex_code", "")
+                    if isinstance(raw, str) and raw:
+                        code = extract_beamer_code(raw)
+                        if code:
+                            return code
+            except Exception:
+                pass
+        return ""
+
     # ---------- 结果写回 ----------
     def update_state_result(
         self,
@@ -66,16 +101,19 @@ class P2vBeamerCodeDebug(BaseAgent):
         pre_tool_results: Dict[str, Any],
     ):
         """将推理结果 {latex_code: xxxx} 写回 MainState"""
-        beamer_code = result.get("latex_code", '')
+        beamer_code = self._get_beamer_code_from_result(result)
         beamer_code_path = state.beamer_code_path
         if beamer_code and beamer_code_path:
             from pathlib import Path
 
             tex_path = Path(beamer_code_path)
             tex_path.write_text(beamer_code, encoding='utf-8')
-            # 编译最新的tex代码
+            # 编译最新的 tex 代码并写回 state，便于调用方判断是否仍存在 error/warning
             from dataflow_agent.toolkits.p2vtool.p2v_tool import compile_tex
             is_beamer_wrong, is_beamer_warning, code_debug_result = compile_tex(beamer_code_path)
+            state.is_beamer_wrong = is_beamer_wrong
+            state.is_beamer_warning = is_beamer_warning
+            state.code_debug_result = code_debug_result
             state.ppt_path = beamer_code_path.replace(".tex", ".pdf")
             log.info(f"将更新好的beamer code写回 {beamer_code_path}")
         else:

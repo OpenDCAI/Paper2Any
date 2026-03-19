@@ -23,6 +23,8 @@ interface CompleteStepProps {
     agent: number | null;
     dataflex: number | null;
   };
+  /** 仅 PDF 模式（如 Beamer）：不显示「下载 PPTX」按钮 */
+  pdfOnly?: boolean;
 }
 
 const CompleteStep: React.FC<CompleteStepProps> = ({
@@ -38,7 +40,8 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
   error,
   handleCopyShareText,
   copySuccess,
-  stars
+  stars,
+  pdfOnly = false,
 }) => {
   const doneCount = generateResults.filter(r => r.status === 'done').length;
 
@@ -74,7 +77,7 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
       ) : (
         <div className="space-y-4">
           <div className="flex gap-4 justify-center">
-            {downloadUrl && (
+            {downloadUrl && !pdfOnly && (
               <button onClick={handleDownloadPptx} className="px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold flex items-center gap-2 transition-all">
                 <Download size={18} /> 下载 PPTX
               </button>

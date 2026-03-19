@@ -3,7 +3,7 @@ import {
   FileText, Sparkles, Loader2, MessageSquare, RefreshCw,
   ArrowLeft, CheckCircle2, AlertCircle
 } from 'lucide-react';
-import { SlideOutline, GenerateResult, Step } from './types';
+import { SlideOutline, GenerateResult, Step, PptMode } from './types';
 import VersionHistory from './VersionHistory';
 
 interface GenerateStepProps {
@@ -19,6 +19,7 @@ interface GenerateStepProps {
   setCurrentStep: (step: Step) => void;
   error: string | null;
   handleRevertToVersion: (versionNumber: number) => void;
+  pptMode?: PptMode;
 }
 
 const GenerateStep: React.FC<GenerateStepProps> = ({
@@ -33,8 +34,10 @@ const GenerateStep: React.FC<GenerateStepProps> = ({
   handleConfirmSlide,
   setCurrentStep,
   error,
-  handleRevertToVersion
+  handleRevertToVersion,
+  pptMode = 'image_gen'
 }) => {
+  const isBeamer = pptMode === 'beamer';
   const currentSlide = outlineData[currentSlideIndex];
   const currentResult = generateResults[currentSlideIndex];
 
@@ -92,7 +95,7 @@ const GenerateStep: React.FC<GenerateStepProps> = ({
         </div>
       </div>
 
-      {currentResult?.versionHistory && currentResult.versionHistory.length > 0 && (
+      {!isBeamer && currentResult?.versionHistory && currentResult.versionHistory.length > 0 && (
         <VersionHistory
           versions={currentResult.versionHistory}
           currentVersionIndex={currentResult.currentVersionIndex}
@@ -101,15 +104,17 @@ const GenerateStep: React.FC<GenerateStepProps> = ({
         />
       )}
 
-      <div className="glass rounded-xl border border-white/10 p-4 mb-6">
-        <div className="flex items-center gap-3">
-          <MessageSquare size={18} className="text-purple-400" />
-          <input type="text" value={slidePrompt} onChange={e => setSlidePrompt(e.target.value)} placeholder="输入微调 Prompt，然后点击重新生成..." className="flex-1 bg-transparent outline-none text-white text-sm placeholder:text-gray-500" />
-          <button onClick={handleRegenerateSlide} disabled={isGenerating || !slidePrompt.trim()} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 text-sm flex items-center gap-2 disabled:opacity-50">
-            <RefreshCw size={14} /> 重新生成
-          </button>
+      {!isBeamer && (
+        <div className="glass rounded-xl border border-white/10 p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <MessageSquare size={18} className="text-purple-400" />
+            <input type="text" value={slidePrompt} onChange={e => setSlidePrompt(e.target.value)} placeholder="输入微调 Prompt，然后点击重新生成..." className="flex-1 bg-transparent outline-none text-white text-sm placeholder:text-gray-500" />
+            <button onClick={handleRegenerateSlide} disabled={isGenerating || !slidePrompt.trim()} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 text-sm flex items-center gap-2 disabled:opacity-50">
+              <RefreshCw size={14} /> 重新生成
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex justify-between">
         <button onClick={() => setCurrentStep('outline')} className="px-6 py-2.5 rounded-lg border border-white/20 text-gray-300 hover:bg-white/10 flex items-center gap-2">

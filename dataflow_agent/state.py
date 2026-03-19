@@ -164,6 +164,36 @@ class Paper2VideoState(MainState):
     video_path: str = ""
 
 
+# ==================== Paper2PptBeamer 相关 State 和 Request 定义 ====================
+@dataclass
+class Paper2PptBeamerRequest(MainRequest):
+    """仅用于 PDF → Beamer PPT 工作流"""
+    paper_pdf_path: str = ""
+
+
+# ==================== Paper2PptBeamer 生成 State ======================
+@dataclass
+class Paper2PptBeamerState(MainState):
+    """用于 pagecontent → Beamer PPT 工作流（接在 paper2page_content 之后）"""
+    request: Paper2PptBeamerRequest = field(default_factory=Paper2PptBeamerRequest)
+
+    # 来自上游 paper2page_content 的产出
+    pagecontent: List[Dict[str, Any]] = field(default_factory=list)
+    result_path: str = ""
+    mineru_root: str = ""
+    minueru_output: str = ""  # 论文全文/摘要，供 table_extractor 等使用
+
+    beamer_code_path: str = ""
+    is_beamer_wrong: bool = False
+    is_beamer_warning: bool = False
+    code_debug_result: str = ""
+    ppt_path: str = ""
+    img_size_debug: bool = True
+
+    # 每页单独生成时的路径列表（页序）
+    per_page_beamer_paths: List[str] = field(default_factory=list)
+    per_page_pdf_paths: List[str] = field(default_factory=list)
+
 
 # ==================== Planning Agent 相关 State ====================
 @dataclass

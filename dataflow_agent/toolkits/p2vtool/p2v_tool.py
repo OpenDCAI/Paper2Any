@@ -811,57 +811,151 @@ def _validate_talking_video_output(
     return True
 
 
-'''========================== 解析生成cursor位置信息相关的函数  =================================='''
-_GLOBAL_PIPE_BYTEDANCE_SEED = None
-def _infer_cursor(instruction, image_path):
-    global _GLOBAL_PIPE_BYTEDANCE_SEED
-    from transformers import pipeline
-    from ui_tars.action_parser import parse_action_to_structure_output, parsing_response_to_pyautogui_code
+'''========================== 解析生成cursor位置信息相关的函数（阿里云 GUI-Plus API）  =================================='''
+# 阿里云百炼 GUI-Plus 界面交互模型：https://help.aliyun.com/zh/model-studio/gui-automation
+GUI_PLUS_API_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+# 兼容模式仅支持 gui-plus；gui-plus-2026-02-26 需走 DashScope 原生 API
+GUI_PLUS_MODEL = "gui-plus"
+# 电脑端 System Prompt（与文档一致，模型输出 left_click + coordinate；文档示例中坐标为原图像素）
+GUI_PLUS_SYSTEM_PROMPT = r"""# Tools
+You may call one or more functions to assist with the user query.
+You are provided with function signatures within <tools></tools> XML tags:
+<tools>
+{"type": "function", "function": {"name": "computer_use", "description": "Use a mouse and keyboard to interact with a computer, and take screenshots.\n* This is an interface to a desktop GUI. You do not have access to a terminal or applications menu. You must click on desktop icons to start applications.\n* Some applications may take time to start or process actions, so you may need to wait and take successive screenshots to see the results of your actions. E.g. if you click on Firefox and a window doesn't open, try wait and taking another screenshot.\n* The screen's resolution is 1000x1000.\n* Make sure to click any buttons, links, icons, etc with the cursor tip in the center of the element. Don't click boxes on their edges unless asked.", "parameters": {"properties": {"action": {"description": "The action to perform. The available actions are:\n* `key`: Performs key down presses on the arguments passed in order, then performs key releases in reverse order.\n* `type`: Type a string of text on the keyboard.\n* `mouse_move`: Move the cursor to a specified (x, y) pixel coordinate on the screen.\n* `left_click`: Click the left mouse button at a specified (x, y) pixel coordinate on the screen.\n* `left_click_drag`: Click and drag the cursor to a specified (x, y) pixel coordinate on the screen.\n* `right_click`: Click the right mouse button at a specified (x, y) pixel coordinate on the screen.\n* `middle_click`: Click the middle mouse button at a specified (x, y) pixel coordinate on the screen.\n* `double_click`: Double-click the left mouse button at a specified (x, y) pixel coordinate on the screen.\n* `triple_click`: Triple-click the left mouse button at a specified (x, y) pixel coordinate on the screen (simulated as double-click since it's the closest action).\n* `scroll`: Performs a scroll of the mouse scroll wheel.\n* `hscroll`: Performs a horizontal scroll (mapped to regular scroll).\n* `wait`: Wait specified seconds for the change to happen.\n* `terminate`: Terminate the current task and report its completion status.\n* `answer`: Answer a question.\n* `interact`: Resolve the blocking window by interacting with the user.", "enum": ["key", "type", "mouse_move", "left_click", "left_click_drag", "right_click", "middle_click", "double_click", "triple_click", "scroll", "hscroll", "wait", "terminate", "answer", "interact"], "type": "string"}, "keys": {"description": "Required only by `action=key`.", "type": "array"}, "text": {"description": "Required only by `action=type`, `action=answer` and `action=interact`.", "type": "string"}, "coordinate": {"description": "(x, y): The x (pixels from the left edge) and y (pixels from the top edge) coordinates to move the mouse to. Required only by `action=mouse_move` and `action=left_click_drag`.", "type": "array"}, "pixels": {"description": "The amount of scrolling to perform. Positive values scroll up, negative values scroll down. Required only by `action=scroll` and `action=hscroll`.", "type": "number"}, "time": {"description": "The seconds to wait. Required only by `action=wait`.", "type": "number"}, "status": {"description": "The status of the task. Required only by `action=terminate`.", "type": "string", "enum": ["success", "failure"]}}, "required": ["action"], "type": "object"}}}
+</tools>
+For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{"name": <function-name>, "arguments": <args-json-object>}
+</tool_call>
+# Response format
+Response format for every step:
+1) Action: a short imperative describing what to do in the UI.
+2) A single <tool_call>...</tool_call> block containing only the JSON: {"name": <function-name>, "arguments": <args-json-object>}.
+Rules:
+- Output exactly in the order: Action, <tool_call>.
+- Be brief: one for Action.
+- Do not output anything else outside those two parts.
+- If finishing, use action=terminate in the tool call."""
 
-    # fixme：修改一下这段代码，最好不要从hf上下载，而是在本地就下载好了，但是这个路径或许需要处理！！！
-    if _GLOBAL_PIPE_BYTEDANCE_SEED is None:
-        _GLOBAL_PIPE_BYTEDANCE_SEED = pipeline("image-text-to-text", model="/data/users/ligang/models/bytedance-seed")
-    prompt = "You are a GUI agent. You are given a task and your action history, with screenshots. You must to perform the next action to complete the task. \n\n## Output Format\n\nAction: ...\n\n\n## Action Space\nclick(point='<point>x1 y1</point>'')\n\n## User Instruction {}".format(instruction)
-    messages = [{"role": "user", "content": [{"type": "image", "url": image_path}, {"type": "text", "text": prompt}]},]
-    result = _GLOBAL_PIPE_BYTEDANCE_SEED(text=messages)[0]
-    response = result['generated_text'][1]["content"]
-    
+
+def _extract_tool_call_coordinate(response_text: str):
+    """从 GUI-Plus 返回的 content 中解析 <tool_call> 块，取出 coordinate [x, y]（vl_high_resolution 时为原图像素）。"""
+    pattern = re.compile(r'<tool_call>\s*(.*?)\s*</tool_call>', re.DOTALL | re.IGNORECASE)
+    blocks = pattern.findall(response_text)
+    for blk in blocks:
+        blk = blk.strip()
+        try:
+            obj = json.loads(blk)
+            args = obj.get("arguments", {})
+            if isinstance(args, str):
+                args = json.loads(args)
+            coord = args.get("coordinate")
+            if isinstance(coord, (list, tuple)) and len(coord) >= 2:
+                return float(coord[0]), float(coord[1])
+        except (json.JSONDecodeError, TypeError) as e:
+            log.debug("parse tool_call block failed: %s | snippet: %s", e, (blk[:80] + "..." if len(blk) > 80 else blk))
+    return None
+
+
+def _cursor_api_coord_to_image_xy(
+    x: float, y: float,
+    image_width: int, image_height: int,
+) -> Tuple[float, float]:
+    """
+    GUI-Plus API（vl_high_resolution_images）返回的是输入图像素坐标，直接 clamp 到图像范围内即可。
+    阿里云文档示例：3008×1758 的图返回 coordinate [2530, 314]。
+    """
+    if image_width <= 0 or image_height <= 0:
+        return (image_width / 2.0, image_height / 2.0)
+    x_img = max(0.0, min(float(image_width), x))
+    y_img = max(0.0, min(float(image_height), y))
+    return (x_img, y_img)
+
+
+def _infer_cursor(instruction: str, image_path: str) -> Tuple[float, float]:
+    """
+    根据指令和截图，调用阿里云 GUI-Plus API 得到光标应指向的像素坐标 (x, y)。
+    使用环境变量 GUI_PLUS_API_KEY 作为 API Key。
+    API 返回坐标为输入图像素（见阿里云文档示例），直接 clamp 到图内使用。
+    """
+    import base64
+    from openai import OpenAI
+
     ori_image = cv2.imread(image_path)
-    #fixme: OpenCV 的 shape 返回的是 (height, width, channels)
+    if ori_image is None:
+        raise FileNotFoundError(f"cannot read image: {image_path}")
     original_image_height, original_image_width = ori_image.shape[:2]
-    parsed_dict = parse_action_to_structure_output(
-        response,
-        factor=1000,
-        origin_resized_height=original_image_height,
-        origin_resized_width=original_image_width,
-        model_type="qwen25vl"
-    )
 
-    parsed_pyautogui_code = parsing_response_to_pyautogui_code(
-        responses=parsed_dict,
-        image_height=original_image_height,
-        image_width=original_image_width
-    )
+    api_key = os.environ.get("GUI_PLUS_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "GUI-Plus API 需要设置环境变量 GUI_PLUS_API_KEY。"
+            "请在阿里云百炼控制台获取 API Key：https://bailian.console.aliyun.com/"
+        )
 
-    match = re.search(r'pyautogui\.click\(([\d.]+),\s*([\d.]+)', parsed_pyautogui_code)
-    if match:
-        x = float(match.group(1))
-        y = float(match.group(2))
-    else:
-        log.info("%s", instruction)
-    return (x, y)
+    with open(image_path, "rb") as f:
+        image_b64 = base64.standard_b64encode(f.read()).decode("utf-8")
+    ext = (Path(image_path).suffix or ".png").lower()
+    mime = "image/png" if ext in (".png",) else "image/jpeg" if ext in (".jpg", ".jpeg") else "image/png"
+    image_url = f"data:{mime};base64,{image_b64}"
+
+    user_prompt = (
+        "根据以下指令，在截图中指出应该点击的位置，仅返回一个 left_click 操作与坐标。\n\n"
+        "Instruction: {}".format(instruction)
+    )
+    messages = [
+        {"role": "system", "content": GUI_PLUS_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": image_url}},
+                {"type": "text", "text": user_prompt},
+            ],
+        },
+    ]
+
+    client = OpenAI(api_key=api_key, base_url=GUI_PLUS_API_BASE_URL)
+    completion = client.chat.completions.create(
+        model=GUI_PLUS_MODEL,
+        messages=messages,
+        extra_body={"vl_high_resolution_images": True},
+    )
+    response_text = completion.choices[0].message.content or ""
+
+    coord = _extract_tool_call_coordinate(response_text)
+    if coord is not None:
+        x, y = _cursor_api_coord_to_image_xy(
+            coord[0], coord[1],
+            original_image_width, original_image_height,
+        )
+        return (x, y)
+
+    log.warning("GUI-Plus 未返回有效坐标，使用图像中心。instruction=%s", instruction[:80])
+    return (original_image_width / 2.0, original_image_height / 2.0)
+
 
 def cursor_infer(args):
-    '''根据说话的内容，得到cursor应该指向的位置'''
-    slide_idx, sentence_idx, prompt, cursor_prompt, image_path, gpu_id = args
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
-    import torch
-    
-    point= _infer_cursor(cursor_prompt, image_path)
-    torch.cuda.empty_cache()
+    """根据说话的内容，得到 cursor 应该指向的位置（调用 GUI-Plus API，无需本地 GPU）。"""
+    slide_idx, sentence_idx, prompt, cursor_prompt, image_path, _ = args
+
+    try:
+        point = _infer_cursor(cursor_prompt, image_path)
+    except Exception as e:
+        log.warning("cursor_infer API 或本地错误，使用图像中心作为 fallback: %s", e)
+        try:
+            ori_image = cv2.imread(image_path)
+            h, w = (ori_image.shape[:2]) if ori_image is not None else (540, 960)
+            point = (w / 2.0, h / 2.0)
+        except Exception:
+            point = (480.0, 270.0)
+        # 不 raise，直接使用 point 继续返回结果，避免子进程异常被 pickle 导致主进程崩溃
+
     result = {
-        'slide': slide_idx, 'sentence': sentence_idx, 'speech_text': prompt, 
-        'cursor_prompt': cursor_prompt, 'cursor': point,
+        "slide": slide_idx,
+        "sentence": sentence_idx,
+        "speech_text": prompt,
+        "cursor_prompt": cursor_prompt,
+        "cursor": point,
     }
     return result
 
@@ -1123,6 +1217,91 @@ def compile_tex(beamer_code_path: str):
         is_beamer_warning = True
         code_debug_result = e.stderr
         return is_beamer_wrong, is_beamer_warning, code_debug_result
+
+
+def is_overfull_warning(code_debug_result: str) -> bool:
+    """是否包含 Overfull 类 warning（内容过高/过宽），需要尝试修复。"""
+    if not code_debug_result:
+        return False
+    return "Overfull" in code_debug_result
+
+
+def is_missing_image_error(code_debug_result: str) -> bool:
+    """是否因「无法加载图片/PDF」导致编译失败（模型幻觉了不存在的路径），可清掉 asset_ref 重试。"""
+    if not code_debug_result:
+        return False
+    return "Unable to load picture or PDF file" in code_debug_result
+
+
+def is_ignorable_warning_only(code_debug_result: str) -> bool:
+    """是否仅包含可忽略的 warning（如访问绝对路径），无需修复。"""
+    if not code_debug_result:
+        return True
+    lower = code_debug_result.lower()
+    if "warning" not in lower:
+        return True
+    # 若只有 absolute path 类提示，视为可忽略
+    if "overfull" in lower:
+        return False
+    if "absolute path" in lower or "accessing absolute path" in lower:
+        return True
+    return False
+
+
+def is_table_asset(asset_ref: Any) -> bool:
+    """asset_ref 为 Table 时通常为 'Table_1' / 'Table 2' 等形式，无实际文件路径。"""
+    if not asset_ref:
+        return False
+    return str(asset_ref).strip().lower().startswith("table")
+
+
+def ensure_minueru_output(state: Any) -> None:
+    """若 state 无 minueru_output，尝试从 mineru_root 下首个 .md 读取（供 table_extractor 使用）。"""
+    if getattr(state, "minueru_output", "") and str(state.minueru_output).strip():
+        return
+    mineru_root = getattr(state, "mineru_root", "") or ""
+    if not mineru_root:
+        return
+    root = Path(mineru_root).expanduser().resolve()
+    if not root.is_dir():
+        return
+    md_files = list(root.glob("*.md"))
+    if not md_files:
+        return
+    target = md_files[0]
+    if len(md_files) > 1:
+        for f in md_files:
+            if f.stat().st_size > target.stat().st_size:
+                target = f
+    try:
+        state.minueru_output = target.read_text(encoding="utf-8")[:30000]
+    except Exception as e:
+        log.warning("从 mineru_root 读取 md 失败: %s", e)
+
+
+def merge_pdfs(pdf_paths: List[str], output_path: Union[str, Path]) -> str:
+    """将多份 PDF 按顺序合并为一份。要求 pdf_paths 中路径存在且为 PDF。"""
+    if not pdf_paths:
+        raise ValueError("merge_pdfs: pdf_paths 不能为空")
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        raise ImportError("merge_pdfs 需要 PyMuPDF (pip install pymupdf)")
+    out = Path(output_path).expanduser().resolve()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    merged = fitz.open()
+    for p in pdf_paths:
+        path = Path(p).expanduser().resolve()
+        if not path.is_file():
+            log.warning("merge_pdfs: 跳过不存在的文件 %s", path)
+            continue
+        with fitz.open(path) as src:
+            merged.insert_pdf(src)
+    merged.save(out)
+    merged.close()
+    log.info("merge_pdfs: 已合并 %s 个 PDF -> %s", len(pdf_paths), out)
+    return str(out)
+
 
 def beamer_code_validator(content: str, parsed_result: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     """检查tex是否是正确的"""

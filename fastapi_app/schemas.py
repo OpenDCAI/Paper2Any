@@ -221,6 +221,8 @@ class PageContentRequest(BaseModel):
     pdf_as_slides: str = "false"
     # PPT/PDF 转图片时的渲染 DPI（None 表示使用默认值）
     render_dpi: Optional[int] = None
+    # 生成方式：image_gen=图生模型，beamer=Beamer 代码
+    ppt_mode: Literal["image_gen", "beamer"] = "image_gen"
 
 
 class OutlineRefineRequest(BaseModel):
@@ -471,6 +473,8 @@ class PPTGenerationRequest(BaseModel):
     edit_prompt: Optional[str] = None
     # 图像生成分辨率（1K/2K/4K 等）
     image_resolution: Optional[str] = None
+    # 生成方式：image_gen=图生模型，beamer=Beamer 代码
+    ppt_mode: Literal["image_gen", "beamer"] = "image_gen"
 
 
 class FullPipelineRequest(BaseModel):
@@ -487,6 +491,8 @@ class FullPipelineRequest(BaseModel):
     style: str = ""
     model: str = settings.PAPER2PPT_DEFAULT_MODEL
     use_long_paper: str = "false"
+    # 生成方式：image_gen=图生模型，beamer=Beamer 代码
+    ppt_mode: Literal["image_gen", "beamer"] = "image_gen"
 
 
 class Paper2PPTRequest(BaseModel):
@@ -537,6 +543,8 @@ class Paper2PPTRequest(BaseModel):
 
     all_edited_down: bool = False
     use_ai_edit: bool = False
+    # 生成方式：image_gen=图生模型，beamer=Beamer 代码
+    ppt_mode: Literal["image_gen", "beamer"] = "image_gen"
 
     def get(self, key: str, default=None):
         """

@@ -25,7 +25,9 @@
     "navSub": {
       "paper2figureTechExp": "Tech Route / Experiment Charts",
       "paper2drawioAi": "Flow / Architecture Diagrams",
-      "paper2figureModelDrawio": "Model Diagram Generation"
+      "paper2figureModelDrawio": "Model Diagram Generation",
+      "paper2pptImageGen": "Image-gen Paper2PPT",
+      "paper2pptBeamer": "Beamer Paper2PPT"
     },
     "navTooltip": {
       "paper2figure": "Generate research figures from papers, including model architecture diagrams, technical roadmaps, and experimental data charts in editable PPTX format",
@@ -45,7 +47,9 @@
     "navSubTooltip": {
       "paper2figureTechExp": "Generate technical route and experiment charts from PDF/text with templates, export PPT/SVG",
       "paper2drawioAi": "Text-to-DrawIO flow/architecture diagrams, edit online and export PNG/SVG/DrawIO",
-      "paper2figureModelDrawio": "Generate a model diagram, refine prompts, then edit in DrawIO or export PPT/PNG/SVG"
+      "paper2figureModelDrawio": "Generate a model diagram, refine prompts, then edit in DrawIO or export PPT/PNG/SVG",
+      "paper2pptImageGen": "Image-gen model for slides, with per-page edit and style options",
+      "paper2pptBeamer": "LaTeX Beamer typesetting, PDF output, for academic presentations"
     },
     "sidebar": {
       "toggle": "Toggle Menu",

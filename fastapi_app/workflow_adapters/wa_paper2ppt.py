@@ -16,8 +16,11 @@ from pathlib import Path
 from typing import Any, List, Tuple
 
 from dataflow_agent.logger import get_logger
-from dataflow_agent.state import Paper2FigureState
-from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract_http
+from dataflow_agent.state import Paper2FigureState, Paper2PptBeamerState, Paper2PptBeamerRequest
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import (
+    _shrink_markdown,
+    run_mineru_pdf_extract_http,
+)
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.utils_markdown_sections import (
     estimate_text_tokens,
@@ -292,6 +295,31 @@ async def run_paper2page_content_refine_wf_api(
     return Paper2PPTResponse(**resp_data)
 
 
+def _beamer_per_page_pdfs_to_ppt_pages(result_path: Path, per_page_pdf_paths: list[str]) -> None:
+    """将 Beamer 每页 PDF 转为 PNG，写入 result_path/ppt_pages/page_000.png 等，供前端展示。"""
+    if not per_page_pdf_paths:
+        return
+    try:
+        from pdf2image import convert_from_path
+    except ImportError:
+        log.warning("[wa_paper2ppt] pdf2image 未安装，跳过 Beamer 每页预览图生成")
+        return
+    ppt_pages_dir = result_path / "ppt_pages"
+    ppt_pages_dir.mkdir(parents=True, exist_ok=True)
+    for i, pdf_path in enumerate(per_page_pdf_paths):
+        p = Path(pdf_path)
+        if not p.exists():
+            continue
+        try:
+            images = convert_from_path(str(p), first_page=1, last_page=1, dpi=150)
+            if images:
+                out_name = f"page_{i:03d}.png"
+                images[0].save(ppt_pages_dir / out_name, "PNG")
+                log.info("[wa_paper2ppt] Beamer 页 %s -> %s", i, out_name)
+        except Exception as e:
+            log.warning("[wa_paper2ppt] Beamer 页 %s 转 PNG 失败: %s", i, e)
+
+
 async def run_paper2ppt_wf_api(
     req: Paper2PPTRequest,
     pagecontent: list[dict] | None = None,
@@ -370,27 +398,72 @@ async def run_paper2ppt_wf_api(
 
     log.info(
         f"[paper2ppt_wf_api] start, result_path={getattr(state, 'result_path', None)}, "
-        f"pagecontent_len={len(getattr(state, 'pagecontent', []) or [])}"
+        f"pagecontent_len={len(getattr(state, 'pagecontent', []) or [])}, ppt_mode={getattr(req, 'ppt_mode', 'image_gen')}"
     )
 
-    # final_state: Paper2FigureState = await run_workflow("paper2ppt_parallel", state)
+    ppt_mode = getattr(req, "ppt_mode", "image_gen") or "image_gen"
+
+    if ppt_mode == "beamer":
+        # Beamer 路径：pagecontent → paper2ppt_beamer_pagecontent → merged PDF，并生成每页 PNG 供前端展示
+        if not base_dir:
+            raise ValueError("result_path is required for beamer mode")
+        pc = getattr(state, "pagecontent", []) or []
+        if not pc:
+            return Paper2PPTResponse(success=False, ppt_pdf_path="", ppt_pptx_path="", pagecontent=[], result_path=str(base_dir))
+        lang = getattr(req, "language", "en") or "en"
+        # 将 API 配置从请求传入，否则 agent 会用默认/空 key 导致 401
+        api_url = getattr(req, "chat_api_url", "") or ""
+        api_key = getattr(req, "api_key", "") or getattr(req, "chat_api_key", "") or ""
+        model = getattr(req, "model", "") or "gpt-4o"
+        beamer_req = Paper2PptBeamerRequest(
+            language=lang,
+            chat_api_url=api_url,
+            api_key=api_key,
+            chat_api_key=api_key,
+            model=model,
+        )
+        state_beamer = Paper2PptBeamerState(
+            request=beamer_req,
+            pagecontent=pc,
+            result_path=str(base_dir),
+            mineru_root=str(base_dir / "input" / "auto"),
+            minueru_output=getattr(state, "mineru_output", "") or "",
+        )
+        final_beamer = await run_workflow("paper2ppt_beamer_pagecontent", state_beamer)
+        if isinstance(final_beamer, dict):
+            ppt_pdf_path = final_beamer.get("ppt_path") or ""
+            per_page_pdf_paths = final_beamer.get("per_page_pdf_paths") or []
+            pagecontent = final_beamer.get("pagecontent") or []
+        else:
+            ppt_pdf_path = getattr(final_beamer, "ppt_path", "") or ""
+            per_page_pdf_paths = getattr(final_beamer, "per_page_pdf_paths", []) or []
+            pagecontent = getattr(final_beamer, "pagecontent", []) or []
+        _beamer_per_page_pdfs_to_ppt_pages(base_dir, per_page_pdf_paths)
+        resp_data = {
+            "success": True,
+            "ppt_pdf_path": str(ppt_pdf_path) if ppt_pdf_path else "",
+            "ppt_pptx_path": "",
+            "pagecontent": pagecontent,
+            "result_path": str(base_dir),
+        }
+        return Paper2PPTResponse(**resp_data)
+
+    # 图生模型路径
     log.critical(f'[wa_paper2ppt] req.ref_img 路径 {req.ref_img}')
     final_state: Paper2FigureState = await run_workflow("paper2ppt_parallel_consistent_style", state)
 
-    # 提取关键输出
     ppt_pdf_path = getattr(final_state, "ppt_pdf_path", "")
     ppt_pptx_path = getattr(final_state, "ppt_pptx_path", "")
     final_pagecontent = getattr(final_state, "pagecontent", []) or []
     final_result_path = getattr(final_state, "result_path", result_path or "")
 
-    resp_data: dict[str, Any] = {
+    resp_data = {
         "success": True,
         "ppt_pdf_path": str(ppt_pdf_path) if ppt_pdf_path else "",
         "ppt_pptx_path": str(ppt_pptx_path) if ppt_pptx_path else "",
         "pagecontent": final_pagecontent,
         "result_path": final_result_path,
     }
-
     return Paper2PPTResponse(**resp_data)
 
 
@@ -429,26 +502,57 @@ async def run_paper2ppt_full_pipeline(req: Paper2PPTRequest) -> Paper2PPTRespons
     final_result_path = getattr(state_pc, "result_path", str(result_root))
 
     # ---------- 第二步：paper2ppt ----------
-    # 复用 state_pc 继续执行 paper2ppt，避免丢失中间状态
+    ppt_mode = getattr(req, "ppt_mode", "image_gen") or "image_gen"
     log.info(
-        f"[paper2ppt_full_pipeline] step2 paper2ppt, "
+        f"[paper2ppt_full_pipeline] step2 paper2ppt, ppt_mode={ppt_mode}, "
         f"result_path={final_result_path}, pagecontent_len={len(pagecontent)}"
     )
+
+    if ppt_mode == "beamer":
+        result_root_path = Path(final_result_path)
+        api_url = getattr(req, "chat_api_url", "") or ""
+        api_key = getattr(req, "api_key", "") or getattr(req, "chat_api_key", "") or ""
+        model = getattr(req, "model", "") or "gpt-4o"
+        beamer_req = Paper2PptBeamerRequest(
+            language=getattr(req, "language", "en") or "en",
+            chat_api_url=api_url,
+            api_key=api_key,
+            chat_api_key=api_key,
+            model=model,
+        )
+        state_beamer = Paper2PptBeamerState(
+            request=beamer_req,
+            pagecontent=pagecontent,
+            result_path=final_result_path,
+            mineru_root=str(result_root_path / "input" / "auto"),
+            minueru_output=getattr(state_pc, "minueru_output", "") or "",
+        )
+        final_beamer = await run_workflow("paper2ppt_beamer_pagecontent", state_beamer)
+        ppt_pdf_path = getattr(final_beamer, "ppt_path", "") or ""
+        per_page_pdf_paths = getattr(final_beamer, "per_page_pdf_paths", []) or []
+        _beamer_per_page_pdfs_to_ppt_pages(result_root_path, per_page_pdf_paths)
+        resp_data = {
+            "success": True,
+            "ppt_pdf_path": str(ppt_pdf_path) if ppt_pdf_path else "",
+            "ppt_pptx_path": "",
+            "pagecontent": getattr(final_beamer, "pagecontent", []) or pagecontent,
+            "result_path": final_result_path,
+        }
+        return Paper2PPTResponse(**resp_data)
+
     state_pc.pagecontent = pagecontent
     state_pc.result_path = final_result_path
-
-    state_pp: Paper2FigureState = await run_workflow("paper2ppt", state_pc)
+    state_pp: Paper2FigureState = await run_workflow("paper2ppt_parallel_consistent_style", state_pc)
 
     ppt_pdf_path = getattr(state_pp, "ppt_pdf_path", "")
     ppt_pptx_path = getattr(state_pp, "ppt_pptx_path", "")
     final_pagecontent = getattr(state_pp, "pagecontent", []) or []
 
-    resp_data: dict[str, Any] = {
+    resp_data = {
         "success": True,
         "ppt_pdf_path": str(ppt_pdf_path) if ppt_pdf_path else "",
         "ppt_pptx_path": str(ppt_pptx_path) if ppt_pptx_path else "",
         "pagecontent": final_pagecontent,
         "result_path": final_result_path,
     }
-
     return Paper2PPTResponse(**resp_data)

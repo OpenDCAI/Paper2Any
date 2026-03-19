@@ -34,6 +34,8 @@ interface OutlineStepProps {
   outlineFeedback: string;
   setOutlineFeedback: React.Dispatch<React.SetStateAction<string>>;
   isRefiningOutline: boolean;
+  /** 为 true 时不展示「AI 辅助修改」区块（如 Beamer 流程） */
+  hideRefine?: boolean;
 }
 
 const OutlineStep: React.FC<OutlineStepProps> = ({
@@ -56,7 +58,8 @@ const OutlineStep: React.FC<OutlineStepProps> = ({
   error,
   outlineFeedback,
   setOutlineFeedback,
-  isRefiningOutline
+  isRefiningOutline,
+  hideRefine = false
 }) => {
   const disabledClass = "disabled:opacity-50 disabled:cursor-not-allowed";
   return (
@@ -145,28 +148,30 @@ const OutlineStep: React.FC<OutlineStepProps> = ({
         </button>
       </div>
 
-      <div className="mt-6 glass rounded-xl border border-white/10 p-4">
-        <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
-          <Sparkles size={16} className="text-purple-400" /> AI 辅助修改
-        </h3>
-        <div className="flex gap-3">
-          <textarea
-            value={outlineFeedback}
-            onChange={(e) => setOutlineFeedback(e.target.value)}
-            placeholder="输入修改需求，例如：第3页更偏技术细节，突出方法贡献..."
-            rows={2}
-            disabled={isRefiningOutline}
-            className={`flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/20 text-white text-sm outline-none focus:ring-2 focus:ring-purple-500 resize-none ${disabledClass}`}
-          />
-          <button
-            onClick={handleRefineOutline}
-            disabled={isRefiningOutline || !outlineFeedback.trim()}
-            className={`px-4 py-2 rounded-lg bg-white/10 text-gray-200 text-sm flex items-center gap-2 hover:bg-white/20 ${disabledClass}`}
-          >
-            {isRefiningOutline ? 'AI 调整中...' : '开始调整'}
-          </button>
+      {!hideRefine && (
+        <div className="mt-6 glass rounded-xl border border-white/10 p-4">
+          <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
+            <Sparkles size={16} className="text-purple-400" /> AI 辅助修改
+          </h3>
+          <div className="flex gap-3">
+            <textarea
+              value={outlineFeedback}
+              onChange={(e) => setOutlineFeedback(e.target.value)}
+              placeholder="输入修改需求，例如：第3页更偏技术细节，突出方法贡献..."
+              rows={2}
+              disabled={isRefiningOutline}
+              className={`flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/20 text-white text-sm outline-none focus:ring-2 focus:ring-purple-500 resize-none ${disabledClass}`}
+            />
+            <button
+              onClick={handleRefineOutline}
+              disabled={isRefiningOutline || !outlineFeedback.trim()}
+              className={`px-4 py-2 rounded-lg bg-white/10 text-gray-200 text-sm flex items-center gap-2 hover:bg-white/20 ${disabledClass}`}
+            >
+              {isRefiningOutline ? 'AI 调整中...' : '开始调整'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {error && (
         <div className="mt-4 flex items-center gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-4 py-3">
