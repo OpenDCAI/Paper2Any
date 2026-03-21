@@ -16,7 +16,6 @@ from dataflow_agent.utils import get_project_root
 
 from dataflow_agent.toolkits.multimodaltool.mineru_tool import (
     run_mineru_pdf_extract_http,
-    _shrink_markdown,
 )
 
 log = get_logger(__name__)
@@ -154,8 +153,9 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         except Exception as e:
             log.error(f"[paper2page_content] 读取 markdown 失败: {markdown_path}, err={e}")
             md = ""
-        # Avoid passing overly long markdown to downstream agents.
-        state.minueru_output = _shrink_markdown(md, max_h1=8, max_chars=30_000)
+        # Keep the full markdown. The adapter now routes large inputs to the
+        # long-paper workflow instead of truncating the tail of the document.
+        state.minueru_output = md
         # 记录 MinerU 输出根目录 = 实际承载 md 与 images 的 auto 目录
         state.mineru_root = str(auto_dir)
         log.info(f"[paper2page_content] minueru_output : {state.minueru_output[:100]} ")

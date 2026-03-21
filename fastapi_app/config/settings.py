@@ -51,6 +51,11 @@ class AppSettings(BaseSettings):
     PAPER2DRAWIO_SAM3_BPE_PATH: str = str(_project_root() / "models" / "sam3" / "bpe_simple_vocab_16e6.txt.gz")
     PAPER2DRAWIO_OCR_API_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     PAPER2DRAWIO_OCR_API_KEY: str = ""
+    MINERU_API_BASE_URL: str = "https://mineru.net/api/v4"
+    MINERU_API_KEY: str = ""
+    MINERU_API_MODEL_VERSION: str = "vlm"
+    MINERU_API_POLL_INTERVAL_SECONDS: int = 5
+    MINERU_API_TIMEOUT_SECONDS: int = 900
 
     # Paper2Citation optional websearch-LLM enrichment
     PAPER2CITATION_WEBSEARCH_ENABLED: bool = False

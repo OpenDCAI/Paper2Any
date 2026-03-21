@@ -18,7 +18,7 @@ from dataflow_agent.toolkits.multimodaltool.req_img import (
     generate_or_edit_and_save_image_async, 
     gemini_multi_image_edit_async
 )
-from dataflow_agent.toolkits.multimodaltool.ppt_tool import convert_images_dir_to_pdf_and_ppt_api
+from dataflow_agent.toolkits.multimodaltool.ppt_tool import convert_images_dir_to_pdf_and_full_slide_ppt
 
 log = get_logger(__name__)
 
@@ -726,18 +726,14 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
 
         log.info(f"[paper2ppt] export_ppt_assets: pdf={pdf_path}, pptx={pptx_path}")
 
-        out = await convert_images_dir_to_pdf_and_ppt_api(
+        out = convert_images_dir_to_pdf_and_full_slide_ppt(
             input_dir=str(img_dir),
             output_pdf_path=str(pdf_path),
-            output_pptx_path=None,
-            api_url=state.request.chat_api_url,
-            api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
-            model=state.request.gen_fig_model,
-            use_api_inpaint=False,
+            output_pptx_path=str(pptx_path),
         )
 
         setattr(state, "ppt_pdf_path", out.get("pdf") or str(pdf_path))
-        setattr(state, "ppt_pptx_path", None)
+        setattr(state, "ppt_pptx_path", out.get("pptx") or str(pptx_path))
         return state
 
     nodes = {

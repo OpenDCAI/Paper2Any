@@ -7,6 +7,8 @@ from fastapi_app.schemas import (
     Paper2CitationAuthorDetailResponse,
     Paper2CitationAuthorPublicationsRequest,
     Paper2CitationAuthorPublicationsResponse,
+    Paper2CitationPaperContextRequest,
+    Paper2CitationPaperContextResponse,
     Paper2CitationAuthorSearchRequest,
     Paper2CitationAuthorSearchResponse,
     Paper2CitationPaperDetailRequest,
@@ -51,3 +53,11 @@ async def paper2citation_paper_detail(
     service: Paper2CitationService = Depends(get_service),
 ) -> Paper2CitationPaperDetailResponse:
     return await service.get_paper_detail(body)
+
+
+@router.post("/paper2citation/paper/context", response_model=Paper2CitationPaperContextResponse)
+async def paper2citation_paper_context(
+    body: Paper2CitationPaperContextRequest,
+    service: Paper2CitationService = Depends(get_service),
+) -> Paper2CitationPaperContextResponse:
+    return await service.get_paper_context(body)

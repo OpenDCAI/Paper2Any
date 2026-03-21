@@ -4,7 +4,11 @@ import asyncio
 from typing import Any, Dict, List
 
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
+from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2CitationState
+from dataflow_agent.toolkits.citationtool.context_locator import (
+    extract_citation_context_for_work,
+)
 from dataflow_agent.toolkits.citationtool.citation_utils import (
     _affiliation_match_score,
     _get_affiliations,
@@ -28,6 +32,7 @@ from dataflow_agent.workflow.registry import register
 AUTHOR_NETWORK_SEED_LIMIT = 20
 MAX_CITING_WORKS_PER_SEED = 25
 MAX_SEED_FETCH_CONCURRENCY = 6
+log = get_logger(__name__)
 
 
 def _prepare_work_items(raw_works: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -37,6 +42,18 @@ def _prepare_work_items(raw_works: List[Dict[str, Any]]) -> List[Dict[str, Any]]
         item["raw_authorships"] = raw_work.get("authorships") or []
         items.append(item)
     return items
+
+
+async def _resolve_work_from_request(
+    client: OpenAlexCitationClient,
+    raw_value: str,
+) -> Dict[str, Any]:
+    resolved = resolve_doi_or_openalex_id(raw_value)
+    if resolved["openalex_work_id"]:
+        return await client.get_work(resolved["openalex_work_id"])
+    if resolved["doi"]:
+        return await client.get_work_by_doi(resolved["doi"])
+    return await client.search_work_by_bibliographic(raw_value.strip())
 
 def _merge_publication_fields(base_item: Dict[str, Any], resolved_item: Dict[str, Any]) -> Dict[str, Any]:
     merged = dict(base_item)
@@ -380,6 +397,8 @@ def create_paper2citation_graph() -> GenericGraphBuilder:
                 or state.request.dblp_id.strip()
                 or state.request.display_name.strip()
             )
+        elif state.mode == "paper_context":
+            state.query = state.request.citing_work_openalex_id.strip() or state.request.citing_work_doi_or_url.strip() or state.request.citing_work_title.strip()
         else:
             state.query = state.request.doi_or_url.strip()
         state.errors = []
@@ -394,6 +413,8 @@ def create_paper2citation_graph() -> GenericGraphBuilder:
             return "author_publications"
         if state.mode == "paper_detail":
             return "paper_detail"
+        if state.mode == "paper_context":
+            return "paper_context"
         raise CitationDataError(f"Unsupported paper2citation mode: {state.mode}")
 
     async def author_search_node(state: Paper2CitationState) -> Paper2CitationState:
@@ -837,14 +858,7 @@ def create_paper2citation_graph() -> GenericGraphBuilder:
     async def paper_detail_node(state: Paper2CitationState) -> Paper2CitationState:
         client = OpenAlexCitationClient()
         try:
-            resolved = resolve_doi_or_openalex_id(state.request.doi_or_url)
-            raw_work: Dict[str, Any]
-            if resolved["openalex_work_id"]:
-                raw_work = await client.get_work(resolved["openalex_work_id"])
-            elif resolved["doi"]:
-                raw_work = await client.get_work_by_doi(resolved["doi"])
-            else:
-                raw_work = await client.search_work_by_bibliographic(state.request.doi_or_url.strip())
+            raw_work = await _resolve_work_from_request(client, state.request.doi_or_url)
 
             paper_detail = simplify_work(raw_work)
             if paper_detail.get("doi"):
@@ -882,12 +896,55 @@ def create_paper2citation_graph() -> GenericGraphBuilder:
         finally:
             await client.close()
 
+    async def paper_context_node(state: Paper2CitationState) -> Paper2CitationState:
+        client = OpenAlexCitationClient()
+        try:
+            target_raw_work = await _resolve_work_from_request(client, state.request.doi_or_url)
+            target_work = simplify_work(target_raw_work)
+            if target_work.get("doi"):
+                crossref = await client.get_crossref_metadata(target_work["doi"])
+                target_work = merge_crossref_metadata(target_work, crossref)
+
+            citing_raw_work = await _resolve_work_from_request(
+                client,
+                state.request.citing_work_openalex_id.strip()
+                or state.request.citing_work_doi_or_url.strip()
+                or state.request.citing_work_title.strip(),
+            )
+            citing_work = simplify_work(citing_raw_work)
+            context_bundle = await extract_citation_context_for_work(
+                target_raw_work=target_raw_work,
+                target_work=target_work,
+                citing_raw_work=citing_raw_work,
+                citing_work=citing_work,
+            )
+            state.paper_detail = target_work
+            state.citation_context = {
+                **context_bundle,
+                "citing_paper": citing_work,
+            }
+            notices = []
+            if context_bundle.get("best_effort_notice"):
+                notices.append(context_bundle["best_effort_notice"])
+            if not context_bundle.get("contexts"):
+                notices.append(
+                    "Only publicly readable HTML pages are searched in this first version; PDF-only or script-rendered pages may not expose inline citation text."
+                )
+            state.best_effort_notice = " ".join(dict.fromkeys(notices))
+            return state
+        except Exception as exc:
+            log.error(f"[paper2citation] paper_context failed: {exc}")
+            raise
+        finally:
+            await client.close()
+
     nodes = {
         "_start_": _start_,
         "author_search": author_search_node,
         "author_publications": author_publications_node,
         "author_detail": author_detail_node,
         "paper_detail": paper_detail_node,
+        "paper_context": paper_context_node,
         "_end_": lambda state: state,
     }
     edges = [
@@ -895,6 +952,7 @@ def create_paper2citation_graph() -> GenericGraphBuilder:
         ("author_publications", "_end_"),
         ("author_detail", "_end_"),
         ("paper_detail", "_end_"),
+        ("paper_context", "_end_"),
     ]
     builder.add_nodes(nodes).add_edges(edges).add_conditional_edge("_start_", _route)
     return builder

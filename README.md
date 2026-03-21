@@ -256,8 +256,24 @@ cp frontend-workflow/.env.example frontend-workflow/.env
 
 `fastapi_app/.env` (backend):
 ```bash
+# Internal API auth key. Must match frontend VITE_API_KEY.
+BACKEND_API_KEY=your-backend-api-key
+
 # Required: Your LLM API URL (replace with your own)
 DEFAULT_LLM_API_URL=https://api.openai.com/v1/
+
+# Optional: DrawIO OCR / VLM service
+PAPER2DRAWIO_OCR_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+PAPER2DRAWIO_OCR_API_KEY=your_dashscope_key
+
+# Optional: MinerU official remote API
+MINERU_API_BASE_URL=https://mineru.net/api/v4
+MINERU_API_KEY=your_mineru_api_key
+
+# Optional: SAM3 segmentation service for PDF2PPT / Image2PPT / Image2Drawio
+# SAM3_SERVER_URLS=http://GPU_MACHINE_IP:8001
+# SAM3_SERVER_URLS=http://GPU1:8021,http://GPU2:8022
+
 # Optional: Supabase (skip for no auth — core features still work)
 # SUPABASE_URL=https://your-project-id.supabase.co
 # SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -265,9 +281,15 @@ DEFAULT_LLM_API_URL=https://api.openai.com/v1/
 
 `frontend-workflow/.env` (frontend):
 ```bash
+# Must match BACKEND_API_KEY in fastapi_app/.env
+VITE_API_KEY=your-backend-api-key
+
 # Required: LLM API URLs available in the UI dropdown (comma separated)
 VITE_DEFAULT_LLM_API_URL=https://api.openai.com/v1
 VITE_LLM_API_URLS=https://api.openai.com/v1
+
+# Optional: DrawIO page model candidates shown in the UI
+VITE_PAPER2DRAWIO_MODEL=claude-sonnet-4-5-20250929,gpt-5.2
 # Optional: Supabase (keep consistent with backend)
 # VITE_SUPABASE_URL=https://your-project-id.supabase.co
 # VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -401,6 +423,24 @@ PDF2PPT_DEFAULT_MODEL=gpt-4o
 # ... see .env.example for full list
 ```
 
+**Service Integration Configuration** - External or local services used by image/PDF workflows:
+```bash
+# DrawIO OCR / VLM
+PAPER2DRAWIO_OCR_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+PAPER2DRAWIO_OCR_API_KEY=your_dashscope_key
+
+# MinerU official remote API; if MINERU_API_KEY is empty, backend falls back to local MINERU_PORT
+MINERU_API_BASE_URL=https://mineru.net/api/v4
+MINERU_API_KEY=your_mineru_api_key
+MINERU_API_MODEL_VERSION=vlm
+
+# SAM3 segmentation service for PDF2PPT / Image2PPT / Image2Drawio
+# One endpoint:
+SAM3_SERVER_URLS=http://127.0.0.1:8001
+# Or multiple endpoints for load balancing:
+# SAM3_SERVER_URLS=http://127.0.0.1:8021,http://127.0.0.1:8022
+```
+
 ##### Step 3: Frontend Configuration (`frontend-workflow/.env`)
 
 **LLM Provider Configuration** - Controls the API endpoint dropdown in the UI:
@@ -451,12 +491,12 @@ Script location: `/DataFlow-Agent/script/start_model_servers.sh`
 
 - **MinerU (PDF Parsing)**
   - `MINERU_MODEL_PATH`: Model path (default `models/MinerU2.5-2509-1.2B`)
-  - `MINERU_GPU_UTIL`: GPU memory utilization (default 0.2)
-  - **Instance configuration**: By default, 4 instances are started on GPU 0 and GPU 4 respectively (8 in total), ports 8011-8018.
+  - `MINERU_GPU_UTIL`: GPU memory utilization (default 0.85)
+  - **Instance configuration**: By default, one instance is started on each configured GPU, ports 8011-8013.
   - **Load Balancer**: Port 8010, automatically dispatches requests.
 
 - **SAM3 (Segment Anything Model 3)**
-  - **Instance configuration**: By default, one instance per configured GPU, ports start from 8021.
+  - **Instance configuration**: By default, one instance per configured GPU, ports 8021-8022.
   - **Model assets**: default paths are `./models/sam3/sam3.pt` and `./models/sam3/bpe_simple_vocab_16e6.txt.gz`.
   - **Load Balancer**: Port 8020.
 
@@ -465,13 +505,6 @@ Script location: `/DataFlow-Agent/script/start_model_servers.sh`
   - **Port**: 8003.
 
 > Before using, please modify `gpu_id` and the number of instances in the script according to your actual GPU count and memory.
-
-For SAM3 assets migration into this repository, run:
-
-```bash
-bash script/setup_sam3_assets.sh link
-# or: bash script/setup_sam3_assets.sh copy
-```
 
 For local one-command development test on a single GPU (SAM3 + backend + frontend), run:
 
@@ -546,15 +579,32 @@ pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
 **Paper2Any - Paper Workflow Web Frontend (Recommended)**
 
 ```bash
+# Configure local backend runtime (single source of truth)
+# Edit deploy/app_config.sh:
+#   APP_PORT=8000
+#   APP_WORKERS=2
+
 # Start backend API
-cd fastapi_app
-uvicorn main:app --host 0.0.0.0 --port 8000
+./deploy/start.sh
 
 # Start frontend (new terminal)
 cd frontend-workflow
 npm install
 npm run dev
 ```
+
+Default local addresses:
+- Frontend dev server: http://localhost:3000
+- Backend health: http://127.0.0.1:8000/health
+
+Useful local deploy commands:
+- Start backend: `./deploy/start.sh`
+- Stop backend: `./deploy/stop.sh`
+- Restart backend: `./deploy/restart.sh`
+
+Notes:
+- `deploy/start.sh` and `deploy/stop.sh` both read the same runtime config from `deploy/app_config.sh`.
+- If you change `APP_PORT`, update the frontend proxy target in `frontend-workflow/vite.config.ts` as well.
 
 **Configure Frontend Proxy**
 
@@ -570,6 +620,10 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',  // FastAPI backend address
+        changeOrigin: true,
+      },
+      '/outputs': {
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
     },
@@ -599,9 +653,10 @@ vllm serve opendatalab/MinerU2.5-2509-1.2B `
 #### 🎨 Web Frontend (Recommended)
 
 ```bash
+# Configure deploy/app_config.sh first if you want to change the local port/workers
+
 # Start backend API
-cd fastapi_app
-uvicorn main:app --host 0.0.0.0 --port 8000
+./deploy/start.sh
 
 # Start frontend (new terminal)
 cd frontend-workflow
@@ -610,6 +665,7 @@ npm run dev
 ```
 
 Visit `http://localhost:3000`.
+Backend health is available at `http://127.0.0.1:8000/health` by default.
 
 ---
 

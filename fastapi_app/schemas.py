@@ -315,6 +315,14 @@ class CitationWorkItem(BaseModel):
     landing_page_url: str = ""
 
 
+class CitationContextItem(BaseModel):
+    section: str = ""
+    sentence: str = ""
+    paragraph: str = ""
+    marker: str = ""
+    confidence: float = 0.0
+
+
 class CitationHonorStat(BaseModel):
     honor_label: str = ""
     count: int = 0
@@ -400,6 +408,26 @@ class Paper2CitationPaperDetailResponse(BaseModel):
     citing_institutions: List[CitationInstitutionStat] = []
     honors_stats: List[CitationHonorStat] = []
     matched_honorees: List[Dict[str, Any]] = []
+
+
+class Paper2CitationPaperContextRequest(BaseModel):
+    target_doi_or_url: str
+    citing_work_openalex_id: str = ""
+    citing_work_doi_or_url: str = ""
+    citing_work_title: str = ""
+
+
+class Paper2CitationPaperContextResponse(BaseModel):
+    success: bool = True
+    mode: str = "paper_context"
+    query: str = ""
+    best_effort_notice: str = ""
+    source_url: str = ""
+    target_reference_match: Dict[str, Any] = {}
+    citing_paper: Dict[str, Any] = {}
+    contexts: List[CitationContextItem] = []
+    summary: str = ""
+    citation_intents: List[str] = []
 
 
 # ===================== KB Report 相关 =====================

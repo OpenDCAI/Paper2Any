@@ -336,6 +336,34 @@ def images_to_pdf(image_paths: Sequence[str], output_pdf_path: str) -> str:
     return output_pdf_path
 
 
+def images_to_full_slide_ppt(image_paths: Sequence[str], output_pptx_path: str) -> str:
+    """
+    将一组图片直接按“整页铺图”的方式导出为 PPTX。
+
+    说明：
+    - 每张图片对应一页幻灯片；
+    - 不做 OCR、文字重建、背景抠图；
+    - 仅按幻灯片尺寸拉伸铺满，满足“PDF 每页作为一张图放进 PPTX”的需求。
+    """
+    prs = Presentation()
+    prs.slide_width = Inches(SLIDE_W_IN)
+    prs.slide_height = Inches(SLIDE_H_IN)
+
+    blank_layout = prs.slide_layouts[6] if len(prs.slide_layouts) > 6 else prs.slide_layouts[-1]
+    for img_path in image_paths:
+        slide = prs.slides.add_slide(blank_layout)
+        slide.shapes.add_picture(
+            str(img_path),
+            0,
+            0,
+            width=prs.slide_width,
+            height=prs.slide_height,
+        )
+
+    prs.save(output_pptx_path)
+    return output_pptx_path
+
+
 def pdf_to_images(pdf_path: str, out_dir: str, dpi: int = 220) -> List[str]:
     """
     将 PDF 每一页渲染为 PNG 图片，返回图片路径列表（按页码顺序）。
@@ -1232,6 +1260,34 @@ def convert_images_dir_to_pdf_and_ppt(
         clean_background=clean_background,
         extract_text_color=extract_text_color,
     )
+
+
+def convert_images_dir_to_pdf_and_full_slide_ppt(
+    input_dir: str,
+    output_pdf_path: Optional[str] = None,
+    output_pptx_path: Optional[str] = None,
+) -> Dict[str, Optional[str]]:
+    """
+    给定图片目录，生成：
+    - PDF：保留原有图片逐页合成；
+    - PPTX：每张图片直接作为一页整页背景，不做 OCR / 重建。
+    """
+    image_paths = list_images_in_dir(input_dir)
+    version_pattern = re.compile(r'_v\d+\.(png|jpg|jpeg|bmp|tif|tiff)$', re.IGNORECASE)
+    image_paths = [p for p in image_paths if not version_pattern.search(os.path.basename(p))]
+
+    if not image_paths:
+        raise ValueError(f"No images found in {input_dir!r}")
+
+    result: Dict[str, Optional[str]] = {"pdf": None, "pptx": None}
+
+    if output_pdf_path is not None:
+        result["pdf"] = images_to_pdf(image_paths, output_pdf_path)
+
+    if output_pptx_path is not None:
+        result["pptx"] = images_to_full_slide_ppt(image_paths, output_pptx_path)
+
+    return result
 
 
 async def convert_images_dir_to_pdf_and_ppt_api(

@@ -14,6 +14,7 @@ from fastapi_app.schemas import (
     PPTGenerationRequest,
 )
 from fastapi_app.services.paper2ppt_service import Paper2PPTService
+from fastapi_app.services.paper2ppt_task_service import Paper2PPTTaskService
 from dataflow_agent.utils.version_manager import ImageVersionManager
 from fastapi_app.utils import _to_outputs_url
 
@@ -23,6 +24,10 @@ router = APIRouter(tags=["paper2ppt"])
 
 def get_service() -> Paper2PPTService:
     return Paper2PPTService()
+
+
+def get_task_service() -> Paper2PPTTaskService:
+    return Paper2PPTTaskService()
 
 
 @router.post(
@@ -144,6 +149,63 @@ async def paper2ppt_ppt_json(
         request=request,
     )
     return data
+
+
+@router.post(
+    "/paper2ppt/generate-task",
+    response_model=Dict[str, Any],
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def paper2ppt_generate_task(
+    img_gen_model_name: str = Form(...),
+    chat_api_url: str = Form(...),
+    api_key: str = Form(...),
+    email: Optional[str] = Form(None),
+    style: str = Form(""),
+    reference_img: Optional[UploadFile] = File(None),
+    aspect_ratio: str = Form("16:9"),
+    language: str = Form("en"),
+    model: str = Form("gpt-5.1"),
+    image_resolution: Optional[str] = Form(None),
+    get_down: str = Form("false"),
+    all_edited_down: str = Form("false"),
+    result_path: str = Form(...),
+    pagecontent: Optional[str] = Form(None),
+    page_id: Optional[int] = Form(None),
+    edit_prompt: Optional[str] = Form(None),
+    task_service: Paper2PPTTaskService = Depends(get_task_service),
+):
+    req = PPTGenerationRequest(
+        img_gen_model_name=img_gen_model_name,
+        chat_api_url=chat_api_url,
+        api_key=api_key,
+        email=email,
+        style=style,
+        aspect_ratio=aspect_ratio,
+        language=language,
+        model=model,
+        get_down=get_down,
+        all_edited_down=all_edited_down,
+        result_path=result_path,
+        pagecontent=pagecontent,
+        page_id=page_id,
+        edit_prompt=edit_prompt,
+        image_resolution=image_resolution,
+    )
+    return await task_service.submit_generate_task(req=req, reference_img=reference_img)
+
+
+@router.get(
+    "/paper2ppt/tasks/{task_id}",
+    response_model=Dict[str, Any],
+    responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def paper2ppt_get_task(
+    task_id: str,
+    request: Request,
+    task_service: Paper2PPTTaskService = Depends(get_task_service),
+):
+    return task_service.get_task(task_id=task_id, request=request)
 
 
 @router.post(

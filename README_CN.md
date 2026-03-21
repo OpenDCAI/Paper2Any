@@ -247,8 +247,24 @@ cp frontend-workflow/.env.example frontend-workflow/.env
 
 `fastapi_app/.env`（后端）：
 ```bash
+# 内部接口鉴权 key，必须与前端 VITE_API_KEY 一致
+BACKEND_API_KEY=your-backend-api-key
+
 # 必填：你的 LLM API 地址（替换为你自己的）
 DEFAULT_LLM_API_URL=https://api.openai.com/v1/
+
+# 可选：DrawIO OCR / VLM 服务
+PAPER2DRAWIO_OCR_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+PAPER2DRAWIO_OCR_API_KEY=your_dashscope_key
+
+# 可选：MinerU 官方远端 API
+MINERU_API_BASE_URL=https://mineru.net/api/v4
+MINERU_API_KEY=your_mineru_api_key
+
+# 可选：给 PDF2PPT / Image2PPT / Image2Drawio 使用的 SAM3 分割服务
+# SAM3_SERVER_URLS=http://GPU机器IP:8001
+# SAM3_SERVER_URLS=http://GPU1:8021,http://GPU2:8022
+
 # 可选：Supabase（不填则跳过用户认证，核心功能不受影响）
 # SUPABASE_URL=https://your-project-id.supabase.co
 # SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -256,9 +272,15 @@ DEFAULT_LLM_API_URL=https://api.openai.com/v1/
 
 `frontend-workflow/.env`（前端）：
 ```bash
+# 必须与后端 BACKEND_API_KEY 完全一致
+VITE_API_KEY=your-backend-api-key
+
 # 必填：前端可用的 LLM API 地址（逗号分隔，显示在 UI 下拉菜单中）
 VITE_DEFAULT_LLM_API_URL=https://api.openai.com/v1
 VITE_LLM_API_URLS=https://api.openai.com/v1
+
+# 可选：DrawIO 页面展示的模型候选列表
+VITE_PAPER2DRAWIO_MODEL=claude-sonnet-4-5-20250929,gpt-5.2
 # 可选：Supabase（与后端保持一致）
 # VITE_SUPABASE_URL=https://your-project-id.supabase.co
 # VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -389,6 +411,24 @@ PDF2PPT_DEFAULT_MODEL=gpt-4o
 # ... 完整列表请查看 .env.example
 ```
 
+**服务集成配置** - 图片/PDF 工作流相关的模型服务：
+```bash
+# DrawIO OCR / VLM
+PAPER2DRAWIO_OCR_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+PAPER2DRAWIO_OCR_API_KEY=your_dashscope_key
+
+# MinerU 官方远端 API；若 MINERU_API_KEY 为空，后端会回退到本地 MINERU_PORT
+MINERU_API_BASE_URL=https://mineru.net/api/v4
+MINERU_API_KEY=your_mineru_api_key
+MINERU_API_MODEL_VERSION=vlm
+
+# SAM3 分割服务，供 PDF2PPT / Image2PPT / Image2Drawio 使用
+# 单个端点：
+SAM3_SERVER_URLS=http://127.0.0.1:8001
+# 或多个端点做负载均衡：
+# SAM3_SERVER_URLS=http://127.0.0.1:8021,http://127.0.0.1:8022
+```
+
 ##### 步骤 3：前端配置（`frontend-workflow/.env`）
 
 **LLM 提供商配置** - 控制 UI 中的 API 端点下拉菜单：
@@ -439,12 +479,12 @@ SUPABASE_JWT_SECRET=your-jwt-secret
 
 - **MinerU (PDF 解析)**
   - `MINERU_MODEL_PATH`: 模型路径 (默认 `models/MinerU2.5-2509-1.2B`)
-  - `MINERU_GPU_UTIL`: 显存占用比例 (默认 0.2)
-  - **实例配置**: 脚本默认在 GPU 0 和 GPU 4 上各启动 4 个实例 (共 8 个)，端口范围 8011-8018。
+  - `MINERU_GPU_UTIL`: 显存占用比例 (默认 0.85)
+  - **实例配置**: 脚本默认在每个配置 GPU 上各启动 1 个实例，端口范围 8011-8013。
   - **Load Balancer**: 端口 8010，自动分发请求。
 
 - **SAM3 (Segment Anything Model 3)**
-  - **实例配置**: 默认每个配置 GPU 启动 1 个实例，起始端口 8021。
+  - **实例配置**: 默认每个配置 GPU 启动 1 个实例，端口范围 8021-8022。
   - **模型路径**: 默认使用 `./models/sam3/sam3.pt` 与 `./models/sam3/bpe_simple_vocab_16e6.txt.gz`。
   - **Load Balancer**: 端口 8020。
 
@@ -453,13 +493,6 @@ SUPABASE_JWT_SECRET=your-jwt-secret
   - **端口**: 8003。
 
 > 使用前请根据实际 GPU 数量和显存情况修改脚本中的 `gpu_id` 和实例数量。
-
-若需将 SAM3 资产迁移到本仓库内，可执行：
-
-```bash
-bash script/setup_sam3_assets.sh link
-# 或：bash script/setup_sam3_assets.sh copy
-```
 
 如果你要在单张 GPU 上一条命令联调（SAM3 + 后端 + 前端），可执行：
 
@@ -534,15 +567,32 @@ pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
 **Paper2Any - 论文工作流 Web 前端（推荐）**
 
 ```bash
+# 本地后端运行配置统一在 deploy/app_config.sh 中维护
+# 可在该文件中修改：
+#   APP_PORT=8000
+#   APP_WORKERS=2
+
 # 启动后端 API
-cd fastapi_app
-uvicorn main:app --host 0.0.0.0 --port 8000
+./deploy/start.sh
 
 # 启动前端（新终端）
 cd frontend-workflow
 npm install
 npm run dev
 ```
+
+本地默认访问地址：
+- 前端开发服务：http://localhost:3000
+- 后端健康检查：http://127.0.0.1:8000/health
+
+本地部署常用命令：
+- 启动后端：`./deploy/start.sh`
+- 停止后端：`./deploy/stop.sh`
+- 重启后端：`./deploy/restart.sh`
+
+说明：
+- `deploy/start.sh` 和 `deploy/stop.sh` 都会读取同一个 `deploy/app_config.sh`，端口不再分别写死。
+- 如果修改了 `APP_PORT`，也要同步更新 `frontend-workflow/vite.config.ts` 里的前端代理地址。
 
 **配置前端代理**
 
@@ -558,6 +608,10 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',  // FastAPI 后端地址
+        changeOrigin: true,
+      },
+      '/outputs': {
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
     },
@@ -586,9 +640,10 @@ vllm serve opendatalab/MinerU2.5-2509-1.2B `
 #### 🎨 Web 前端（推荐）
 
 ```bash
+# 如需修改本地端口或 worker 数，请先编辑 deploy/app_config.sh
+
 # 启动后端 API
-cd fastapi_app
-uvicorn main:app --host 0.0.0.0 --port 8000
+./deploy/start.sh
 
 # 启动前端（新终端）
 cd frontend-workflow
@@ -597,6 +652,7 @@ npm run dev
 ```
 
 访问 `http://localhost:3000`。
+后端默认健康检查地址为 `http://127.0.0.1:8000/health`。
 
 ---
 

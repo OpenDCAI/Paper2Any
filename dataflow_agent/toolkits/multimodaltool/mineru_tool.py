@@ -16,20 +16,228 @@
 
 # vllm serve opendatalab/MinerU2.5-2509-1.2B --host 127.0.0.1 --port <port>
 
-
+import asyncio
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Sequence, Union, Optional
+import time
 import os
 import shutil
 import subprocess
 import re
 import random
 import warnings
+import zipfile
 from PIL import Image
-from mineru_vl_utils import MinerUClient
+import requests
 from dataflow_agent.logger import get_logger
 
+try:
+    from mineru_vl_utils import MinerUClient
+except Exception:
+    MinerUClient = None
+
 log = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class MinerURemoteConfig:
+    base_url: str
+    api_key: str
+    model_version: str
+    poll_interval_seconds: float
+    timeout_seconds: float
+
+
+def _get_mineru_remote_config() -> MinerURemoteConfig:
+    """
+    Return MinerU remote API configuration.
+
+    Priority:
+    1) process environment
+    2) `fastapi_app.config.settings`
+    3) hardcoded defaults
+    """
+    base_url = (os.getenv("MINERU_API_BASE_URL") or "").strip()
+    api_key = (os.getenv("MINERU_API_KEY") or "").strip()
+    model_version = (os.getenv("MINERU_API_MODEL_VERSION") or "").strip()
+    poll_interval_raw = (os.getenv("MINERU_API_POLL_INTERVAL_SECONDS") or "").strip()
+    timeout_raw = (os.getenv("MINERU_API_TIMEOUT_SECONDS") or "").strip()
+
+    try:
+        from fastapi_app.config.settings import settings
+
+        if not base_url:
+            base_url = (getattr(settings, "MINERU_API_BASE_URL", "") or "").strip()
+        if not api_key:
+            api_key = (getattr(settings, "MINERU_API_KEY", "") or "").strip()
+        if not model_version:
+            model_version = (getattr(settings, "MINERU_API_MODEL_VERSION", "") or "").strip()
+        if not poll_interval_raw:
+            poll_interval_raw = str(getattr(settings, "MINERU_API_POLL_INTERVAL_SECONDS", "") or "").strip()
+        if not timeout_raw:
+            timeout_raw = str(getattr(settings, "MINERU_API_TIMEOUT_SECONDS", "") or "").strip()
+    except Exception:
+        pass
+
+    if not base_url:
+        base_url = "https://mineru.net/api/v4"
+    if not model_version:
+        model_version = "vlm"
+
+    try:
+        poll_interval_seconds = float(poll_interval_raw) if poll_interval_raw else 5.0
+    except ValueError:
+        poll_interval_seconds = 5.0
+
+    try:
+        timeout_seconds = float(timeout_raw) if timeout_raw else 900.0
+    except ValueError:
+        timeout_seconds = 900.0
+
+    return MinerURemoteConfig(
+        base_url=base_url.rstrip("/"),
+        api_key=api_key,
+        model_version=model_version,
+        poll_interval_seconds=max(1.0, poll_interval_seconds),
+        timeout_seconds=max(30.0, timeout_seconds),
+    )
+
+
+def _should_use_remote_mineru(config: Optional[MinerURemoteConfig] = None) -> bool:
+    cfg = config or _get_mineru_remote_config()
+    return bool(cfg.api_key)
+
+
+def _require_mineru_client() -> Any:
+    if MinerUClient is None:
+        raise RuntimeError(
+            "mineru_vl_utils is not installed. "
+            "Install local MinerU dependencies or configure MINERU_API_KEY to use the remote API."
+        )
+    return MinerUClient
+
+
+def _raise_mineru_api_error(action: str, payload: Dict[str, Any]) -> None:
+    code = payload.get("code")
+    msg = payload.get("msg") or payload.get("message") or "unknown error"
+    trace_id = payload.get("trace_id") or ""
+    if trace_id:
+        raise RuntimeError(f"{action} failed: code={code}, msg={msg}, trace_id={trace_id}")
+    raise RuntimeError(f"{action} failed: code={code}, msg={msg}")
+
+
+def _copy_remote_result_tree(extracted_root: Path, auto_dir: Path, pdf_stem: str) -> str:
+    """
+    Copy the remote MinerU result tree into the legacy local output layout.
+    """
+    full_md_candidates = sorted(extracted_root.rglob("full.md"))
+    if not full_md_candidates:
+        raise RuntimeError("MinerU result zip missing full.md")
+
+    source_root = full_md_candidates[0].parent
+    shutil.copytree(source_root, auto_dir, dirs_exist_ok=True)
+
+    canonical_md = auto_dir / "full.md"
+    if not canonical_md.exists():
+        raise RuntimeError("MinerU result zip missing full.md after extraction")
+
+    markdown_text = canonical_md.read_text(encoding="utf-8", errors="replace")
+    legacy_markdown_path = auto_dir / f"{pdf_stem}.md"
+    legacy_markdown_path.write_text(markdown_text, encoding="utf-8")
+    return markdown_text
+
+
+def _run_remote_mineru_pdf_extract(
+    pdf_file: Path,
+    auto_dir: Path,
+    markdown_path: Path,
+    config: MinerURemoteConfig,
+) -> tuple[str, str]:
+    """
+    Official MinerU remote API path for local files:
+    1. request upload URL
+    2. upload file
+    3. poll extract result
+    4. download result zip
+    5. materialize full.md into legacy auto dir layout
+    """
+    headers = {
+        "Authorization": f"Bearer {config.api_key}",
+        "Content-Type": "application/json",
+        "Accept": "*/*",
+    }
+    batch_submit_url = f"{config.base_url}/file-urls/batch"
+    submit_payload = {
+        "files": [{"name": pdf_file.name, "data_id": f"{pdf_file.stem}-{int(time.time())}"}],
+        "model_version": config.model_version,
+    }
+
+    log.info("[MinerU-Remote] requesting upload URL for %s", pdf_file.name)
+    submit_resp = requests.post(batch_submit_url, headers=headers, json=submit_payload, timeout=60)
+    submit_resp.raise_for_status()
+    submit_data = submit_resp.json()
+    if submit_data.get("code") != 0:
+        _raise_mineru_api_error("MinerU remote upload-url request", submit_data)
+
+    batch_data = submit_data.get("data") or {}
+    batch_id = batch_data.get("batch_id")
+    file_urls = batch_data.get("file_urls") or []
+    if not batch_id or not file_urls:
+        raise RuntimeError(f"MinerU remote upload-url response missing batch_id/file_urls: {submit_data}")
+
+    upload_url = file_urls[0]
+    log.info("[MinerU-Remote] uploading %s (batch_id=%s)", pdf_file.name, batch_id)
+    with pdf_file.open("rb") as f:
+        upload_resp = requests.put(upload_url, data=f, timeout=300)
+    upload_resp.raise_for_status()
+
+    poll_url = f"{config.base_url}/extract-results/batch/{batch_id}"
+    poll_headers = {
+        "Authorization": f"Bearer {config.api_key}",
+        "Accept": "*/*",
+    }
+    deadline = time.monotonic() + config.timeout_seconds
+    full_zip_url = ""
+    while time.monotonic() < deadline:
+        poll_resp = requests.get(poll_url, headers=poll_headers, timeout=30)
+        poll_resp.raise_for_status()
+        poll_data = poll_resp.json()
+        if poll_data.get("code") != 0:
+            _raise_mineru_api_error("MinerU remote poll", poll_data)
+
+        result_items = ((poll_data.get("data") or {}).get("extract_result")) or []
+        first_item = result_items[0] if result_items else {}
+        state = (first_item.get("state") or "").strip().lower()
+        if state == "done":
+            full_zip_url = (first_item.get("full_zip_url") or "").strip()
+            break
+        if state == "failed":
+            err_msg = (first_item.get("err_msg") or "unknown error").strip()
+            raise RuntimeError(f"MinerU remote task failed: {err_msg}")
+        time.sleep(config.poll_interval_seconds)
+
+    if not full_zip_url:
+        raise TimeoutError(f"MinerU remote poll timeout after {int(config.timeout_seconds)}s")
+
+    raw_dir = auto_dir / "_remote_raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = raw_dir / "result.zip"
+    extract_dir = raw_dir / "extract"
+    extract_dir.mkdir(parents=True, exist_ok=True)
+
+    log.info("[MinerU-Remote] downloading result zip for %s", pdf_file.name)
+    zip_resp = requests.get(full_zip_url, timeout=120)
+    zip_resp.raise_for_status()
+    zip_path.write_bytes(zip_resp.content)
+
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        zf.extractall(extract_dir)
+
+    markdown_text = _copy_remote_result_tree(extract_dir, auto_dir, pdf_file.stem)
+    markdown_path.write_text(markdown_text, encoding="utf-8")
+    log.info("[MinerU-Remote] markdown generated: %s", markdown_path)
+    return markdown_text, str(auto_dir)
 
 
 # ---------------------------------------
@@ -38,7 +246,8 @@ log = get_logger(__name__)
 def run_two_step_extract(image_path: str, port: int):
     """同步调用 MinerU two_step_extract，处理单张图片并返回结构化结果。"""
     image = Image.open(image_path)
-    client = MinerUClient(
+    client_cls = _require_mineru_client()
+    client = client_cls(
         backend="http-client",
         server_url=f"http://127.0.0.1:{port}"
     )
@@ -51,7 +260,8 @@ def run_two_step_extract(image_path: str, port: int):
 def run_batch_two_step_extract(image_paths: list[str], port: int):
     """同步批量调用 MinerU two_step_extract，处理多张图片并返回结果列表。"""
     images = [Image.open(p) for p in image_paths]
-    client = MinerUClient(
+    client_cls = _require_mineru_client()
+    client = client_cls(
         backend="http-client",
         server_url=f"http://127.0.0.1:{port}"
     )
@@ -64,7 +274,8 @@ def run_batch_two_step_extract(image_paths: list[str], port: int):
 async def run_aio_two_step_extract(image_path: str, port: int):
     """异步调用 MinerU two_step_extract，处理单张图片并返回结构化结果。"""
     image = Image.open(image_path)
-    client = MinerUClient(
+    client_cls = _require_mineru_client()
+    client = client_cls(
         backend="http-client",
         server_url=f"http://127.0.0.1:{port}"
     )
@@ -77,7 +288,8 @@ async def run_aio_two_step_extract(image_path: str, port: int):
 async def run_aio_batch_two_step_extract(image_paths: list[str], port: int):
     """异步批量调用 MinerU two_step_extract，处理多张图片并返回结果列表。"""
     images = [Image.open(p) for p in image_paths]
-    client = MinerUClient(
+    client_cls = _require_mineru_client()
+    client = client_cls(
         backend="http-client",
         server_url=f"http://127.0.0.1:{port}"
     )
@@ -425,6 +637,17 @@ async def run_mineru_pdf_extract_http(
     if markdown_path.exists():
         md = markdown_path.read_text(encoding="utf-8", errors="replace")
         return md, str(auto_dir)
+
+    remote_config = _get_mineru_remote_config()
+    if _should_use_remote_mineru(remote_config):
+        log.info("[MinerU-Remote] extracting %s via official API", pdf_file.name)
+        return await asyncio.to_thread(
+            _run_remote_mineru_pdf_extract,
+            pdf_file,
+            auto_dir,
+            markdown_path,
+            remote_config,
+        )
 
     try:
         from pdf2image import convert_from_path

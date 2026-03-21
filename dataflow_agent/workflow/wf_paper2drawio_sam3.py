@@ -45,6 +45,7 @@ from dataflow_agent.toolkits.multimodaltool.sam3_tool import (
     run_sam3_predict_runs,
 )
 from dataflow_agent.toolkits.multimodaltool.ocr_config import get_ocr_api_credentials
+from dataflow_agent.toolkits.multimodaltool.ocr_utils import extract_bbox_items
 from dataflow_agent.toolkits.drawio_tools import wrap_xml
 from dataflow_agent.toolkits.image2drawio import (
     extract_text_color,
@@ -120,6 +121,8 @@ SAM3_SHAPE_IMAGE_IOU = 0.6
 MAX_DRAWIO_ELEMENTS = 800
 MIN_IMAGE_AREA_RATIO = 0.00001
 MAX_IMAGE_BBOX_AREA_RATIO = 0.88
+FALLBACK_COARSE_TEXT_MAX_AREA_RATIO = 0.08
+FALLBACK_LOCAL_TEXT_MAX_AREA_RATIO = 0.035
 
 # 对低覆盖的大图标做前景细化回退，避免主体缺失且避免纯色背景串入
 IMAGE_MASK_REPAIR_LOW_COVERAGE_THRESHOLD = 0.58
@@ -940,6 +943,144 @@ def _bbox_area(b: List[int]) -> int:
     return max(0, b[2] - b[0]) * max(0, b[3] - b[1])
 
 
+def _sanitize_bbox(bbox_px: Optional[List[int]], target_shape: tuple[int, int, int]) -> Optional[List[int]]:
+    if not bbox_px or len(bbox_px) != 4:
+        return None
+    h, w = target_shape[:2]
+    try:
+        x1, y1, x2, y2 = [float(v) for v in bbox_px]
+    except Exception:
+        return None
+    x1 = int(round(x1))
+    y1 = int(round(y1))
+    x2 = int(round(x2))
+    y2 = int(round(y2))
+    x1 = max(0, min(w - 1, x1))
+    y1 = max(0, min(h - 1, y1))
+    x2 = max(0, min(w, x2))
+    y2 = max(0, min(h, y2))
+    if x2 - x1 < 2 or y2 - y1 < 2:
+        return None
+    return [x1, y1, x2, y2]
+
+
+def _text_block_bbox(block: Dict[str, Any], image_w: int, image_h: int) -> Optional[List[int]]:
+    geometry = block.get("geometry", {}) or {}
+    try:
+        x = float(geometry.get("x", 0))
+        y = float(geometry.get("y", 0))
+        width = float(geometry.get("width", 0))
+        height = float(geometry.get("height", 0))
+    except Exception:
+        return None
+
+    bbox = [
+        int(round(x)),
+        int(round(y)),
+        int(round(x + width)),
+        int(round(y + height)),
+    ]
+    return _sanitize_bbox(bbox, (image_h, image_w, 1))
+
+
+def _sample_surrounding_color(image_bgr: np.ndarray, bbox: List[int], pad: int = 8) -> Tuple[int, int, int]:
+    h, w = image_bgr.shape[:2]
+    x1, y1, x2, y2 = [int(v) for v in bbox]
+    ox1 = max(0, x1 - pad)
+    oy1 = max(0, y1 - pad)
+    ox2 = min(w, x2 + pad)
+    oy2 = min(h, y2 + pad)
+    if ox2 <= ox1 or oy2 <= oy1:
+        return (255, 255, 255)
+
+    outer = image_bgr[oy1:oy2, ox1:ox2]
+    if outer.size == 0:
+        return (255, 255, 255)
+
+    inner_x1 = max(0, x1 - ox1)
+    inner_y1 = max(0, y1 - oy1)
+    inner_x2 = min(outer.shape[1], x2 - ox1)
+    inner_y2 = min(outer.shape[0], y2 - oy1)
+
+    ring_mask = np.ones(outer.shape[:2], dtype=bool)
+    ring_mask[inner_y1:inner_y2, inner_x1:inner_x2] = False
+    ring_pixels = outer[ring_mask]
+    if ring_pixels.size == 0:
+        return (255, 255, 255)
+
+    median_bgr = np.median(ring_pixels.reshape(-1, 3), axis=0)
+    return tuple(int(max(0, min(255, round(v)))) for v in median_bgr.tolist())
+
+
+def _text_blocks_are_coarse(text_blocks: List[Dict[str, Any]], image_w: int, image_h: int) -> bool:
+    if not text_blocks:
+        return False
+
+    image_area = float(max(1, image_w * image_h))
+    area_ratios: List[float] = []
+    for block in text_blocks:
+        bbox = _text_block_bbox(block, image_w, image_h)
+        if not bbox:
+            continue
+        area_ratios.append(float(_bbox_area(bbox)) / image_area)
+
+    if not area_ratios:
+        return False
+    max_ratio = max(area_ratios)
+    if max_ratio >= FALLBACK_COARSE_TEXT_MAX_AREA_RATIO:
+        return True
+    if len(area_ratios) <= 3 and max_ratio >= 0.03:
+        return True
+    return False
+
+
+def _build_visual_fallback_elements(
+    image_bgr: np.ndarray,
+    text_blocks: List[Dict[str, Any]],
+    out_dir: Path,
+) -> Tuple[List[Dict[str, Any]], bool]:
+    h, w = image_bgr.shape[:2]
+    use_original_with_text = _text_blocks_are_coarse(text_blocks, w, h)
+
+    fallback_dir = out_dir / "visual_fallback"
+    fallback_dir.mkdir(parents=True, exist_ok=True)
+    bg_path = fallback_dir / ("background_original.png" if use_original_with_text else "background_no_text.png")
+
+    bg_image = image_bgr.copy()
+    if not use_original_with_text:
+        image_area = float(max(1, w * h))
+        for block in text_blocks:
+            bbox = _text_block_bbox(block, w, h)
+            if not bbox:
+                continue
+            bbox_area_ratio = float(_bbox_area(bbox)) / image_area
+            if bbox_area_ratio > FALLBACK_LOCAL_TEXT_MAX_AREA_RATIO:
+                continue
+            text = (block.get("text") or "").strip()
+            if not text:
+                continue
+
+            x1, y1, x2, y2 = bbox
+            pad = max(2, min(10, int(round(min(x2 - x1, y2 - y1) * 0.15))))
+            ex1 = max(0, x1 - pad)
+            ey1 = max(0, y1 - pad)
+            ex2 = min(w, x2 + pad)
+            ey2 = min(h, y2 + pad)
+            fill_bgr = _sample_surrounding_color(bg_image, [ex1, ey1, ex2, ey2], pad=pad + 4)
+            cv2.rectangle(bg_image, (ex1, ey1), (ex2, ey2), fill_bgr, -1)
+
+    cv2.imwrite(str(bg_path), bg_image)
+    elements = [{
+        "id": "fallback_background",
+        "kind": "image",
+        "bbox_px": [0, 0, w, h],
+        "image_path": str(bg_path),
+        "area": int(w * h),
+        "group": "background_fallback",
+    }]
+    return elements, use_original_with_text
+
+
 def _normalize_prompt(prompt: str) -> str:
     return (prompt or "").strip().lower()
 
@@ -1261,7 +1402,12 @@ def _build_elements_from_sam3(
 
 # ==================== WORKFLOW ====================
 @register("paper2drawio_sam3")
+@register("paper2drawio_visual")
 def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
+    """
+    Paper2Drawio visual workflow: start from an existing image and rebuild
+    it into editable draw.io XML with OCR + SAM3 segmentation.
+    """
     builder = GenericGraphBuilder(state_model=Paper2DrawioState, entry_point="_start_")
 
     def _init_node(state: Paper2DrawioState) -> Paper2DrawioState:
@@ -1318,6 +1464,7 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
                 name="ImageTextBBoxAgent",
                 model_name="qwen-vl-ocr-2025-11-20",
                 chat_api_url=chat_api_url,
+                max_tokens=4096,
                 vlm_mode="ocr",
                 additional_params={"input_image": img_path, "timeout": vlm_timeout},
             )
@@ -1337,6 +1484,8 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
                 bbox_res = []
 
         if not isinstance(bbox_res, list):
+            bbox_res = extract_bbox_items(bbox_res)
+        if not isinstance(bbox_res, list):
             bbox_res = []
 
         try:
@@ -1347,6 +1496,7 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
             log.warning(f"[paper2drawio_sam3][VLM] vectorize failed: {e}")
             text_blocks = []
 
+        log.info(f"[paper2drawio_sam3][VLM] text_blocks={len(text_blocks)} image={img_path}")
         state.temp_data["text_blocks"] = text_blocks
         return state
 
@@ -1360,6 +1510,14 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
             state.temp_data["sam3_results"] = []
             return state
         results = _sam3_predict_groups(client, img_path)
+        group_counts: Dict[str, int] = {}
+        for item in results:
+            group = str(item.get("group") or "unknown")
+            group_counts[group] = group_counts.get(group, 0) + 1
+        log.info(
+            f"[paper2drawio_sam3] sam3_results={len(results)} "
+            f"groups={json.dumps(group_counts, ensure_ascii=False, sort_keys=True)} image={img_path}"
+        )
         state.temp_data["sam3_results"] = results
         try:
             base_dir = Path(_ensure_result_path(state))
@@ -1390,7 +1548,24 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
         results = state.temp_data.get("sam3_results", []) or []
         base_dir = Path(_ensure_result_path(state))
         elements = _build_elements_from_sam3(results, image_bgr, base_dir)
+        fallback_hide_text_blocks = False
+        if not elements:
+            text_blocks = state.temp_data.get("text_blocks", []) or []
+            elements, fallback_hide_text_blocks = _build_visual_fallback_elements(
+                image_bgr=image_bgr,
+                text_blocks=text_blocks,
+                out_dir=base_dir,
+            )
+            log.warning(
+                f"[paper2drawio_sam3] SAM3 produced no drawable elements; "
+                f"using visual fallback background (hide_text_blocks={fallback_hide_text_blocks})"
+            )
+        else:
+            shape_count = sum(1 for item in elements if item.get("kind") == "shape")
+            image_count = sum(1 for item in elements if item.get("kind") == "image")
+            log.info(f"[paper2drawio_sam3] drawio_elements shape={shape_count} image={image_count}")
         state.temp_data["drawio_elements"] = elements
+        state.temp_data["fallback_hide_text_blocks"] = fallback_hide_text_blocks
         return state
 
     async def _render_xml_node(state: Paper2DrawioState) -> Paper2DrawioState:
@@ -1404,6 +1579,8 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
 
         elements = state.temp_data.get("drawio_elements", []) or []
         text_blocks = state.temp_data.get("text_blocks", []) or []
+        if state.temp_data.get("fallback_hide_text_blocks"):
+            text_blocks = []
 
         cells: List[str] = []
         id_counter = 2

@@ -7,6 +7,8 @@ from fastapi_app.schemas import (
     Paper2CitationAuthorDetailResponse,
     Paper2CitationAuthorPublicationsRequest,
     Paper2CitationAuthorPublicationsResponse,
+    Paper2CitationPaperContextRequest,
+    Paper2CitationPaperContextResponse,
     Paper2CitationAuthorSearchRequest,
     Paper2CitationAuthorSearchResponse,
     Paper2CitationPaperDetailRequest,
@@ -126,4 +128,31 @@ async def run_paper2citation_paper_detail_wf_api(
         citing_institutions=_state_value(final_state, "citing_institutions", []),
         honors_stats=_state_value(final_state, "honors_stats", []),
         matched_honorees=_state_value(final_state, "matched_honorees", []),
+    )
+
+
+async def run_paper2citation_paper_context_wf_api(
+    req: Paper2CitationPaperContextRequest,
+) -> Paper2CitationPaperContextResponse:
+    state = Paper2CitationState(
+        request=Paper2CitationRequest(
+            mode="paper_context",
+            doi_or_url=req.target_doi_or_url,
+            citing_work_openalex_id=req.citing_work_openalex_id,
+            citing_work_doi_or_url=req.citing_work_doi_or_url,
+            citing_work_title=req.citing_work_title,
+        )
+    )
+    final_state = await run_workflow("paper2citation", state)
+    return Paper2CitationPaperContextResponse(
+        success=True,
+        mode="paper_context",
+        query=_state_value(final_state, "query", ""),
+        best_effort_notice=_state_value(final_state, "best_effort_notice", ""),
+        source_url=_state_value(_state_value(final_state, "citation_context", {}), "source_url", ""),
+        target_reference_match=_state_value(_state_value(final_state, "citation_context", {}), "target_reference_match", {}),
+        citing_paper=_state_value(_state_value(final_state, "citation_context", {}), "citing_paper", {}),
+        contexts=_state_value(_state_value(final_state, "citation_context", {}), "contexts", []),
+        summary=_state_value(_state_value(final_state, "citation_context", {}), "summary", ""),
+        citation_intents=_state_value(_state_value(final_state, "citation_context", {}), "citation_intents", []),
     )

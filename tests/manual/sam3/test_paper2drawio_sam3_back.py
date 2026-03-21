@@ -1,5 +1,5 @@
 """
-Test script for paper2drawio_sam3 workflow.
+Test script for the visual paper2drawio workflow.
 
 This script runs the workflow directly (no CLI). It expects:
 - SAM3 HTTP service running on http://127.0.0.1:8001

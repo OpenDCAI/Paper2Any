@@ -56,7 +56,7 @@ class Image2DrawioService:
         input_path.write_bytes(content_bytes)
         abs_img_path = input_path.resolve()
 
-        # Build request for SAM3-based paper2drawio workflow
+        # Build request for the visual paper2drawio workflow
         req = Paper2DrawioRequest(
             input_type="PDF",
             chat_api_url=settings.PAPER2DRAWIO_OCR_API_URL,
@@ -73,7 +73,7 @@ class Image2DrawioService:
         state.result_path = str(run_dir)
 
         async with task_semaphore:
-            final_state = await run_workflow("paper2drawio_sam3", state)
+            final_state = await run_workflow("paper2drawio_visual", state)
 
         drawio_xml = final_state.get("drawio_xml", "") if isinstance(final_state, dict) else getattr(final_state, "drawio_xml", "")
         drawio_path = (

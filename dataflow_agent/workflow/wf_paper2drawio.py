@@ -47,11 +47,15 @@ def _ensure_result_path(state: Paper2DrawioState) -> str:
 
 
 @register("paper2drawio")
+@register("paper2drawio_semantic")
 def create_paper2drawio_graph() -> GenericGraphBuilder:
     """
-    Paper2Drawio Workflow: AI 驱动的图表生成
+    Paper2Drawio semantic workflow: based on paper/text semantics,
+    plan a new diagram and generate draw.io XML.
 
-    命令: dfa run --wf paper2drawio
+    命令:
+    - dfa run --wf paper2drawio
+    - dfa run --wf paper2drawio_semantic
     """
     builder = GenericGraphBuilder(
         state_model=Paper2DrawioState,

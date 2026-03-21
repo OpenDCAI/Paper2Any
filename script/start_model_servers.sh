@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 # ==============================================================================
 #  MinerU & SAM Production Launcher v2.0
 #  "One GPU, One Instance, Maximum Power"
@@ -19,18 +21,19 @@ BOLD='\033[1m'
 # ------------------------------------------------------------------------------
 #  ⚙️ Configuration
 # ------------------------------------------------------------------------------
-ROOT_DIR="$(dirname "$0")/.."
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_DIR="$ROOT_DIR/logs"
+PAPER2ANY_PYTHON="${PAPER2ANY_PYTHON:-$(command -v python3)}"
 
 # MinerU Config
 MINERU_MODEL="models/MinerU2.5-2509-1.2B"
 MINERU_GPU_UTIL=0.85
 MINERU_MAX_SEQS=64
-MINERU_GPUS=(7 1 2 3)
+MINERU_GPUS=(1 2 3)
 MINERU_START_PORT=8011
 
 # SAM3 Config
-SAM3_GPUS=(4 5 6)
+SAM3_GPUS=(4 5)
 SAM3_START_PORT=8021
 SAM3_CHECKPOINT_PATH="$ROOT_DIR/models/sam3/sam3.pt"
 SAM3_BPE_PATH="$ROOT_DIR/models/sam3/bpe_simple_vocab_16e6.txt.gz"
@@ -43,6 +46,7 @@ log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERR]${NC} $1"; }
+log_debug() { echo -e "${CYAN}[DBG]${NC} $1"; }
 
 # A cool spinner for waiting
 spinner() {
@@ -61,7 +65,7 @@ spinner() {
 
 check_port() {
     local port=$1
-    lsof -i:$port > /dev/null
+    lsof -i:$port > /dev/null 2>&1
     if [ $? -eq 0 ]; then
         return 0 # Port is in use
     else
@@ -71,11 +75,62 @@ check_port() {
 
 kill_port() {
     local port=$1
-    local pid=$(lsof -t -i:$port)
-    if [ ! -z "$pid" ]; then
+    local pid
+    pid=$(lsof -t -i:$port 2>/dev/null || true)
+    if [ -n "$pid" ]; then
         log_warn "Port $port is busy (PID: $pid). Killing..."
-        kill -9 $pid 2>/dev/null
+        kill -9 $pid 2>/dev/null || true
     fi
+}
+
+wait_for_port() {
+    local port=$1
+    local label=$2
+    local timeout=${3:-120}
+    local waited=0
+
+    while [ "$waited" -lt "$timeout" ]; do
+        if check_port "$port"; then
+            log_success "$label is listening on :$port"
+            return 0
+        fi
+        sleep 2
+        waited=$((waited + 2))
+    done
+
+    log_error "$label failed to bind :$port within ${timeout}s"
+    return 1
+}
+
+cleanup_cluster_ports() {
+    local ports=({8010..8024} 8003)
+    for port in "${ports[@]}"; do
+        kill_port "$port"
+    done
+}
+
+check_cuda_runtime() {
+    "$PAPER2ANY_PYTHON" - <<'PY'
+import sys
+
+try:
+    import torch
+except Exception as exc:
+    print(f"TORCH_IMPORT_ERROR: {exc}")
+    sys.exit(1)
+
+available = torch.cuda.is_available()
+count = 0
+try:
+    count = torch.cuda.device_count()
+except Exception:
+    count = 0
+
+print(f"torch.cuda.is_available={available}")
+print(f"torch.cuda.device_count={count}")
+if not available or count <= 0:
+    sys.exit(1)
+PY
 }
 
 # ------------------------------------------------------------------------------
@@ -95,7 +150,14 @@ echo "            |_|                                    |___/ "
 echo -e "${NC}"
 echo -e "  Target: ${BOLD}High Concurrency / Single Instance Mode${NC}"
 echo -e "  Log Dir: $LOG_DIR"
+echo -e "  Python:  $PAPER2ANY_PYTHON"
 echo "------------------------------------------------------------"
+
+log_info "Running CUDA preflight..."
+if ! check_cuda_runtime; then
+    log_error "Current Python environment cannot access CUDA. Activate a CUDA-capable env before starting model servers."
+    exit 1
+fi
 
 # --- Step 1: Deep Cleanup ---
 log_info "Initiating deep cleanup sequence..."
@@ -108,10 +170,13 @@ done
 
 # Nuke process names
 log_info "Nuking vLLM and worker processes..."
-pkill -9 -f "vllm.entrypoints.openai.api_server" 2>/dev/null
-pkill -9 -f "VLLM::EngineCore" 2>/dev/null
-pkill -9 -f "sam_server" 2>/dev/null
-pkill -9 -f "ocr_server" 2>/dev/null
+pkill -9 -f "vllm.entrypoints.openai.api_server" 2>/dev/null || true
+pkill -9 -f "VLLM::EngineCore" 2>/dev/null || true
+pkill -9 -f "sam_server" 2>/dev/null || true
+pkill -9 -f "sam3_server" 2>/dev/null || true
+pkill -9 -f "ocr_server" 2>/dev/null || true
+pkill -9 -f "generic_lb.py --port 8010" 2>/dev/null || true
+pkill -9 -f "generic_lb.py --port 8020" 2>/dev/null || true
 
 sleep 2
 log_success "Cleanup complete. System is clean."
@@ -129,7 +194,7 @@ for i in "${!MINERU_GPUS[@]}"; do
     
     log_info "Booting instance on GPU $gpu_id @ Port $port..."
     
-    CUDA_VISIBLE_DEVICES=$gpu_id nohup python3 -m vllm.entrypoints.openai.api_server \
+    CUDA_VISIBLE_DEVICES=$gpu_id nohup "$PAPER2ANY_PYTHON" -m vllm.entrypoints.openai.api_server \
         --model "$MINERU_MODEL" \
         --served-model-name "mineru" \
         --host 127.0.0.1 \
@@ -156,7 +221,7 @@ for i in "${!SAM3_GPUS[@]}"; do
     
     log_info "Booting SAM3 on GPU $gpu_id @ Port $port..."
     
-    env CUDA_VISIBLE_DEVICES=$gpu_id nohup python3 -m dataflow_agent.toolkits.model_servers.sam3_server \
+    env CUDA_VISIBLE_DEVICES=$gpu_id nohup "$PAPER2ANY_PYTHON" -m dataflow_agent.toolkits.model_servers.sam3_server \
         --port $port \
         --host 0.0.0.0 \
         --checkpoint "$SAM3_CHECKPOINT_PATH" \
@@ -167,12 +232,43 @@ for i in "${!SAM3_GPUS[@]}"; do
     SAM3_BACKENDS+="http://127.0.0.1:$port "
 done
 
-# --- Step 4: Launch Load Balancers ---
+# --- Step 4: Launch OCR ---
+echo "------------------------------------------------------------"
+log_info "Starting OCR Service (CPU)..."
+CUDA_VISIBLE_DEVICES="" nohup "$PAPER2ANY_PYTHON" -m uvicorn dataflow_agent.toolkits.model_servers.ocr_server:app \
+    --port 8003 --host 0.0.0.0 --workers 4 \
+    > "$LOG_DIR/ocr_server.log" 2>&1 &
+log_success "OCR Service running on :8003"
+
+# --- Step 5: Validate model backends ---
+echo "------------------------------------------------------------"
+log_info "Validating model backends..."
+
+failed=0
+for i in "${!MINERU_GPUS[@]}"; do
+    port=$((MINERU_START_PORT + i))
+    wait_for_port "$port" "MinerU backend" 240 || failed=1
+done
+
+for i in "${!SAM3_GPUS[@]}"; do
+    port=$((SAM3_START_PORT + i))
+    wait_for_port "$port" "SAM3 backend" 120 || failed=1
+done
+
+wait_for_port 8003 "OCR service" 30 || failed=1
+
+if [ "$failed" -ne 0 ]; then
+    log_error "Model server startup incomplete. Check logs under $LOG_DIR"
+    cleanup_cluster_ports
+    exit 1
+fi
+
+# --- Step 6: Launch Load Balancers ---
 echo "------------------------------------------------------------"
 log_info "Initializing Load Balancers..."
 
 # MinerU LB
-nohup python3 dataflow_agent/toolkits/model_servers/generic_lb.py \
+nohup "$PAPER2ANY_PYTHON" dataflow_agent/toolkits/model_servers/generic_lb.py \
     --port 8010 \
     --name "MinerU LB" \
     --backends $MINERU_BACKENDS \
@@ -180,20 +276,26 @@ nohup python3 dataflow_agent/toolkits/model_servers/generic_lb.py \
 log_success "MinerU LB running on :8010 -> [ $MINERU_BACKENDS]"
 
 # SAM3 LB
-nohup python3 dataflow_agent/toolkits/model_servers/generic_lb.py \
+nohup "$PAPER2ANY_PYTHON" dataflow_agent/toolkits/model_servers/generic_lb.py \
     --port 8020 \
     --name "SAM3 LB" \
     --backends $SAM3_BACKENDS \
     > "$LOG_DIR/sam_lb.log" 2>&1 &
 log_success "SAM3 LB running on :8020 -> [ $SAM3_BACKENDS]"
 
-# --- Step 5: Launch OCR ---
+# --- Step 7: Validate load balancers ---
 echo "------------------------------------------------------------"
-log_info "Starting OCR Service (CPU)..."
-CUDA_VISIBLE_DEVICES="" nohup uvicorn dataflow_agent.toolkits.model_servers.ocr_server:app \
-    --port 8003 --host 0.0.0.0 --workers 4 \
-    > "$LOG_DIR/ocr_server.log" 2>&1 &
-log_success "OCR Service running on :8003"
+log_info "Validating load balancers..."
+
+failed=0
+wait_for_port 8010 "MinerU LB" 30 || failed=1
+wait_for_port 8020 "SAM3 LB" 30 || failed=1
+
+if [ "$failed" -ne 0 ]; then
+    log_error "Load balancer startup incomplete. Check logs under $LOG_DIR"
+    cleanup_cluster_ports
+    exit 1
+fi
 
 # --- Final Check ---
 echo "------------------------------------------------------------"

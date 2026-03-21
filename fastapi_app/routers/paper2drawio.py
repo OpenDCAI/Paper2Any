@@ -40,6 +40,7 @@ class GenerateResponse(BaseModel):
     xml_content: str = ""
     file_path: str = ""
     error: Optional[str] = None
+    used_model: Optional[str] = None
 
 
 class ChatResponse(BaseModel):

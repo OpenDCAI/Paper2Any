@@ -1,20 +1,25 @@
 from __future__ import annotations
 
+import json
 import os
 import time
 import copy
 from pathlib import Path
-from typing import List, Dict, Any, Tuple
-import re
+from typing import List, Dict, Any
 
 from dataflow_agent.state import Paper2FigureState
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register
 from dataflow_agent.agentroles import create_react_agent, create_simple_agent
-from dataflow_agent.agentroles.paper2any_agents.long_paper_outline_agent import create_long_paper_outline_agent
 from dataflow_agent.agentroles.paper2any_agents.content_expander_agent import create_content_expander
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
+from dataflow_agent.utils_markdown_sections import (
+    build_section_batches,
+    extract_markdown_sections,
+    get_safe_outline_input_budget,
+    is_probably_english,
+)
 
 from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract_http
 
@@ -75,90 +80,17 @@ def _abs_path(p: str) -> str:
         return p
 
 
-def _is_english_text(text: str | Any) -> bool:
-    """简单判断文本是否主要为英文（ASCII占比 > 80%）"""
-    if not text:
-        # 默认非英文（中文）以保持较低的字符阈值，避免误判导致过度扩写
-        return False
-    
-    if not isinstance(text, str):
-        try:
-            text = str(text)
-        except Exception:
-            return False
-
-    # 统计前 5000 个字符即可
-    sample = text[:5000]
-    ascii_count = sum(1 for c in sample if ord(c) < 128)
-    return (ascii_count / len(sample)) > 0.8
-
-
 def _calculate_target_chars(target_pages: int, text: str = "") -> int:
     """
     根据页数和语言类型计算目标字符数
     英文：约 3000 chars/page
     中文：约 800 chars/page
     """
-    is_en = _is_english_text(text)
+    is_en = is_probably_english(text)
     chars_per_page = 3000 if is_en else 800
     target = target_pages * chars_per_page
     # log.info(f"[long_paper] 目标计算: {target_pages}页, 英文={is_en}, 阈值={target} chars")
     return target
-
-
-def split_text_by_chars(text: str, chunk_size: int = 30000) -> List[str]:
-    """
-    按字符数切分文本，尽量在段落边界切分
-    """
-    if len(text) <= chunk_size:
-        return [text]
-    
-    chunks = []
-    current_pos = 0
-    
-    while current_pos < len(text):
-        end_pos = min(current_pos + chunk_size, len(text))
-        
-        # 向后查找段落边界（双换行符），但不超过500字符
-        if end_pos < len(text):
-            boundary = text.rfind('\n\n', current_pos, end_pos + 500)
-            if boundary > current_pos:
-                end_pos = boundary
-        
-        chunks.append(text[current_pos:end_pos])
-        current_pos = end_pos
-    
-    return chunks
-
-
-def calculate_batches(
-    total_chars: int,
-    target_pages: int,
-    pages_per_batch: int = 10
-) -> List[Tuple[int, int, int, bool, bool]]:
-    """
-    计算分批方案
-    
-    Args:
-        total_chars: 总字符数
-        target_pages: 目标总页数
-        pages_per_batch: 每批次目标页数
-    
-    Returns:
-        [(start_char, end_char, batch_idx, is_first, is_last), ...]
-    """
-    num_batches = max(1, (target_pages + pages_per_batch - 1) // pages_per_batch)
-    chars_per_batch = total_chars // num_batches
-    
-    batches = []
-    for i in range(num_batches):
-        start_char = i * chars_per_batch
-        end_char = min((i + 1) * chars_per_batch, total_chars)
-        is_first = (i == 0)
-        is_last = (i == num_batches - 1)
-        batches.append((start_char, end_char, i, is_first, is_last))
-    
-    return batches
 
 
 # ============================================================
@@ -236,6 +168,10 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         state.text_content = state.text_content or ""
         state.pagecontent = state.pagecontent or []
         state.long_text = getattr(state, "long_text", "") or ""
+        state.markdown_sections = getattr(state, "markdown_sections", []) or []
+        state.current_section_titles = getattr(state, "current_section_titles", []) or []
+        if not getattr(state, "max_batch_tokens", 0):
+            state.max_batch_tokens = get_safe_outline_input_budget(getattr(state.request, "model", None))
         
         # 设置默认目标页数
         # 1. 优先从 request.page_count 获取
@@ -297,7 +233,9 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
 
         # 不做裁剪，保留完整内容
         state.long_text = md
+        state.minueru_output = md
         state.mineru_root = str(auto_dir)
+        state.markdown_sections = extract_markdown_sections(md)
         
         return state
 
@@ -413,6 +351,8 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
             state.long_text = ""
             log.warning("[long_paper] 没有可用的长文本内容")
         
+        state.markdown_sections = extract_markdown_sections(state.long_text)
+        log.info(f"[long_paper] 提取到 {len(state.markdown_sections)} 个 section")
         return state
 
     async def ensure_sufficient_content(state: Paper2FigureState) -> Paper2FigureState:
@@ -463,16 +403,19 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
 
     async def generate_outline_for_batch(
         state: Paper2FigureState,
-        chunk_text: str,
-        batch_idx: int,
-        total_batches: int,
-        pages_to_generate: int = 12,
+        batch: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         """
         为单个批次生成 outline
         """
         # 深拷贝 state 以防止并发修改冲突
         state = copy.deepcopy(state)
+
+        chunk_text = batch.get("content", "") or ""
+        batch_idx = int(batch.get("batch_index", 0))
+        total_batches = int(batch.get("total_batches", 1))
+        pages_to_generate = int(batch.get("pages_to_generate", 1) or 1)
+        section_titles = list(batch.get("section_titles", []) or [])
 
         log.critical(f"[chunk_text: ] {chunk_text[:200]}")
         
@@ -481,6 +424,8 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         state.chunk_index       = batch_idx
         state.total_chunks      = total_batches
         state.pages_to_generate = pages_to_generate
+        state.current_section_titles = section_titles
+        state.markdown_sections = list(batch.get("sections", []) or [])
         
         # 显式设置首尾状态，供 Agent 动态选择 Prompt
         state.is_first = (batch_idx == 0)
@@ -513,7 +458,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         long_text = state.long_text or ""
         target_pages = getattr(state, "target_pages", 60)
         pages_per_batch = state.pages_per_batch  # 每批次目标页数
-        pages_to_generate = state.pages_to_generate  # 每批次让 agent 生成的页数（含首尾）
+        max_batch_tokens = max(8_000, int(getattr(state, "max_batch_tokens", 0) or 0))
         
         if not long_text:
             log.error("[long_paper] 没有长文本内容，无法生成 outline")
@@ -527,30 +472,42 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
             state = await ensure_sufficient_content(state)
             long_text = state.long_text
         
-        # 2. 计算分批方案
-        batches = calculate_batches(len(long_text), target_pages, pages_per_batch)
-        log.info(f"[long_paper] 分 {len(batches)} 批次，目标 {target_pages} 页，将并行处理")
+        # 2. 先按 markdown section 切分，再基于 section 组批
+        sections = state.markdown_sections or extract_markdown_sections(long_text)
+        state.markdown_sections = sections
+        if not sections:
+            log.error("[long_paper] 未能从长文本中提取 section，无法生成 outline")
+            state.pagecontent = []
+            return state
+
+        batches = build_section_batches(
+            sections,
+            target_pages=target_pages,
+            pages_per_batch=pages_per_batch,
+            max_batch_tokens=max_batch_tokens,
+        )
+        log.info(
+            f"[long_paper] 分 {len(batches)} 批次，目标 {target_pages} 页，"
+            f"max_batch_tokens={max_batch_tokens}"
+        )
         
         # 3. 并行处理所有批次
         tasks = []
         batch_info = []  # 保存批次信息用于后续处理
         
-        for start_char, end_char, batch_idx, is_first, is_last in batches:
-            chunk_text = long_text[start_char:end_char]
-            
+        for batch in batches:
+            batch_idx = int(batch.get("batch_index", 0))
+            chunk_text = batch.get("content", "") or ""
             log.info(f"[long_paper] 准备批次 {batch_idx + 1}/{len(batches)}: "
-                    f"字符 {start_char}-{end_char} ({len(chunk_text)} chars)")
+                    f"sections={batch.get('section_titles', [])} ({len(chunk_text)} chars)")
             
             # 创建异步任务
             task = generate_outline_for_batch(
                 state=state,
-                chunk_text=chunk_text,
-                batch_idx=batch_idx,
-                total_batches=len(batches),
-                pages_to_generate=pages_to_generate,
+                batch=batch,
             )
             tasks.append(task)
-            batch_info.append((batch_idx, is_first, is_last))
+            batch_info.append(batch)
         
         # 4. 并行执行所有任务
         log.info(f"[long_paper] 开始并行执行 {len(tasks)} 个批次...")
@@ -559,18 +516,25 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         
         # 5. 按顺序处理结果
         all_pages = []
-        for idx, (chunk_pages, (batch_idx, is_first, is_last)) in enumerate(zip(results, batch_info)):
-            # 不再进行裁剪，直接保留所有生成的页面
-            selected = chunk_pages
-            log.info(f"[long_paper] 批次 {batch_idx + 1}: 生成 {len(chunk_pages)} 页，全部保留")
+        for chunk_pages, batch in zip(results, batch_info):
+            batch_idx = int(batch.get("batch_index", 0))
+            page_budget = int(batch.get("pages_to_generate", 1) or 1)
+            selected = list(chunk_pages[:page_budget])
+            if len(chunk_pages) > page_budget:
+                log.warning(
+                    f"[long_paper] 批次 {batch_idx + 1}: 生成 {len(chunk_pages)} 页，"
+                    f"按预算保留 {page_budget} 页"
+                )
+            elif len(chunk_pages) < page_budget:
+                log.warning(
+                    f"[long_paper] 批次 {batch_idx + 1}: 生成页数不足 {len(chunk_pages)}/{page_budget}"
+                )
+            else:
+                log.info(f"[long_paper] 批次 {batch_idx + 1}: 生成 {len(chunk_pages)} 页，符合预算")
             all_pages.extend(selected)
-        
-        # 6. 确保总页数符合要求
-        if len(all_pages) > target_pages:
-            log.warning(f"[long_paper] 生成页数超出目标({len(all_pages)} > {target_pages})，截断")
-            all_pages = all_pages[:target_pages]
-        elif len(all_pages) < target_pages:
-            log.warning(f"[long_paper] 生成页数不足: {len(all_pages)}/{target_pages}")
+
+        if len(all_pages) != target_pages:
+            log.warning(f"[long_paper] 最终页数 {len(all_pages)} 与目标 {target_pages} 不完全一致")
         
         state.pagecontent = all_pages
         log.info(f"[long_paper] 并行处理完成，最终生成 {len(all_pages)} 页 pagecontent")

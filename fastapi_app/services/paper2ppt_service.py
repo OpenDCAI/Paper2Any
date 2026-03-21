@@ -94,6 +94,7 @@ paper2ppt 业务 Service 层
 函数级 docstring 里会详细说明每个参数的含义和使用约定。
 """
 
+import copy
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -267,12 +268,7 @@ class Paper2PPTService:
         request: Request | None,
     ) -> Dict[str, Any]:
         """只跑 PPT 生成/编辑（paper2ppt 工作流）。"""
-        # 处理 result_path
-        base_dir = Path(req.result_path)
-        if not base_dir.is_absolute():
-            base_dir = PROJECT_ROOT / base_dir
-        base_dir = base_dir.resolve()
-
+        base_dir = self.resolve_result_path(req.result_path)
         if not base_dir.exists():
             raise HTTPException(status_code=400, detail=f"result_path not exists: {base_dir}")
 
@@ -332,22 +328,7 @@ class Paper2PPTService:
         )
 
         resp_dict = resp_model.model_dump()
-
-        # 路径 -> URL
-        if request is not None:
-            if resp_dict.get("ppt_pdf_path"):
-                resp_dict["ppt_pdf_path"] = _to_outputs_url(resp_dict["ppt_pdf_path"], request)
-            if resp_dict.get("ppt_pptx_path"):
-                resp_dict["ppt_pptx_path"] = _to_outputs_url(resp_dict["ppt_pptx_path"], request)
-            resp_dict["pagecontent"] = self._convert_pagecontent_paths_to_urls(
-                resp_dict.get("pagecontent", []), request
-            )
-
-            resp_dict["all_output_files"] = self._collect_output_files_as_urls(resp_model.result_path, request)
-        else:
-            resp_dict["all_output_files"] = []
-
-        return resp_dict
+        return self.normalize_ppt_response(resp_dict, request)
 
     async def run_full_pipeline(
         self,
@@ -423,6 +404,47 @@ class Paper2PPTService:
         run_dir = PROJECT_ROOT / BASE_OUTPUT_DIR / code / "paper2ppt" / str(ts)
         run_dir.mkdir(parents=True, exist_ok=True)
         return run_dir
+
+    def resolve_result_path(self, result_path: str) -> Path:
+        base_dir = Path(result_path)
+        if not base_dir.is_absolute():
+            base_dir = PROJECT_ROOT / base_dir
+        return base_dir.resolve()
+
+    async def cache_reference_image_for_result(
+        self,
+        result_path: str,
+        reference_img: UploadFile | None,
+    ) -> Optional[Path]:
+        if reference_img is None:
+            return None
+
+        base_dir = self.resolve_result_path(result_path)
+        if not base_dir.exists():
+            raise HTTPException(status_code=400, detail=f"result_path not exists: {base_dir}")
+        return await self._ensure_reference_image(base_dir, reference_img)
+
+    def normalize_ppt_response(
+        self,
+        resp_dict: Dict[str, Any],
+        request: Request | None,
+    ) -> Dict[str, Any]:
+        normalized = copy.deepcopy(resp_dict)
+        result_path = normalized.get("result_path", "")
+
+        if request is not None:
+            if normalized.get("ppt_pdf_path"):
+                normalized["ppt_pdf_path"] = _to_outputs_url(normalized["ppt_pdf_path"], request)
+            if normalized.get("ppt_pptx_path"):
+                normalized["ppt_pptx_path"] = _to_outputs_url(normalized["ppt_pptx_path"], request)
+            normalized["pagecontent"] = self._convert_pagecontent_paths_to_urls(
+                normalized.get("pagecontent", []), request
+            )
+            normalized["all_output_files"] = self._collect_output_files_as_urls(result_path, request)
+        else:
+            normalized.setdefault("all_output_files", [])
+
+        return normalized
 
     def _convert_pagecontent_paths_to_urls(
         self,

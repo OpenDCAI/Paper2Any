@@ -13,17 +13,23 @@ paper2ppt 工作流封装。
 import json
 import time
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Tuple
 
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureState
-from dataflow_agent.toolkits.multimodaltool.mineru_tool import _shrink_markdown
+from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract_http
 from dataflow_agent.utils import get_project_root
+from dataflow_agent.utils_markdown_sections import (
+    estimate_text_tokens,
+    get_safe_outline_input_budget,
+)
 from dataflow_agent.workflow import run_workflow
 
 from fastapi_app.schemas import Paper2PPTRequest, Paper2PPTResponse
 
 log = get_logger(__name__)
+
+MAX_SINGLE_PASS_PAGE_COUNT = 20
 
 
 def _to_serializable(obj: Any):
@@ -128,8 +134,80 @@ def _try_load_existing_mineru_markdown(result_root: Path) -> tuple[str, str]:
     except Exception:
         return "", ""
 
-    mineru_output = _shrink_markdown(md, max_h1=8, max_chars=30_000)
-    return mineru_output, str(md_path.parent.resolve())
+    return md, str(md_path.parent.resolve())
+
+
+async def _ensure_pdf_markdown(
+    pdf_path: str,
+    result_root: Path,
+    mineru_port: int = 8010,
+) -> Tuple[str, str]:
+    paper_pdf_path = Path(pdf_path).expanduser().resolve()
+    if not paper_pdf_path.exists():
+        return "", ""
+
+    pdf_stem = paper_pdf_path.stem
+    auto_dir = (result_root / pdf_stem / "auto").resolve()
+    markdown_path = auto_dir / f"{pdf_stem}.md"
+
+    if not markdown_path.exists():
+        await run_mineru_pdf_extract_http(
+            str(paper_pdf_path),
+            str(result_root),
+            port=int(mineru_port or 8010),
+        )
+
+    if not markdown_path.exists():
+        return "", ""
+
+    try:
+        md = markdown_path.read_text(encoding="utf-8")
+    except Exception:
+        return "", ""
+    return md, str(auto_dir)
+
+
+async def _resolve_outline_workflow(
+    req: Paper2PPTRequest,
+    result_root: Path,
+) -> tuple[str, str]:
+    """
+    Automatically choose between single-pass outline generation and the
+    long-paper workflow.
+    """
+    if bool(getattr(req, "use_long_paper", False)):
+        return "paper2page_content_for_long_paper", "forced_by_request"
+
+    input_type = (req.input_type or "").upper().strip()
+    page_count = int(getattr(req, "page_count", 0) or 0)
+    model_name = getattr(req, "model", None)
+    token_budget = get_safe_outline_input_budget(model_name)
+
+    estimated_tokens = 0
+    if input_type == "PDF":
+        markdown, _ = await _ensure_pdf_markdown(
+            req.input_content,
+            result_root=result_root,
+        )
+        estimated_tokens = estimate_text_tokens(markdown)
+    elif input_type in {"TEXT", "TOPIC"}:
+        estimated_tokens = estimate_text_tokens(req.input_content or "")
+    else:
+        return "paper2page_content", "non_markdown_input"
+
+    if page_count > MAX_SINGLE_PASS_PAGE_COUNT:
+        return (
+            "paper2page_content_for_long_paper",
+            f"page_count={page_count}>max_single_pass={MAX_SINGLE_PASS_PAGE_COUNT}",
+        )
+
+    if estimated_tokens > token_budget:
+        return (
+            "paper2page_content_for_long_paper",
+            f"estimated_tokens={estimated_tokens}>budget={token_budget}",
+        )
+
+    return "paper2page_content", f"estimated_tokens={estimated_tokens}<=budget={token_budget}"
 
 
 async def run_paper2page_content_wf_api(req: Paper2PPTRequest, result_path: Path | None = None) -> Paper2PPTResponse:
@@ -151,11 +229,12 @@ async def run_paper2page_content_wf_api(req: Paper2PPTRequest, result_path: Path
 
     state = _init_state_from_request(req, result_path=result_root)
 
-    log.info(f"[paper2page_content_wf_api] start, result_path={state.result_path}, input_type={req.input_type}")
-    if req.use_long_paper:
-        final_state: Paper2FigureState = await run_workflow("paper2page_content_for_long_paper", state)
-    else:    
-        final_state: Paper2FigureState = await run_workflow("paper2page_content", state)
+    workflow_name, reason = await _resolve_outline_workflow(req, result_root)
+    log.info(
+        f"[paper2page_content_wf_api] start, result_path={state.result_path}, "
+        f"input_type={req.input_type}, workflow={workflow_name}, reason={reason}"
+    )
+    final_state: Paper2FigureState = await run_workflow(workflow_name, state)
     # 提取结果
     pagecontent = final_state["pagecontent"] or []
     log.critical(f"[paper2page_content_wf_api] pagecontent={pagecontent}")
@@ -195,8 +274,12 @@ async def run_paper2page_content_refine_wf_api(
         if mineru_root:
             state.mineru_root = mineru_root
 
-    log.info(f"[paper2page_content_refine_wf_api] start, result_path={state.result_path}")
-    final_state: Paper2FigureState = await run_workflow("paper2page_content", state)
+    workflow_name = "paper2page_content_for_long_paper" if len(pagecontent or []) > MAX_SINGLE_PASS_PAGE_COUNT else "paper2page_content"
+    log.info(
+        f"[paper2page_content_refine_wf_api] start, result_path={state.result_path}, "
+        f"workflow={workflow_name}"
+    )
+    final_state: Paper2FigureState = await run_workflow(workflow_name, state)
 
     pagecontent = final_state["pagecontent"] or []
     result_path = final_state["result_path"] or str(result_root)
@@ -276,7 +359,7 @@ async def run_paper2ppt_wf_api(
                 # 默认取第一个 md
                 md_path = md_files[0]
                 raw_md = md_path.read_text(encoding="utf-8")
-                state.mineru_output = _shrink_markdown(raw_md, max_h1=8, max_chars=30_000)
+                state.mineru_output = raw_md
                 log.info(f"[paper2ppt_wf_api] Loaded mineru_output from {md_path}, len={len(state.mineru_output)}")
             else:
                 log.warning(f"[paper2ppt_wf_api] No .md file found in {md_dir}")
@@ -337,10 +420,9 @@ async def run_paper2ppt_full_pipeline(req: Paper2PPTRequest) -> Paper2PPTRespons
         f"[paper2ppt_full_pipeline] step1 paper2page_content, "
         f"result_path={state_pc.result_path}, input_type={req.input_type}, use_long_paper={req.use_long_paper}"
     )
-    if req.use_long_paper:
-        state_pc = await run_workflow("paper2page_content_for_long_paper", state_pc)
-    else:
-        state_pc = await run_workflow("paper2page_content", state_pc)
+    workflow_name, reason = await _resolve_outline_workflow(req, result_root)
+    log.info(f"[paper2ppt_full_pipeline] step1 auto-route workflow={workflow_name}, reason={reason}")
+    state_pc = await run_workflow(workflow_name, state_pc)
 
     pagecontent = getattr(state_pc, "pagecontent", []) or []
     # 确保 result_path 一致

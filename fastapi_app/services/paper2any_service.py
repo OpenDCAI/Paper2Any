@@ -369,7 +369,7 @@ class Paper2AnyService:
                             break
 
                 if fig_path:
-                    # 复用 SAM3 版 drawio workflow
+                    # 复用 visual drawio workflow
                     from dataflow_agent.workflow.registry import RuntimeRegistry
                     from dataflow_agent.state import Paper2DrawioState, Paper2DrawioRequest
 
@@ -390,7 +390,7 @@ class Paper2AnyService:
                     i2d_state.text_content = str(fig_path)
                     i2d_state.result_path = str(sub_dir)
 
-                    factory = RuntimeRegistry.get("paper2drawio_sam3")
+                    factory = RuntimeRegistry.get("paper2drawio_visual")
                     builder = factory()
                     graph = builder.build()
                     final_state = await graph.ainvoke(i2d_state)

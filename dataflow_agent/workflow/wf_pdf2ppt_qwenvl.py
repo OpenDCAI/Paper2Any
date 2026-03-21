@@ -44,6 +44,7 @@ from dataflow_agent.toolkits.multimodaltool.sam3_tool import (
 from dataflow_agent.toolkits.multimodaltool.bg_tool import local_tool_for_bg_remove, free_bg_rm_model
 from dataflow_agent.toolkits.multimodaltool.req_img import generate_or_edit_and_save_image_async
 from dataflow_agent.toolkits.multimodaltool.ocr_config import get_ocr_api_credentials
+from dataflow_agent.toolkits.multimodaltool.ocr_utils import extract_bbox_items
 from dataflow_agent.toolkits.multimodaltool import ppt_tool
 
 from pptx import Presentation
@@ -537,6 +538,7 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                             name="ImageTextBBoxAgent",
                             model_name=getattr(state.request, "vlm_model", "qwen-vl-ocr-2025-11-20"),
                             chat_api_url=ocr_api_url,
+                            max_tokens=4096,
                             vlm_mode="ocr",
                             additional_params={
                                 "input_image": img_path
@@ -545,11 +547,17 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
 
                         log.info(f"[pdf2ppt_qwenvl][VLM] page#{page_idx+1} attempt {attempt+1}/{max_retries}...")
                         new_state = await agent.execute(temp_state)
-                        bbox_res = getattr(new_state, "bbox_result", [])
-                        
-                        if isinstance(bbox_res, list):
+                        raw_bbox_res = getattr(new_state, "bbox_result", [])
+                        bbox_res = extract_bbox_items(raw_bbox_res)
+
+                        if isinstance(raw_bbox_res, list):
                             break
-                        log.warning(f"[pdf2ppt_qwenvl][VLM] page#{page_idx+1} attempt {attempt+1} got invalid result: {type(bbox_res)}")
+                        if bbox_res:
+                            break
+                        log.warning(
+                            f"[pdf2ppt_qwenvl][VLM] page#{page_idx+1} attempt {attempt+1} "
+                            f"got invalid result: {type(raw_bbox_res)}"
+                        )
                     except Exception as e:
                         log.warning(f"[pdf2ppt_qwenvl][VLM] page#{page_idx+1} attempt {attempt+1} failed: {e}")
                         if attempt == max_retries - 1:

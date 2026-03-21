@@ -64,6 +64,7 @@ class LongPaperOutlineAgent(BaseAgent):
             "pages_to_generate": batch_info.get("pages_to_generate", 10),
             "is_first": batch_info.get("is_first", False),
             "is_last": batch_info.get("is_last", False),
+            "section_titles": self.state.current_section_titles or [],
             "page_count" : self.state.request.page_count,
             "language": self.state.request.language,
         }
