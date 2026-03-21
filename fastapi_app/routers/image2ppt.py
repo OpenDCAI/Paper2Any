@@ -6,13 +6,14 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile, Request
 from fastapi.responses import FileResponse
 
 from dataflow_agent.logger import get_logger
-from fastapi_app.services.image2ppt_service import Image2PPTService
 
 log = get_logger(__name__)
 
 router = APIRouter()
 
 def get_service() -> Image2PPTService:
+    from fastapi_app.services.image2ppt_service import Image2PPTService
+
     return Image2PPTService()
 
 @router.post("/image2ppt/generate")

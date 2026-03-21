@@ -4,12 +4,12 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
-from fastapi_app.services.paper2poster_service import Paper2PosterService
-
 router = APIRouter()
 
 
 def get_service() -> Paper2PosterService:
+    from fastapi_app.services.paper2poster_service import Paper2PosterService
+
     return Paper2PosterService()
 
 

@@ -13,8 +13,6 @@ from fastapi_app.schemas import (
     PageContentRequest,
     PPTGenerationRequest,
 )
-from fastapi_app.services.paper2ppt_service import Paper2PPTService
-from fastapi_app.services.paper2ppt_task_service import Paper2PPTTaskService
 from dataflow_agent.utils.version_manager import ImageVersionManager
 from fastapi_app.utils import _to_outputs_url
 
@@ -23,10 +21,14 @@ router = APIRouter(tags=["paper2ppt"])
 
 
 def get_service() -> Paper2PPTService:
+    from fastapi_app.services.paper2ppt_service import Paper2PPTService
+
     return Paper2PPTService()
 
 
 def get_task_service() -> Paper2PPTTaskService:
+    from fastapi_app.services.paper2ppt_task_service import Paper2PPTTaskService
+
     return Paper2PPTTaskService()
 
 

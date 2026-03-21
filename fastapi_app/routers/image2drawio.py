@@ -5,7 +5,6 @@ from typing import Optional
 from fastapi import APIRouter, File, Form, UploadFile
 from pydantic import BaseModel
 
-from fastapi_app.services.image2drawio_service import Image2DrawioService
 from fastapi_app.config.settings import settings
 
 router = APIRouter(prefix="/image2drawio", tags=["image2drawio"])
@@ -29,6 +28,8 @@ async def generate_image2drawio(
     language: str = Form("zh"),
     email: Optional[str] = Form(None),
 ):
+    from fastapi_app.services.image2drawio_service import Image2DrawioService
+
     service = Image2DrawioService()
     try:
         result = await service.generate_drawio(
