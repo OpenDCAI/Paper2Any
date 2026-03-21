@@ -51,6 +51,36 @@
       "toggle": "切换菜单",
       "navigation": "导航"
     },
+    "home": {
+      "kicker": "PKU Research Workflow",
+      "title": "Paper2Any 一站式科研生成工作台",
+      "description": "从科研绘图、PPT 生成，到 rebuttal、海报、视频与格式转换，当前 PKU 版本已经支持首页直达和路径级路由，可从门户直接跳到具体子页面。",
+      "primaryCta": "进入科研绘图",
+      "secondaryCta": "进入 PPT 生成",
+      "panelTitle": "当前版本重点",
+      "panelDescription": "保留 PKU 门户视觉风格与深色文字对比，同时把各个子能力收拢到统一首页，便于门户直接链接到具体功能页。",
+      "featuredTitle": "常用入口",
+      "featuredDescription": "把最常见的图、PPT 和视频工作流放在首页首屏，减少二次查找。",
+      "metrics": {
+        "features": "覆盖论文生成、转换、交付等多种工作流入口",
+        "routing": "支持直接访问具体子页面路径，而不是只停留在首页",
+        "intranet": "面向北大内网部署场景，入口更适合从门户直接跳转"
+      },
+      "sections": {
+        "creation": {
+          "title": "论文创作与图示",
+          "description": "面向图表、流程图和 poster 的表达型子页面，适合写作中期快速生成视觉资产。"
+        },
+        "delivery": {
+          "title": "答辩与交付",
+          "description": "覆盖引用追踪、反驳信与历史文件等交付阶段常用入口。"
+        },
+        "conversion": {
+          "title": "转换与优化",
+          "description": "把 PDF、图片和现有 PPT 纳入统一转换工作流，减少重复处理。"
+        }
+      }
+    },
     "footer": {
       "ready": "就绪",
       "version": "Paper2Any v1.0.0"

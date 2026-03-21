@@ -51,6 +51,36 @@
       "toggle": "Toggle Menu",
       "navigation": "Navigation"
     },
+    "home": {
+      "kicker": "PKU Research Workflow",
+      "title": "Paper2Any for End-to-End Research Production",
+      "description": "The PKU build now exposes a unified home page plus path-based subpages for figures, PPT, rebuttal, poster, video, and conversion workflows, so the portal can jump directly into each concrete tool.",
+      "primaryCta": "Open Figure Workflows",
+      "secondaryCta": "Open PPT Generation",
+      "panelTitle": "What Changed",
+      "panelDescription": "This version keeps the PKU portal visual language and dark readable text while restoring a proper landing page and direct subpage routing.",
+      "featuredTitle": "Common Entry Points",
+      "featuredDescription": "The most-used figure, PPT, and video workflows stay in the first screen for faster entry.",
+      "metrics": {
+        "features": "Covers creation, conversion, and delivery workflows in one workspace",
+        "routing": "Supports direct path-level links to concrete subpages instead of only the home page",
+        "intranet": "Optimized for PKU intranet deployment and portal-based access"
+      },
+      "sections": {
+        "creation": {
+          "title": "Creation and Figures",
+          "description": "Visual generation workflows for figures, diagrams, and posters during paper writing."
+        },
+        "delivery": {
+          "title": "Delivery and Feedback",
+          "description": "Common entry points for citation tracking, rebuttal drafting, and generated files."
+        },
+        "conversion": {
+          "title": "Conversion and Polish",
+          "description": "A unified space for PDF, image, and PPT conversion and optimization tasks."
+        }
+      }
+    },
     "footer": {
       "ready": "Ready",
       "version": "Paper2Any v1.0.0"

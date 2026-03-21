@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Paper2GraphTechExpPage from './components/Paper2GraphTechExpPage';
 import Paper2GraphDrawioPage from './components/Paper2GraphDrawioPage';
 import Paper2PptPage from './components/Paper2PptPage';
@@ -21,13 +21,148 @@ import { UserMenu } from './components/UserMenu';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { Workflow, X, Menu, FolderOpen } from 'lucide-react';
 import { AppSidebar } from './components/AppSidebar';
+import { HomePage } from './components/HomePage';
+
+const pageIds = [
+  'home',
+  'paper2figure-tech-exp',
+  'paper2figure-model-drawio',
+  'paper2drawio-ai',
+  'paper2ppt',
+  'paper2video',
+  'paper2poster',
+  'paper2citation',
+  'pdf2ppt',
+  'image2ppt',
+  'image2drawio',
+  'ppt2polish',
+  'knowledge',
+  'files',
+  'paper2drawio',
+  'paper2rebuttal',
+] as const;
+
+type ActivePage = typeof pageIds[number];
+
+const DEFAULT_PAGE: ActivePage = 'home';
+
+const pagePaths: Record<ActivePage, string> = {
+  'home': '/',
+  'paper2figure-tech-exp': '/paper2figure/tech-exp',
+  'paper2figure-model-drawio': '/paper2figure/model-drawio',
+  'paper2drawio-ai': '/paper2drawio-ai',
+  'paper2ppt': '/paper2ppt',
+  'paper2video': '/paper2video',
+  'paper2poster': '/paper2poster',
+  'paper2citation': '/paper2citation',
+  'pdf2ppt': '/pdf2ppt',
+  'image2ppt': '/image2ppt',
+  'image2drawio': '/image2drawio',
+  'ppt2polish': '/ppt2polish',
+  'knowledge': '/knowledge',
+  'files': '/files',
+  'paper2drawio': '/paper2drawio',
+  'paper2rebuttal': '/paper2rebuttal',
+};
+
+function normalizePathname(pathname: string): string {
+  if (!pathname || pathname === '/') {
+    return '/';
+  }
+
+  return pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+}
+
+const pathToPage = new Map<string, ActivePage>(
+  Object.entries(pagePaths).flatMap(([page, path]) => {
+    const normalizedPath = normalizePathname(path);
+    return [
+      [normalizedPath, page as ActivePage],
+      [page, page as ActivePage],
+    ];
+  }),
+);
+
+function getPageFromLegacyHash(hash: string): ActivePage | null {
+  const normalizedHash = hash.replace(/^#/, '').trim();
+
+  if (!normalizedHash) {
+    return null;
+  }
+
+  const legacyPath = normalizePathname(
+    normalizedHash.startsWith('/') ? normalizedHash : `/${normalizedHash}`,
+  );
+
+  return pathToPage.get(legacyPath) ?? null;
+}
+
+function getPageFromLocation(pathname: string, hash: string): ActivePage {
+  const pageFromHash = getPageFromLegacyHash(hash);
+  if (pageFromHash) {
+    return pageFromHash;
+  }
+
+  const normalizedPath = normalizePathname(pathname);
+  if (normalizedPath === '/') {
+    return DEFAULT_PAGE;
+  }
+
+  return pathToPage.get(normalizedPath) ?? DEFAULT_PAGE;
+}
 
 function App() {
   const { t } = useTranslation('common');
-  const [activePage, setActivePage] = useState<'paper2figure-tech-exp' | 'paper2figure-model-drawio' | 'paper2drawio-ai' | 'paper2ppt' | 'paper2video' | 'paper2poster' | 'paper2citation' | 'pdf2ppt' | 'image2ppt' | 'image2drawio' | 'ppt2polish' | 'knowledge' | 'files' | 'paper2drawio' | 'paper2rebuttal'>('paper2figure-tech-exp');
+  const [activePage, setActivePage] = useState<ActivePage>(() => {
+    if (typeof window === 'undefined') {
+      return DEFAULT_PAGE;
+    }
+    return getPageFromLocation(window.location.pathname, window.location.hash);
+  });
   const [showFilesModal, setShowFilesModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const syncPageFromLocation = () => {
+      const nextPage = getPageFromLocation(window.location.pathname, window.location.hash);
+      setActivePage(nextPage);
+
+      const nextPath = pagePaths[nextPage];
+      const currentPath = normalizePathname(window.location.pathname);
+      if (window.location.hash || currentPath !== nextPath) {
+        window.history.replaceState(null, '', `${nextPath}${window.location.search}`);
+      }
+    };
+
+    syncPageFromLocation();
+    window.addEventListener('popstate', syncPageFromLocation);
+
+    return () => {
+      window.removeEventListener('popstate', syncPageFromLocation);
+    };
+  }, []);
+
+  const handlePageChange = (page: ActivePage) => {
+    if (typeof window === 'undefined') {
+      setActivePage(page);
+      return;
+    }
+
+    const nextPath = pagePaths[page];
+    const currentPath = normalizePathname(window.location.pathname);
+    if (currentPath === nextPath && !window.location.hash) {
+      setActivePage(page);
+      return;
+    }
+
+    window.history.pushState(null, '', `${nextPath}${window.location.search}`);
+    setActivePage(page);
+  };
 
   return (
     <div className="portal-shell w-screen h-screen overflow-hidden relative text-slate-900">
@@ -49,15 +184,21 @@ function App() {
               </span>
               <span className="text-xs font-semibold tracking-wide text-primary-700">菜单 / Menu</span>
             </button>
-            <div className="p-2 rounded-2xl bg-primary-500/10 border border-primary-500/10">
-              <Workflow className="text-primary-600" size={24} />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold font-display text-primary-900 glow-text">
-                Paper2Any
-              </h1>
-              <p className="text-xs text-slate-500">{t('app.subtitle')}</p>
-            </div>
+            <button
+              type="button"
+              onClick={() => handlePageChange('home')}
+              className="flex items-center gap-3 rounded-2xl border border-primary-500/10 bg-white/72 px-3 py-2 text-left transition-all duration-200 hover:border-primary-500/20 hover:bg-white"
+            >
+              <div className="p-2 rounded-2xl bg-primary-500/10 border border-primary-500/10">
+                <Workflow className="text-primary-600" size={24} />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold font-display text-primary-900 glow-text">
+                  Paper2Any
+                </h1>
+                <p className="text-xs text-slate-500">{t('app.subtitle')}</p>
+              </div>
+            </button>
           </div>
 
           {/* 工具栏 */}
@@ -85,6 +226,7 @@ function App() {
       {/* 主内容区 */}
       <main className="absolute top-16 bottom-8 left-0 right-0 flex">
         <div className="flex-1">
+          {activePage === 'home' && <HomePage onNavigate={handlePageChange} />}
           {activePage === 'paper2figure-tech-exp' && <Paper2GraphTechExpPage />}
           {activePage === 'paper2figure-model-drawio' && <Paper2GraphDrawioPage />}
           {activePage === 'paper2drawio-ai' && <Paper2DrawioAiPage />}
@@ -164,7 +306,7 @@ function App() {
         onClose={() => setSidebarOpen(false)}
         activePage={activePage}
         onPageChange={(page) => {
-          setActivePage(page as typeof activePage);
+          handlePageChange(page as ActivePage);
           setSidebarOpen(false);
         }}
       />
