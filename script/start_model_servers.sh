@@ -18,14 +18,17 @@ PAPER2ANY_PYTHON="${PAPER2ANY_PYTHON:-/opt/conda/bin/python}"
 PAPER2ANY_ASSET_ROOT="${PAPER2ANY_ASSET_ROOT:-/mnt/paper2any/lz/github-proj/Paper2Any}"
 
 SAM3_ENABLED="${SAM3_ENABLED:-1}"
-SAM3_GPUS_RAW="${SAM3_GPUS:-1}"
+# MetaX queue limits on this machine are asymmetric: GPU0 is stable with 2 SAM3
+# workers, while GPU1 is stable with 6. Keep the layout overrideable.
+SAM3_GPUS_RAW="${SAM3_GPUS:-0,0,1,1,1,1,1,1}"
 SAM3_INSTANCES_PER_GPU="${SAM3_INSTANCES_PER_GPU:-1}"
-SAM3_MAX_INSTANCES="${SAM3_MAX_INSTANCES:-1}"
+SAM3_MAX_INSTANCES="${SAM3_MAX_INSTANCES:-8}"
 SAM3_START_PORT="${SAM3_START_PORT:-8021}"
 SAM3_HOST="${SAM3_HOST:-127.0.0.1}"
 SAM3_HOME="${SAM3_HOME:-}"
 SAM3_CHECKPOINT_PATH="${SAM3_CHECKPOINT_PATH:-}"
 SAM3_BPE_PATH="${SAM3_BPE_PATH:-}"
+DRIPPER_AUTOSTOP="${DRIPPER_AUTOSTOP:-1}"
 
 OCR_ENABLED="${OCR_ENABLED:-0}"
 OCR_PORT="${OCR_PORT:-8003}"
@@ -217,6 +220,9 @@ cleanup_processes() {
     pkill -9 -f "sam3_server" 2>/dev/null || true
     pkill -9 -f "ocr_server" 2>/dev/null || true
     pkill -9 -f "generic_lb.py --port 8020" 2>/dev/null || true
+    if [ "$DRIPPER_AUTOSTOP" = "1" ]; then
+        pkill -9 -f "python -m dripper.server" 2>/dev/null || true
+    fi
 }
 
 write_state_env() {
@@ -263,6 +269,9 @@ fi
 prepare_sam3_paths
 
 log_info "Cleaning stale local SAM3/OCR processes..."
+if [ "$DRIPPER_AUTOSTOP" = "1" ]; then
+    log_info "Stopping local MinerU-HTML dripper service to free MetaX queue resources."
+fi
 cleanup_ports
 cleanup_processes
 sleep 1
@@ -289,17 +298,33 @@ if [ "$SAM3_ENABLED" = "1" ]; then
         instance_id=$((i + 1))
         log_info "Booting SAM3 on GPU $gpu_id @ Port $port..."
 
-        env CUDA_VISIBLE_DEVICES="$gpu_id" \
-            SAM3_HOME="$SAM3_HOME" \
-            SAM3_CHECKPOINT_PATH="$SAM3_CHECKPOINT_PATH" \
-            SAM3_BPE_PATH="$SAM3_BPE_PATH" \
-            nohup "$PAPER2ANY_PYTHON" -m dataflow_agent.toolkits.model_servers.sam3_server \
-                --host "$SAM3_HOST" \
-                --port "$port" \
-                --checkpoint "$SAM3_CHECKPOINT_PATH" \
-                --bpe "$SAM3_BPE_PATH" \
-                --device cuda \
-                > "$LOG_DIR/sam3_gpu${gpu_id}_inst${instance_id}_port${port}.log" 2>&1 &
+        if command -v setsid >/dev/null 2>&1; then
+            nohup setsid env \
+                CUDA_VISIBLE_DEVICES="$gpu_id" \
+                SAM3_HOME="$SAM3_HOME" \
+                SAM3_CHECKPOINT_PATH="$SAM3_CHECKPOINT_PATH" \
+                SAM3_BPE_PATH="$SAM3_BPE_PATH" \
+                "$PAPER2ANY_PYTHON" -m dataflow_agent.toolkits.model_servers.sam3_server \
+                    --host "$SAM3_HOST" \
+                    --port "$port" \
+                    --checkpoint "$SAM3_CHECKPOINT_PATH" \
+                    --bpe "$SAM3_BPE_PATH" \
+                    --device cuda \
+                    > "$LOG_DIR/sam3_gpu${gpu_id}_inst${instance_id}_port${port}.log" 2>&1 < /dev/null &
+        else
+            nohup env \
+                CUDA_VISIBLE_DEVICES="$gpu_id" \
+                SAM3_HOME="$SAM3_HOME" \
+                SAM3_CHECKPOINT_PATH="$SAM3_CHECKPOINT_PATH" \
+                SAM3_BPE_PATH="$SAM3_BPE_PATH" \
+                "$PAPER2ANY_PYTHON" -m dataflow_agent.toolkits.model_servers.sam3_server \
+                    --host "$SAM3_HOST" \
+                    --port "$port" \
+                    --checkpoint "$SAM3_CHECKPOINT_PATH" \
+                    --bpe "$SAM3_BPE_PATH" \
+                    --device cuda \
+                    > "$LOG_DIR/sam3_gpu${gpu_id}_inst${instance_id}_port${port}.log" 2>&1 < /dev/null &
+        fi
 
         SAM3_URLS+=("http://127.0.0.1:$port")
     done
@@ -308,11 +333,23 @@ fi
 if [ "$OCR_ENABLED" = "1" ]; then
     echo "------------------------------------------------------------"
     log_info "Starting local OCR server..."
-    CUDA_VISIBLE_DEVICES="" nohup "$PAPER2ANY_PYTHON" -m uvicorn dataflow_agent.toolkits.model_servers.ocr_server:app \
-        --host "$OCR_HOST" \
-        --port "$OCR_PORT" \
-        --workers "$OCR_WORKERS" \
-        > "$LOG_DIR/ocr_server.log" 2>&1 &
+    if command -v setsid >/dev/null 2>&1; then
+        nohup setsid env \
+            CUDA_VISIBLE_DEVICES="" \
+            "$PAPER2ANY_PYTHON" -m uvicorn dataflow_agent.toolkits.model_servers.ocr_server:app \
+            --host "$OCR_HOST" \
+            --port "$OCR_PORT" \
+            --workers "$OCR_WORKERS" \
+            > "$LOG_DIR/ocr_server.log" 2>&1 < /dev/null &
+    else
+        nohup env \
+            CUDA_VISIBLE_DEVICES="" \
+            "$PAPER2ANY_PYTHON" -m uvicorn dataflow_agent.toolkits.model_servers.ocr_server:app \
+            --host "$OCR_HOST" \
+            --port "$OCR_PORT" \
+            --workers "$OCR_WORKERS" \
+            > "$LOG_DIR/ocr_server.log" 2>&1 < /dev/null &
+    fi
 fi
 
 echo "------------------------------------------------------------"
@@ -320,7 +357,7 @@ log_info "Validating started services..."
 
 failed=0
 for url in "${SAM3_URLS[@]}"; do
-    wait_for_http "${url}/health" "SAM3 backend" 180 || failed=1
+        wait_for_http "${url}/health" "SAM3 backend" 360 || failed=1
 done
 
 if [ "$OCR_ENABLED" = "1" ]; then
