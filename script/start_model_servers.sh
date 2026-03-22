@@ -19,6 +19,7 @@ PAPER2ANY_ASSET_ROOT="${PAPER2ANY_ASSET_ROOT:-/mnt/paper2any/lz/github-proj/Pape
 
 SAM3_ENABLED="${SAM3_ENABLED:-1}"
 SAM3_GPUS_RAW="${SAM3_GPUS:-1}"
+SAM3_INSTANCES_PER_GPU="${SAM3_INSTANCES_PER_GPU:-1}"
 SAM3_MAX_INSTANCES="${SAM3_MAX_INSTANCES:-1}"
 SAM3_START_PORT="${SAM3_START_PORT:-8021}"
 SAM3_HOST="${SAM3_HOST:-127.0.0.1}"
@@ -115,7 +116,7 @@ wait_for_http() {
 
 discover_available_gpus() {
     if [ "$SAM3_GPUS_RAW" != "auto" ]; then
-        echo "$SAM3_GPUS_RAW" | tr ',' ' '
+        printf '%s\n' "$SAM3_GPUS_RAW" | tr ', ' '\n\n' | awk 'NF { print $1 }'
         return 0
     fi
 
@@ -184,6 +185,26 @@ prepare_sam3_paths() {
     fi
 }
 
+build_sam3_launch_gpu_ids() {
+    local gpu_id
+    local replica
+    local max_instances="$SAM3_MAX_INSTANCES"
+
+    SAM3_GPU_IDS=()
+
+    while IFS= read -r gpu_id; do
+        gpu_id="$(trim "$gpu_id")"
+        [ -n "$gpu_id" ] || continue
+
+        for replica in $(seq 1 "$SAM3_INSTANCES_PER_GPU"); do
+            if [ "$max_instances" -gt 0 ] && [ "${#SAM3_GPU_IDS[@]}" -ge "$max_instances" ]; then
+                return 0
+            fi
+            SAM3_GPU_IDS+=("$gpu_id")
+        done
+    done < <(discover_available_gpus)
+}
+
 cleanup_ports() {
     local ports=({8020..8028} "$OCR_PORT")
     local port
@@ -247,20 +268,11 @@ cleanup_processes
 sleep 1
 log_success "Cleanup complete."
 
-SAM3_GPU_IDS=()
-while IFS= read -r gpu_id; do
-    gpu_id="$(trim "$gpu_id")"
-    [ -n "$gpu_id" ] || continue
-    SAM3_GPU_IDS+=("$gpu_id")
-done < <(discover_available_gpus)
+build_sam3_launch_gpu_ids
 
 if [ "$SAM3_ENABLED" = "1" ] && [ "${#SAM3_GPU_IDS[@]}" -eq 0 ]; then
     log_error "No available GPUs detected for SAM3."
     exit 1
-fi
-
-if [ "${#SAM3_GPU_IDS[@]}" -gt "$SAM3_MAX_INSTANCES" ]; then
-    SAM3_GPU_IDS=("${SAM3_GPU_IDS[@]:0:$SAM3_MAX_INSTANCES}")
 fi
 
 echo "------------------------------------------------------------"
@@ -270,9 +282,11 @@ log_info "OCR server is disabled by default. This machine uses Ali Qwen-VL-OCR A
 SAM3_URLS=()
 if [ "$SAM3_ENABLED" = "1" ]; then
     log_info "Launching SAM3 instances on MetaX GPUs: ${SAM3_GPU_IDS[*]}"
+    log_info "Instances per GPU: $SAM3_INSTANCES_PER_GPU"
     for i in "${!SAM3_GPU_IDS[@]}"; do
         gpu_id=${SAM3_GPU_IDS[$i]}
         port=$((SAM3_START_PORT + i))
+        instance_id=$((i + 1))
         log_info "Booting SAM3 on GPU $gpu_id @ Port $port..."
 
         env CUDA_VISIBLE_DEVICES="$gpu_id" \
@@ -285,7 +299,7 @@ if [ "$SAM3_ENABLED" = "1" ]; then
                 --checkpoint "$SAM3_CHECKPOINT_PATH" \
                 --bpe "$SAM3_BPE_PATH" \
                 --device cuda \
-                > "$LOG_DIR/sam3_gpu${gpu_id}.log" 2>&1 &
+                > "$LOG_DIR/sam3_gpu${gpu_id}_inst${instance_id}_port${port}.log" 2>&1 &
 
         SAM3_URLS+=("http://127.0.0.1:$port")
     done
