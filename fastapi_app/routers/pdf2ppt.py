@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile, Request
 from fastapi.responses import FileResponse
 
 from dataflow_agent.logger import get_logger
-from fastapi_app.services.pdf2ppt_service import PDF2PPTService
 from fastapi_app.config import settings
 
 log = get_logger(__name__)
@@ -14,6 +13,8 @@ log = get_logger(__name__)
 router = APIRouter()
 
 def get_service() -> PDF2PPTService:
+    from fastapi_app.services.pdf2ppt_service import PDF2PPTService
+
     return PDF2PPTService()
 
 @router.post("/pdf2ppt/generate")

@@ -14,12 +14,13 @@ from fastapi_app.schemas import (
     Paper2CitationPaperDetailRequest,
     Paper2CitationPaperDetailResponse,
 )
-from fastapi_app.services.paper2citation_service import Paper2CitationService
 
 router = APIRouter(tags=["paper2citation"])
 
 
 def get_service() -> Paper2CitationService:
+    from fastapi_app.services.paper2citation_service import Paper2CitationService
+
     return Paper2CitationService()
 
 

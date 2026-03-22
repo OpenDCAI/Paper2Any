@@ -2,7 +2,6 @@ from fastapi import APIRouter, HTTPException, Body
 from typing import List, Dict, Optional, Any
 import os
 from pathlib import Path
-from dataflow_agent.toolkits.ragtool.vector_store_tool import process_knowledge_base_files, VectorStoreManager
 from dataflow_agent.utils import get_project_root
 from fastapi_app.config import settings
 from fastapi_app.utils import _to_outputs_url
@@ -137,6 +136,8 @@ async def create_embedding(
         else:
             vector_store_dir = project_root / "outputs" / "kb_data" / "vector_store_main"
         
+        from dataflow_agent.toolkits.ragtool.vector_store_tool import process_knowledge_base_files
+
         manifest = await process_knowledge_base_files(
             process_list, 
             base_dir=str(vector_store_dir),
@@ -233,6 +234,8 @@ async def search_kb(
             kwargs["api_key"] = api_key
         if model_name:
             kwargs["embedding_model"] = model_name
+
+        from dataflow_agent.toolkits.ragtool.vector_store_tool import VectorStoreManager
 
         manager = VectorStoreManager(**kwargs)
         results = manager.search(query=query, top_k=top_k, file_ids=file_ids)

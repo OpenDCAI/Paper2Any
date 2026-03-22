@@ -13,19 +13,12 @@ from typing import Optional, List, Dict, Any
 import fitz  # PyMuPDF
 
 from dataflow_agent.state import IntelligentQARequest, IntelligentQAState, KBPodcastRequest, KBPodcastState, KBMindMapRequest, KBMindMapState
-from dataflow_agent.workflow.wf_intelligent_qa import create_intelligent_qa_graph
-from dataflow_agent.workflow.wf_kb_podcast import create_kb_podcast_graph
-from dataflow_agent.workflow.wf_kb_mindmap import create_kb_mindmap_graph
-from dataflow_agent.toolkits.ragtool.vector_store_tool import process_knowledge_base_files, VectorStoreManager
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.workflow import run_workflow
 from dataflow_agent.logger import get_logger
 from fastapi_app.config import settings
 from fastapi_app.schemas import Paper2PPTRequest, DeepResearchRequest, DeepResearchResponse, KBReportRequest, KBReportResponse
 from fastapi_app.utils import _from_outputs_url, _to_outputs_url
-from fastapi_app.workflow_adapters.wa_paper2ppt import _init_state_from_request
-from fastapi_app.services.kb_deepresearch_service import KBDeepResearchService
-from fastapi_app.services.kb_report_service import KBReportService
 
 router = APIRouter(prefix="/kb", tags=["Knowledge Base"])
 log = get_logger(__name__)
@@ -249,11 +242,15 @@ def _build_text_context(file_paths: List[str], max_chars: int = 60000) -> str:
     return combined
 
 
-def _get_deepresearch_service() -> KBDeepResearchService:
+def _get_deepresearch_service() -> "KBDeepResearchService":
+    from fastapi_app.services.kb_deepresearch_service import KBDeepResearchService
+
     return KBDeepResearchService()
 
 
-def _get_report_service() -> KBReportService:
+def _get_report_service() -> "KBReportService":
+    from fastapi_app.services.kb_report_service import KBReportService
+
     return KBReportService()
 
 
@@ -757,6 +754,8 @@ async def generate_ppt_from_kb(
                 embed_api_url = embed_api_url.rstrip("/") + "/embeddings"
 
             files_for_embed = [{"path": str(p), "description": ""} for p in doc_paths]
+            from dataflow_agent.toolkits.ragtool.vector_store_tool import process_knowledge_base_files
+
             manifest = await process_knowledge_base_files(
                 files_for_embed,
                 base_dir=str(base_dir),
@@ -765,6 +764,8 @@ async def generate_ppt_from_kb(
                 model_name=None,
                 multimodal_model=None,
             )
+
+            from dataflow_agent.toolkits.ragtool.vector_store_tool import VectorStoreManager
 
             manager = VectorStoreManager(
                 base_dir=str(base_dir),
@@ -807,6 +808,8 @@ async def generate_ppt_from_kb(
         )
 
         # Run KB pagecontent workflow
+        from fastapi_app.workflow_adapters.wa_paper2ppt import _init_state_from_request
+
         state_pc = _init_state_from_request(ppt_req, result_path=output_dir)
         state_pc.kb_query = query or ""
         state_pc.kb_retrieval_text = retrieval_text

@@ -91,11 +91,23 @@ find_port_listener_pids() {
     return 0
   fi
 
-  ss -ltnp 2>/dev/null \
-    | awk -v port=":$port" '$4 ~ port { print $NF }' \
-    | grep -oE 'pid=[0-9]+' \
-    | cut -d= -f2 \
-    | sort -u
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltnp 2>/dev/null \
+      | awk -v port=":$port" '$4 ~ port { print $NF }' \
+      | grep -oE 'pid=[0-9]+' \
+      | cut -d= -f2 \
+      | sort -u
+    return 0
+  fi
+
+  if command -v netstat >/dev/null 2>&1; then
+    netstat -ltnp 2>/dev/null \
+      | awk -v port=":$port" '$4 ~ port { split($7, parts, "/"); if (parts[1] ~ /^[0-9]+$/) print parts[1] }' \
+      | sort -u
+    return 0
+  fi
+
+  return 1
 }
 
 cleanup_pid_files

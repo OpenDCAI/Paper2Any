@@ -4,7 +4,6 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, UploadFile, Request, Body
 from fastapi.responses import FileResponse
 from fastapi_app.schemas import Paper2FigureResponse, VerifyLlmRequest, VerifyLlmResponse
-from fastapi_app.services.paper2any_service import Paper2AnyService
 from dataflow_agent.logger import get_logger
 
 log = get_logger(__name__)
@@ -13,6 +12,8 @@ router = APIRouter()
 
 
 def get_service() -> Paper2AnyService:
+    from fastapi_app.services.paper2any_service import Paper2AnyService
+
     return Paper2AnyService()
 
 
