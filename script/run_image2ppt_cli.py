@@ -1,250 +1,76 @@
 #!/usr/bin/env python3
 """
-Image2PPT CLI - Convert images to editable PPT
-
-Usage:
-    # Basic conversion
-    python script/run_image2ppt_cli.py --input screenshot.png
-
-    # With AI enhancement
-    python script/run_image2ppt_cli.py --input diagram.jpg --use-ai-edit --api-key sk-xxx
+Image2PPT CLI - Convert images to editable PPT.
 """
 
 import argparse
 import asyncio
-import os
+import json
 import sys
-import time
 from pathlib import Path
 
-# Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from dataflow_agent.logger import get_logger
-from dataflow_agent.state import Paper2FigureState, Paper2FigureRequest
-from dataflow_agent.workflow import run_workflow
-from dataflow_agent.utils import get_project_root
-
-log = get_logger(__name__)
+from script_lib import JSON_RESULT_PREFIX, run_image2ppt_job
 
 
 def parse_args():
-    """Parse command-line arguments"""
     parser = argparse.ArgumentParser(
-        description="Image2PPT CLI - Convert images to editable PPT",
+        description="Image2PPT CLI - Convert image to editable PPT",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Basic conversion
-  python script/run_image2ppt_cli.py --input screenshot.png
-
-  # With AI enhancement
-  python script/run_image2ppt_cli.py --input diagram.jpg --use-ai-edit --api-key sk-xxx
-
-  # Custom style
-  python script/run_image2ppt_cli.py --input slide.png --use-ai-edit --style "现代简约风格"
-
-Environment Variables:
-  DF_API_URL    - Default LLM API URL
-  DF_API_KEY    - Default API key
-  DF_MODEL      - Default text model name
-"""
     )
-
-    # Required arguments
-    parser.add_argument(
-        "--input",
-        required=True,
-        help="Input image file path (PNG/JPG/JPEG)"
-    )
-
-    # Optional arguments
-    parser.add_argument(
-        "--use-ai-edit",
-        action="store_true",
-        help="Enable AI enhancement (default: False)"
-    )
-
-    parser.add_argument(
-        "--api-url",
-        help="LLM API URL (default: from env DF_API_URL)"
-    )
-
-    parser.add_argument(
-        "--api-key",
-        help="LLM API key (default: from env DF_API_KEY)"
-    )
-
-    parser.add_argument(
-        "--model",
-        default="gpt-4o",
-        help="Text model name (default: gpt-4o)"
-    )
-
-    parser.add_argument(
-        "--gen-fig-model",
-        default="gemini-2.5-flash-image-preview",
-        help="Image generation model (default: gemini-2.5-flash-image-preview)"
-    )
-
-    parser.add_argument(
-        "--language",
-        default="zh",
-        choices=["zh", "en"],
-        help="Output language (default: zh)"
-    )
-
-    parser.add_argument(
-        "--style",
-        default="现代简约风格",
-        help="Style description (default: 现代简约风格)"
-    )
-
-    parser.add_argument(
-        "--page-count",
-        type=int,
-        default=1,
-        help="Target page count (default: 1)"
-    )
-
-    parser.add_argument(
-        "--output-dir",
-        help="Output directory (default: outputs/cli/image2ppt/{timestamp})"
-    )
-
+    parser.add_argument("--input", required=True, help="Input image file path")
+    parser.add_argument("--use-ai-edit", action="store_true", help="Enable AI enhancement")
+    parser.add_argument("--api-url", help="LLM API URL")
+    parser.add_argument("--api-key", help="LLM API key")
+    parser.add_argument("--model", default="gpt-4o", help="Text model name")
+    parser.add_argument("--gen-fig-model", default="gemini-2.5-flash-image-preview", help="Image generation model")
+    parser.add_argument("--language", default="zh", choices=["zh", "en"], help="Output language")
+    parser.add_argument("--style", default="现代简约风格", help="Style description")
+    parser.add_argument("--page-count", type=int, default=1, help="Target page count")
+    parser.add_argument("--output-dir", help="Output directory")
+    parser.add_argument("--json", action="store_true", help="Emit a machine-readable JSON result")
     return parser.parse_args()
 
 
-def validate_input_file(file_path: str) -> Path:
-    """Validate input file exists and has correct extension"""
-    path = Path(file_path)
-
-    if not path.exists():
-        raise FileNotFoundError(f"Input file not found: {file_path}")
-
-    valid_extensions = [".png", ".jpg", ".jpeg", ".webp"]
-    if path.suffix.lower() not in valid_extensions:
-        raise ValueError(f"Invalid file type. Expected {valid_extensions}, got {path.suffix}")
-
-    return path.resolve()
-
-
-def create_output_dir(args) -> Path:
-    """Create timestamped output directory"""
-    if args.output_dir:
-        output_dir = Path(args.output_dir)
-    else:
-        project_root = get_project_root()
-        timestamp = int(time.time())
-        output_dir = project_root / "outputs" / "cli" / "image2ppt" / str(timestamp)
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    return output_dir
-
-
-async def run_image2ppt_workflow(args, input_path: Path, output_dir: Path):
-    """Execute Image2PPT workflow"""
-
-    # Get API configuration with priority: CLI args > Environment variables > Defaults
-    api_url = args.api_url or os.getenv("DF_API_URL", "https://api.openai.com/v1")
-    api_key = args.api_key or os.getenv("DF_API_KEY", "")
-
-    # Validate API key if AI edit is enabled
-    if args.use_ai_edit and not api_key:
-        raise ValueError("API key is required when --use-ai-edit is enabled. "
-                        "Provide via --api-key or DF_API_KEY environment variable.")
-
-    # Build request
-    req = Paper2FigureRequest(
-        chat_api_url=api_url,
-        api_key=api_key,
-        chat_api_key=api_key,
-        model=args.model,
-        gen_fig_model=args.gen_fig_model,
-        language=args.language,
-        style=args.style,
-        page_count=args.page_count,
-        use_ai_edit=args.use_ai_edit,
-        input_type="FIGURE",  # Key difference: set input type to FIGURE
-    )
-
-    # Build state
-    state = Paper2FigureState(
-        request=req,
-        messages=[],
-        result_path=str(output_dir),
-        input_type="FIGURE",  # Set input type to FIGURE
-    )
-
-    # Set image file path (use pdf_file attribute for compatibility)
-    state.pdf_file = str(input_path)
-
-    # Select workflow based on use_ai_edit flag (reuses PDF2PPT workflows)
-    workflow_name = "pdf2ppt_qwenvl" if args.use_ai_edit else "pdf2ppt_parallel"
-
-    log.info("%s", "=" * 60)
-    log.info("Image2PPT Workflow Starting")
-    log.info("%s", "=" * 60)
-    log.info("Input Image: %s", input_path)
-    log.info("Output Directory: %s", output_dir)
-    log.info("Workflow: %s", workflow_name)
-    log.info("AI Enhancement: %s", "Enabled" if args.use_ai_edit else "Disabled")
-    log.info("Style: %s", args.style)
-    log.info("Language: %s", args.language)
-    log.info("%s", "=" * 60)
-
-    # Run workflow
-    final_state = await run_workflow(workflow_name, state)
-
-    return final_state
-
-
-def print_results(final_state: Paper2FigureState, output_dir: Path):
-    """Print workflow results"""
-    log.info("%s", "=" * 60)
-    log.info("Image2PPT Workflow Completed Successfully")
-    log.info("%s", "=" * 60)
-    log.info("Output Directory: %s", output_dir)
-
-    ppt_path = getattr(final_state, "ppt_path", None)
-    if ppt_path and os.path.exists(ppt_path):
-        log.info("PPT File: %s", ppt_path)
-    else:
-        log.warning("PPT file not found in output")
-
-    log.info("%s", "=" * 60)
+def print_result(result, as_json: bool):
+    payload = result.to_dict()
+    if as_json:
+        print(f"{JSON_RESULT_PREFIX}{json.dumps(payload, ensure_ascii=False)}")
+        return
+    print("Image2PPT completed")
+    print(f"Run directory: {payload['run_dir']}")
+    print(f"Primary output: {payload['primary_output'] or '(not found)'}")
+    if payload.get("error"):
+        print(f"Error: {payload['error']}")
 
 
 def main():
-    """Main entry point"""
     try:
-        # Parse arguments
         args = parse_args()
-
-        # Validate input file
-        input_path = validate_input_file(args.input)
-
-        # Create output directory
-        output_dir = create_output_dir(args)
-
-        # Run workflow
-        final_state = asyncio.run(run_image2ppt_workflow(args, input_path, output_dir))
-
-        # Print results
-        print_results(final_state, output_dir)
-
-        return 0
-
-    except FileNotFoundError as e:
-        log.error("%s", e)
-        return 1
-    except ValueError as e:
-        log.error("%s", e)
-        return 1
-    except Exception as e:
-        log.exception("Workflow execution failed: %s", e)
-        import traceback
-        traceback.print_exc()
+        result = asyncio.run(
+            run_image2ppt_job(
+                input_path=args.input,
+                use_ai_edit=args.use_ai_edit,
+                api_url=args.api_url,
+                api_key=args.api_key,
+                model=args.model,
+                gen_fig_model=args.gen_fig_model,
+                language=args.language,
+                style=args.style,
+                page_count=args.page_count,
+                output_dir=args.output_dir,
+            )
+        )
+        print_result(result, args.json)
+        return 0 if result.success else 1
+    except Exception as exc:
+        if "--json" in sys.argv:
+            print(
+                f"{JSON_RESULT_PREFIX}{json.dumps({'success': False, 'skill_name': 'image2ppt', 'error': str(exc)}, ensure_ascii=False)}"
+            )
+        else:
+            print(f"Image2PPT failed: {exc}", file=sys.stderr)
         return 1
 
 
