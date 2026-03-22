@@ -17,15 +17,37 @@ PID_FILE = LOG_DIR / "sam3.pid"
 ENV_FILE = LOG_DIR / "model_servers.env"
 
 PYTHON = os.environ.get("PAPER2ANY_PYTHON", "/opt/conda/bin/python")
-SAM3_HOME = os.environ.get("SAM3_HOME", "/mnt/paper2any/lz/github-proj/Paper2Any/sam3_src")
-SAM3_CHECKPOINT = os.environ.get(
-    "SAM3_CHECKPOINT_PATH",
-    "/mnt/paper2any/lz/github-proj/Paper2Any/models/sam3/sam3.pt",
+LEGACY_ASSET_ROOT = Path(
+    os.environ.get("PAPER2ANY_ASSET_ROOT", "/mnt/paper2any/lz/github-proj/Paper2Any")
 )
-SAM3_BPE = os.environ.get(
-    "SAM3_BPE_PATH",
-    "/mnt/paper2any/lz/github-proj/Paper2Any/models/sam3/bpe_simple_vocab_16e6.txt.gz",
-)
+LOCAL_SAM3_HOME = ROOT / "models" / "sam3-official" / "sam3"
+LOCAL_SAM3_CHECKPOINT = ROOT / "models" / "sam3" / "sam3.pt"
+LOCAL_SAM3_BPE = ROOT / "models" / "sam3" / "bpe_simple_vocab_16e6.txt.gz"
+
+
+def _choose_existing(*candidates: str | Path | None) -> str | None:
+    for candidate in candidates:
+        if not candidate:
+            continue
+        path = Path(candidate)
+        if path.exists():
+            return str(path)
+    return None
+
+
+SAM3_HOME = os.environ.get("SAM3_HOME") or _choose_existing(
+    LOCAL_SAM3_HOME,
+    LEGACY_ASSET_ROOT / "sam3_src",
+) or str(LOCAL_SAM3_HOME)
+SAM3_CHECKPOINT = os.environ.get("SAM3_CHECKPOINT_PATH") or _choose_existing(
+    LOCAL_SAM3_CHECKPOINT,
+    LEGACY_ASSET_ROOT / "models" / "sam3" / "sam3.pt",
+) or str(LOCAL_SAM3_CHECKPOINT)
+SAM3_BPE = os.environ.get("SAM3_BPE_PATH") or _choose_existing(
+    LOCAL_SAM3_BPE,
+    LEGACY_ASSET_ROOT / "models" / "sam3" / "bpe_simple_vocab_16e6.txt.gz",
+    LEGACY_ASSET_ROOT / "sam3_src" / "sam3" / "assets" / "bpe_simple_vocab_16e6.txt.gz",
+) or str(LOCAL_SAM3_BPE)
 SAM3_GPU = os.environ.get("SAM3_GPU", "1")
 SAM3_PORT = os.environ.get("SAM3_PORT", "8021")
 

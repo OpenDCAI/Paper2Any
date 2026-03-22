@@ -12,16 +12,16 @@
 # - get_svg_render_desc: 返回 SVG 渲染工具的说明文本
 # ================================================================
 # BRIA-RMBG 2.0 高质量抠图工具
-# - 模型：RMBG 2.0（ONNX）
-# - 依赖：onnxruntime, pillow, numpy
+# - 模型：RMBG 2.0（Transformers / ModelScope 目录）
+# - 依赖：transformers, pillow, numpy
 # ================================================================
 
 from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
-import platform
 
 import numpy as np
 from PIL import Image, ImageFilter
@@ -31,9 +31,10 @@ from transformers import AutoModelForImageSegmentation
 from dataflow_agent.logger import get_logger
 
 CURRENT_DIR = Path(__file__).resolve().parent
-# Allow override via env var (e.g. in Docker: RMBG_MODEL_PATH=/app/models/RMBG-2.0)
+PROJECT_ROOT = CURRENT_DIR.parents[2]
+# Allow override via env var (e.g. RMBG_MODEL_PATH=/app/models/RMBG-2.0)
 _env_model_path = os.environ.get("RMBG_MODEL_PATH")
-MODEL_PATH = Path(_env_model_path) if _env_model_path else CURRENT_DIR / "onnx" / "model.onnx"
+MODEL_PATH = Path(_env_model_path) if _env_model_path else PROJECT_ROOT / "models" / "RMBG-2.0"
 OUTPUT_DIR = CURRENT_DIR
 
 # 进程级抠图模型缓存：按 model_path 复用 BriaRMBG2Remover 实例
@@ -41,47 +42,50 @@ _BG_RMBG_MODEL_CACHE: dict[str, "BriaRMBG2Remover"] = {}
 log = get_logger(__name__)
 
 
+def _has_rmbg_model(model_path: Path) -> bool:
+    return (model_path / "config.json").exists() and (model_path / "model.safetensors").exists()
+
+
 def ensure_model(model_path: Path) -> None:
     """
     确保本地存在 RMBG-2.0 模型权重。
 
-    若 ``model_path`` 对应的文件不存在，则通过 ModelScope 下载
-    ``AI-ModelScope/RMBG-2.0`` 模型到该路径所在目录。
+    当前实现期望 ``model_path`` 是一个 HuggingFace / ModelScope 风格的
+    模型目录；若目录缺失，则自动下载 ``AI-ModelScope/RMBG-2.0``。
 
     参数
     ----
     model_path:
-        本地模型文件路径（通常为 ONNX 或 transformers 权重）。
+        本地模型目录路径。
 
     异常
     ----
     FileNotFoundError
         当下载结束后仍未在 ``model_path`` 处找到模型文件时抛出。
     """
-    if model_path.exists():
+    if model_path.is_file():
+        model_path = model_path.parent
+
+    if _has_rmbg_model(model_path):
         log.info(f"模型已存在: {model_path}")
         return
 
-    log.info("未检测到模型文件，正在下载 RMBG-2.0 权重...")
+    log.info("未检测到 RMBG 模型目录，正在下载 RMBG-2.0 权重...")
 
-    # 确保目录存在
-    model_path.parent.mkdir(parents=True, exist_ok=True)
-    # 判断当前系统是否为Windows
-    is_windows = platform.system().lower() == "windows"
-    # Windows用双引号包裹路径，Linux/macOS用单引号（保持原有逻辑）
-    quote = '"' if is_windows else "'"
-    # 直接下载到目标目录
-    cmd = (
-        f"modelscope download "
-        f"--model AI-ModelScope/RMBG-2.0 "
-        f"--local_dir {quote}{model_path}{quote} "
-    )
-    os.system(cmd)
+    model_path.mkdir(parents=True, exist_ok=True)
+    download_code = (
+        "from modelscope import snapshot_download\n"
+        "snapshot_download("
+        "'AI-ModelScope/RMBG-2.0', "
+        "local_dir=r'''%s''', "
+        "allow_patterns=['*.json', '*.py', '*.safetensors']"
+        ")\n"
+    ) % str(model_path)
+    subprocess.run([sys.executable, "-c", download_code], check=True)
 
-    # 检查下载是否成功
-    if not model_path.exists():
+    if not _has_rmbg_model(model_path):
         raise FileNotFoundError(
-            f"模型下载失败：未找到 {model_path}。\n"
+            f"模型下载失败：目录 {model_path} 缺少 config.json 或 model.safetensors。\n"
             "请检查 ModelScope 或手动下载。"
         )
 
@@ -109,6 +113,8 @@ class BriaRMBG2Remover:
             输出目录。若为 None，则使用当前文件所在目录。
         """
         self.model_path = Path(model_path) if model_path else MODEL_PATH
+        if self.model_path.is_file():
+            self.model_path = self.model_path.parent
         self.output_dir = Path(output_dir) if output_dir else OUTPUT_DIR
 
         ensure_model(self.model_path)
