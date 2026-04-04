@@ -54,34 +54,51 @@ from dataflow_agent.toolkits.image2drawio import (
     save_masked_rgba,
     bbox_iou_px,
 )
+from dataflow_agent.toolkits.image2drawio.metric_evaluator import evaluate as metric_evaluate
+from dataflow_agent.toolkits.image2drawio.refinement_processor import refine as refinement_refine
 from dataflow_agent.utils_common import robust_parse_json
 
 log = get_logger(__name__)
 
 # ==================== SAM3 PROMPTS (ported from Edit-Banana/prompts) ====================
+# 基本图形：覆盖主流流程图/架构图的所有几何元素
 SHAPE_PROMPT = [
     "rectangle",
     "rounded rectangle",
     "diamond",
     "ellipse",
+    "circle",
+    "triangle",
+    "hexagon",
+    "parallelogram",
+    "cylinder",
+    "cloud",
 ]
 
 ARROW_PROMPT = [
     "arrow",
     "connector",
+    "line",
 ]
 
+# 图片类：覆盖各类非矢量化内容
 IMAGE_PROMPT = [
     "icon",
     "symbol",
     "pictogram",
     "logo",
+    "picture",
+    "chart",
+    "diagram",
 ]
 
-# 泛化补召回提示词：避免与具体业务词绑定（如 planner/critic/robot）
+# 泛化补召回提示词：低阈值兜底，避免与具体业务词绑定
 IMAGE_PROMPT_RECALL = [
     "illustration",
     "character",
+    "photo",
+    "image",
+    "figure",
 ]
 
 BACKGROUND_PROMPT = [
@@ -89,6 +106,8 @@ BACKGROUND_PROMPT = [
     "container",
     "filled region",
     "background",
+    "section panel",
+    "title bar",
 ]
 
 SAM3_GROUPS = {
@@ -100,22 +119,22 @@ SAM3_GROUPS = {
 
 # Thresholds aligned with Edit-Banana config defaults
 SAM3_GROUP_CONFIG = {
-    "shape": {"score_threshold": 0.5, "min_area": 200, "priority": 3},
-    "arrow": {"score_threshold": 0.45, "min_area": 50, "priority": 4},
-    "image": {"score_threshold": 0.5, "min_area": 100, "priority": 2},
-    "background": {"score_threshold": 0.25, "min_area": 500, "priority": 1},
+    "shape": {"score_threshold": 0.45, "min_area": 150, "priority": 3},
+    "arrow": {"score_threshold": 0.40, "min_area": 30, "priority": 4},
+    "image": {"score_threshold": 0.45, "min_area": 80, "priority": 2},
+    "background": {"score_threshold": 0.20, "min_area": 400, "priority": 1},
 }
 
 # 第2轮 image 召回配置（低阈值 + 动态最小面积）
-SAM3_IMAGE_RECALL_SCORE_THRESHOLD = 0.38
-SAM3_IMAGE_RECALL_MIN_AREA_BASE = 40
-SAM3_IMAGE_RECALL_MIN_AREA_RATIO = 0.00003
-SAM3_IMAGE_RECALL_TRIGGER_MAX_IMAGES = 2
+SAM3_IMAGE_RECALL_SCORE_THRESHOLD = 0.35
+SAM3_IMAGE_RECALL_MIN_AREA_BASE = 30
+SAM3_IMAGE_RECALL_MIN_AREA_RATIO = 0.00002
+SAM3_IMAGE_RECALL_TRIGGER_MAX_IMAGES = 4
 
 # Dedup params aligned with Edit-Banana defaults
-SAM3_DEDUP_IOU = 0.7
-SAM3_ARROW_DEDUP_IOU = 0.85
-SAM3_SHAPE_IMAGE_IOU = 0.6
+SAM3_DEDUP_IOU = 0.65
+SAM3_ARROW_DEDUP_IOU = 0.80
+SAM3_SHAPE_IMAGE_IOU = 0.55
 
 MAX_DRAWIO_ELEMENTS = 800
 MIN_IMAGE_AREA_RATIO = 0.00001
@@ -909,6 +928,12 @@ def _shape_style(
         base = "shape=triangle;"
     elif st in {"hexagon"}:
         base = "shape=hexagon;perimeter=hexagonPerimeter2;fixedSize=1;"
+    elif st in {"parallelogram"}:
+        base = "shape=parallelogram;perimeter=parallelogramPerimeter;fixedSize=1;"
+    elif st in {"cylinder"}:
+        base = "shape=cylinder3;boundedLbl=1;backgroundOutline=1;size=15;"
+    elif st in {"cloud"}:
+        base = "ellipse;shape=cloud;"
     elif st in {"container", "rounded rectangle", "rounded_rect", "rounded rectangle"}:
         base = "rounded=1;"
     else:
@@ -948,7 +973,7 @@ def _shape_type_from_prompt(prompt: str) -> str:
     p = _normalize_prompt(prompt)
     if p in {"rounded rectangle", "rounded_rectangle"}:
         return "rounded rectangle"
-    if p in {"rectangle", "square", "panel", "background", "filled region", "title bar", "section_panel"}:
+    if p in {"rectangle", "square", "panel", "background", "filled region", "title bar", "section_panel", "section panel"}:
         return "rectangle"
     if p in {"container"}:
         return "rounded rectangle"
@@ -960,6 +985,12 @@ def _shape_type_from_prompt(prompt: str) -> str:
         return "triangle"
     if p in {"hexagon"}:
         return "hexagon"
+    if p in {"parallelogram"}:
+        return "parallelogram"
+    if p in {"cylinder"}:
+        return "cylinder"
+    if p in {"cloud"}:
+        return "cloud"
     return p or "rectangle"
 
 
@@ -1319,6 +1350,7 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
                 model_name="qwen-vl-ocr-2025-11-20",
                 chat_api_url=chat_api_url,
                 vlm_mode="ocr",
+                max_tokens=8192,
                 additional_params={"input_image": img_path, "timeout": vlm_timeout},
             )
             new_state = await agent.execute(temp_state)
@@ -1393,6 +1425,65 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
         state.temp_data["drawio_elements"] = elements
         return state
 
+    async def _evaluate_node(state: Paper2DrawioState) -> Paper2DrawioState:
+        """Evaluate coverage quality and detect uncovered bad regions."""
+        img_path = state.temp_data.get("input_image_path")
+        if not img_path or not os.path.exists(img_path):
+            state.temp_data["bad_regions"] = []
+            return state
+
+        elements = state.temp_data.get("drawio_elements", []) or []
+        text_blocks = state.temp_data.get("text_blocks", []) or []
+        base_dir = str(Path(_ensure_result_path(state)))
+
+        eval_result = metric_evaluate(
+            image_path=img_path,
+            elements=elements,
+            text_blocks=text_blocks,
+            output_dir=base_dir,
+        )
+
+        state.temp_data["bad_regions"] = eval_result.get("bad_regions", [])
+        state.temp_data["eval_score"] = eval_result.get("score", 100)
+        state.temp_data["needs_refinement"] = eval_result.get("needs_refinement", False)
+
+        log.info(
+            f"[paper2drawio_sam3] Evaluation: score={eval_result.get('score', 0):.1f}, "
+            f"bad_regions={len(eval_result.get('bad_regions', []))}, "
+            f"needs_refinement={eval_result.get('needs_refinement', False)}"
+        )
+        return state
+
+    async def _refine_node(state: Paper2DrawioState) -> Paper2DrawioState:
+        """Fallback rescue: crop uncovered bad regions as image elements."""
+        if not state.temp_data.get("needs_refinement", False):
+            return state
+
+        img_path = state.temp_data.get("input_image_path")
+        if not img_path or not os.path.exists(img_path):
+            return state
+
+        bad_regions = state.temp_data.get("bad_regions", [])
+        if not bad_regions:
+            return state
+
+        elements = state.temp_data.get("drawio_elements", []) or []
+        base_dir = str(Path(_ensure_result_path(state)))
+
+        new_elements = refinement_refine(
+            image_path=img_path,
+            bad_regions=bad_regions,
+            existing_elements=elements,
+            output_dir=base_dir,
+        )
+
+        if new_elements:
+            elements.extend(new_elements)
+            state.temp_data["drawio_elements"] = elements
+            log.info(f"[paper2drawio_sam3] Refinement: added {len(new_elements)} fallback elements")
+
+        return state
+
     async def _render_xml_node(state: Paper2DrawioState) -> Paper2DrawioState:
         img_path = state.temp_data.get("input_image_path")
         if not img_path or not os.path.exists(img_path):
@@ -1464,6 +1555,8 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
         "text_ocr": _text_node,
         "sam3": _sam3_node,
         "build_elements": _build_elements_node,
+        "evaluate": _evaluate_node,
+        "refine": _refine_node,
         "render_xml": _render_xml_node,
         "_end_": lambda s: s,
     }
@@ -1472,7 +1565,9 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
         ("input", "text_ocr"),
         ("text_ocr", "sam3"),
         ("sam3", "build_elements"),
-        ("build_elements", "render_xml"),
+        ("build_elements", "evaluate"),
+        ("evaluate", "refine"),
+        ("refine", "render_xml"),
         ("render_xml", "_end_"),
     ]
 

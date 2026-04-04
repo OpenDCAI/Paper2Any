@@ -9,6 +9,8 @@ from .utils import (
     save_masked_rgba,
     bbox_iou_px,
 )
+from .metric_evaluator import evaluate as metric_evaluate
+from .refinement_processor import refine as refinement_refine
 
 __all__ = [
     "classify_shape",
@@ -18,4 +20,6 @@ __all__ = [
     "sample_fill_stroke",
     "save_masked_rgba",
     "bbox_iou_px",
+    "metric_evaluate",
+    "refinement_refine",
 ]

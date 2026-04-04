@@ -1408,6 +1408,7 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
                 model_name="qwen-vl-ocr-2025-11-20",
                 chat_api_url=chat_api_url,
                 vlm_mode="ocr",
+                max_tokens=8192,
                 additional_params={"input_image": img_path, "timeout": vlm_timeout},
             )
             new_state = await agent.execute(temp_state)
