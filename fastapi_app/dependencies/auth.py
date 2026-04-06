@@ -29,13 +29,19 @@ def get_supabase_client() -> Optional[Client]:
     return _supabase_client
 
 
+def is_auth_configured() -> bool:
+    """Whether Supabase auth is configured for this deployment."""
+    return bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_ANON_KEY"))
+
+
 class AuthUser:
     """Authenticated user information."""
     
-    def __init__(self, user_id: str, email: Optional[str], phone: Optional[str]):
+    def __init__(self, user_id: str, email: Optional[str], phone: Optional[str], is_anonymous: bool = False):
         self.id = user_id
         self.email = email
         self.phone = phone
+        self.is_anonymous = is_anonymous
     
     @property
     def identifier(self) -> str:
@@ -93,7 +99,8 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> AuthU
         return AuthUser(
             user_id=user.id,
             email=user.email,
-            phone=user.phone
+            phone=user.phone,
+            is_anonymous=bool(getattr(user, "is_anonymous", False)),
         )
         
     except HTTPException:

@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { UploadCloud, Link as LinkIcon, FileText, Loader2, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { supabase } from '../../lib/supabase';
+import { backendFetch } from '../../services/backendClient';
 import { KnowledgeBaseEntry } from './types';
 
 interface UploadViewProps {
@@ -100,11 +101,8 @@ export const UploadView = ({ onSuccess, knowledgeBases = [], onGoToLibrary }: Up
             formData.append('user_id', user.id);
 
             // 1. Upload to Backend
-            const res = await fetch('/api/v1/kb/upload', {
+            const res = await backendFetch('/api/v1/kb/upload', {
               method: 'POST',
-              headers: {
-                'X-API-Key': 'df-internal-2024-workflow-key'
-              },
               body: formData
             });
 

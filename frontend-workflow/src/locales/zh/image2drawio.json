@@ -43,7 +43,7 @@
     "imgOnly": "仅支持 JPG / PNG 图片",
     "sizeLimit": "图片大小不能超过 15MB",
     "apiFail": "转换失败，请稍后再试",
-    "quotaFull": "额度已用完，请稍后再试"
+    "quotaFull": "当前点数不足，请先获取兑换码并到账户页兑换加点。"
   },
   "cases": {
     "title": "使用案例",

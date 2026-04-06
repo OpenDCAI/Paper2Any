@@ -24,12 +24,12 @@ class ErrorResponse(BaseModel):
 
 
 class FeaturePaper2VideoRequest(BaseModel):
-    model: str = settings.PAPER2VIDEO_DEFAULT_MODEL,
-    chat_api_url: str = settings.DEFAULT_LLM_API_URL,
-    api_key: str = "",
-    pdf_path: str = "",
-    img_path: str = "",
-    language: str = "",
+    model: str = settings.PAPER2VIDEO_DEFAULT_MODEL
+    chat_api_url: str = settings.DEFAULT_LLM_API_URL
+    api_key: str = ""
+    pdf_path: str = ""
+    img_path: str = ""
+    language: str = ""
 
 
 class FeaturePaper2VideoResponse(BaseModel):
@@ -37,12 +37,49 @@ class FeaturePaper2VideoResponse(BaseModel):
     ppt_path: str
 
 
+# --------------- paper2video 两步流程：生成脚本 + 生成视频 ---------------
+
+
+class ScriptPageItem(BaseModel):
+    """单页脚本项，用于 generate-subtitle 响应与 generate-video 请求。"""
+    page_num: int = 0
+    image_url: str = ""   # 前端展示用 URL；generate-video 请求可不传或传空
+    script_text: str = ""  # 该页语音脚本正文（用户可编辑）
+
+
+class GenerateSubtitleResponse(BaseModel):
+    """generate-subtitle 接口响应：解析论文后得到的脚本页列表、任务目录与 state_snapshot（供第二步复用 state）。"""
+    success: bool = True
+    message: Optional[str] = None
+    result_path: str = ""   # 本次任务输出根目录（后端路径，前端后续原样回传）
+    script_pages: List[Dict[str, Any]] = []  # [{ "page_num", "image_url", "script_text" }, ...]
+    state_snapshot: Optional[Dict[str, Any]] = None  # 第一步 state 序列化，第二步请求时原样回传以复用 state
+    all_output_files: List[str] = []  # 可选，本次任务产出文件 URL 列表，便于前端预加载
+
+
+class GenerateVideoRequest(BaseModel):
+    """generate-video 接口请求体（从 Form 解析后组装）。"""
+    result_path: str = ""
+    script_pages: str = ""  # JSON 字符串，列表 [{ "page_num", "script_text" }, ...]
+    state_snapshot: Optional[str] = None  # 第一步返回的 state_snapshot 的 JSON 字符串，可选
+    email: Optional[str] = None
+
+
+class GenerateVideoResponse(BaseModel):
+    """generate-video 接口响应：最终视频地址。"""
+    success: bool = True
+    message: Optional[str] = None
+    video_url: str = ""   # 浏览器可访问的完整 URL，优先返回
+    video_path: str = ""  # 后端本地路径，当 video_url 为空时前端可据此拼 URL
+
+
+
 # ===================== LLM Verification =====================
 
 
 class VerifyLlmRequest(BaseModel):
-    api_url: str
-    api_key: str
+    api_url: Optional[str] = None
+    api_key: Optional[str] = None
     model: str = settings.MODEL_GPT_4O
 
 
@@ -83,6 +120,9 @@ class Paper2FigureRequest(BaseModel):
 
     api_key: str = ""
     # 如果使用第三方外部 API（如 OpenAI），在此填写外部 API Key；为空则使用内部服务
+
+    image_api_url: str = ""
+    image_api_key: str = ""
 
     model: str = settings.PAPER2FIGURE_TEXT_MODEL
     # 用于执行理解、抽象、描述生成的文本模型名称
@@ -167,8 +207,9 @@ class Paper2FigureResponse(BaseModel):
 
 class PageContentRequest(BaseModel):
     """专用于pagecontent生成的请求模型"""
-    chat_api_url: str
-    api_key: str
+    chat_api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    credential_scope: Optional[str] = None
     email: Optional[str] = None
     input_type: Literal["text", "pdf", "pptx", "topic"]
     file: Optional[Any] = None  # UploadFile 在路由层处理，这里用Any占位
@@ -188,8 +229,9 @@ class PageContentRequest(BaseModel):
 
 class OutlineRefineRequest(BaseModel):
     """Refine outline based on user feedback without re-parsing input."""
-    chat_api_url: str
-    api_key: str
+    chat_api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    credential_scope: Optional[str] = None
     email: Optional[str] = None
     model: str = settings.PAPER2PPT_OUTLINE_MODEL
     language: str = "zh"
@@ -198,18 +240,56 @@ class OutlineRefineRequest(BaseModel):
     pagecontent: str
 
 
+class FrontendPPTGenerationRequest(BaseModel):
+    """Generate editable frontend slides for paper2ppt."""
+    chat_api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    credential_scope: Optional[str] = None
+    email: Optional[str] = None
+    model: str = settings.PAPER2PPT_CONTENT_MODEL
+    language: str = "zh"
+    style: str = ""
+    result_path: str
+    pagecontent: str
+    include_images: bool = False
+    image_style: str = "academic_illustration"
+    image_model: Optional[str] = None
+    page_id: Optional[int] = None
+    edit_prompt: Optional[str] = None
+    current_slide: Optional[str] = None
+    skip_slides: Optional[str] = None
+
+
+class FrontendPPTExportRequest(BaseModel):
+    """Export frontend slides into screenshot-based PPTX/PDF."""
+    result_path: str
+    slides: str
+
+
+class FrontendPPTReviewRequest(BaseModel):
+    """Review a rendered frontend slide screenshot and return repair advice."""
+    result_path: str
+    slide: str
+    chat_api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    credential_scope: Optional[str] = None
+    language: str = "zh"
+    layout_issues: Optional[str] = None
+
+
 # ===================== KB Deep Research 相关 =====================
 
 class DeepResearchRequest(BaseModel):
     mode: Literal["llm", "web"] = "llm"
     topic: str = ""
     file_paths: List[str] = []
-    api_url: str
-    api_key: str
+    api_url: Optional[str] = None
+    api_key: Optional[str] = None
     model: str = settings.MODEL_GPT_4O
     language: str = "zh"
     email: Optional[str] = None
     user_id: Optional[str] = None
+    notebook_id: Optional[str] = None
     search_provider: Literal["serpapi", "google_cse", "brave"] = "serpapi"
     search_api_key: str = ""
     search_engine: Literal["google", "baidu"] = "google"
@@ -234,18 +314,177 @@ class DeepResearchResponse(BaseModel):
     output_file_id: str = ""
 
 
+# ===================== Paper2Citation 相关 =====================
+
+
+class CitationAuthorCandidate(BaseModel):
+    openalex_author_id: str = ""
+    dblp_id: str = ""
+    orcid: str = ""
+    display_name: str = ""
+    affiliations: List[str] = []
+    works_count: int = 0
+    cited_by_count: int = 0
+    source: str = ""
+
+
+class CitationAuthorItem(BaseModel):
+    openalex_author_id: str = ""
+    display_name: str = ""
+    affiliations: List[str] = []
+    citing_works_count: int = 0
+
+
+class CitationInstitutionStat(BaseModel):
+    openalex_institution_id: str = ""
+    display_name: str = ""
+    country_code: str = ""
+    type: str = ""
+    citing_works_count: int = 0
+
+
+class CitationWorkItem(BaseModel):
+    openalex_work_id: str = ""
+    doi: str = ""
+    title: str = ""
+    year: Optional[int] = None
+    publication_date: str = ""
+    venue: str = ""
+    type: str = ""
+    cited_by_count: int = 0
+    authors: List[str] = []
+    institutions: List[str] = []
+    landing_page_url: str = ""
+
+
+class CitationContextItem(BaseModel):
+    section: str = ""
+    sentence: str = ""
+    paragraph: str = ""
+    marker: str = ""
+    confidence: float = 0.0
+
+
+class CitationHonorStat(BaseModel):
+    honor_label: str = ""
+    count: int = 0
+    matched_authors: List[Dict[str, Any]] = []
+
+
+class Paper2CitationAuthorSearchRequest(BaseModel):
+    author_name: str
+    max_author_candidates: int = 12
+
+
+class Paper2CitationAuthorSearchResponse(BaseModel):
+    success: bool = True
+    mode: str = "author_search"
+    query: str = ""
+    candidates: List[CitationAuthorCandidate] = []
+
+
+class Paper2CitationAuthorDetailRequest(BaseModel):
+    openalex_author_id: str = ""
+    dblp_id: str = ""
+    display_name: str = ""
+    affiliation_hint: str = ""
+    candidate_source: str = ""
+    max_publications: int = 25
+    max_citing_works: int = 60
+    publication_page: int = 1
+    publication_page_size: int = 20
+
+
+class Paper2CitationAuthorDetailResponse(BaseModel):
+    success: bool = True
+    mode: str = "author_detail"
+    query: str = ""
+    best_effort_notice: str = ""
+    author_profile: Dict[str, Any] = {}
+    publication_stats: Dict[str, Any] = {}
+    citation_stats: Dict[str, Any] = {}
+    publication_pagination: Dict[str, Any] = {}
+    publications: List[CitationWorkItem] = []
+    citing_works: List[CitationWorkItem] = []
+    citing_authors: List[CitationAuthorItem] = []
+    citing_institutions: List[CitationInstitutionStat] = []
+    honors_stats: List[CitationHonorStat] = []
+    matched_honorees: List[Dict[str, Any]] = []
+
+
+class Paper2CitationAuthorPublicationsRequest(BaseModel):
+    openalex_author_id: str = ""
+    dblp_id: str = ""
+    display_name: str = ""
+    affiliation_hint: str = ""
+    candidate_source: str = ""
+    max_publications: int = 25
+    publication_page: int = 1
+    publication_page_size: int = 20
+
+
+class Paper2CitationAuthorPublicationsResponse(BaseModel):
+    success: bool = True
+    mode: str = "author_publications"
+    query: str = ""
+    best_effort_notice: str = ""
+    publication_stats: Dict[str, Any] = {}
+    publication_pagination: Dict[str, Any] = {}
+    publications: List[CitationWorkItem] = []
+
+
+class Paper2CitationPaperDetailRequest(BaseModel):
+    doi_or_url: str
+    max_citing_works: int = 60
+
+
+class Paper2CitationPaperDetailResponse(BaseModel):
+    success: bool = True
+    mode: str = "paper_detail"
+    query: str = ""
+    best_effort_notice: str = ""
+    paper_detail: Dict[str, Any] = {}
+    citation_stats: Dict[str, Any] = {}
+    citing_works: List[CitationWorkItem] = []
+    citing_authors: List[CitationAuthorItem] = []
+    citing_institutions: List[CitationInstitutionStat] = []
+    honors_stats: List[CitationHonorStat] = []
+    matched_honorees: List[Dict[str, Any]] = []
+
+
+class Paper2CitationPaperContextRequest(BaseModel):
+    target_doi_or_url: str
+    citing_work_openalex_id: str = ""
+    citing_work_doi_or_url: str = ""
+    citing_work_title: str = ""
+
+
+class Paper2CitationPaperContextResponse(BaseModel):
+    success: bool = True
+    mode: str = "paper_context"
+    query: str = ""
+    best_effort_notice: str = ""
+    source_url: str = ""
+    target_reference_match: Dict[str, Any] = {}
+    citing_paper: Dict[str, Any] = {}
+    contexts: List[CitationContextItem] = []
+    summary: str = ""
+    citation_intents: List[str] = []
+
+
 # ===================== KB Report 相关 =====================
 
 class KBReportRequest(BaseModel):
     file_paths: List[str] = []
-    api_url: str
-    api_key: str
+    api_url: Optional[str] = None
+    api_key: Optional[str] = None
     model: str = "gpt-5.1"
     language: str = "zh"
     report_style: Literal["insight", "analysis"] = "insight"
     length: Literal["short", "standard", "long"] = "standard"
     email: Optional[str] = None
     user_id: Optional[str] = None
+    notebook_id: Optional[str] = None
 
 
 class KBReportResponse(BaseModel):
@@ -258,8 +497,9 @@ class KBReportResponse(BaseModel):
 class PPTGenerationRequest(BaseModel):
     """专用于PPT生成/编辑的请求模型"""
     img_gen_model_name: str
-    chat_api_url: str
-    api_key: str
+    chat_api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    credential_scope: Optional[str] = None
     email: Optional[str] = None
     style: str = ""
     reference_img: Optional[Any] = None
@@ -272,15 +512,19 @@ class PPTGenerationRequest(BaseModel):
     pagecontent: Optional[str] = None
     page_id: Optional[int] = None
     edit_prompt: Optional[str] = None
+    regenerate_from_outline: str = "false"
     # 图像生成分辨率（1K/2K/4K 等）
     image_resolution: Optional[str] = None
+    # 增量生成：跳过的页码列表（JSON 格式，0-based），复用已有图片
+    skip_pages: Optional[str] = None
 
 
 class FullPipelineRequest(BaseModel):
     """专用于完整流水线的请求模型"""
     img_gen_model_name: str
-    chat_api_url: str
-    api_key: str
+    chat_api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    credential_scope: Optional[str] = None
     email: Optional[str] = None
     input_type: Literal["text", "pdf", "pptx"]
     file: Optional[Any] = None
@@ -303,10 +547,13 @@ class Paper2PPTRequest(BaseModel):
     # ---------------------- 基础 LLM 设置 ----------------------
     language: str = "en"
     chat_api_url: str = settings.DEFAULT_LLM_API_URL
+    credential_scope: Optional[str] = None
 
     # ---------------------- 图类型 & 难度设置 ----------------------
     chat_api_key: str = "fill the key"
     api_key: str = ""
+    image_api_url: str = ""
+    image_api_key: str = ""
     # 用于对话的模型
     model: str = settings.PAPER2PPT_DEFAULT_MODEL
 

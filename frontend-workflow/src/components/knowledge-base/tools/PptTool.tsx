@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Presentation, Loader2, CheckCircle2, X } from 'lucide-react';
-import { API_KEY, API_URL_OPTIONS } from '../../../config/api';
+import { API_URL_OPTIONS } from '../../../config/api';
 import { KnowledgeFile } from '../types';
 import { getApiSettings } from '../../../services/apiSettingsService';
+import { backendFetch } from '../../../services/backendClient';
 import { useAuthStore } from '../../../stores/authStore';
 
 interface PptToolProps {
@@ -89,11 +90,10 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
         return styles[preset] || styles.modern;
       };
 
-      const res = await fetch('/api/v1/kb/generate-ppt', {
+      const res = await backendFetch('/api/v1/kb/generate-ppt', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': API_KEY
         },
         body: JSON.stringify({
           file_paths: docPaths,

@@ -59,6 +59,16 @@
 ## 🔥 News
 
 > [!TIP]
+> 🆕 <strong>2026-03-28 · 可编辑版 PPT 展示更新</strong><br>
+> 新增两张 <strong>可编辑版 PPT</strong> 工作流展示图：<br>
+> 一张用于展示多页生成后的 deck 总览，一张用于展示带主题锁定与画布编辑的编辑工作区。
+
+> [!TIP]
+> 🆕 <strong>2026-03-26 · 工作流展示更新</strong><br>
+> 新增 <strong>Paper2Video</strong>、<strong>Paper2Poster</strong>、<strong>Paper2Citation</strong> 的展示内容。<br>
+> README 已补充压缩视频演示，以及中英文两套工作流预览图。
+
+> [!TIP]
 > 🆕 <strong>2026-02-02 · Paper2Rebuttal 更新</strong><br>
 > 新增反驳意见草拟与修改建议，支持结构化回复与图文要点对齐。
 
@@ -95,6 +105,8 @@ Paper2Any 当前包含以下几个子能力：
 - **🖼️ Image2PPT - 图片转 PPT**：将图片或截图快速转换为结构化幻灯片。
 - **🎨 PPTPolish 智能美化**：基于 AI 的排版优化与风格迁移。
 - **🎬 Paper2Video**：生成讲解视频脚本与配音素材。
+- **🖼️ Paper2Poster - 论文转海报**：将论文 PDF 自动整理为学术海报，支持版式参数、Logo 注入与导出。
+- **🔎 Paper2Citation - 论文引用追踪**：按作者姓名或 DOI / 论文链接追踪引用作者、机构与代表性引用论文。
 - **📚 知识库（KB）**：文件入库/向量化、语义检索，以及 KB 驱动的 PPT/播客/思维导图生成。
 
 ---
@@ -105,17 +117,37 @@ Paper2Any 当前包含以下几个子能力：
 
 <div align="center">
 
+<table>
+  <tr>
+    <td width="33%" align="center" valign="top">
+      <img src="static/new_readme/drawio/image-to-drawio-upload.png" width="100%"/>
+      <br><sub>✨ 上传论文配图或截图，作为可编辑 DrawIO 的起点</sub>
+    </td>
+    <td width="34%" align="center" valign="top">
+      <img src="static/new_readme/drawio/image-to-drawio-source.png" width="100%"/>
+      <br><sub>✨ 转换前保留原图结构，便于对照核验</sub>
+    </td>
+    <td width="33%" align="center" valign="top">
+      <img src="static/new_readme/drawio/image-to-drawio-editor.gif" width="100%"/>
+      <br><sub>✨ 图片一键转成可编辑 DrawIO 画布</sub>
+    </td>
+  </tr>
+</table>
+
 <br>
-<img src="static/new_readme/drawio/drawio-1.gif" width="90%"/>
-<br><sub>✨ Diagram 生成（思维导图 / 流程图 / ER 图 ......）</sub>
 
-<br><br>
-<img src="static/new_readme/drawio/drawio-2.gif" width="90%"/>
-<br><sub>✨ 模型图生成：上传 PDF 或输入文本，自动生成科研绘图</sub>
-
-<br><br>
-<img src="static/new_readme/drawio/image-to-editable.png" width="90%"/>
-<br><sub>✨ 图片转可编辑 DrawIO 图</sub>
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/drawio/framework-drawio-workbench.png" width="100%"/>
+      <br><sub>✨ 在 DrawIO 工作台里直接生成模型图 / 系统框架图</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/drawio/framework-drawio-editor.gif" width="100%"/>
+      <br><sub>✨ 生成后可继续对话式编辑，并导出为展示友好的成品图</sub>
+    </td>
+  </tr>
+</table>
 
 </div>
 
@@ -146,10 +178,18 @@ Paper2Any 当前包含以下几个子能力：
 <br><sub>✨ 模型架构图生成</sub>
 
 <br><br>
-<img src="static/new_readme/paper2figure/technical-roadmap-1.png" width="90%"/>
-<br><br>
-<img src="static/new_readme/paper2figure/technical-roadmap-2.png" width="90%"/>
-<br><sub>✨ 技术路线图生成</sub>
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2figure/technical-roadmap-workbench.png" width="100%"/>
+      <br><sub>✨ 技术路线图工作台：选择图类型、输入来源、模型配置与模板风格</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2figure/technical-roadmap-output.png" width="100%"/>
+      <br><sub>✨ 生成结果：结构化双栏技术路线图</sub>
+    </td>
+  </tr>
+</table>
 
 <br><br>
 <img src="static/new_readme/paper2figure/experimental-plot.png" width="90%"/>
@@ -163,29 +203,104 @@ Paper2Any 当前包含以下几个子能力：
 
 <div align="center">
 
-<br>
-<img src="static/new_readme/paper2ppt/demo.gif" width="85%"/>
-<br><sub>✨ PPT生成案例</sub>
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/demo.gif" width="100%"/>
+      <br><sub>✨ 端到端 PPT 生成演示</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/case-1.png" width="100%"/>
+      <br><sub>✨ 从论文 / 文本 / 主题生成完整演示文稿</sub>
+    </td>
+  </tr>
+</table>
 
 <br>
-<img src="static/new_readme/paper2ppt/case-1.png" width="90%"/>
-<br><sub>✨ Paper / Text / Topic → PPT</sub>
 
-<br><br>
-<img src="static/new_readme/paper2ppt/long-doc.png" width="85%"/>
-<br><sub>✨ 超长文档支持 (40+ 页 PPT)</sub>
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/frontend-canvas-edit.gif" width="100%"/>
+      <br><sub>✨ 主题锁定下的画布内直接改字与逐页修订</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/frontend-gallery-review.gif" width="100%"/>
+      <br><sub>✨ 导出前集中检查多页生成结果</sub>
+    </td>
+  </tr>
+</table>
 
-<br><br>
-<img src="static/new_readme/paper2ppt/table-extraction.png" width="90%"/>
-<br><sub>✨ 智能表格提取与插入</sub>
+<br>
 
-<br><br>
-<img src="static/new_readme/paper2ppt/outline-edit.png" width="90%"/>
-<br><sub>✨ AI 辅助编辑大纲</sub>
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/outline-assist-panel.png" width="100%"/>
+      <br><sub>✨ AI 辅助修改入口，支持定向补写与风格调整</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/outline-assist-detail.png" width="100%"/>
+      <br><sub>✨ 细粒度大纲编辑，可直接调整章节与要点</sub>
+    </td>
+  </tr>
+</table>
 
-<br><br>
-<img src="static/new_readme/paper2ppt/version-history.png" width="90%"/>
-<br><sub>✨ 历史版本管理</sub>
+<br>
+
+<img src="static/new_readme/paper2ppt/long-doc.png" width="78%"/>
+<br>
+<img src="static/new_readme/paper2ppt/table-extraction.png" width="80%"/>
+<br>
+<img src="static/new_readme/paper2ppt/version-history.png" width="80%"/>
+<br><sub>✨ 超长文档支持（40+ 页） · 智能表格提取与插入 · 历史版本管理与迭代回溯</sub>
+
+</div>
+
+---
+
+### 🎬 Paper2Video：PPT 转视频
+
+<div align="center">
+
+<br>
+<img src="static/new_readme/paper2video/demo.gif" width="90%"/>
+<br><sub>✨ PPT / PDF 一键生成讲解视频，支持脚本确认、阿里语音与最终视频导出</sub>
+
+</div>
+
+---
+
+### 🖼️ Paper2Poster：论文转海报
+
+<div align="center">
+
+<br>
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="static/new_readme/paper2poster/paper2poster-ppt-result.png" width="100%"/>
+      <br><sub>PNG 海报结果</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="static/new_readme/paper2poster/paper2poster-png-result.png" width="100%"/>
+      <br><sub>PPT 海报结果</sub>
+    </td>
+  </tr>
+</table>
+<br><sub>✨ 论文 PDF 自动整理为学术海报，支持版式参数、可编辑海报结果与一键导出</sub>
+
+</div>
+
+---
+
+### 🔎 Paper2Citation：论文引用追踪
+
+<div align="center">
+
+<br>
+<img src="static/new_readme/paper2citation/citation-explorer.png" width="90%"/>
+<br><sub>✨ 输入作者名或论文 DOI / 链接，查看候选作者、引用线索与机构信息</sub>
 
 </div>
 
@@ -238,30 +353,97 @@ Paper2Any 当前包含以下几个子能力：
 git clone https://github.com/OpenDCAI/Paper2Any.git
 cd Paper2Any
 
-# 2. 后端环境变量（用于 API Key/模型配置）
+# 2. 配置环境变量
 cp fastapi_app/.env.example fastapi_app/.env
+cp frontend-workflow/.env.example frontend-workflow/.env
+cp deploy/docker.env.example deploy/docker.env
+```
 
+**必须修改的配置项：**
+
+`fastapi_app/.env`（后端）：
+```bash
+# 内部接口鉴权 key，必须与前端 VITE_API_KEY 一致
+BACKEND_API_KEY=your-backend-api-key
+
+# 必填：你的 LLM API 地址（替换为你自己的）
+DEFAULT_LLM_API_URL=https://api.openai.com/v1/
+
+# 可选：DrawIO OCR / VLM 服务
+PAPER2DRAWIO_OCR_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+PAPER2DRAWIO_OCR_API_KEY=your_dashscope_key
+
+# 可选：MinerU 官方远端 API
+MINERU_API_BASE_URL=https://mineru.net/api/v4
+MINERU_API_KEY=your_mineru_api_key
+
+# 可选：给 PDF2PPT / Image2PPT / Image2Drawio 使用的 SAM3 分割服务
+# SAM3_SERVER_URLS=http://GPU机器IP:8001
+# SAM3_SERVER_URLS=http://GPU1:8021,http://GPU2:8022
+
+# 可选：Supabase（不填则跳过用户认证，核心功能不受影响）
+# SUPABASE_URL=https://your-project-id.supabase.co
+# SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+`frontend-workflow/.env`（前端）：
+```bash
+# 必须与后端 BACKEND_API_KEY 完全一致
+VITE_API_KEY=your-backend-api-key
+
+# Docker 下通常保持为空，由 nginx 反代 /api 和 /outputs
+VITE_API_BASE_URL=
+
+# 可选：Supabase（与后端保持一致）
+# VITE_SUPABASE_URL=https://your-project-id.supabase.co
+# VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+`deploy/docker.env`（compose 覆盖项）：
+```bash
+BACKEND_PORT=8000
+FRONTEND_PORT=3000
+DOCKER_APP_WORKERS=1
+
+# 可选：本地 SAM3 容器端口
+SAM3_PORT=8021
+SAM3_SERVER_URLS=
+```
+
+```bash
 # 3. 构建并启动
-docker compose up -d --build
+bash deploy/docker-up.sh
 ```
 
 访问地址：
 - 前端：http://localhost:3000
 - 后端健康检查：http://localhost:8000/health
 
+> **GPU 服务说明：** Docker 默认启动后端 + 前端。
+> - Paper2PPT、Paper2Figure、知识库等功能仅依赖 LLM API，Docker 启动后即可使用。
+> - **PDF2PPT、Image2PPT、Image2Drawio** 依赖 SAM3 图像分割。
+> - 你可以在 `fastapi_app/.env` 里配置外部 `SAM3_SERVER_URLS=...`，
+>   或者直接启用 compose 里的本地 SAM3 profile：
+>   ```bash
+>   DOCKER_WITH_SAM3=1 bash deploy/docker-up.sh
+>   ```
+>
+> 详见下方「高级配置：本地模型服务负载均衡」部分。
+
 修改与更新：
-- 代码或 `.env` 变更后重新构建：`docker compose up -d --build`
+- 代码或 `.env` 变更后重新构建：`bash deploy/docker-up.sh`
 - 拉取最新代码并重建：
   - `git pull`
-  - `docker compose up -d --build`
+  - `bash deploy/docker-up.sh`
 
 常用命令：
-- 查看日志：`docker compose logs -f`
-- 停止服务：`docker compose down`
+- 查看日志：`bash deploy/docker-logs.sh`
+- 停止服务：`bash deploy/docker-down.sh`
+- 只构建：`bash deploy/docker-build.sh`
 
 说明：
 - 首次构建会比较慢（系统依赖 + Python 依赖）。
-- 前端配置在构建期生效（compose build args），修改后需重新 `docker compose up -d --build`。
+- 前端配置在构建期生效，修改 `frontend-workflow/.env` 或 `deploy/docker.env` 后需重新 `bash deploy/docker-up.sh`。
 - 输出和模型目录会挂载到宿主机（`./outputs`、`./models`），数据不会丢。
 
 </details>
@@ -290,22 +472,35 @@ pip install -e .
 
 #### 2. 安装 Paper2Any 相关依赖（必须）
 
-Paper2Any 涉及 LaTeX 渲染、矢量图处理以及 PPT/PDF 转换，需要额外依赖：
+Paper2Any 涉及 LaTeX 渲染、矢量图处理以及 PPT/PDF 转换，需要额外依赖。
+
+当前依赖边界建议如下：
+- `requirements-base.txt`：跨平台通用 Python 运行时
+- `requirements-paper.txt`：论文 / PDF / 科研绘图相关额外 Python 包
+- `requirements-cu12.txt`：NVIDIA CUDA 12 的 Linux GPU 额外依赖
+- `requirements-system-ubuntu.txt`：Ubuntu/Debian 系统包，不是 Python 包
 
 ```bash
-# 1. Python 依赖
-pip install -r requirements-paper.txt || pip install -r requirements-paper-backup.txt
+# 1. 论文 / PDF / 科研绘图额外 Python 依赖
+pip install -r requirements-paper.txt
 
-# 2. LaTeX 引擎 (tectonic) - 推荐用 conda 安装
+# 2. NVIDIA GPU 运行时额外依赖（仅 Linux + CUDA 12）
+pip install -r requirements-cu12.txt
+
+# 3. LaTeX 引擎 (tectonic) - 推荐用 conda 安装
 conda install -c conda-forge tectonic -y
 
-# 3. 解决 doclayout_yolo 依赖冲突（重要）
+# 4. 解决 doclayout_yolo 依赖冲突（重要）
 pip install doclayout_yolo --no-deps
 
-# 4. 系统依赖 (Ubuntu 示例)
+# 5. 系统依赖 (Ubuntu 示例；完整列表见 requirements-system-ubuntu.txt)
 sudo apt-get update
-sudo apt-get install -y inkscape libreoffice poppler-utils wkhtmltopdf
+sudo apt-get install -y ffmpeg inkscape libreoffice poppler-utils wkhtmltopdf
 ```
+
+> [!IMPORTANT]
+> `ffmpeg`、`libreoffice/soffice`、`inkscape`、`poppler-utils`、`wkhtmltopdf`、`tectonic`
+> 这些都是系统工具，不是 `pip` 包；`deploy/start*.sh` 也不会自动安装它们。
 
 #### 3. 配置环境变量
 
@@ -350,6 +545,24 @@ PAPER2PPT_DEFAULT_MODEL=gpt-5.1
 PAPER2PPT_DEFAULT_IMAGE_MODEL=gemini-3-pro-image-preview
 PDF2PPT_DEFAULT_MODEL=gpt-4o
 # ... 完整列表请查看 .env.example
+```
+
+**服务集成配置** - 图片/PDF 工作流相关的模型服务：
+```bash
+# DrawIO OCR / VLM
+PAPER2DRAWIO_OCR_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+PAPER2DRAWIO_OCR_API_KEY=your_dashscope_key
+
+# MinerU 官方远端 API；若 MINERU_API_KEY 为空，后端会回退到本地 MINERU_PORT
+MINERU_API_BASE_URL=https://mineru.net/api/v4
+MINERU_API_KEY=your_mineru_api_key
+MINERU_API_MODEL_VERSION=vlm
+
+# SAM3 分割服务，供 PDF2PPT / Image2PPT / Image2Drawio 使用
+# 单个端点：
+SAM3_SERVER_URLS=http://127.0.0.1:8001
+# 或多个端点做负载均衡：
+# SAM3_SERVER_URLS=http://127.0.0.1:8021,http://127.0.0.1:8022
 ```
 
 ##### 步骤 3：前端配置（`frontend-workflow/.env`）
@@ -402,12 +615,12 @@ SUPABASE_JWT_SECRET=your-jwt-secret
 
 - **MinerU (PDF 解析)**
   - `MINERU_MODEL_PATH`: 模型路径 (默认 `models/MinerU2.5-2509-1.2B`)
-  - `MINERU_GPU_UTIL`: 显存占用比例 (默认 0.2)
-  - **实例配置**: 脚本默认在 GPU 0 和 GPU 4 上各启动 4 个实例 (共 8 个)，端口范围 8011-8018。
+  - `MINERU_GPU_UTIL`: 显存占用比例 (默认 0.85)
+  - **实例配置**: 脚本默认在每个配置 GPU 上各启动 1 个实例，端口范围 8011-8013。
   - **Load Balancer**: 端口 8010，自动分发请求。
 
 - **SAM3 (Segment Anything Model 3)**
-  - **实例配置**: 默认每个配置 GPU 启动 1 个实例，起始端口 8021。
+  - **实例配置**: 默认每个配置 GPU 启动 1 个实例，端口范围 8021-8022。
   - **模型路径**: 默认使用 `./models/sam3/sam3.pt` 与 `./models/sam3/bpe_simple_vocab_16e6.txt.gz`。
   - **Load Balancer**: 端口 8020。
 
@@ -416,13 +629,6 @@ SUPABASE_JWT_SECRET=your-jwt-secret
   - **端口**: 8003。
 
 > 使用前请根据实际 GPU 数量和显存情况修改脚本中的 `gpu_id` 和实例数量。
-
-若需将 SAM3 资产迁移到本仓库内，可执行：
-
-```bash
-bash script/setup_sam3_assets.sh link
-# 或：bash script/setup_sam3_assets.sh copy
-```
 
 如果你要在单张 GPU 上一条命令联调（SAM3 + 后端 + 前端），可执行：
 
@@ -459,11 +665,14 @@ pip install -e .
 
 #### 2. 安装 Paper2Any 相关依赖（推荐）
 
-Paper2Any 涉及 LaTeX 渲染与矢量图处理，需要额外依赖（见 requirements-paper.txt）：
+Paper2Any 涉及 LaTeX 渲染与矢量图处理，需要额外依赖：
 
 ```bash
 # Python 依赖
 pip install -r requirements-paper.txt
+
+# NVIDIA GPU 运行时额外依赖（仅 Linux，需要时再装）
+# pip install -r requirements-cu12.txt
 
 # tectonic：LaTeX 引擎（推荐用 conda 安装）
 conda install -c conda-forge tectonic -y
@@ -497,15 +706,32 @@ pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
 **Paper2Any - 论文工作流 Web 前端（推荐）**
 
 ```bash
+# 本地后端运行配置统一在 deploy/app_config.sh 中维护
+# 可在该文件中修改：
+#   APP_PORT=8000
+#   APP_WORKERS=2
+
 # 启动后端 API
-cd fastapi_app
-uvicorn main:app --host 0.0.0.0 --port 8000
+./deploy/start.sh
 
 # 启动前端（新终端）
 cd frontend-workflow
 npm install
 npm run dev
 ```
+
+本地默认访问地址：
+- 前端开发服务：http://localhost:3000
+- 后端健康检查：http://127.0.0.1:8000/health
+
+本地部署常用命令：
+- 启动后端：`./deploy/start.sh`
+- 停止后端：`./deploy/stop.sh`
+- 重启后端：`./deploy/restart.sh`
+
+说明：
+- `deploy/start.sh` 和 `deploy/stop.sh` 都会读取同一个 `deploy/app_config.sh`，端口不再分别写死。
+- 如果修改了 `APP_PORT`，也要同步更新 `frontend-workflow/vite.config.ts` 里的前端代理地址。
 
 **配置前端代理**
 
@@ -521,6 +747,10 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',  // FastAPI 后端地址
+        changeOrigin: true,
+      },
+      '/outputs': {
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
     },
@@ -549,9 +779,10 @@ vllm serve opendatalab/MinerU2.5-2509-1.2B `
 #### 🎨 Web 前端（推荐）
 
 ```bash
+# 如需修改本地端口或 worker 数，请先编辑 deploy/app_config.sh
+
 # 启动后端 API
-cd fastapi_app
-uvicorn main:app --host 0.0.0.0 --port 8000
+./deploy/start.sh
 
 # 启动前端（新终端）
 cd frontend-workflow
@@ -560,6 +791,7 @@ npm run dev
 ```
 
 访问 `http://localhost:3000`。
+后端默认健康检查地址为 `http://127.0.0.1:8000/health`。
 
 ---
 

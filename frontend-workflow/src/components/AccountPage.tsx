@@ -1,232 +1,256 @@
-/**
- * Account page showing user invite code, points balance, and API settings.
- */
+import { useEffect, useMemo, useState } from "react";
+import {
+  CheckCircle2,
+  Coins,
+  Copy,
+  ExternalLink,
+  History,
+  Key,
+  Loader2,
+  Settings,
+  Ticket,
+  Users,
+} from "lucide-react";
 
-import { useState, useEffect } from "react";
-import { useAuthStore } from "../stores/authStore";
-import { supabase, isSupabaseConfigured } from "../lib/supabase";
+import { API_URL_OPTIONS, DEFAULT_LLM_API_URL, getPurchaseUrl } from "../config/api";
+import { backendFetch } from "../services/backendClient";
 import { getApiSettings, saveApiSettings } from "../services/apiSettingsService";
-import { Ticket, Coins, Key, AlertCircle, Loader2, Copy, CheckCircle2, Settings, Users, History, HelpCircle } from "lucide-react";
-import { API_URL_OPTIONS } from "../config/api";
+import { fetchRuntimeConfig, getRuntimeConfigSync, RuntimeConfig } from "../services/runtimeConfigService";
+import { useAuthStore } from "../stores/authStore";
 
 interface ProfileData {
-  invite_code: string;
+  user_id?: string;
+  invite_code?: string;
+  created_at?: string;
 }
 
-interface PointsBalance {
+interface PointsData {
   balance: number;
 }
 
 interface ReferralRecord {
   id: string;
-  referred_user_id: string;
+  invitee_user_id: string;
+  invite_code: string;
   created_at: string;
 }
 
-interface PointsLedgerRecord {
+interface LedgerRecord {
   id: string;
-  amount: number;
-  description: string;
+  points: number;
+  reason: string;
   created_at: string;
+}
+
+interface AccountProfileResponse {
+  billing_mode: "paid" | "free";
+  profile: ProfileData;
+  points: PointsData;
+  referrals: ReferralRecord[];
+  points_ledger: LedgerRecord[];
+}
+
+function formatLedgerReason(reason: string): string {
+  if (reason === "signup_bonus") {
+    return "注册赠送";
+  }
+  if (reason === "daily_grant") {
+    return "每日补点";
+  }
+  if (reason === "referral_inviter") {
+    return "邀请奖励";
+  }
+  if (reason === "referral_invitee") {
+    return "被邀请奖励";
+  }
+  if (reason.startsWith("redeem_code_")) {
+    const points = reason.split("_").pop() || "";
+    return `兑换码充值 (${points} 点)`;
+  }
+  if (reason.startsWith("workflow_")) {
+    return `工作流消耗: ${reason.replace(/^workflow_/, "")}`;
+  }
+  return reason;
 }
 
 export function AccountPage() {
-  const { user, claimInviteCode, error: authError } = useAuthStore();
-  const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [points, setPoints] = useState<PointsBalance | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
-  const [loadingPoints, setLoadingPoints] = useState(true);
+  const { user, claimInviteCode, error: authError, refreshQuota } = useAuthStore();
+  const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(getRuntimeConfigSync());
+  const [profileData, setProfileData] = useState<AccountProfileResponse | null>(null);
+  const [loading, setLoading] = useState(true);
   const [inviteCodeInput, setInviteCodeInput] = useState("");
   const [claiming, setClaiming] = useState(false);
   const [claimSuccess, setClaimSuccess] = useState(false);
+  const [redeemCodeInput, setRedeemCodeInput] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+  const [redeemSuccessMessage, setRedeemSuccessMessage] = useState("");
+  const [redeemErrorMessage, setRedeemErrorMessage] = useState("");
   const [copied, setCopied] = useState(false);
-  const [referrals, setReferrals] = useState<ReferralRecord[]>([]);
-  const [loadingReferrals, setLoadingReferrals] = useState(true);
-  const [pointsLedger, setPointsLedger] = useState<PointsLedgerRecord[]>([]);
-  const [loadingLedger, setLoadingLedger] = useState(true);
 
-  // API settings (local storage)
-  const [apiUrl, setApiUrl] = useState("");
+  const [apiUrl, setApiUrl] = useState(DEFAULT_LLM_API_URL);
   const [apiKey, setApiKey] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
 
-  const userId = user?.id;
+  const showApiSettings = runtimeConfig.user_api_config_required;
+  const pointsBalance = profileData?.points?.balance ?? 0;
+  const displayModeText = runtimeConfig.billing_mode === "free" ? "免费模式" : "付费模式";
+  const purchaseUrl = runtimeConfig.points_purchase_url?.trim()
+    || getPurchaseUrl(runtimeConfig.managed_api_url || DEFAULT_LLM_API_URL);
 
-  // Load profile (invite_code)
-  useEffect(() => {
-    if (!userId || !isSupabaseConfigured()) {
-      setLoadingProfile(false);
-      return;
+  const inviteRewardText = useMemo(() => {
+    if (runtimeConfig.referral_invitee_points > 0) {
+      return `邀请人 +${runtimeConfig.referral_inviter_points}，被邀请人 +${runtimeConfig.referral_invitee_points}`;
+    }
+    return `邀请人 +${runtimeConfig.referral_inviter_points}`;
+  }, [runtimeConfig.referral_inviter_points, runtimeConfig.referral_invitee_points]);
+
+  const fetchAccountProfileData = async (): Promise<AccountProfileResponse | null> => {
+    if (!user) {
+      return null;
     }
 
-    const fetchProfile = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("invite_code")
-          .eq("user_id", userId)
-          .single();
+    const response = await backendFetch("/api/v1/account/profile");
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => null);
+      throw new Error(errorPayload?.detail || `账户信息获取失败 (${response.status})`);
+    }
+    return (await response.json()) as AccountProfileResponse;
+  };
 
-        if (error) throw error;
-        setProfile(data);
-      } catch (err) {
-        console.error("[AccountPage] Failed to load profile:", err);
-      } finally {
-        setLoadingProfile(false);
+  useEffect(() => {
+    fetchRuntimeConfig()
+      .then(setRuntimeConfig)
+      .catch(() => setRuntimeConfig(getRuntimeConfigSync()));
+  }, []);
+
+  useEffect(() => {
+    const settings = getApiSettings(user?.id || null);
+    if (settings) {
+      setApiUrl(settings.apiUrl || DEFAULT_LLM_API_URL);
+      setApiKey(settings.apiKey || "");
+    }
+  }, [user?.id, runtimeConfig.user_api_config_required]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAccountProfile = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
       }
-    };
 
-    fetchProfile();
-  }, [userId]);
-
-  // Load points balance
-  useEffect(() => {
-    if (!userId || !isSupabaseConfigured()) {
-      setLoadingPoints(false);
-      return;
-    }
-
-    const fetchPoints = async () => {
       try {
-        const { data, error } = await supabase
-          .from("points_balance")
-          .select("balance")
-          .eq("user_id", userId)
-          .single();
-
-        if (error) {
-          // No points yet, default to 0
-          setPoints({ balance: 0 });
-        } else {
-          setPoints(data);
+        setLoading(true);
+        const data = await fetchAccountProfileData();
+        if (!cancelled) {
+          setProfileData(data);
         }
       } catch (err) {
-        console.error("[AccountPage] Failed to load points:", err);
-        setPoints({ balance: 0 });
+        console.error("[AccountPage] Failed to load account profile:", err);
+        if (!cancelled) {
+          setProfileData(null);
+        }
       } finally {
-        setLoadingPoints(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchPoints();
-  }, [userId]);
+    loadAccountProfile();
 
-  // Load API settings from localStorage
-  useEffect(() => {
-    if (!userId) return;
-
-    const settings = getApiSettings(userId);
-    if (settings) {
-      setApiUrl(settings.apiUrl);
-      setApiKey(settings.apiKey);
-    }
-  }, [userId]);
-
-  // Load referral history
-  useEffect(() => {
-    if (!userId || !isSupabaseConfigured()) {
-      setLoadingReferrals(false);
-      return;
-    }
-
-    const fetchReferrals = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("referrals")
-          .select("id, referred_user_id, created_at")
-          .eq("referrer_user_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(10);
-
-        if (error) throw error;
-        setReferrals(data || []);
-      } catch (err) {
-        console.error("[AccountPage] Failed to load referrals:", err);
-      } finally {
-        setLoadingReferrals(false);
-      }
+    return () => {
+      cancelled = true;
     };
-
-    fetchReferrals();
-  }, [userId]);
-
-  // Load points ledger
-  useEffect(() => {
-    if (!userId || !isSupabaseConfigured()) {
-      setLoadingLedger(false);
-      return;
-    }
-
-    const fetchLedger = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("points_ledger")
-          .select("id, amount, description, created_at")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(20);
-
-        if (error) throw error;
-        setPointsLedger(data || []);
-      } catch (err) {
-        console.error("[AccountPage] Failed to load points ledger:", err);
-      } finally {
-        setLoadingLedger(false);
-      }
-    };
-
-    fetchLedger();
-  }, [userId]);
+  }, [user?.id]);
 
   const handleClaimInvite = async () => {
-    if (!inviteCodeInput.trim() || !isSupabaseConfigured()) return;
+    if (!inviteCodeInput.trim()) {
+      return;
+    }
+
     setClaiming(true);
     setClaimSuccess(false);
-
     try {
       await claimInviteCode(inviteCodeInput.trim());
-      
-      // Only show success if no error was thrown
       setClaimSuccess(true);
       setInviteCodeInput("");
-      
-      // Refresh points
-      if (userId) {
-        const { data } = await supabase
-          .from("points_balance")
-          .select("balance")
-          .eq("user_id", userId)
-          .single();
-        if (data) setPoints(data);
+      await refreshQuota();
+
+      const data = await fetchAccountProfileData().catch(() => null);
+      if (data) {
+        setProfileData(data);
       }
     } catch (err) {
-      // Error is already set in authStore, just don't show success
       console.error("[AccountPage] Failed to claim invite code:", err);
     } finally {
       setClaiming(false);
     }
   };
 
+  const handleRedeemPoints = async () => {
+    const normalizedCode = redeemCodeInput.trim();
+    if (!normalizedCode) {
+      return;
+    }
+
+    setRedeeming(true);
+    setRedeemSuccessMessage("");
+    setRedeemErrorMessage("");
+
+    try {
+      const response = await backendFetch("/api/v1/account/points/redeem", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ redeem_code: normalizedCode }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.detail || `兑换失败 (${response.status})`);
+      }
+
+      setRedeemCodeInput("");
+      setRedeemSuccessMessage(`兑换成功，已到账 ${payload?.points_added ?? 0} 点`);
+      await refreshQuota();
+
+      const data = await fetchAccountProfileData().catch(() => null);
+      if (data) {
+        setProfileData(data);
+      }
+    } catch (err) {
+      console.error("[AccountPage] Failed to redeem points code:", err);
+      setRedeemErrorMessage(err instanceof Error ? err.message : "兑换失败，请稍后重试");
+    } finally {
+      setRedeeming(false);
+    }
+  };
+
   const handleCopyInviteCode = () => {
-    if (!profile?.invite_code) return;
-    navigator.clipboard.writeText(profile.invite_code);
+    const inviteCode = profileData?.profile?.invite_code;
+    if (!inviteCode) {
+      return;
+    }
+    navigator.clipboard.writeText(inviteCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleSaveSettings = () => {
-    if (!userId) return;
-
-    const success = saveApiSettings(userId, { apiUrl, apiKey });
-    if (success) {
-      setSavingSettings(true);
-      setSettingsSaved(true);
-      setTimeout(() => {
-        setSavingSettings(false);
-        setSettingsSaved(false);
-      }, 2000);
+    if (!user?.id || !showApiSettings) {
+      return;
     }
+
+    setSavingSettings(true);
+    const ok = saveApiSettings(user.id, { apiUrl, apiKey });
+    setSettingsSaved(ok);
+    setTimeout(() => {
+      setSavingSettings(false);
+      setSettingsSaved(false);
+    }, 1200);
   };
 
   if (!user) {
@@ -239,292 +263,251 @@ export function AccountPage() {
 
   return (
     <div className="w-full h-full overflow-auto px-6 py-8 bg-gradient-to-br from-[#050512] via-[#0a0a1a] to-[#050512]">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-            👤 我的账户
-          </h1>
-          <p className="text-gray-400">
-            管理您的个人信息、使用次数和 API 配置
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-bold text-white">账户设置</h1>
+          <p className="text-sm text-gray-400">
+            当前为 <span className="text-white">{displayModeText}</span>
+            {runtimeConfig.billing_mode === "free"
+              ? "，业务模型与扣点策略均由后端统一托管。"
+              : "，用户自行填写 API 配置，平台默认不扣点。"}
           </p>
         </div>
 
-        {/* Two Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - User Info Cards */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* User Info Card */}
-            <div className="glass-dark rounded-xl border border-white/10 p-6 hover:border-purple-500/30 transition-all">
-              <div className="flex flex-col items-center text-center space-y-4">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-2xl font-bold">
-                  {user.email?.charAt(0).toUpperCase() || 'U'}
-                </div>
-                <div>
-                  <p className="text-white font-medium truncate max-w-full">{user.email}</p>
-                  <p className="text-xs text-gray-400 mt-1">PRO MEMBER</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Invite Code Card */}
-            <div className="glass-dark rounded-xl border border-white/10 p-6 hover:border-purple-500/30 transition-all">
-              <div className="flex items-center gap-2 mb-4">
-                <Ticket size={18} className="text-purple-400" />
-                <h2 className="text-base font-semibold text-white">我的邀请码</h2>
-              </div>
-
-              {loadingProfile ? (
-                <div className="flex items-center gap-2 text-gray-400">
-                  <Loader2 size={16} className="animate-spin" />
-                  <span className="text-sm">加载中...</span>
-                </div>
-              ) : profile?.invite_code ? (
-                <div className="space-y-3">
-                  <code className="block w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white font-mono text-center text-lg tracking-wider">
-                    {profile.invite_code}
-                  </code>
-                  <button
-                    onClick={handleCopyInviteCode}
-                    className="w-full py-2.5 rounded-lg bg-purple-600/80 hover:bg-purple-600 text-white text-sm font-medium flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02]"
-                  >
-                    {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
-                    {copied ? "已复制" : "复制邀请码"}
-                  </button>
-                  <p className="text-xs text-gray-400 text-center">
-                    分享给好友获得奖励
-                  </p>
-                </div>
-              ) : (
-                <p className="text-gray-400 text-sm text-center">暂无邀请码</p>
-              )}
-            </div>
-
-            {/* Claim Invite Code Card */}
-            <div className="glass-dark rounded-xl border border-white/10 p-6 hover:border-green-500/30 transition-all">
-              <div className="flex items-center gap-2 mb-4">
-                <Ticket size={18} className="text-green-400" />
-                <h2 className="text-base font-semibold text-white">填写邀请码</h2>
-                <div className="relative group">
-                  <HelpCircle size={14} className="text-gray-400 cursor-help" />
-                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block w-48 px-3 py-2 bg-gray-900 border border-white/20 rounded-lg text-xs text-gray-300 shadow-xl z-10">
-                    邀请方和被邀请方都能获得 10 次使用机会
-                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <input
-                  type="text"
-                  value={inviteCodeInput}
-                  onChange={(e) => setInviteCodeInput(e.target.value.toUpperCase())}
-                  placeholder="输入邀请码"
-                  className="w-full px-4 py-2.5 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500/50 text-center font-mono tracking-wider"
-                  disabled={claiming}
-                />
-
-                <button
-                  onClick={handleClaimInvite}
-                  disabled={claiming || !inviteCodeInput.trim()}
-                  className="w-full py-2.5 rounded-lg bg-green-600/80 hover:bg-green-600 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2"
-                >
-                  {claiming ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      <span>提交中...</span>
-                    </>
-                  ) : (
-                    <span>领取奖励</span>
-                  )}
-                </button>
-
-                {claimSuccess && (
-                  <div className="flex items-start gap-2 text-xs text-green-300 bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2">
-                    <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
-                    <span>邀请码已成功领取！</span>
-                  </div>
-                )}
-
-                {authError && (
-                  <div className="flex items-start gap-2 text-xs text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
-                    <AlertCircle size={14} className="mt-0.5 shrink-0" />
-                    <span>{authError}</span>
-                  </div>
-                )}
-              </div>
-            </div>
+        {loading ? (
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 flex items-center gap-3 text-gray-300">
+            <Loader2 size={18} className="animate-spin" />
+            <span>正在加载账户信息...</span>
           </div>
-
-          {/* Right Column - Functional Areas */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Points Balance Card */}
-            <div className="glass-dark rounded-xl border border-white/10 p-8 hover:border-yellow-500/30 transition-all">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-lg bg-yellow-500/20">
-                  <Coins size={24} className="text-yellow-400" />
+        ) : (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+                <div className="flex items-center gap-2 text-white">
+                  <Settings size={18} className="text-cyan-400" />
+                  <span className="font-medium">模式状态</span>
                 </div>
-                <h2 className="text-xl font-semibold text-white">剩余次数</h2>
+                <div className="text-2xl font-semibold text-white">{displayModeText}</div>
+                <p className="text-sm text-gray-400">
+                  免费模式下右上角点数来自后端配置；付费模式下使用用户自带 API，不额外消耗平台点数。
+                </p>
               </div>
 
-              {loadingPoints ? (
-                <div className="flex items-center gap-2 text-gray-400">
-                  <Loader2 size={20} className="animate-spin" />
-                  <span>加载中...</span>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+                <div className="flex items-center gap-2 text-white">
+                  <Coins size={18} className="text-yellow-400" />
+                  <span className="font-medium">点数 / 配额</span>
                 </div>
-              ) : (
-                <div className="flex items-baseline gap-3">
-                  <span className="text-6xl font-bold bg-gradient-to-r from-yellow-400 via-orange-400 to-yellow-500 bg-clip-text text-transparent">
-                    {points?.balance ?? 0}
-                  </span>
-                  <span className="text-2xl text-gray-400">次</span>
+                <div className="text-2xl font-semibold text-white">
+                  {runtimeConfig.billing_mode === "free" ? `${pointsBalance}` : "∞"}
                 </div>
-              )}
+                <p className="text-sm text-gray-400">
+                  {runtimeConfig.billing_mode === "free"
+                    ? `每日最多补 ${runtimeConfig.daily_grant_points} 点，余额上限 ${runtimeConfig.daily_grant_balance_cap} 点。`
+                    : "当前模式不扣平台点数，主要依赖用户自备 API。"}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+                <div className="flex items-center gap-2 text-white">
+                  <Ticket size={18} className="text-purple-400" />
+                  <span className="font-medium">我的邀请码</span>
+                </div>
+                <code className="block w-full rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-center text-lg text-white">
+                  {profileData?.profile?.invite_code || "暂无"}
+                </code>
+                <button
+                  onClick={handleCopyInviteCode}
+                  disabled={!profileData?.profile?.invite_code}
+                  className="w-full py-2.5 rounded-lg bg-purple-600/80 hover:bg-purple-600 disabled:opacity-50 text-white text-sm font-medium flex items-center justify-center gap-2 transition-all"
+                >
+                  {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
+                  {copied ? "已复制" : "复制邀请码"}
+                </button>
+              </div>
             </div>
 
-            {/* API Settings Card */}
-            <div className="glass-dark rounded-xl border border-white/10 p-8 hover:border-blue-500/30 transition-all">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-lg bg-blue-500/20">
-                  <Settings size={24} className="text-blue-400" />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {(runtimeConfig.billing_mode === "free" || runtimeConfig.points_redeem_enabled) && (
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+                  <div className="flex items-center gap-2 text-white">
+                    <Coins size={18} className="text-amber-300" />
+                    <span className="font-medium">点数兑换</span>
+                  </div>
+                  <p className="text-sm text-gray-400">
+                    点数不足时，可先前往购买页获取兑换码，再回到这里兑换加点。
+                  </p>
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      value={redeemCodeInput}
+                      onChange={(e) => setRedeemCodeInput(e.target.value)}
+                      placeholder="输入点数兑换码"
+                      className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+                    />
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        onClick={handleRedeemPoints}
+                        disabled={redeeming || !redeemCodeInput.trim()}
+                        className="flex-1 px-5 py-3 rounded-lg bg-amber-600/80 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium flex items-center justify-center gap-2"
+                      >
+                        {redeeming ? <Loader2 size={16} className="animate-spin" /> : <Ticket size={16} />}
+                        立即兑换
+                      </button>
+                      {runtimeConfig.billing_mode === "free" && purchaseUrl && (
+                        <a
+                          href={purchaseUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 px-5 py-3 rounded-lg border border-amber-400/20 bg-amber-500/10 hover:bg-amber-500/15 text-amber-100 text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                        >
+                          <ExternalLink size={16} />
+                          前往发卡平台
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  {(redeemSuccessMessage || redeemErrorMessage) && (
+                    <div className={`rounded-lg px-4 py-3 text-sm ${redeemSuccessMessage ? "bg-green-500/10 border border-green-500/20 text-green-300" : "bg-red-500/10 border border-red-500/20 text-red-300"}`}>
+                      {redeemSuccessMessage || redeemErrorMessage}
+                    </div>
+                  )}
                 </div>
-                <h2 className="text-xl font-semibold text-white">API 配置</h2>
-              </div>
+              )}
 
-              <div className="space-y-5">
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">
-                    API Base URL
-                  </label>
-                  <select
-                    value={apiUrl}
-                    onChange={(e) => setApiUrl(e.target.value)}
-                    className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                  >
-                    {API_URL_OPTIONS.map((url: string) => (
-                      <option key={url} value={url}>{url}</option>
-                    ))}
-                  </select>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+                <div className="flex items-center gap-2 text-white">
+                  <Users size={18} className="text-green-400" />
+                  <span className="font-medium">填写邀请码</span>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">
-                    API Key
-                  </label>
+                <p className="text-sm text-gray-400">
+                  当前邀请策略：{inviteRewardText}
+                </p>
+                <div className="flex gap-3">
                   <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="sk-..."
-                    className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                    type="text"
+                    value={inviteCodeInput}
+                    onChange={(e) => setInviteCodeInput(e.target.value)}
+                    placeholder="输入邀请码"
+                    className="flex-1 px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500/50"
                   />
+                  <button
+                    onClick={handleClaimInvite}
+                    disabled={claiming || !inviteCodeInput.trim()}
+                    className="px-5 py-3 rounded-lg bg-green-600/80 hover:bg-green-600 disabled:opacity-50 text-white text-sm font-medium flex items-center gap-2"
+                  >
+                    {claiming ? <Loader2 size={16} className="animate-spin" /> : <Ticket size={16} />}
+                    兑换
+                  </button>
                 </div>
-
-                <button
-                  onClick={handleSaveSettings}
-                  disabled={savingSettings}
-                  className="w-full py-3 rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white font-medium disabled:opacity-50 transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2"
-                >
-                  {savingSettings ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      <span>保存中...</span>
-                    </>
-                  ) : settingsSaved ? (
-                    <>
-                      <CheckCircle2 size={18} />
-                      <span>已保存</span>
-                    </>
-                  ) : (
-                    <>
-                      <Key size={18} />
-                      <span>保存配置</span>
-                    </>
-                  )}
-                </button>
-
-                <div className="flex items-start gap-2 text-xs text-gray-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-4 py-3">
-                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                  <p>
-                    API 配置仅保存在当前设备的浏览器本地存储中（明文），不会上传到服务器。
-                    请妥善保管您的 API Key，避免在公共设备上保存。
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Invite History Card */}
-            <div className="glass-dark rounded-xl border border-white/10 p-6 hover:border-purple-500/30 transition-all">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 rounded-lg bg-purple-500/20">
-                  <Users size={20} className="text-purple-400" />
-                </div>
-                <h2 className="text-lg font-semibold text-white">邀请历史</h2>
+                {(claimSuccess || authError) && (
+                  <div className={`rounded-lg px-4 py-3 text-sm ${claimSuccess ? "bg-green-500/10 border border-green-500/20 text-green-300" : "bg-red-500/10 border border-red-500/20 text-red-300"}`}>
+                    {claimSuccess ? "邀请码兑换成功" : authError}
+                  </div>
+                )}
               </div>
 
-              {loadingReferrals ? (
-                <div className="flex items-center gap-2 text-gray-400">
-                  <Loader2 size={16} className="animate-spin" />
-                  <span className="text-sm">加载中...</span>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+                <div className="flex items-center gap-2 text-white">
+                  <Key size={18} className="text-blue-400" />
+                  <span className="font-medium">API 配置</span>
                 </div>
-              ) : referrals.length > 0 ? (
-                <div className="space-y-2">
-                  {referrals.map((ref) => (
-                    <div key={ref.id} className="flex items-center justify-between px-4 py-3 bg-black/20 border border-white/5 rounded-lg hover:bg-white/5 transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
-                          {ref.referred_user_id.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="text-sm text-white font-mono">{ref.referred_user_id.slice(0, 8)}...</p>
-                          <p className="text-xs text-gray-400">{new Date(ref.created_at).toLocaleDateString('zh-CN')}</p>
-                        </div>
+                {showApiSettings ? (
+                  <>
+                    <p className="text-sm text-gray-400">
+                      付费模式下，业务调用优先使用当前浏览器保存的用户 API 配置。
+                    </p>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm text-gray-400 mb-2">API URL</label>
+                        <select
+                          value={apiUrl}
+                          onChange={(e) => setApiUrl(e.target.value)}
+                          className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white focus:outline-none"
+                        >
+                          {[apiUrl, ...API_URL_OPTIONS]
+                            .filter((value, index, array) => array.indexOf(value) === index)
+                            .map((url) => (
+                              <option key={url} value={url}>
+                                {url}
+                              </option>
+                            ))}
+                        </select>
                       </div>
-                      <CheckCircle2 size={16} className="text-green-400" />
+                      <div>
+                        <label className="block text-sm text-gray-400 mb-2">API Key</label>
+                        <input
+                          type="password"
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          placeholder="sk-..."
+                          className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none"
+                        />
+                      </div>
+                      <button
+                        onClick={handleSaveSettings}
+                        disabled={savingSettings}
+                        className="w-full py-3 rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {savingSettings ? <Loader2 size={18} className="animate-spin" /> : <Key size={18} />}
+                        {settingsSaved ? "已保存" : "保存配置"}
+                      </button>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-400 text-sm text-center py-4">暂无邀请记录</p>
-              )}
+                  </>
+                ) : (
+                  <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-4 text-sm text-cyan-100">
+                    后端托管模型已开启。功能调用会消耗点数，无需手动填写 API URL 或 API Key；若点数不足，可前往购买页获取兑换码，再到账户页兑换加点。
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Points Ledger Card */}
-            <div className="glass-dark rounded-xl border border-white/10 p-6 hover:border-yellow-500/30 transition-all">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 rounded-lg bg-yellow-500/20">
-                  <History size={20} className="text-yellow-400" />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+                <div className="flex items-center gap-2 text-white mb-4">
+                  <Users size={18} className="text-emerald-400" />
+                  <span className="font-medium">邀请记录</span>
                 </div>
-                <h2 className="text-lg font-semibold text-white">使用记录</h2>
+                {profileData?.referrals?.length ? (
+                  <div className="space-y-3">
+                    {profileData.referrals.map((ref) => (
+                      <div key={ref.id} className="rounded-lg border border-white/10 bg-black/20 px-4 py-3">
+                        <div className="text-sm text-white">{ref.invitee_user_id}</div>
+                        <div className="text-xs text-gray-400 mt-1">{new Date(ref.created_at).toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400">暂无邀请记录</p>
+                )}
               </div>
 
-              {loadingLedger ? (
-                <div className="flex items-center gap-2 text-gray-400">
-                  <Loader2 size={16} className="animate-spin" />
-                  <span className="text-sm">加载中...</span>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+                <div className="flex items-center gap-2 text-white mb-4">
+                  <History size={18} className="text-orange-400" />
+                  <span className="font-medium">点数流水</span>
                 </div>
-              ) : pointsLedger.length > 0 ? (
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {pointsLedger.map((record) => (
-                    <div key={record.id} className="flex items-center justify-between px-4 py-3 bg-black/20 border border-white/5 rounded-lg hover:bg-white/5 transition-all">
-                      <div className="flex-1">
-                        <p className="text-sm text-white">{record.description}</p>
-                        <p className="text-xs text-gray-400">{new Date(record.created_at).toLocaleString('zh-CN')}</p>
+                {profileData?.points_ledger?.length ? (
+                  <div className="space-y-3 max-h-[420px] overflow-auto pr-1">
+                    {profileData.points_ledger.map((record) => (
+                      <div key={record.id} className="rounded-lg border border-white/10 bg-black/20 px-4 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm text-white">{formatLedgerReason(record.reason)}</span>
+                          <span className={`text-sm font-medium ${record.points >= 0 ? "text-green-300" : "text-red-300"}`}>
+                            {record.points >= 0 ? `+${record.points}` : record.points}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">{new Date(record.created_at).toLocaleString()}</div>
                       </div>
-                      <span className={`text-base font-bold ${
-                        record.amount > 0 ? 'text-green-400' : 'text-red-400'
-                      }`}>
-                        {record.amount > 0 ? '+' : ''}{record.amount}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-400 text-sm text-center py-4">暂无使用记录</p>
-              )}
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400">暂无点数流水</p>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );

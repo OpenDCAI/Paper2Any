@@ -795,5 +795,3 @@ class AdvancedMessageHistory:
 
     # # 5. 保存优化后的历史
     # history_manager.save_messages(trimmed, "session_1")
-
-    # print(f"优化完成: {len(messages)} → {len(trimmed)} 条消息")

@@ -383,7 +383,6 @@
 #     out_path = out_dir / filename
 #     with out_path.open("w", encoding="utf-8") as f:
 #         json.dump(final_state, f, ensure_ascii=False, indent=2, default=str)
-#     print(f"final_state 已保存到 {out_path}")
 
 # # ====================== 主函数 ====================== #
 # async def run_paper2figure_wf_api(req: Paper2FigureRequest) -> Paper2FigureResponse:

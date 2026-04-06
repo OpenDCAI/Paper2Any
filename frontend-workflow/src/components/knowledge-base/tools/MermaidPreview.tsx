@@ -88,7 +88,7 @@ export const MermaidPreview = ({ mermaidCode, title = "思维导图预览" }: Me
       }
 
       if (/style="/i.test(next)) {
-        next = next.replace(/style="([^"]*)"/i, (_, style) => {
+        next = next.replace(/style="([^"]*)"/i, (_: string, style: string) => {
           const merged = `${style}; width:100%; height:100%;`;
           return `style="${merged}"`;
         });

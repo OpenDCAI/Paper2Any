@@ -1727,7 +1727,8 @@ Your core competencies include:
 **CRITICAL RULE:** You must ensure the generated LaTeX code is complete, free of common syntax errors (like misplaced '&' or unclosed frames), and ready to compile with Tectonic or TeX Live.
     """
   task_prompt_for_p2v_extract_pdf = r"""
-Please generate a complete {output_language} PPT introduction based on the provided **Markdown content** of a research paper, using LaTeX Beamer. (Important!) Perfer more images than heavy text in the ppt.
+Please generate a complete {output_language} PPT introduction based on the provided **Markdown content** of a research paper, using LaTeX Beamer. 
+(Priority-first!) Perfer more images than heavy text in the ppt. Use as many figures as possible since it is more expressive.
 
 ## Input Data
 The paper content is provided in Markdown format below. You need to parse this Markdown text to extract structure, text, mathematical formulas, image paths, and tables.
@@ -1749,7 +1750,10 @@ The PPT must contain the following chapters (arranged in order), and each chapte
 ## Format Requirements
 ·**Font Safety:** **STRICTLY FORBIDDEN** to use any non-standard TeX Live fonts (e.g., `Times New Roman`, `Arial`, or `Calibri`). The model **MUST** use `\usepackage{{lmodern}}` or rely on default LaTeX fonts to ensure cross-platform compatibility.
 ·Use Beamer's theme suitable for academic presentations. If given a theme you should use it (could be refer to local path)
-·The content of each page should be concise, avoid long paragraphs, and use itemize or block environment to present points.
+·The content of each page should be suitable for oral academic presentation:
+  provide enough detail to support spoken explanation, but not so much that the slide becomes text-heavy.
+  Typically include 6-7 informative bullet points or 3-4 compact blocks per slide, and use itemize or block environment to present points.
+  Avoid long paragraphs; prefer clear, complete sentences that can be naturally spoken, 
 ·The title page contains the paper title, author, institution, and date.
 ·Key terms or mathematical symbols are highlighted with \alert{}.
 ·You must use as many figures as possible since it is more expressive.
@@ -1757,6 +1761,7 @@ The PPT must contain the following chapters (arranged in order), and each chapte
 ## Image and Table Processing (Markdown to LaTeX)
 ·All image relative paths found in markdown must be resolved into absolute paths by by prepending the absolute working directory specified by {pdf_images_working_dir}. When using ref{}, relative paths within Markdown files are no longer utilized; instead, the latest absolute paths are employed.
 ·Images should automatically adapt to width (for example, \includegraphics[width=0.8\textwidth]{...}), and add titles and labels (\caption and \label).
+·Every image should have \caption{The explanation of the image}
 ·Experimental result tables should be extracted from the source text, formatted using tabular or booktabs environments, and marked with reference sources (for example, "as shown in table \ref{tab:results}").
 
 ## Code Generation Requirements
@@ -1768,7 +1773,7 @@ The PPT must contain the following chapters (arranged in order), and each chapte
 ·(Important!) Perfer more images than heavy text. **The number of slides should be around 10.** 
 ·Table content should first extract real data from the source document.
 ·All content should be in {output_language}.
-·If the {output_language} is Chinese, you must include the following necessary packages in the LaTeX preamble:
+·If the output_language:{output_language} is Chinese, you must include the following necessary packages in the LaTeX preamble:
 \usepackage{fontspec} 
 \usepackage{ctex}
 ·If you need to use % to represent a percentage sign, please note that in LaTeX syntax, % denotes a comment. Therefore, you must prefix the % with an escape character \ to indicate a literal percentage sign, for example: 5\%
@@ -1807,12 +1812,19 @@ Your output must:
 You are given a LaTeX beamer code for the slides of a research paper and its error information.
 You should correct these errors but do not change the slide content (e.g., text, figures and layout).
 
+## Content Preservation Rules (Strict)
+- You MUST NOT delete, replace, or reduce the number of figures/images.
+  If a slide originally contains an image, it MUST still contain that image after modification.
+- You MAY adjust figure-related parameters (e.g., scale, width, height, aspect ratio, placement options)
+  ONLY if necessary to fix compilation or layout issues.
+- Keep the slide text content unchanged as much as possible.
+
 ## Some instruction
 **Font Safety**: **MUST** remove or comment out any usage of the `fontspec` package if and only if it causes errors (as it depends on system fonts).
 For instance, if you encounter the error message: Package fontspec Error: The font "Latin Modern Roman" cannot be found, just remove or comment out it and use default TeX Live fonts.
 
 **Image Loading Errors**: 
-If the compiler reports an image loading failure, such as: "Unable to load picture or PDF file" or "! LaTeX Error: Cannot determine size of graphic", the model **MUST** remove the entire command responsible for loading that specific graphic.
+If the compiler reports an image loading **error**, such as: "Unable to load picture or PDF file" or "! LaTeX Error: Cannot determine size of graphic", the model **MUST** remove the entire command responsible for loading that specific graphic.
 
 Output Format:
 - Return a JSON object with a single key "latex_code".
@@ -1827,28 +1839,96 @@ The compilation error message is:
 {code_debug_result}
 """
 
+  system_prompt_for_p2v_refine_subtitle_and_cursor = '''
+You are an academic researcher presenting your own work at a research conference. You are provided with a slide image and one long sentence (the script for this slide).
+Your task: 
+(1) Split the given long sentence into several complete, short sentences. You must keep the content exactly unchanged—do not add, delete, paraphrase, or modify any wording; only decide where to break the sentence. 
+(2) For each short sentence, refer to the slide content and assign exactly one cursor position description indicating where the cursor should point on the slide when that sentence is spoken.
+'''
+  task_prompt_for_p2v_refine_subtitle_and_cursor = '''
+You are given one long sentence (the script for the current slide) and the corresponding slide image.
+
+Task:
+1. Split the long sentence into several complete, short sentences. CRITICAL: The content must remain exactly the same—do not add, delete, change, or paraphrase any word. Only segment the long sentence by deciding where to break it (e.g., at clause boundaries or natural pauses). You may decide how many short sentences to produce and where to break; just ensure each short sentence is complete and the concatenation of all short sentences preserves the original long sentence exactly.
+2. For each short sentence, look at the slide image and give exactly one cursor position description (where the cursor should point on the slide when this sentence is spoken). Use the format:
+   short sentence | cursor description
+   If no cursor is needed for a sentence, use "no" for the cursor description.
+3. The output content language must be {language}. The given long sentence is: {sentence}
+
+Output Format (strict):
+Return a JSON object with a single key "refine_subtitle_and_cursor". The value is a string: multiple lines, each line is "short sentence | cursor description", separated by newline. Language of the content must be {language}.
+{{"refine_subtitle_and_cursor": "sentence 1 | cursor description\nsentence 2 | cursor description\n..."}}
+
+'''
   system_prompt_for_p2v_subtitle_and_cursor = '''
 You are an academic researcher presenting your own work at a research conference. You are provided with a slide. 
-Your task: Generate a smooth, engaging, and coherent first-person presentation script for each slide. Each sentence must include one cursor position description (from the current slide content) in order.
+Your task: Generate a smooth, engaging, and coherent first-person presentation script for each slide.
 '''
   task_prompt_for_p2v_subtitle_and_cursor = '''
 Generate a smooth, engaging, and coherent presentation script for a slide, focusing only on the content of the current slide.
+The output content language must be {language}.
 Requirements:
 1. Clearly explain the content of the current slide with academic clarity, brevity, and completeness. Use a professional, formal tone suitable for a research conference. 
 2. Keep the script concise and professional. Do not explain content unrelated to the paper. 
-3. Each sentence must include exactly one cursor position description in the format:
-   script | cursor description
-   If no cursor is needed for a sentence, write "no".
-4. The total script for each slide must not exceed 50 words. 
+3. The total script for each slide must not exceed 50 words, and each slide must contain no more than five sentences. Each sentence should not exceed 10 words.
+4. It is best to avoid using numbers.
 
 Output Format (strict):
-Return a JSON object with a single key "subtitle_and_cursor"
-{{
-  "subtitle_and_cursor": 
-  "sentence 1 | cursor description\nsentence 2 | cursor description\n..."
-}}
+Return a JSON object with a single key "subtitle_and_cursor", and the output content language is {language}.
+{{"subtitle_and_cursor": "sentence 1 sentence 2..."}}
 
 '''
+
+  system_prompt_for_p2v_beamer_code_upgrade = '''
+# Role
+You are an expert in LaTeX Beamer typesetting and visual quality assurance. Your task is to analyze screenshots of presentation slides to determine if images are properly scaled or if they are overflowing the slide boundaries.
+
+# Task Logic
+1. **Locate the Image**: Identify the main graphic or figure on the slide.
+2. **Identify the Caption**: Standard Beamer templates place a caption (starting with "Figure:" or "图：") directly below the image.
+3. **Assess Visibility**:
+   - **Pass**: If the image is fully visible AND the caption text below it is clearly legible and not cut off by the bottom edge of the slide.
+   - **Fail (Overfull)**: If the image takes up too much vertical space, causing the caption to be pushed off-screen (invisible) or partially cut off.
+
+# Critical Definitions (IMPORTANT)
+A valid caption MUST satisfy ALL of the following:
+1. It is a standalone line of natural language text.
+2. It explicitly describes the figure as a whole.
+3. It typically starts with keywords such as:
+   - "Figure", "Fig.", "图", "图：", "Figure:"
+4. It is visually separated from the plot area.
+
+The following elements are NOT captions:
+- Axis labels (e.g., "Dataset Size", "ROUGE-N F1 Score")
+- Legends (e.g., "W/ Logit Processor")
+- Tick labels, numeric annotations, or bar values
+- Any text that is part of the chart itself
+
+# Output Format
+Return your analysis strictly in JSON format with a single key and the answer should be only "True" or "False":
+{{
+"img_size_debug": "True" / "False"
+}}
+'''
+
+  task_prompt_for_p2v_beamer_code_upgrade = '''
+# Instructions
+Please examine the provided slide screenshot carefully. 
+
+Focus on the area immediately below the main graphic:
+- Check if there is a standalone caption line such as "图: WebMainBench 数据示例" or "Figure: Experimental Results" visible.
+- If the image occupies the entire bottom portion of the slide and no caption text is visible, it indicates that the `\includegraphics` width/height is too large, causing the caption to overflow the page.
+- Some instruction:
+1. Do NOT confuse axis labels, legends, or chart annotations with captions.
+2. Text such as "Dataset Size", "Accuracy", or legends inside/near the plot are NOT captions.
+
+# Expected Action
+- If the caption is missing or truncated, set `img_size_debug` to `True`.
+- If the caption is fully and clearly displayed below the image, set `img_size_debug` to `False`.
+
+Please output the JSON result now:
+'''
+
 
 
 class PromptWriterPrompt:

@@ -88,3 +88,4 @@ opencv-python
 librosa
 soundfile
 python-pptx
+json_repair==0.54.2

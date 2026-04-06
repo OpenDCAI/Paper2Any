@@ -1,0 +1,98 @@
+{
+  "steps": {
+    "upload": "Upload PPT",
+    "script": "Confirm Script",
+    "complete": "Complete & Download"
+  },
+  "upload": {
+    "subtitle": "PPT → VIDEO",
+    "title": "PPT to Video",
+    "desc": "Upload PPT or PDF with an optional avatar. Speech is synthesized through the Aliyun API only, then AI generates the final video page by page.",
+    "instruction": {
+      "pdf": "Upload PPT (required)"
+    },
+    "optional": "optional",
+    "avatarLabel": "Digital human",
+    "avatarUseNone": "No digital human",
+    "avatarUseYes": "Use digital human",
+    "avatarTipTime": "Using a digital human will add about 5–10 minutes to generation time",
+    "avatarUpload": "Click to upload avatar (JPG/PNG)",
+    "avatarSystemLabel": "System avatars",
+    "avatarUploadOwn": "Upload your own",
+    "avatarChoiceHint": "Choose system avatar or upload your own (choose one)",
+    "talkingModelFixed": "Digital human video is generated through the LivePortrait cloud API only",
+    "voiceLabel": "Voice",
+    "voiceApiOnly": "Speech uses the Aliyun CosyVoice API only. Local TTS options are no longer shown.",
+    "voiceUseTts": "Cloud TTS (API)",
+    "voiceUseTtsRecommend": "Recommended",
+    "voiceUseFile": "Local TTS (F5-TTS)",
+    "voiceChoiceHint": "Use system voice or upload your own (choose one)",
+    "voiceSystemLabel": "System voice",
+    "voiceWoman": "woman",
+    "voiceMan": "man",
+    "voiceUploadOwn": "Upload my own voice",
+    "voicePreview": "Preview",
+    "voiceUpload": "Click to upload voice (.wav)",
+    "dropzone": {
+      "dragText": "Drag PPT or PDF here",
+      "supportText": "PPT, PDF",
+      "button": "Select PPT/PDF"
+    },
+    "config": {
+      "title": "Configuration",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "sk-...",
+      "scriptApiUrl": "Script API URL",
+      "scriptModel": "Script model",
+      "ttsModel": "TTS model",
+      "ttsModelLabel": "TTS model",
+      "ttsVoiceLabel": "Timbre",
+      "ttsVoicePresetHint": "Select a preset to preview, or enter a custom voice parameter below",
+      "ttsVoiceCustomHint": "Custom voice parameter: see",
+      "ttsVoiceListLink": "CosyVoice voice list",
+      "ttsVoicePlaceholder": "e.g. longanyang, longanwen_v3",
+      "language": "Language",
+      "startParse": "Start parsing",
+      "parsing": "Parsing..."
+    }
+  },
+  "script": {
+    "title": "Confirm voice script",
+    "desc": "Check and edit the script for each page. Layout: all pages listed vertically.",
+    "page": "Page",
+    "pageWithNum": "Page {{num}}",
+    "scriptLabel": "Voice script",
+    "scriptPlaceholder": "Edit script for this page...",
+    "loadingImage": "Loading image...",
+    "costHint": "Video generation costs {{perPage}} points per page. This run has {{pages}} pages, so it will consume {{count}} points.",
+    "back": "Back to upload",
+    "confirmAndGenerate": "Confirm and generate video ({{count}} points)",
+    "confirmPrompt": "Start generating the video?\\nThere are {{pages}} pages, {{perPage}} points per page, total {{count}} points.",
+    "generating": "Generating video..."
+  },
+  "errors": {
+    "quotaUserInsufficient": "Insufficient points. This video has {{pages}} pages at {{perPage}} points per page, so {{count}} points are required.",
+    "authRequired": "Please sign in to continue."
+  },
+  "complete": {
+    "title": "Video ready",
+    "desc": "Preview and download your video.",
+    "generating": "Generating video, please wait...",
+    "progressPreparing": "Preparing...",
+    "progressTts": "Synthesizing speech...",
+    "progressVideo": "Generating talking video...",
+    "noVideo": "No video URL yet.",
+    "usageRecordFailed": "The video is ready, but deducting {{count}} points failed",
+    "download": "Download video",
+    "videoNotSupported": "Your browser does not support the video tag.",
+    "newTask": "Process new paper"
+  },
+  "example": {
+    "title": "Example Results",
+    "subtitle": "View sample PDF and generated video below",
+    "viewPdf": "View PDF",
+    "viewVideo": "View Video",
+    "example1Title": "Example 1: DataFlow Intro",
+    "example2Title": "Example 2: Poetry \"Chun Xiao\" Teaching"
+  }
+}

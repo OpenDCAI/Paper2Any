@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import os
 from datetime import datetime
 import uuid
@@ -14,6 +13,11 @@ from fastapi_app.schemas import Paper2FigureRequest, VerifyLlmRequest, VerifyLlm
 from fastapi_app.workflow_adapters import run_paper2figure_wf_api
 from fastapi_app.utils import _to_outputs_url
 from fastapi_app.config.settings import settings
+from fastapi_app.interprocess_lock import AsyncInterProcessSemaphore
+from fastapi_app.services.managed_api_service import (
+    resolve_image_generation_credentials,
+    resolve_llm_credentials,
+)
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.logger import get_logger
 
@@ -22,9 +26,32 @@ log = get_logger(__name__)
 PROJECT_ROOT = get_project_root()
 BASE_OUTPUT_DIR = (PROJECT_ROOT / "outputs").resolve()
 
-# 全局信号量：控制重任务并发度（排队机制）
-# 保持在 Service 层或模块级别，因为它是全局共享的资源控制
-task_semaphore = asyncio.Semaphore(1)
+TASK_LIMITER = AsyncInterProcessSemaphore("paper2any_service_tasks", limit=1)
+VISUAL_WORKFLOW_LIMITER = AsyncInterProcessSemaphore("sam3_visual_workflows", limit=1)
+
+
+def _normalize_tech_route_text_model(candidate: str | None) -> str:
+    """
+    技术路线图必须使用文本/SVG 模型。
+
+    前端历史配置或旧 localStorage 可能把 image-preview 模型误传到 img_gen_model_name。
+    这里做后端兜底，避免把生图模型拿去跑 SVG 文本 agent。
+    """
+    fallback = (settings.PAPER2FIGURE_TECHNICAL_MODEL or "gpt-5.4").strip()
+    value = (candidate or "").strip()
+    if not value:
+        return fallback
+
+    lowered = value.lower()
+    if any(token in lowered for token in ("image-preview", "-image", "nanobanana")):
+        log.warning(
+            "[paper2figure] invalid tech_route text model '%s', falling back to %s",
+            value,
+            fallback,
+        )
+        return fallback
+
+    return value
 
 
 class Paper2AnyService:
@@ -42,14 +69,19 @@ class Paper2AnyService:
         """
         Verify LLM connection by sending a simple 'Hi' message.
         """
-        api_url = req.api_url.rstrip("/")
+        resolved_api_url, resolved_api_key = resolve_llm_credentials(
+            req.api_url,
+            req.api_key,
+            scope="paper2any",
+        )
+        api_url = resolved_api_url.rstrip("/")
         if api_url.endswith("/chat/completions"):
             target_url = api_url
         else:
             target_url = f"{api_url}/chat/completions"
 
         headers = {"Content-Type": "application/json"}
-        api_key = (req.api_key or "").strip()
+        api_key = resolved_api_key
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
         else:
@@ -58,22 +90,45 @@ class Paper2AnyService:
         payload = {
             "model": req.model,
             "messages": [{"role": "user", "content": "Hi"}],
-            "max_tokens": 1024
+            "max_tokens": settings.LLM_VERIFY_MAX_TOKENS,
         }
 
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            # This machine may have local proxy env vars (HTTP_PROXY / HTTPS_PROXY)
+            # that are not always reachable from backend service processes.
+            # LLM verification should test direct connectivity to the user-provided API URL.
+            timeout_seconds = max(1, int(settings.LLM_VERIFY_TIMEOUT_SECONDS))
+            connect_timeout = min(10.0, float(timeout_seconds))
+            timeout = httpx.Timeout(
+                timeout=float(timeout_seconds),
+                connect=connect_timeout,
+            )
+            async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
                 resp = await client.post(target_url, json=payload, headers=headers)
-                
+
                 if resp.status_code != 200:
-                    error_msg = f"API Error {resp.status_code}: {resp.text[:200]}"
+                    body = (resp.text or "").strip()
+                    error_msg = f"API Error {resp.status_code}"
+                    if body:
+                        error_msg = f"{error_msg}: {body[:200]}"
                     return VerifyLlmResponse(success=False, error=error_msg)
-                
+
                 return VerifyLlmResponse(success=True)
-                
+
+        except httpx.TimeoutException as e:
+            log.error(f"LLM Verification timeout [{type(e).__name__}] url={target_url} model={req.model}: {e!r}")
+            return VerifyLlmResponse(
+                success=False,
+                error=f"{type(e).__name__}: request timed out after {settings.LLM_VERIFY_TIMEOUT_SECONDS}s",
+            )
+        except httpx.HTTPError as e:
+            detail = str(e).strip() or repr(e)
+            log.error(f"LLM Verification failed [{type(e).__name__}] url={target_url} model={req.model}: {detail}")
+            return VerifyLlmResponse(success=False, error=f"{type(e).__name__}: {detail}")
         except Exception as e:
-            log.error(f"LLM Verification failed: {e}")
-            return VerifyLlmResponse(success=False, error=str(e))
+            detail = str(e).strip() or repr(e)
+            log.error(f"LLM Verification failed [{type(e).__name__}] url={target_url} model={req.model}: {detail}")
+            return VerifyLlmResponse(success=False, error=f"{type(e).__name__}: {detail}")
 
     async def list_history_files(self, email: str, request: Request) -> Dict[str, Any]:
         """
@@ -169,6 +224,16 @@ class Paper2AnyService:
         """
         执行 paper2figure 生成，返回生成的 PPTX 文件绝对路径。
         """
+        resolved_chat_api_url, resolved_api_key = resolve_llm_credentials(
+            chat_api_url,
+            api_key,
+            scope="paper2any",
+        )
+        resolved_image_api_url, resolved_image_api_key = resolve_image_generation_credentials(
+            chat_api_url,
+            api_key,
+            scope="paper2any",
+        )
         # 1. 基础参数校验
         self._validate_input(input_type, file, file_kind, text)
 
@@ -193,14 +258,26 @@ class Paper2AnyService:
             input_dir, input_type, file, file_kind, text
         )
 
+        # paper2figure 前端历史上把 tech_route 的文本模型塞在 img_gen_model_name 里。
+        # 这里按 graph_type 分流，避免技术路线图仍被固定到 gpt-4o。
+        selected_text_model = (
+            _normalize_tech_route_text_model(img_gen_model_name)
+            if graph_type == "tech_route"
+            else settings.PAPER2FIGURE_TEXT_MODEL
+        )
+        selected_image_model = settings.PAPER2FIGURE_IMAGE_MODEL if graph_type == "tech_route" else img_gen_model_name
+
         # 4. 构造 Request
         p2f_req = Paper2FigureRequest(
             language=language,
-            chat_api_url=chat_api_url,
-            chat_api_key=api_key,
-            api_key=api_key,
-            model="gpt-4o",
-            gen_fig_model=img_gen_model_name,
+            chat_api_url=resolved_chat_api_url,
+            chat_api_key=resolved_api_key,
+            api_key=resolved_api_key,
+            image_api_url=resolved_image_api_url,
+            image_api_key=resolved_image_api_key,
+            model=selected_text_model,
+            gen_fig_model=selected_image_model,
+            technical_model=selected_text_model,
             input_type=real_input_type,
             input_content=real_input_content,
             aspect_ratio="16:9",
@@ -211,8 +288,12 @@ class Paper2AnyService:
         )
 
         # 5. 执行 workflow
-        async with task_semaphore:
-            p2f_resp = await run_paper2figure_wf_api(p2f_req, result_path=run_dir)
+        async with TASK_LIMITER.hold():
+            if graph_type == "model_arch":
+                async with VISUAL_WORKFLOW_LIMITER.hold():
+                    p2f_resp = await run_paper2figure_wf_api(p2f_req, result_path=run_dir)
+            else:
+                p2f_resp = await run_paper2figure_wf_api(p2f_req, result_path=run_dir)
 
         # 6. 处理返回路径
         raw_path = Path(p2f_resp.ppt_filename)
@@ -255,6 +336,16 @@ class Paper2AnyService:
         """
         执行 paper2figure 生成，返回 JSON 响应数据（包含 URL）。
         """
+        resolved_chat_api_url, resolved_api_key = resolve_llm_credentials(
+            chat_api_url,
+            api_key,
+            scope="paper2any",
+        )
+        resolved_image_api_url, resolved_image_api_key = resolve_image_generation_credentials(
+            chat_api_url,
+            api_key,
+            scope="paper2any",
+        )
         # 1. 基础参数校验
         self._validate_input(input_type, file, file_kind, text)
 
@@ -288,14 +379,26 @@ class Paper2AnyService:
             reference_image_path = str(ref_img_path)
             log.info(f"[paper2figure] Saved reference image: {reference_image_path}")
 
+        # paper2figure 前端历史上把 tech_route 的文本模型塞在 img_gen_model_name 里。
+        # 这里按 graph_type 分流，避免技术路线图仍被固定到 gpt-4o。
+        selected_text_model = (
+            _normalize_tech_route_text_model(img_gen_model_name)
+            if graph_type == "tech_route"
+            else settings.PAPER2FIGURE_TEXT_MODEL
+        )
+        selected_image_model = settings.PAPER2FIGURE_IMAGE_MODEL if graph_type == "tech_route" else img_gen_model_name
+
         # 4. 构造 Request
         p2f_req = Paper2FigureRequest(
             language=language,
-            chat_api_url=chat_api_url,
-            chat_api_key=api_key,
-            api_key=api_key,
-            model="gpt-4o",
-            gen_fig_model=img_gen_model_name,
+            chat_api_url=resolved_chat_api_url,
+            chat_api_key=resolved_api_key,
+            api_key=resolved_api_key,
+            image_api_url=resolved_image_api_url,
+            image_api_key=resolved_image_api_key,
+            model=selected_text_model,
+            gen_fig_model=selected_image_model,
+            technical_model=selected_text_model,
             input_type=real_input_type,
             input_content=real_input_content,
             aspect_ratio="16:9",
@@ -312,8 +415,12 @@ class Paper2AnyService:
         )
 
         # 5. 执行 workflow
-        async with task_semaphore:
-            p2f_resp = await run_paper2figure_wf_api(p2f_req, result_path=run_dir)
+        async with TASK_LIMITER.hold():
+            if graph_type == "model_arch":
+                async with VISUAL_WORKFLOW_LIMITER.hold():
+                    p2f_resp = await run_paper2figure_wf_api(p2f_req, result_path=run_dir)
+            else:
+                p2f_resp = await run_paper2figure_wf_api(p2f_req, result_path=run_dir)
 
         # 6. 构造 URL 响应
         safe_ppt = _to_outputs_url(p2f_resp.ppt_filename, request) if p2f_resp.ppt_filename else ""
@@ -369,9 +476,9 @@ class Paper2AnyService:
                             break
 
                 if fig_path:
-                    # 复用 SAM3 版 drawio workflow
-                    from dataflow_agent.workflow.registry import RuntimeRegistry
+                    # 复用 visual drawio workflow
                     from dataflow_agent.state import Paper2DrawioState, Paper2DrawioRequest
+                    from dataflow_agent.workflow import get_workflow
 
                     sub_dir = run_dir / "image2drawio"
                     sub_dir.mkdir(parents=True, exist_ok=True)
@@ -390,10 +497,11 @@ class Paper2AnyService:
                     i2d_state.text_content = str(fig_path)
                     i2d_state.result_path = str(sub_dir)
 
-                    factory = RuntimeRegistry.get("paper2drawio_sam3")
+                    factory = get_workflow("paper2drawio_visual")
                     builder = factory()
                     graph = builder.build()
-                    final_state = await graph.ainvoke(i2d_state)
+                    async with VISUAL_WORKFLOW_LIMITER.hold():
+                        final_state = await graph.ainvoke(i2d_state)
 
                     drawio_path = final_state.get("output_xml_path", "") if isinstance(final_state, dict) else getattr(final_state, "output_xml_path", "")
                     if not drawio_path:
@@ -405,6 +513,7 @@ class Paper2AnyService:
 
         return {
             "success": p2f_resp.success,
+            "error": p2f_resp.error,
             "ppt_filename": safe_ppt,
             "drawio_filename": drawio_url,
             "svg_filename": safe_svg,
@@ -452,11 +561,16 @@ class Paper2AnyService:
         abs_input_path = input_path.resolve()
 
         # 4. 执行 workflow
-        async with task_semaphore:
+        async with TASK_LIMITER.hold():
+            resolved_chat_api_url, resolved_api_key = resolve_llm_credentials(
+                chat_api_url,
+                api_key,
+                scope="paper2any",
+            )
             req = FeaturePaper2VideoRequest(
                 model=model_name,
-                chat_api_url=chat_api_url,
-                api_key=api_key,
+                chat_api_url=resolved_chat_api_url,
+                api_key=resolved_api_key,
                 pdf_path=str(abs_input_path),
                 img_path="",
                 language=language,
@@ -475,7 +589,7 @@ class Paper2AnyService:
         """
         为一次请求创建独立目录：
         - 登录用户 (有 email): outputs/{email}/{task_type}/{timestamp}/
-        - 匿名用户 (无 email): outputs/{task_type}/{timestamp}_{short_uuid}/
+        - 无邮箱上下文时: outputs/{task_type}/{timestamp}_{short_uuid}/
         """
         ts = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
         
@@ -483,7 +597,7 @@ class Paper2AnyService:
             # 登录用户：邮箱/任务/时间戳
             run_dir = BASE_OUTPUT_DIR / email / task_type / ts
         else:
-            # 匿名用户：保持旧逻辑
+            # 无邮箱上下文：保持兼容目录结构
             rid = uuid.uuid4().hex[:6]
             run_dir = BASE_OUTPUT_DIR / task_type / f"{ts}_{rid}"
 

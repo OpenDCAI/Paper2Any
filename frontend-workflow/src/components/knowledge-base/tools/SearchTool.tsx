@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Search, Loader2, FileText, Image as ImageIcon, Video as VideoIcon, ExternalLink, Folder } from 'lucide-react';
-import { API_KEY, API_URL_OPTIONS } from '../../../config/api';
+import { API_URL_OPTIONS } from '../../../config/api';
 import { useAuthStore } from '../../../stores/authStore';
 import { getApiSettings } from '../../../services/apiSettingsService';
+import { backendFetch } from '../../../services/backendClient';
+import { getSecureAssetUrl, openSecureAsset } from '../../../services/secureAssetService';
 import { KnowledgeBaseEntry } from '../types';
 
 interface SearchResult {
@@ -38,6 +40,7 @@ export const SearchTool = ({ files = [], selectedIds = new Set(), knowledgeBases
   const [kbFilter, setKbFilter] = useState<string>('all');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [secureUrls, setSecureUrls] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -48,12 +51,66 @@ export const SearchTool = ({ files = [], selectedIds = new Set(), knowledgeBases
     }
   }, [user?.id]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveSecureUrls = async () => {
+      const candidates = Array.from(
+        new Set(
+          results.flatMap((item) => [item.media?.url || '', item.source_file?.url || '']).filter(Boolean),
+        ),
+      );
+
+      const pairs = await Promise.all(
+        candidates.map(async (rawUrl) => {
+          if (!rawUrl.includes('/outputs/')) {
+            return [rawUrl, rawUrl] as const;
+          }
+          try {
+            return [rawUrl, await getSecureAssetUrl(rawUrl)] as const;
+          } catch (err) {
+            console.warn('[SearchTool] Failed to resolve secure asset URL:', err);
+            return [rawUrl, ''] as const;
+          }
+        }),
+      );
+
+      if (!cancelled) {
+        setSecureUrls(Object.fromEntries(pairs));
+      }
+    };
+
+    resolveSecureUrls();
+    return () => {
+      cancelled = true;
+    };
+  }, [results]);
+
   const getMediaKind = (url?: string) => {
     if (!url) return null;
     const lower = url.toLowerCase();
     if (lower.endsWith('.mp4')) return 'video';
     if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image';
     return 'file';
+  };
+
+  const getResolvedUrl = (url?: string) => {
+    if (!url) return '';
+    return secureUrls[url] || '';
+  };
+
+  const handleOpenMaterial = async (url?: string) => {
+    if (!url) return;
+    if (!url.includes('/outputs/')) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    try {
+      await openSecureAsset(url);
+    } catch (err) {
+      console.error('[SearchTool] Failed to open material:', err);
+      alert('打开素材失败');
+    }
   };
 
   const handleSearch = async () => {
@@ -87,11 +144,10 @@ export const SearchTool = ({ files = [], selectedIds = new Set(), knowledgeBases
         return;
       }
 
-      const res = await fetch('/api/v1/kb/search', {
+      const res = await backendFetch('/api/v1/kb/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': API_KEY
         },
         body: JSON.stringify({
           query: query.trim(),
@@ -225,19 +281,18 @@ export const SearchTool = ({ files = [], selectedIds = new Set(), knowledgeBases
           {results.map((item, idx) => {
             const mediaKind = getMediaKind(item.media?.url || item.source_file?.url);
             const displayUrl = item.media?.url || item.source_file?.url;
+            const resolvedMediaUrl = getResolvedUrl(item.media?.url);
             return (
               <div key={`${item.source_file?.id || idx}-${idx}`} className="bg-white/5 border border-white/10 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-xs text-gray-400">Score: {item.score?.toFixed(4)}</div>
                   {displayUrl && (
-                    <a
-                      href={displayUrl}
-                      target="_blank"
-                      rel="noreferrer"
+                    <button
+                      onClick={() => handleOpenMaterial(displayUrl)}
                       className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
                     >
                       <ExternalLink size={12} /> 打开素材
-                    </a>
+                    </button>
                   )}
                 </div>
 
@@ -250,16 +305,20 @@ export const SearchTool = ({ files = [], selectedIds = new Set(), knowledgeBases
                   <span>{item.source_file?.original_path?.split('/').pop() || item.source_file?.id || 'unknown'}</span>
                 </div>
 
-                {mediaKind === 'image' && item.media?.url && (
+                {mediaKind === 'image' && resolvedMediaUrl && (
                   <div className="w-full bg-black/30 rounded-lg overflow-hidden border border-white/10">
-                    <img src={item.media.url} alt="media" className="w-full h-48 object-contain" />
+                    <img src={resolvedMediaUrl} alt="media" className="w-full h-48 object-contain" />
                   </div>
                 )}
 
-                {mediaKind === 'video' && item.media?.url && (
+                {mediaKind === 'video' && resolvedMediaUrl && (
                   <div className="w-full bg-black/30 rounded-lg overflow-hidden border border-white/10">
-                    <video src={item.media.url} controls className="w-full h-48 object-contain" />
+                    <video src={resolvedMediaUrl} controls className="w-full h-48 object-contain" />
                   </div>
+                )}
+
+                {mediaKind && item.media?.url && !resolvedMediaUrl && (
+                  <div className="text-xs text-gray-500">素材访问链接加载中...</div>
                 )}
 
                 {!item.media?.url && mediaKind && (

@@ -5,7 +5,7 @@
  */
 
 import { supabase } from "../lib/supabase";
-import { API_KEY } from "../config/api";
+import { backendFetch } from "./backendClient";
 
 export interface FileRecord {
   id?: string;
@@ -59,43 +59,22 @@ export async function uploadAndSaveFile(
   workflowType: string
 ): Promise<FileRecord | null> {
   try {
-    // Get JWT token from Supabase (if configured)
     const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      console.warn("[fileService] Skipping file upload because user is not authenticated");
+      return null;
+    }
 
-    // Sanitize filename to avoid special characters
     const sanitizedFileName = sanitizeFileName(fileName, workflowType);
     console.log(`[fileService] Original filename: ${fileName}`);
     console.log(`[fileService] Sanitized filename: ${sanitizedFileName}`);
 
-    // Create FormData for file upload
     const formData = new FormData();
     formData.append('file', blob, sanitizedFileName);
     formData.append('workflow_type', workflowType);
 
-    // Add email if no session (fallback for non-Supabase deployments)
-    if (!session) {
-      console.warn("[fileService] No authenticated session, using email fallback");
-      // Try to get user identifier from user state (if available)
-      const user = (window as any).__user_email;
-      if (user) {
-        formData.append('email', user);
-      }
-    }
-
-    // Prepare headers
-    const headers: Record<string, string> = {
-      'X-API-Key': API_KEY,
-    };
-
-    // Add JWT token if available
-    if (session?.access_token) {
-      headers['Authorization'] = `Bearer ${session.access_token}`;
-    }
-
-    // Upload to backend
-    const response = await fetch('/api/v1/files/upload', {
+    const response = await backendFetch('/api/v1/files/upload', {
       method: 'POST',
-      headers,
       body: formData,
     });
 
@@ -133,36 +112,13 @@ export async function uploadAndSaveFile(
  */
 export async function getFileRecords(): Promise<FileRecord[]> {
   try {
-    // Get JWT token from Supabase (if configured)
     const { data: { session } } = await supabase.auth.getSession();
-
-    // Prepare headers
-    const headers: Record<string, string> = {
-      'X-API-Key': API_KEY,
-    };
-
-    // Add JWT token if available
-    if (session?.access_token) {
-      headers['Authorization'] = `Bearer ${session.access_token}`;
+    if (!session?.access_token) {
+      console.warn("[fileService] Skipping history request because user is not authenticated");
+      return [];
     }
 
-    // Build URL with email parameter as fallback
-    // Backend will use JWT token first, then fall back to email parameter
-    let url = '/api/v1/files/history';
-    
-    // Always add user identifier as query parameter for backend compatibility
-    // Backend prioritizes JWT token, but this ensures fallback works
-    if (session?.user) {
-      // For authenticated users, use email if available, otherwise use user ID
-      // This handles both email and phone number users
-      const userIdentifier = session.user.email || session.user.id;
-      url += `?email=${encodeURIComponent(userIdentifier)}`;
-    }
-
-    // Use unified backend API
-    const res = await fetch(url, {
-      headers,
-    });
+    const res = await backendFetch('/api/v1/files/history');
 
     if (!res.ok) {
       console.error(`[fileService] History API failed: ${res.statusText}`);

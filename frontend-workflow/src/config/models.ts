@@ -23,16 +23,14 @@ export const PAPER2FIGURE_EXP_DATA_MODELS = readEnvList('VITE_PAPER2FIGURE_MODEL
   'gemini-2.5-flash-image-preview',
 ]);
 export const PAPER2FIGURE_TECH_ROUTE_MODELS = readEnvList('VITE_PAPER2FIGURE_MODEL_TECH_ROUTE', [
-  'gpt-5.2-medium',
-  'gemini-3-pro-preview',
-  'claude-sonnet-4-5-20250929',
-  'claude-haiku-4-5-20251001',
+  'gpt-5.4',
+  'gpt-5.2',
 ]);
 
 export const DEFAULT_PAPER2FIGURE_MODELS = {
   model_arch: firstOr(PAPER2FIGURE_MODEL_ARCH_MODELS, 'gemini-3-pro-image-preview'),
   exp_data: firstOr(PAPER2FIGURE_EXP_DATA_MODELS, 'gemini-3-pro-image-preview'),
-  tech_route: firstOr(PAPER2FIGURE_TECH_ROUTE_MODELS, 'gpt-5.2-medium'),
+  tech_route: firstOr(PAPER2FIGURE_TECH_ROUTE_MODELS, 'gpt-5.4'),
 } as const;
 
 export const PAPER2PPT_MODELS = readEnvList('VITE_PAPER2PPT_MODEL', [
@@ -69,12 +67,13 @@ export const DEFAULT_PPT2POLISH_MODEL = firstOr(PPT2POLISH_MODELS, 'gpt-5.1');
 export const DEFAULT_PPT2POLISH_GEN_FIG_MODEL = firstOr(PPT2POLISH_GEN_FIG_MODELS, 'gemini-3-pro-image-preview');
 
 export const PAPER2DRAWIO_MODELS = readEnvList('VITE_PAPER2DRAWIO_MODEL', [
-  'claude-sonnet-4-5-20250929',
+  'gpt-5.4',
+  'gpt-5.2',
 ]);
 export const PAPER2DRAWIO_IMAGE_MODELS = readEnvList('VITE_PAPER2DRAWIO_IMAGE_MODEL', [
   'gemini-3-pro-image-preview',
 ]);
-export const DEFAULT_PAPER2DRAWIO_MODEL = firstOr(PAPER2DRAWIO_MODELS, 'claude-sonnet-4-5-20250929');
+export const DEFAULT_PAPER2DRAWIO_MODEL = firstOr(PAPER2DRAWIO_MODELS, 'gpt-5.4');
 export const DEFAULT_PAPER2DRAWIO_IMAGE_MODEL = firstOr(PAPER2DRAWIO_IMAGE_MODELS, 'gemini-3-pro-image-preview');
 
 export const IMAGE2DRAWIO_GEN_FIG_MODELS = readEnvList('VITE_IMAGE2DRAWIO_GEN_FIG_MODEL', [

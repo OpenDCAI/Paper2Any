@@ -1,0 +1,39 @@
+Classify visual assets by column-aware poster placement and research role:
+
+Available visuals with captions:
+{{ visuals_list }}
+
+Classify each visual into exactly one category based on column-specific poster design:
+
+**Column-Aware Categories:**
+1. **"key_visual"** - Most important method visual representing core research innovation (max 1, middle column)
+2. **"problem_illustration"** - Visuals showing research problem, challenges, or motivation (left column introduction)
+3. **"method_workflow"** - Method architecture, system diagrams, algorithmic workflows (middle column method)
+4. **"main_results"** - Primary experimental results, performance tables, key findings (right column)
+5. **"comparative_results"** - Baseline comparisons, ablation studies, validation charts (right column)
+6. **"supporting"** - Background concepts, supplementary analysis, minor details (flexible placement)
+
+**Classification Guidelines:**
+- **Problem Context**: Figures showing "what's wrong" or "why this matters" → problem_illustration
+- **Method Core**: Most important technical diagram → key_visual
+- **Method Details**: Architecture/workflow diagrams → method_workflow
+- **Primary Evidence**: Main performance results → main_results
+- **Validation Evidence**: Comparisons with baselines → comparative_results
+- **Background/Supplementary**: Minor or supporting content → supporting
+
+Consider:
+- Visual content and research narrative role
+- Optimal column placement for logical flow
+- Visual impact and audience comprehension
+
+Required JSON output:
+{
+  "key_visual": "visual_id or null",
+  "problem_illustration": ["visual_id1", ...],
+  "method_workflow": ["visual_id1", ...],
+  "main_results": ["visual_id1", ...],
+  "comparative_results": ["visual_id1", ...],
+  "supporting": ["visual_id1", ...]
+}
+
+Ensure every visual_id appears exactly once across all categories.

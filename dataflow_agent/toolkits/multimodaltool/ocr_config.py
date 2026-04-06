@@ -9,8 +9,8 @@ def get_ocr_api_credentials() -> Tuple[str, str]:
     Return unified OCR endpoint credentials.
 
     Priority:
-    1) `fastapi_app.config.settings` (single source in this project)
-    2) Environment fallback (`PAPER2DRAWIO_OCR_API_URL/_KEY`)
+    1) Environment (`PAPER2DRAWIO_OCR_API_URL/_KEY`)
+    2) `fastapi_app.config.settings` compatibility fallback
 
     If still empty, fail fast with explicit error.
     """
@@ -32,7 +32,7 @@ def get_ocr_api_credentials() -> Tuple[str, str]:
     if not api_url or not api_key:
         raise ValueError(
             "OCR endpoint/key not configured. "
-            "Please set PAPER2DRAWIO_OCR_API_URL and PAPER2DRAWIO_OCR_API_KEY in settings or env."
+            "Please set PAPER2DRAWIO_OCR_API_URL and PAPER2DRAWIO_OCR_API_KEY in fastapi_app/.env."
         )
 
     return api_url, api_key

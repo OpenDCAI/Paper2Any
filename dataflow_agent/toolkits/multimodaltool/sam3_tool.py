@@ -6,6 +6,7 @@ import itertools
 import os
 import threading
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Sequence
 
 import numpy as np
@@ -88,6 +89,23 @@ def _bbox_area(b: List[int]) -> int:
     return max(0, b[2] - b[0]) * max(0, b[3] - b[1])
 
 
+def _read_env_value_from_fastapi_env(env_name: str) -> str:
+    env_file = Path(__file__).resolve().parents[3] / "fastapi_app" / ".env"
+    if not env_file.is_file():
+        return ""
+
+    prefix = f"{env_name}="
+    try:
+        for raw_line in env_file.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or not line.startswith(prefix):
+                continue
+            return line[len(prefix):].strip().strip('"').strip("'")
+    except Exception:
+        return ""
+    return ""
+
+
 def get_sam3_endpoints(
     env_names: Sequence[str] = ("SAM3_SERVER_URLS", "SAM3_ENDPOINTS"),
     default_endpoint: str = "http://127.0.0.1:8001",
@@ -98,6 +116,14 @@ def get_sam3_endpoints(
             endpoints = [u.strip() for u in raw.split(",") if u.strip()]
             if endpoints:
                 return endpoints
+
+    for env_name in env_names:
+        raw = _read_env_value_from_fastapi_env(env_name)
+        if raw:
+            endpoints = [u.strip() for u in raw.split(",") if u.strip()]
+            if endpoints:
+                return endpoints
+
     if default_endpoint:
         return [default_endpoint]
     return []
@@ -332,4 +358,3 @@ def predict_sam3_groups(
         contain_threshold=contain_threshold,
     )
     return all_results
-

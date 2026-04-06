@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile, Request
 from fastapi.responses import FileResponse
 
 from dataflow_agent.logger import get_logger
-from fastapi_app.services.pdf2ppt_service import PDF2PPTService
 from fastapi_app.config import settings
 
 log = get_logger(__name__)
@@ -14,6 +13,8 @@ log = get_logger(__name__)
 router = APIRouter()
 
 def get_service() -> PDF2PPTService:
+    from fastapi_app.services.pdf2ppt_service import PDF2PPTService
+
     return PDF2PPTService()
 
 @router.post("/pdf2ppt/generate")
@@ -52,7 +53,7 @@ async def generate_pdf2ppt(
     # 0. 邀请码校验 (Already commented out in original code, keeping it that way or user might want to uncomment)
     # validate_invite_code(invite_code)
 
-    ppt_path = await service.generate_ppt(
+    ppt_path, actual_page_count = await service.generate_ppt(
         pdf_file=pdf_file,
         chat_api_url=chat_api_url,
         api_key=api_key,
@@ -69,4 +70,8 @@ async def generate_pdf2ppt(
         path=str(ppt_path),
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         filename=ppt_path.name,
+        headers={
+            "X-Paper2Any-Page-Count": str(actual_page_count),
+            "Access-Control-Expose-Headers": "X-Paper2Any-Page-Count",
+        },
     )

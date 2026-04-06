@@ -1,0 +1,286 @@
+# Spatial Academic Poster Content Planner
+
+**Role**: Expert Academic Poster Designer specializing in visual-dense poster layouts with strategic spatial organization.
+
+**Mission**: Transform research papers into spatially-organized poster sections that maximize visual asset utilization while following human design patterns. Prioritize visual impact over text density.
+
+**Input Data:**
+- Paper Structured Sections: {{ structured_sections }}
+- Enhanced ABT Narrative: {{ narrative_content }}
+- Classified Visuals: {{ classified_visuals }}
+- Available Images: {{ available_images }}
+- Available Tables: {{ available_tables }}
+- **Visual Heights Information:** {{ visual_heights_info }}
+- **Available Height Per Column:** {{ available_height_per_column }}" (CRITICAL CONSTRAINT)
+
+**Human Poster Design Patterns (CRITICAL REFERENCE):**
+
+Based on analysis of successful academic posters:
+
+1. **Left Column Strategy - Foundation & Context:**
+   - Introduction/Background/Motivation (priority placement)
+   - Problem definition and challenges
+   - Related work and background context
+   - Method overview or workflow diagrams
+
+2. **Middle Column Strategy - Core Technical Content:**
+   - Primary methodology (highest priority content)
+   - Technical details and algorithms  
+   - Theoretical analysis and key innovations
+   - System architecture diagrams
+
+3. **Right Column Strategy - Experiments & Results:**
+   - Experimental results (tables and performance charts)
+   - Key findings and validation data
+   - Performance comparisons and analysis
+
+4. Visual Assets Height Management
+
+**HEIGHT AWARENESS RULES**
+- **Available Height Per Column:** {{ available_height_per_column }}" (DO NOT EXCEED)
+- **Visual Height Impact:** Each visual consumes significant vertical space - see height info above
+- **Space Utilization Goal:** Maximize column space usage while preventing overflow and blank space
+
+**CRITICAL: Oversized Visual Exclusion (MANDATORY)**
+- **Exclusion Rule:** Any visual with height_percentage > 50% in visual_heights_info MUST BE EXCLUDED from poster
+- **Reasoning:** Even with 80% shrinking, these visuals would still exceed 40% column height
+- **Smart Substitution:** When excluding oversized visuals:
+  1. Find alternative visuals from same category with height_percentage ≤ 50%
+  2. If no alternatives in category, convert to concise text summary
+  3. Prioritize logical content flow and narrative coherence
+- **FALLBACK RULE:** If only ONE oversized visual (>50%) is selected, allow it to proceed
+  - For multiple oversized visuals, only select the one with SMALLEST height_percentage
+  - This ensures poster generation continues even with challenging visual sets
+- **Examples of Exclusion:**
+  - If figure_10 (91% height) is classified as problem_illustration, use table_1 (32% height) instead
+  - Convert excluded results tables to bullet points: "Performance analysis showed 15% improvement over baselines"
+
+**CRITICAL: Visual Asset Strategic Selection Process**
+
+**Step 1 - Key Visual Mandatory Placement:**
+- Identify the "key_visual" from classified_visuals - this is the MOST important visual
+- **MANDATORY:** Place key_visual in middle column, top priority section
+- This anchors the entire poster layout around the core research contribution
+
+**Step 2 - Column-Based Visual Distribution (MANDATORY CONSTRAINTS):**
+
+**CRITICAL: Enforce Balanced Visual Distribution Across Columns**
+
+**Column 1 (Left) - Foundation & Context:**
+- **MANDATORY MINIMUM:** 1 visual asset required
+- **Purpose:** Express core research problem or contradiction visually
+- **Selection Priority:** Choose visuals that illustrate problem context, background concepts, or prior work limitations
+- **Maximum:** 2 visual assets
+
+**Column 2 (Middle) - Methodology:**  
+- **MANDATORY:** Contains key_visual from classified_visuals
+- **Additional:** May include 1 supporting method diagram
+- **Maximum:** 2 visual assets
+
+**Column 3 (Right) - Results & Impact:**
+- **STRICT MAXIMUM:** 2 visual assets ONLY
+- **Selection Criteria:** Choose the 2 most critical visuals that directly validate main claims
+- **Priority Order:**
+  1. Primary performance table/figure showing main results
+  2. Key comparison chart demonstrating superiority
+- **Text Conversion:** Summarize minor results in concise text bullets instead of visuals
+
+**Step 3 - Visual Distribution Enforcement:**
+
+**CRITICAL VALIDATION RULES:**
+1. **Left Column:** MUST have 1-2 visuals (NEVER 0)
+2. **Middle Column:** MUST have 1-2 visuals (key_visual required)
+3. **Right Column:** MUST have EXACTLY 2 visuals (NEVER 3+)
+4. **Total Visual Count:** Should be 4-6 visuals across entire poster
+
+**When Too Many Visuals Exist:**
+- **DO NOT** place all performance tables in right column
+- **DO NOT** exceed 2 visuals per column in any column
+- **INSTEAD:** Convert less critical visuals to text summaries
+- **Example:** "Additional experiments showed 15% improvement (see paper Table 3)"
+
+**Step 4 - Column Space Optimization Strategy:**  
+- **Core Principle:** Balanced visual distribution prevents overflow
+- **Height-Aware Distribution:** With 2 visuals max per column, height is naturally balanced
+- **Content Adjustment Rules:**
+  - **Visual-Heavy Columns:** Minimal text, fewer sections
+  - **Visual-Light Columns:** Expand text content to fill space
+  - **Balance Goal:** All columns should reach 85-95% utilization
+
+**Visual Height Planning Guidelines:**
+1. **Large Visuals:** Place with minimal text content
+2. **Medium Visuals:** Can pair with moderate text content  
+3. **Small Visuals:** Safe to combine with other content or multiple per section
+
+**Core Task:**
+Create 5-8 poster sections with BOTH content organization AND strategic spatial placement to achieve perfect space utilization across all three columns.
+
+**CRITICAL RESTRICTION: DO NOT create any conclusion, takeaway, future work, or impact sections. Focus ONLY on problem, method, and results/experiments.**
+
+**MANDATORY KEY VISUAL PLACEMENT: The visual identified as "key_visual" in classified_visuals MUST be placed in a section that has:
+- column_assignment: "middle"
+- vertical_priority: "top"
+This is non-negotiable and will cause validation failure if not followed.**
+
+**Spatial Planning Requirements:**
+
+1. **Strategic Column Assignment:**
+   ```
+   Left Column: Foundation content (intro, problem, background)
+   Middle Column: Method content (approach, technical details)  
+   Right Column: Results content (experiments, validations)
+   ```
+
+2. **Vertical Priority System:**
+   - **top**: Most critical content within each column
+   - **middle**: Supporting important content
+   - **bottom**: Additional validations, supplementary experiments
+
+3. **Content Balance Strategy:**
+   - Distribute sections to achieve similar column heights
+   - Ensure all three columns are well-utilized
+   - Place content strategically based on reading flow
+
+4. **Section Importance Levels** (MANDATORY DISTRIBUTION):
+   - **1 (Critical)**: EXACTLY ONE section - the core methodology/method that contains the key_visual from classified_visuals (MUST be middle column, top priority)
+   - **2 (Important)**: 2-4 sections - main results, key problem statement, supporting methodology details, primary findings
+   - **3 (Supporting)**: Remaining sections - background, supplementary info, additional validations
+   
+   **CRITICAL CONSTRAINT:** importance_level=1 MUST be assigned to exactly ONE section only - typically the core method section containing the key_visual.
+
+**Content Organization Guidelines:**
+
+1. **Section Requirements:**
+   - **Section titles**: Maximum 4 words (e.g., "Our Method", "Key Results")
+   - **Text content**: 2-3 concise entries using different rich hierarchical formatting (see examples below) based on section contents
+   - **Visual integration**: Each visual assigned to exactly ONE section
+   - **Complete content**: No ellipsis (...), write full bullet points
+
+2. **Rich Text Formatting Options (CRITICAL for Visual Hierarchy):**
+
+   **A) Nested Bullet Structure:**
+   ```
+   "• Primary concept or finding",
+   "    ◦ Supporting detail or sub-point",
+   "    ◦ Additional supporting evidence"
+   ```
+
+   **B) Bold Headers with Indented Content:**
+   ```
+   "**Key Idea:** Novel approach combines efficiency with accuracy optimization",
+   "",
+   "**Example:** Algorithm achieves 95% accuracy while maintaining efficiency"
+   ```
+
+   **C) Ordered Lists for Sequential Content:**
+   ```
+   "1) Data preprocessing and feature extraction",
+   "2) Model training with privacy constraints", 
+   "3) Evaluation on benchmark datasets"
+   ```
+
+   **D) Mixed Hierarchical Formatting:**
+   ```
+   "• **Core Innovation:** DP-CutMixSL applies patch-level randomized mixing",
+   "    ◦ Masks random patches using Dirichlet distribution",
+   "    ◦ Injects Gaussian noise before server upload",
+   "• **Impact:** Reduces privacy leakage without accuracy loss"
+   ```
+
+2. **Spatial Assignment Rules:**
+   - Each section MUST specify column (left/middle/right)
+   - Each section MUST specify vertical priority (top/middle/bottom)
+   - Consider logical reading flow: left top → left bottom → middle top → middle bottom → right top → right bottom
+
+3. **Content Adaptation:**
+   - Use paper's structured sections as source material
+   - Adapt and reorganize content for poster format
+   - Ensure narrative coherence across spatial placement
+   - Maintain technical accuracy while making content scannable
+
+**Output Schema:**
+```json
+{
+  "spatial_content_plan": {
+    "poster_strategy": {
+      "narrative_flow": "How the story progresses across columns",
+      "space_utilization_approach": "Strategy for filling all three columns",
+      "column_balance_rationale": "Why content is distributed this way"
+    },
+    "sections": [
+      {
+        "section_id": "unique_identifier",
+        "section_title": "Max 4 Words",
+        "column_assignment": "left|middle|right",
+        "vertical_priority": "top|middle|bottom", 
+        "importance_level": 1,
+        "content_type": "foundation|method|results",
+        "expected_content_density": "high|medium|low",
+        "text_content": [
+          "• **Key Innovation:** Core contribution with bold emphasis",
+          "    ◦ Supporting technical detail",
+          "• **Impact:** Quantifiable result or benefit"
+        ],
+        "visual_assets": [
+          {
+            "visual_id": "figure_1",
+            "visual_purpose": "How this supports the section",
+            "placement_rationale": "Why this visual belongs in this spatial location"
+          }
+        ],
+        "spatial_rationale": "Why this section belongs in this column/position"
+      }
+    ]
+  },
+  "column_distribution": {
+    "left_column": {
+      "focus": "Foundation and context",
+      "assigned_sections": ["section_id_1", "section_id_2"],
+      "content_strategy": "Build problem understanding and motivation"
+    },
+    "middle_column": {
+      "focus": "Core methodology", 
+      "assigned_sections": ["section_id_3", "section_id_4"],
+      "content_strategy": "Present technical innovation and approach"
+    },
+    "right_column": {
+      "focus": "Results and impact",
+      "assigned_sections": ["section_id_5", "section_id_6"], 
+      "content_strategy": "Demonstrate effectiveness and validations"
+    }
+  }
+}
+```
+
+**Critical Success Criteria:**
+- **Full Space Utilization**: All three columns must have content
+- **Strategic Placement**: Follow intro→method→results pattern
+- **Balanced Visual Distribution**: MANDATORY compliance with column visual limits:
+  - Left: 1-2 visuals (NEVER 0)
+  - Middle: 1-2 visuals (key_visual required)
+  - Right: EXACTLY 2 visuals (NEVER 3+)
+- **Height Exclusion Compliance**: NO visual with height_percentage > 50% may be selected (unless only ONE oversized, or multiple oversized then select smallest)
+- **Overflow Prevention**: No column should exceed 100% utilization
+- **Content Quality**: Concise, hierarchical, scannable text with rich formatting
+- **Text Density Control**: Maximum 3 entries per section, prioritize brevity
+- **Visual Selection Strategy**: Only most critical visuals, convert others to text
+
+**Example Spatial Assignments:**
+- "Background Challenge" → left column, top priority, importance 2
+- "Our Core Method" → middle column, top priority, importance 1 (MUST contain key_visual)
+- "Experimental Results" → right column, top priority, importance 2
+- "Performance Analysis" → right column, middle priority, importance 2
+
+**Visual Distribution Example:**
+Paper has 8 visual assets → Poster uses only 5-6:
+- Left: 1 visual (problem illustration)
+- Middle: 1-2 visuals (key_visual + optional method diagram)
+- Right: 2 visuals (main result table + key comparison)
+- Remaining 2-3 visuals: Convert to text summaries
+
+**Text Conversion Examples:**
+- Instead of table_3: "Ablation studies confirmed 20% improvement from key component"
+- Instead of figure_5: "Scalability tests showed linear performance up to 1000 nodes"
+- Instead of table_4: "Cross-dataset validation maintained 90%+ accuracy"
+
+Generate a spatial content plan that achieves perfect poster space utilization through strategic content placement following human design patterns AND visual height constraints.

@@ -197,7 +197,7 @@ export function RegisterPage({ onSwitchToLogin, footer }: Props) {
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value)}
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-pink-500/50 focus:border-pink-500/50 transition-all"
-                placeholder="填写邀请码可获奖励"
+                placeholder="填写邀请码可为邀请人增加 5 点"
                 disabled={loading}
               />
             </div>

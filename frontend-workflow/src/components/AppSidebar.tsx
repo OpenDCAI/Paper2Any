@@ -1,19 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  Home,
   X,
   Sparkles,
   Presentation,
   FileText,
+  MonitorSmartphone,
   ImagePlus,
   Image,
   Wand2,
+  BrainCircuit,
   // BookOpen,
   FolderOpen,
   Network,
   MessageSquare,
   ChevronRight,
-  ArrowLeft
+  ArrowLeft,
+  Video,
+  LayoutTemplate,
+  Quote
 } from 'lucide-react';
 import NavTooltip from './NavTooltip';
 
@@ -34,13 +40,20 @@ interface AppSidebarProps {
 
 export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSidebarProps) => {
   const { t } = useTranslation('common');
-  const [menuView, setMenuView] = useState<'main' | 'paper2figure'>('main');
+  const [menuView, setMenuView] = useState<'main' | 'paper2figure' | 'paper2ppt'>('main');
 
   useEffect(() => {
     if (!isOpen) setMenuView('main');
   }, [isOpen]);
 
   const paper2figureChildren = useMemo(() => ([
+    {
+      id: 'paper2figure-model-drawio',
+      labelKey: t('app.navSub.paper2figureModelDrawio'),
+      tooltipKey: t('app.navSubTooltip.paper2figureModelDrawio'),
+      icon: Wand2,
+      gradient: 'from-emerald-500 to-teal-500'
+    },
     {
       id: 'paper2figure-tech-exp',
       labelKey: t('app.navSub.paper2figureTechExp'),
@@ -54,23 +67,47 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
       tooltipKey: t('app.navSubTooltip.paper2drawioAi'),
       icon: Network,
       gradient: 'from-violet-500 to-fuchsia-500'
+    }
+  ]), [t]);
+
+  const paper2pptChildren = useMemo(() => ([
+    {
+      id: 'paper2ppt-image',
+      labelKey: t('app.navSub.paper2pptImage'),
+      tooltipKey: t('app.navSubTooltip.paper2pptImage'),
+      icon: Presentation,
+      gradient: 'from-purple-500 to-pink-500'
     },
     {
-      id: 'paper2figure-model-drawio',
-      labelKey: t('app.navSub.paper2figureModelDrawio'),
-      tooltipKey: t('app.navSubTooltip.paper2figureModelDrawio'),
-      icon: Wand2,
-      gradient: 'from-emerald-500 to-teal-500'
+      id: 'paper2ppt-frontend',
+      labelKey: t('app.navSub.paper2pptFrontend'),
+      tooltipKey: t('app.navSubTooltip.paper2pptFrontend'),
+      icon: MonitorSmartphone,
+      gradient: 'from-amber-500 to-orange-500'
     }
   ]), [t]);
 
   const navigationItems: NavigationItem[] = [
+    {
+      id: 'home',
+      labelKey: t('app.nav.home'),
+      tooltipKey: t('app.navTooltip.home'),
+      icon: Home,
+      gradient: 'from-slate-500 to-cyan-500'
+    },
     {
       id: 'paper2figure',
       labelKey: t('app.nav.paper2figure'),
       tooltipKey: t('app.navTooltip.paper2figure'),
       icon: Sparkles,
       gradient: 'from-primary-500 to-primary-600'
+    },
+    {
+      id: 'mindmap',
+      labelKey: t('app.nav.mindmap'),
+      tooltipKey: t('app.navTooltip.mindmap'),
+      icon: BrainCircuit,
+      gradient: 'from-cyan-500 to-blue-500'
     },
     {
       id: 'image2drawio',
@@ -92,6 +129,27 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
       tooltipKey: t('app.navTooltip.paper2ppt'),
       icon: Presentation,
       gradient: 'from-purple-500 to-pink-500'
+    },
+    {
+      id: 'paper2video',
+      labelKey: t('app.nav.paper2video'),
+      tooltipKey: t('app.navTooltip.paper2video'),
+      icon: Video,
+      gradient: 'from-teal-500 to-cyan-500'
+    },
+    {
+      id: 'paper2poster',
+      labelKey: t('app.nav.paper2poster'),
+      tooltipKey: t('app.navTooltip.paper2poster'),
+      icon: LayoutTemplate,
+      gradient: 'from-fuchsia-500 to-rose-500'
+    },
+    {
+      id: 'paper2citation',
+      labelKey: t('app.nav.paper2citation'),
+      tooltipKey: t('app.navTooltip.paper2citation'),
+      icon: Quote,
+      gradient: 'from-cyan-500 to-sky-500'
     },
     {
       id: 'ppt2polish',
@@ -136,6 +194,12 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
   };
 
   const paper2figureActive = paper2figureChildren.some(child => child.id === activePage);
+  const paper2pptActive = paper2pptChildren.some(child => child.id === activePage) || activePage === 'paper2ppt';
+  const activeSubmenu = menuView === 'paper2figure'
+    ? { title: t('app.nav.paper2figure'), items: paper2figureChildren }
+    : menuView === 'paper2ppt'
+      ? { title: t('app.nav.paper2ppt'), items: paper2pptChildren }
+      : null;
 
   return (
     <>
@@ -154,7 +218,7 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
         {/* Header */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-white/10">
           <div className="flex items-center gap-2">
-            {menuView === 'paper2figure' && (
+            {menuView !== 'main' && (
               <button
                 onClick={() => setMenuView('main')}
                 className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
@@ -164,7 +228,7 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
               </button>
             )}
             <h2 className="text-lg font-bold text-white">
-              {menuView === 'paper2figure' ? t('app.nav.paper2figure') : t('app.sidebar.navigation')}
+              {activeSubmenu ? activeSubmenu.title : t('app.sidebar.navigation')}
             </h2>
           </div>
           <button
@@ -185,13 +249,23 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
               {navigationItems.map((item) => {
                 const Icon = item.icon;
                 const isPaper2Figure = item.id === 'paper2figure';
-                const isActive = isPaper2Figure ? paper2figureActive : activePage === item.id;
+                const isPaper2Ppt = item.id === 'paper2ppt';
+                const hasSubmenu = isPaper2Figure || isPaper2Ppt;
+                const isActive = isPaper2Figure
+                  ? paper2figureActive
+                  : isPaper2Ppt
+                    ? paper2pptActive
+                    : activePage === item.id;
 
                 const button = (
                   <button
                     onClick={() => {
                       if (isPaper2Figure) {
                         setMenuView('paper2figure');
+                        return;
+                      }
+                      if (isPaper2Ppt) {
+                        setMenuView('paper2ppt');
                         return;
                       }
                       handleNavigation(item.id);
@@ -204,7 +278,7 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
                   >
                     <Icon size={22} className={isActive ? 'drop-shadow-lg' : ''} />
                     <span className="text-sm font-medium flex-1 text-left">{item.labelKey}</span>
-                    {isPaper2Figure && (
+                    {hasSubmenu && (
                       <ChevronRight size={16} className="text-white/60 group-hover:text-white transition-colors" />
                     )}
                   </button>
@@ -212,7 +286,7 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
 
                 return (
                   <div key={item.id} className="relative">
-                    {isPaper2Figure ? button : (
+                    {hasSubmenu ? button : (
                       <NavTooltip content={item.tooltipKey}>
                         {button}
                       </NavTooltip>
@@ -226,7 +300,7 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
             className="absolute inset-0 p-4 overflow-y-auto overflow-x-hidden transition-transform duration-300"
             style={{ transform: menuView === 'main' ? 'translateX(100%)' : 'translateX(0)' }}
           >
-            {paper2figureChildren.map((child) => {
+            {(activeSubmenu?.items || []).map((child) => {
               const ChildIcon = child.icon;
               const isChildActive = activePage === child.id;
               return (

@@ -1,0 +1,98 @@
+{
+  "steps": {
+    "upload": "上传 PPT",
+    "script": "语音脚本确认",
+    "complete": "完成下载"
+  },
+  "upload": {
+    "subtitle": "PPT → 视频",
+    "title": "PPT转视频",
+    "desc": "上传 PPT 或 PDF 格式的 PPT，可选数字人头像。语音统一通过阿里云 API 合成，AI 按页生成语音脚本后再生成视频。",
+    "instruction": {
+      "pdf": "上传 PPT（必填）"
+    },
+    "optional": "可选",
+    "avatarLabel": "数字人",
+    "avatarUseNone": "不需要数字人",
+    "avatarUseYes": "需要数字人",
+    "avatarTipTime": "选用数字人将增加约 5–10 分钟生成时间",
+    "avatarUpload": "点击上传头像（JPG/PNG）",
+    "avatarSystemLabel": "系统数字人",
+    "avatarUploadOwn": "上传自己的数字人",
+    "avatarChoiceHint": "选择系统数字人或上传自己的数字人（二选一）",
+    "talkingModelFixed": "数字人视频统一使用云端 LivePortrait API 生成",
+    "voiceLabel": "语音",
+    "voiceApiOnly": "语音统一通过阿里云 CosyVoice API 生成，不再提供本地语音模型选项",
+    "voiceUseTts": "云语音模型（API）",
+    "voiceUseTtsRecommend": "推荐",
+    "voiceUseFile": "本地语音模型（F5-TTS）",
+    "voiceChoiceHint": "使用系统语音或上传自己的语音（二选一）",
+    "voiceSystemLabel": "系统语音",
+    "voiceWoman": "女声",
+    "voiceMan": "男声",
+    "voiceUploadOwn": "上传自己的语音",
+    "voicePreview": "试听",
+    "voiceUpload": "点击上传语音（.wav）",
+    "dropzone": {
+      "dragText": "将 PPT 或 PDF 拖到此处",
+      "supportText": "支持 PPT、PDF",
+      "button": "选择 PPT/PDF"
+    },
+    "config": {
+      "title": "配置",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "sk-...",
+      "scriptApiUrl": "脚本生成 API 地址",
+      "scriptModel": "脚本生成模型",
+      "ttsModel": "语音模型",
+      "ttsModelLabel": "语音模型",
+      "ttsVoiceLabel": "音色",
+      "ttsVoicePresetHint": "选择预置音色试听，或在下框填入自定义 voice 参数",
+      "ttsVoiceCustomHint": "更多的 voice 参数请参考：",
+      "ttsVoiceListLink": "阿里云 CosyVoice 音色列表",
+      "ttsVoicePlaceholder": "如 longanyang、longanwen_v3 等",
+      "language": "语言",
+      "startParse": "开始解析",
+      "parsing": "解析中..."
+    }
+  },
+  "script": {
+    "title": "语音脚本内容确认",
+    "desc": "检查并编辑每一页对应的语音脚本。整页从上到下依次列出。",
+    "page": "第",
+    "pageWithNum": "第{{num}}页",
+    "scriptLabel": "语音脚本",
+    "scriptPlaceholder": "编辑本页脚本...",
+    "loadingImage": "加载图片中...",
+    "costHint": "视频生成按每页 {{perPage}} 点计费，当前共 {{pages}} 页，确认生成后将扣除 {{count}} 点。",
+    "back": "返回上传",
+    "confirmAndGenerate": "确认并生成视频（{{count}} 点）",
+    "confirmPrompt": "确认开始生成视频？\\n共 {{pages}} 页，每页 {{perPage}} 点，合计将扣除 {{count}} 点。",
+    "generating": "正在生成视频..."
+  },
+  "errors": {
+    "quotaUserInsufficient": "当前剩余点数不足。视频共 {{pages}} 页，每页 {{perPage}} 点，合计需要 {{count}} 点。",
+    "authRequired": "请先登录后继续使用。"
+  },
+  "complete": {
+    "title": "视频已生成",
+    "desc": "预览并下载视频。",
+    "generating": "正在生成视频，请稍候...",
+    "progressPreparing": "正在准备...",
+    "progressTts": "正在合成语音...",
+    "progressVideo": "正在生成口播视频...",
+    "noVideo": "暂无视频地址。",
+    "usageRecordFailed": "视频已生成，但扣减 {{count}} 点失败，请检查点数记录",
+    "download": "下载视频",
+    "videoNotSupported": "您的浏览器不支持视频播放。",
+    "newTask": "处理新论文"
+  },
+  "example": {
+    "title": "示例效果",
+    "subtitle": "可查看以下示例的 PDF 与生成视频效果",
+    "viewPdf": "查看 PDF",
+    "viewVideo": "查看视频",
+    "example1Title": "示例一：DataFlow 论文介绍",
+    "example2Title": "示例二：古诗《春晓》教学讲解"
+  }
+}

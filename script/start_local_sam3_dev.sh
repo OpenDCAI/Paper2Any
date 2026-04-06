@@ -7,8 +7,8 @@ mkdir -p "$LOG_DIR"
 
 SAM3_GPU="${SAM3_GPU:-0}"
 SAM3_PORT="${SAM3_PORT:-8001}"
-BACKEND_PORT="${BACKEND_PORT:-8009}"
-FRONTEND_PORT="${FRONTEND_PORT:-3001}"
+BACKEND_PORT="${BACKEND_PORT:-8000}"
+FRONTEND_PORT="${FRONTEND_PORT:-3000}"
 
 SAM3_CHECKPOINT_PATH="${SAM3_CHECKPOINT_PATH:-$ROOT_DIR/models/sam3/sam3.pt}"
 SAM3_BPE_PATH="${SAM3_BPE_PATH:-$ROOT_DIR/models/sam3/bpe_simple_vocab_16e6.txt.gz}"
@@ -40,11 +40,11 @@ kill_port() {
 safe_kill_port() {
   local port="$1"
   case "$port" in
-    8001|8009|3001)
+    8001|8000|3000)
       kill_port "$port"
       ;;
     *)
-      echo "[WARN] Port $port not in allowlist (8001/8009/3001), skip kill"
+      echo "[WARN] Port $port not in allowlist (8001/8000/3000), skip kill"
       ;;
   esac
 }

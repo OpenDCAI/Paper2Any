@@ -1,0 +1,1 @@
+# Configuration module for Paper-to-Poster system

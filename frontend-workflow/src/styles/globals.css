@@ -225,6 +225,94 @@ body {
   }
 }
 
+.hero-scan-beam {
+  animation: heroScanBeam 6s ease-in-out infinite;
+}
+
+@keyframes heroScanBeam {
+  0% {
+    transform: translateX(-18%) translateY(0) rotate(-8deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateX(42%) translateY(8px) rotate(-8deg);
+    opacity: 0.55;
+  }
+  88% {
+    opacity: 0.2;
+  }
+  100% {
+    transform: translateX(88%) translateY(12px) rotate(-8deg);
+    opacity: 0;
+  }
+}
+
+.hero-orbit-ring {
+  animation: heroOrbitRing 16s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes heroOrbitRing {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.hero-drift-slow {
+  animation: heroDriftSlow 7.5s ease-in-out infinite;
+}
+
+@keyframes heroDriftSlow {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  25% {
+    transform: translate3d(10px, -8px, 0);
+  }
+  50% {
+    transform: translate3d(-6px, 10px, 0);
+  }
+  75% {
+    transform: translate3d(12px, 4px, 0);
+  }
+}
+
+.hero-drift-fast {
+  animation: heroDriftFast 4.8s ease-in-out infinite;
+}
+
+@keyframes heroDriftFast {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  30% {
+    transform: translate3d(8px, -12px, 0) scale(1.05);
+  }
+  60% {
+    transform: translate3d(-10px, 8px, 0) scale(0.96);
+  }
+}
+
+.hero-signal-flow {
+  background-size: 220% 100%;
+  animation: heroSignalFlow 5.2s linear infinite;
+}
+
+@keyframes heroSignalFlow {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -20% 0;
+  }
+}
+
 /* 节点类型颜色 */
 .node-data {
   --node-color: #10b981;

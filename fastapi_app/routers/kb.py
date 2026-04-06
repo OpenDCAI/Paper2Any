@@ -1,29 +1,31 @@
+import json as _json
 import os
 import re
 import shutil
 import subprocess
 import time
+import uuid
 import zipfile
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body, Depends
 from typing import Optional, List, Dict, Any
 
 import fitz  # PyMuPDF
 
 from dataflow_agent.state import IntelligentQARequest, IntelligentQAState, KBPodcastRequest, KBPodcastState, KBMindMapRequest, KBMindMapState
-from dataflow_agent.workflow.wf_intelligent_qa import create_intelligent_qa_graph
-from dataflow_agent.workflow.wf_kb_podcast import create_kb_podcast_graph
-from dataflow_agent.workflow.wf_kb_mindmap import create_kb_mindmap_graph
-from dataflow_agent.toolkits.ragtool.vector_store_tool import process_knowledge_base_files, VectorStoreManager
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.workflow import run_workflow
 from dataflow_agent.logger import get_logger
 from fastapi_app.config import settings
+from fastapi_app.dependencies import AuthUser, get_current_user
+from fastapi_app.services.managed_api_service import is_free_billing_mode, resolve_llm_credentials
 from fastapi_app.schemas import Paper2PPTRequest, DeepResearchRequest, DeepResearchResponse, KBReportRequest, KBReportResponse
-from fastapi_app.utils import _from_outputs_url, _to_outputs_url
-from fastapi_app.workflow_adapters.wa_paper2ppt import _init_state_from_request
-from fastapi_app.services.kb_deepresearch_service import KBDeepResearchService
-from fastapi_app.services.kb_report_service import KBReportService
+from fastapi_app.utils import (
+    _to_outputs_url,
+    ensure_outputs_subpath,
+    get_outputs_root,
+    resolve_outputs_path,
+)
 
 router = APIRouter(prefix="/kb", tags=["Knowledge Base"])
 log = get_logger(__name__)
@@ -38,6 +40,8 @@ ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".png", ".jpg", ".jpeg", ".mp4"}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 DOC_EXTENSIONS = {".pdf", ".docx", ".doc", ".pptx", ".ppt"}
 
+NOTEBOOKS_DIR = KB_BASE_DIR / "_notebooks"
+
 try:
     from docx import Document
 except ImportError:
@@ -47,6 +51,179 @@ try:
     from pptx import Presentation
 except ImportError:
     Presentation = None
+
+
+# ---------------------------------------------------------------------------
+# Notebook helpers
+# ---------------------------------------------------------------------------
+
+def _safe_dirname(name: str) -> str:
+    """Turn a notebook name into a filesystem-safe directory name.
+    Keeps CJK characters, alphanumerics, hyphens and underscores.
+    Collapses whitespace to '_' and strips dangerous chars."""
+    if not name:
+        return "unnamed"
+    # Replace path separators and other dangerous chars
+    cleaned = re.sub(r'[/\\:*?"<>|]', "", name)
+    # Collapse whitespace to single underscore
+    cleaned = re.sub(r"\s+", "_", cleaned).strip("_.")
+    return cleaned or "unnamed"
+
+
+def _canonical_user_id(user: AuthUser) -> str:
+    user_id = (user.id or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Authenticated user id is required")
+    return user_id
+
+
+def _canonical_user_email(user: AuthUser) -> str:
+    email = (user.email or user.id or "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="Authenticated user email is required")
+    return email
+
+
+def _resolve_kb_identity(user: AuthUser) -> tuple[str, str]:
+    return _canonical_user_email(user), _canonical_user_id(user)
+
+
+def _allowed_user_output_roots(user: AuthUser) -> List[Path]:
+    email = _canonical_user_email(user)
+    outputs_root = get_outputs_root()
+    return [
+        (outputs_root / "kb_data" / email).resolve(),
+        (outputs_root / "kb_outputs" / email).resolve(),
+        (outputs_root / "kb_exports" / email).resolve(),
+    ]
+
+
+def _ensure_path_within_roots(path: Path, roots: List[Path]) -> Path:
+    resolved = path.resolve()
+    for root in roots:
+        try:
+            resolved.relative_to(root)
+            return resolved
+        except ValueError:
+            continue
+    raise HTTPException(status_code=403, detail="Path does not belong to the authenticated user")
+
+
+def _resolve_user_owned_output_path(path_or_url: str, user: AuthUser) -> Path:
+    resolved = resolve_outputs_path(path_or_url, must_exist=False)
+    return _ensure_path_within_roots(resolved, _allowed_user_output_roots(user))
+
+
+def _notebooks_file(user_id: str) -> Path:
+    """Return the path to the local notebooks JSON for a user."""
+    NOTEBOOKS_DIR.mkdir(parents=True, exist_ok=True)
+    return NOTEBOOKS_DIR / f"{user_id or 'default'}.json"
+
+
+def _load_notebooks(user_id: str) -> List[Dict[str, Any]]:
+    path = _notebooks_file(user_id)
+    if not path.exists():
+        return []
+    try:
+        return _json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+
+def _save_notebooks(user_id: str, notebooks: List[Dict[str, Any]]) -> None:
+    path = _notebooks_file(user_id)
+    path.write_text(_json.dumps(notebooks, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _ensure_unique_dirname(user_id: str, base_name: str) -> str:
+    """If base_name already used by another notebook, append _2, _3, etc."""
+    notebooks = _load_notebooks(user_id)
+    existing = {nb.get("dir_name") for nb in notebooks if nb.get("dir_name")}
+    if base_name not in existing:
+        return base_name
+    seq = 2
+    while f"{base_name}_{seq}" in existing:
+        seq += 1
+    return f"{base_name}_{seq}"
+
+
+def _create_notebook_local(user_id: str, name: str, description: str = "") -> Dict[str, Any]:
+    notebooks = _load_notebooks(user_id)
+    nb_id = str(uuid.uuid4())
+    dir_name = _safe_dirname(name)
+    dir_name = _ensure_unique_dirname(user_id, dir_name)
+    new_nb = {
+        "id": nb_id,
+        "name": name,
+        "dir_name": dir_name,
+        "description": description,
+        "created_at": int(time.time()),
+    }
+    notebooks.append(new_nb)
+    _save_notebooks(user_id, notebooks)
+    return new_nb
+
+
+def _get_notebook_local(user_id: str, notebook_id: str) -> Optional[Dict[str, Any]]:
+    for nb in _load_notebooks(user_id):
+        if nb.get("id") == notebook_id:
+            return nb
+    return None
+
+
+def _get_notebook_dir_name(user_id: str, notebook_id: str) -> str:
+    """Return the persisted dir_name for a notebook, or fall back to notebook_id."""
+    nb = _get_notebook_local(user_id, notebook_id)
+    if nb and nb.get("dir_name"):
+        return nb["dir_name"]
+    return notebook_id
+
+
+def _notebook_base_dir(email: str, notebook_id: str, user_id: str = "default") -> Path:
+    """kb_data/{email}/{notebook_dir_name}/
+    Falls back to old path (using notebook_id) if new path doesn't exist."""
+    dir_name = _get_notebook_dir_name(user_id, notebook_id)
+    new_path = KB_BASE_DIR / email / dir_name
+    if new_path.exists() or dir_name != notebook_id:
+        return new_path
+    # Fallback: old path using notebook_id directly
+    old_path = KB_BASE_DIR / email / notebook_id
+    if old_path.exists():
+        return old_path
+    # Neither exists yet — use new path
+    return new_path
+
+
+def _notebook_sources_dir(email: str, notebook_id: str, user_id: str = "default") -> Path:
+    """kb_data/{email}/{notebook_name}/sources/"""
+    return _notebook_base_dir(email, notebook_id, user_id) / "sources"
+
+
+def _mineru_dir(email: str, notebook_id: str, user_id: str = "default") -> Path:
+    """kb_data/{email}/{notebook_name}/mineru/"""
+    return _notebook_base_dir(email, notebook_id, user_id) / "mineru"
+
+
+def _vector_store_dir(email: str, notebook_id: str, user_id: str = "default") -> Path:
+    """kb_data/{email}/{notebook_name}/vector_store/"""
+    return _notebook_base_dir(email, notebook_id, user_id) / "vector_store"
+
+
+def _generated_dir(
+    email: str, notebook_id: str, output_type: str, user_id: str = "default"
+) -> Path:
+    """kb_data/{email}/{notebook_name}/generated/{output_type}/{next_seq}/
+    Auto-increments the sequence number."""
+    base = _notebook_base_dir(email, notebook_id, user_id) / "generated" / output_type
+    base.mkdir(parents=True, exist_ok=True)
+    existing = sorted(
+        (int(d.name) for d in base.iterdir() if d.is_dir() and d.name.isdigit()),
+        reverse=True,
+    )
+    next_seq = (existing[0] + 1) if existing else 1
+    out = base / str(next_seq)
+    out.mkdir(parents=True, exist_ok=True)
+    return out
 
 
 def _extract_text_result(state, role_name: str) -> str:
@@ -116,11 +293,15 @@ def _build_text_context(file_paths: List[str], max_chars: int = 60000) -> str:
     return combined
 
 
-def _get_deepresearch_service() -> KBDeepResearchService:
+def _get_deepresearch_service() -> "KBDeepResearchService":
+    from fastapi_app.services.kb_deepresearch_service import KBDeepResearchService
+
     return KBDeepResearchService()
 
 
-def _get_report_service() -> KBReportService:
+def _get_report_service() -> "KBReportService":
+    from fastapi_app.services.kb_report_service import KBReportService
+
     return KBReportService()
 
 
@@ -132,21 +313,11 @@ def _safe_zip_stem(name: str) -> str:
 
 
 def _ensure_under_outputs(path: Path) -> None:
-    outputs_root = (get_project_root() / "outputs").resolve()
-    try:
-        path.resolve().relative_to(outputs_root)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid file path")
+    ensure_outputs_subpath(path)
 
 
 def _resolve_local_path(path_or_url: str) -> Path:
-    if not path_or_url:
-        raise HTTPException(status_code=400, detail="Empty file path")
-    raw = _from_outputs_url(path_or_url)
-    p = Path(raw)
-    if not p.is_absolute():
-        p = (get_project_root() / p).resolve()
-    return p
+    return resolve_outputs_path(path_or_url, must_exist=False)
 
 
 def _convert_to_pdf(input_path: Path, output_dir: Path) -> Path:
@@ -199,18 +370,82 @@ def _append_images_to_pptx(pptx_path: Path, image_paths: List[Path]) -> None:
         )
     prs.save(str(pptx_path))
 
+@router.post("/notebooks/create")
+async def create_notebook(
+    name: str = Body(..., embed=True),
+    description: str = Body("", embed=True),
+    user: AuthUser = Depends(get_current_user),
+):
+    """Create a new notebook and persist its dir_name mapping."""
+    if not name or not name.strip():
+        raise HTTPException(status_code=400, detail="Notebook name is required")
+    nb = _create_notebook_local(_canonical_user_id(user), name.strip(), description)
+    return {"success": True, "notebook": nb}
+
+
+@router.get("/notebooks/list")
+async def list_notebooks(user: AuthUser = Depends(get_current_user)):
+    """List all notebooks for a user."""
+    return {"success": True, "notebooks": _load_notebooks(_canonical_user_id(user))}
+
+
+@router.get("/notebooks/{notebook_id}")
+async def get_notebook(notebook_id: str, user: AuthUser = Depends(get_current_user)):
+    """Get a single notebook by id."""
+    nb = _get_notebook_local(_canonical_user_id(user), notebook_id)
+    if not nb:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+    return {"success": True, "notebook": nb}
+
+
+@router.post("/notebooks/{notebook_id}/list-outputs")
+async def list_notebook_outputs(
+    notebook_id: str,
+    email: Optional[str] = Body(None, embed=True),
+    user_id: Optional[str] = Body(None, embed=True),
+    user: AuthUser = Depends(get_current_user),
+):
+    """Scan the generated/ directory of a notebook and return all outputs."""
+    email, user_id = _resolve_kb_identity(user)
+    base = _notebook_base_dir(email, notebook_id, user_id) / "generated"
+    if not base.exists():
+        return {"success": True, "outputs": {}}
+
+    outputs: Dict[str, List[Dict[str, Any]]] = {}
+    for type_dir in sorted(base.iterdir()):
+        if not type_dir.is_dir():
+            continue
+        items: List[Dict[str, Any]] = []
+        for seq_dir in sorted(type_dir.iterdir(), key=lambda d: d.name):
+            if not seq_dir.is_dir() or not seq_dir.name.isdigit():
+                continue
+            files = []
+            for f in seq_dir.rglob("*"):
+                if f.is_file():
+                    files.append({
+                        "name": f.name,
+                        "path": _to_outputs_url(str(f)),
+                        "size": f.stat().st_size,
+                    })
+            items.append({"seq": int(seq_dir.name), "files": files})
+        outputs[type_dir.name] = items
+    return {"success": True, "outputs": outputs}
+
+
 @router.post("/upload")
 async def upload_kb_file(
     file: UploadFile = File(...),
-    email: str = Form(...),
-    user_id: str = Form(...)
+    email: Optional[str] = Form(None),
+    user_id: Optional[str] = Form(None),
+    notebook_id: Optional[str] = Form(None),
+    user: AuthUser = Depends(get_current_user),
 ):
     """
     Upload a file to the user's knowledge base directory.
-    Stores at: outputs/kb_data/{email}/{filename}
+    When notebook_id is provided: outputs/kb_data/{email}/{notebook_name}/sources/{filename}
+    Legacy (no notebook_id): outputs/kb_data/{email}/{filename}
     """
-    if not email:
-        raise HTTPException(status_code=400, detail="Email is required")
+    email, user_id = _resolve_kb_identity(user)
 
     # Validate file extension
     file_ext = Path(file.filename).suffix.lower()
@@ -221,28 +456,29 @@ async def upload_kb_file(
         )
 
     try:
-        # Create user directory if not exists
-        user_dir = KB_BASE_DIR / email
+        # Determine target directory
+        if notebook_id:
+            user_dir = _notebook_sources_dir(email, notebook_id, user_id)
+        else:
+            user_dir = KB_BASE_DIR / email
         user_dir.mkdir(parents=True, exist_ok=True)
 
         # Secure filename (simple version)
         filename = file.filename
         if not filename:
             filename = f"unnamed_{user_id}"
-            
+
         # Avoid path traversal
         filename = os.path.basename(filename)
-        
+
         file_path = user_dir / filename
-        
+
         # Save file
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-            
-        # Return the relative path for static access and storage path
-        # Assuming 'outputs' dir is mounted to '/outputs'
-        static_path = f"/outputs/kb_data/{email}/{filename}"
-        
+
+        static_path = _to_outputs_url(str(file_path))
+
         return {
             "success": True,
             "filename": filename,
@@ -258,28 +494,23 @@ async def upload_kb_file(
 
 @router.delete("/delete")
 async def delete_kb_file(
-    storage_path: str = Form(...)
+    storage_path: str = Form(...),
+    user: AuthUser = Depends(get_current_user),
 ):
     """
     Delete a file from the physical storage.
     """
     try:
-        # Security check: ensure path is within KB_BASE_DIR
-        # This is a basic check. In production, use more robust path validation.
-        target_path = Path(storage_path).resolve()
-        base_path = KB_BASE_DIR.resolve()
-        
-        if not str(target_path).startswith(str(base_path)):
-             # Allow if it's the absolute path provided by the user system
-             # Check if it exists essentially
-             pass
+        target_path = _resolve_user_owned_output_path(storage_path, user)
 
         if target_path.exists() and target_path.is_file():
             os.remove(target_path)
             return {"success": True, "message": "File deleted"}
         else:
             return {"success": False, "message": "File not found"}
-            
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -287,6 +518,7 @@ async def delete_kb_file(
 @router.post("/delete-batch")
 async def delete_kb_files_batch(
     storage_paths: List[str] = Body(..., embed=True),
+    user: AuthUser = Depends(get_current_user),
 ):
     """
     Delete multiple files from physical storage.
@@ -300,8 +532,7 @@ async def delete_kb_files_batch(
 
     for raw in storage_paths:
         try:
-            local_path = Path(_from_outputs_url(raw)).resolve()
-            _ensure_under_outputs(local_path)
+            local_path = _resolve_user_owned_output_path(raw, user)
             if local_path.exists() and local_path.is_file():
                 local_path.unlink()
                 deleted += 1
@@ -324,6 +555,7 @@ async def export_kb_zip(
     email: Optional[str] = Body(None, embed=True),
     kb_name: Optional[str] = Body(None, embed=True),
     include_root_dir: bool = Body(True, embed=True),
+    user: AuthUser = Depends(get_current_user),
 ):
     """
     Export a list of KB files into a zip archive.
@@ -331,9 +563,9 @@ async def export_kb_zip(
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
 
-    project_root = get_project_root()
-    outputs_root = project_root / "outputs"
-    export_root = outputs_root / "kb_exports" / (email or "default")
+    user_email = _canonical_user_email(user)
+    outputs_root = get_outputs_root()
+    export_root = outputs_root / "kb_exports" / user_email
     export_root.mkdir(parents=True, exist_ok=True)
 
     ts = int(time.time())
@@ -346,8 +578,7 @@ async def export_kb_zip(
             try:
                 if not raw:
                     continue
-                local_path = Path(_from_outputs_url(raw)).resolve()
-                _ensure_under_outputs(local_path)
+                local_path = _resolve_user_owned_output_path(raw, user)
                 if not local_path.exists() or not local_path.is_file():
                     continue
                 base_name = local_path.name
@@ -383,38 +614,30 @@ async def chat_with_kb(
     api_url: Optional[str] = Body(None, embed=True),
     api_key: Optional[str] = Body(None, embed=True),
     model: str = Body(settings.KB_CHAT_MODEL, embed=True),
+    user: AuthUser = Depends(get_current_user),
 ):
     """
     Intelligent QA Chat
     """
     try:
+        resolved_api_url, resolved_api_key = resolve_llm_credentials(api_url, api_key, scope="kb")
         # Normalize file paths (web path -> local absolute path)
-        project_root = get_project_root()
         local_files = []
         for f in files:
-            # remove leading /outputs/ if present, or just join
-            # Web path: /outputs/kb_data/...
-            clean_path = f.lstrip('/')
-            p = project_root / clean_path
-            if p.exists():
-                local_files.append(str(p))
-            else:
-                # Try raw path
-                p_raw = Path(f)
-                if p_raw.exists():
-                    local_files.append(str(p_raw))
-        
+            local_path = _resolve_user_owned_output_path(f, user)
+            if local_path.exists():
+                local_files.append(str(local_path))
+
         if not local_files:
-             # Just return empty answer or handle logic
-             pass
+            raise HTTPException(status_code=400, detail="No valid files found")
 
         # Construct Request
         req = IntelligentQARequest(
             files=local_files,
             query=query,
             history=history,
-            chat_api_url=api_url or os.getenv("DF_API_URL"),
-            api_key=api_key or os.getenv("DF_API_KEY"),
+            chat_api_url=resolved_api_url or os.getenv("DF_API_URL"),
+            api_key=resolved_api_key or os.getenv("DF_API_KEY"),
             model=model
         )
         
@@ -458,8 +681,9 @@ async def generate_ppt_from_kb(
     query: Optional[str] = Body("", embed=True),
     need_embedding: bool = Body(False, embed=True),
     search_top_k: int = Body(8, embed=True),
-    user_id: str = Body(..., embed=True),
-    email: str = Body(..., embed=True),
+    user_id: Optional[str] = Body(None, embed=True),
+    email: Optional[str] = Body(None, embed=True),
+    notebook_id: Optional[str] = Body(None, embed=True),
     api_url: str = Body(..., embed=True),
     api_key: str = Body(..., embed=True),
     style: str = Body("modern", embed=True),
@@ -467,27 +691,33 @@ async def generate_ppt_from_kb(
     page_count: int = Body(10, embed=True),
     model: str = Body("gpt-4o", embed=True),
     gen_fig_model: str = Body("gemini-2.5-flash-image", embed=True),
+    user: AuthUser = Depends(get_current_user),
 ):
     """
     Generate PPT from knowledge base file (non-interactive)
     """
     try:
+        api_url, api_key = resolve_llm_credentials(api_url, api_key, scope="kb")
+        email, user_id = _resolve_kb_identity(user)
         # Normalize and validate input files (PDF/PPT/DOC/IMG)
         input_paths = file_paths or ([file_path] if file_path else [])
         if not input_paths:
             raise HTTPException(status_code=400, detail="No input files provided")
 
         # Create output directory
-        ts = int(time.time())
         project_root = get_project_root()
-        output_dir = project_root / "outputs" / "kb_outputs" / email / f"{ts}_ppt"
-        output_dir.mkdir(parents=True, exist_ok=True)
+        if notebook_id:
+            output_dir = _generated_dir(email, notebook_id, "ppt", user_id)
+        else:
+            ts = int(time.time())
+            output_dir = project_root / "outputs" / "kb_outputs" / email / f"{ts}_ppt"
+            output_dir.mkdir(parents=True, exist_ok=True)
 
         # Split docs/images
         doc_paths: List[Path] = []
         user_image_items: List[Dict[str, Any]] = []
         for p in input_paths:
-            local_path = _resolve_local_path(p)
+            local_path = _resolve_user_owned_output_path(p, user)
             if not local_path.exists():
                 raise HTTPException(status_code=404, detail=f"File not found: {p}")
             ext = local_path.suffix.lower()
@@ -528,7 +758,7 @@ async def generate_ppt_from_kb(
             raw_path = item.get("path") or item.get("url") or ""
             if not raw_path:
                 continue
-            img_path = _resolve_local_path(str(raw_path))
+            img_path = _resolve_user_owned_output_path(str(raw_path), user)
             if img_path.exists() and img_path.suffix.lower() in IMAGE_EXTENSIONS:
                 resolved_image_items.append({
                     "path": str(img_path),
@@ -536,7 +766,7 @@ async def generate_ppt_from_kb(
                 })
 
         for img in image_paths or []:
-            img_path = _resolve_local_path(img)
+            img_path = _resolve_user_owned_output_path(img, user)
             if img_path.exists() and img_path.suffix.lower() in IMAGE_EXTENSIONS:
                 resolved_image_items.append({
                     "path": str(img_path),
@@ -548,12 +778,17 @@ async def generate_ppt_from_kb(
         # Embedding + retrieval (optional)
         retrieval_text = ""
         if need_embedding:
-            base_dir = project_root / "outputs" / "kb_data" / email / "vector_store"
+            if notebook_id:
+                base_dir = _vector_store_dir(email, notebook_id, user_id)
+            else:
+                base_dir = project_root / "outputs" / "kb_data" / email / "vector_store"
             embed_api_url = api_url
             if "/embeddings" not in embed_api_url:
                 embed_api_url = embed_api_url.rstrip("/") + "/embeddings"
 
             files_for_embed = [{"path": str(p), "description": ""} for p in doc_paths]
+            from dataflow_agent.toolkits.ragtool.vector_store_tool import process_knowledge_base_files
+
             manifest = await process_knowledge_base_files(
                 files_for_embed,
                 base_dir=str(base_dir),
@@ -562,6 +797,8 @@ async def generate_ppt_from_kb(
                 model_name=None,
                 multimodal_model=None,
             )
+
+            from dataflow_agent.toolkits.ragtool.vector_store_tool import VectorStoreManager
 
             manager = VectorStoreManager(
                 base_dir=str(base_dir),
@@ -604,6 +841,8 @@ async def generate_ppt_from_kb(
         )
 
         # Run KB pagecontent workflow
+        from fastapi_app.workflow_adapters.wa_paper2ppt import _init_state_from_request
+
         state_pc = _init_state_from_request(ppt_req, result_path=output_dir)
         state_pc.kb_query = query or ""
         state_pc.kb_retrieval_text = retrieval_text
@@ -639,26 +878,33 @@ async def generate_ppt_from_kb(
 @router.post("/generate-podcast")
 async def generate_podcast_from_kb(
     file_paths: List[str] = Body(..., embed=True),
-    user_id: str = Body(..., embed=True),
-    email: str = Body(..., embed=True),
+    user_id: Optional[str] = Body(None, embed=True),
+    email: Optional[str] = Body(None, embed=True),
+    notebook_id: Optional[str] = Body(None, embed=True),
     api_url: str = Body(..., embed=True),
     api_key: str = Body(..., embed=True),
     model: str = Body("gpt-4o", embed=True),
-    tts_model: str = Body("gemini-2.5-pro-preview-tts", embed=True),
-    voice_name: str = Body("Kore", embed=True),
+    tts_model: str = Body("cosyvoice-v3-flash", embed=True),
+    voice_name: str = Body("", embed=True),
     voice_name_b: str = Body("Puck", embed=True),
     podcast_mode: str = Body("monologue", embed=True),
     podcast_length: str = Body("standard", embed=True),
     language: str = Body("zh", embed=True),
+    user: AuthUser = Depends(get_current_user),
 ):
     """
     Generate podcast from knowledge base files
     """
     try:
-        ts = int(time.time())
+        api_url, api_key = resolve_llm_credentials(api_url, api_key, scope="kb")
+        email, user_id = _resolve_kb_identity(user)
         project_root = get_project_root()
-        output_dir = project_root / "outputs" / "kb_outputs" / email / f"{ts}_podcast"
-        output_dir.mkdir(parents=True, exist_ok=True)
+        if notebook_id:
+            output_dir = _generated_dir(email, notebook_id, "podcast", user_id)
+        else:
+            ts = int(time.time())
+            output_dir = project_root / "outputs" / "kb_outputs" / email / f"{ts}_podcast"
+            output_dir.mkdir(parents=True, exist_ok=True)
 
         # Normalize file paths
         if not file_paths:
@@ -666,7 +912,7 @@ async def generate_podcast_from_kb(
 
         local_paths: List[Path] = []
         for f in file_paths:
-            local_path = _resolve_local_path(f)
+            local_path = _resolve_user_owned_output_path(f, user)
             if not local_path.exists():
                 raise HTTPException(status_code=404, detail=f"File not found: {f}")
             local_paths.append(local_path)
@@ -761,32 +1007,30 @@ async def generate_podcast_from_kb(
 @router.post("/generate-mindmap")
 async def generate_mindmap_from_kb(
     file_paths: List[str] = Body(..., embed=True),
-    user_id: str = Body(..., embed=True),
-    email: str = Body(..., embed=True),
+    user_id: Optional[str] = Body(None, embed=True),
+    email: Optional[str] = Body(None, embed=True),
+    notebook_id: Optional[str] = Body(None, embed=True),
     api_url: str = Body(..., embed=True),
     api_key: str = Body(..., embed=True),
     model: str = Body("gpt-4o", embed=True),
     mindmap_style: str = Body("default", embed=True),
     max_depth: int = Body(3, embed=True),
     language: str = Body("zh", embed=True),
+    user: AuthUser = Depends(get_current_user),
 ):
     """
     Generate mindmap from knowledge base files
     """
     try:
+        api_url, api_key = resolve_llm_credentials(api_url, api_key, scope="kb")
+        email, user_id = _resolve_kb_identity(user)
         # Normalize file paths
-        project_root = get_project_root()
         local_file_paths = []
 
         for f in file_paths:
-            clean_path = f.lstrip('/')
-            local_path = project_root / clean_path
-
+            local_path = _resolve_user_owned_output_path(f, user)
             if not local_path.exists():
-                local_path = Path(f)
-                if not local_path.exists():
-                    raise HTTPException(status_code=404, detail=f"File not found: {f}")
-
+                raise HTTPException(status_code=404, detail=f"File not found: {f}")
             local_file_paths.append(str(local_path))
 
         if not local_file_paths:
@@ -804,7 +1048,11 @@ async def generate_mindmap_from_kb(
         )
         mindmap_req.email = email
 
-        state = KBMindMapState(request=mindmap_req)
+        if notebook_id:
+            nb_output_dir = _generated_dir(email, notebook_id, "mindmap", user_id)
+            state = KBMindMapState(request=mindmap_req, result_path=str(nb_output_dir))
+        else:
+            state = KBMindMapState(request=mindmap_req)
 
         # Run workflow via registry (统一使用 run_workflow)
         result_state = await run_workflow("kb_mindmap", state)
@@ -847,16 +1095,21 @@ async def generate_mindmap_from_kb(
 @router.post("/deep-research", response_model=DeepResearchResponse)
 async def deep_research_from_kb(
     req: DeepResearchRequest,
+    user: AuthUser = Depends(get_current_user),
 ):
     """
     Deep research workflow入口（router -> service -> wa -> wf）
     """
-    if req.mode == "web" and not req.search_api_key:
+    if req.mode == "web" and not (req.search_api_key or (is_free_billing_mode() and settings.DEFAULT_SEARCH_API_KEY)):
         raise HTTPException(status_code=400, detail="Search API key required")
-    if req.mode == "web" and req.search_provider == "google_cse" and not req.google_cse_id:
+    if req.mode == "web" and req.search_provider == "google_cse" and not (req.google_cse_id or (is_free_billing_mode() and settings.DEFAULT_GOOGLE_CSE_ID)):
         raise HTTPException(status_code=400, detail="google_cse_id required")
     if not req.topic and not req.file_paths:
         raise HTTPException(status_code=400, detail="Topic or files required")
+    req.email = _canonical_user_email(user)
+    req.user_id = _canonical_user_id(user)
+    if req.file_paths:
+        req.file_paths = [str(_resolve_user_owned_output_path(path, user)) for path in req.file_paths]
     service = _get_deepresearch_service()
     return await service.run(req)
 
@@ -864,12 +1117,16 @@ async def deep_research_from_kb(
 @router.post("/generate-report", response_model=KBReportResponse)
 async def generate_report_from_kb(
     req: KBReportRequest,
+    user: AuthUser = Depends(get_current_user),
 ):
     """
     Generate a report with insights/analysis from KB documents (workflow).
     """
     if not req.file_paths:
         raise HTTPException(status_code=400, detail="No valid files provided")
+    req.email = _canonical_user_email(user)
+    req.user_id = _canonical_user_id(user)
+    req.file_paths = [str(_resolve_user_owned_output_path(path, user)) for path in req.file_paths]
     service = _get_report_service()
     return await service.run(req)
 
@@ -878,6 +1135,7 @@ async def generate_report_from_kb(
 async def save_mindmap_to_file(
     file_url: str = Body(..., embed=True),
     content: str = Body(..., embed=True),
+    user: AuthUser = Depends(get_current_user),
 ):
     """
     Save edited Mermaid mindmap code back to the output file.
@@ -886,15 +1144,7 @@ async def save_mindmap_to_file(
         if not file_url:
             raise HTTPException(status_code=400, detail="File URL is required")
 
-        local_path = Path(_from_outputs_url(file_url))
-        if not local_path.is_absolute():
-            local_path = (get_project_root() / local_path).resolve()
-
-        outputs_root = (get_project_root() / "outputs").resolve()
-        try:
-            local_path.relative_to(outputs_root)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid output path")
+        local_path = _resolve_user_owned_output_path(file_url, user)
 
         if local_path.suffix.lower() not in {".mmd", ".mermaid", ".md"}:
             raise HTTPException(status_code=400, detail="Invalid mindmap file type")

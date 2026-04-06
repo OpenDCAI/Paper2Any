@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Optional
 from dataflow_agent.logger import get_logger
 from dataflow_agent.toolkits.multimodaltool.utils import encode_image_to_base64
 from dataflow_agent.toolkits.multimodaltool.providers import get_provider
+from dataflow_agent.toolkits.multimodaltool.ocr_utils import normalize_ocr_max_tokens
 from dataflow_agent.utils import get_project_root
 log = get_logger(__name__)
 
@@ -49,6 +50,16 @@ async def call_ocr_async(
     调用OCR模型 (例如 Qwen-VL-OCR)
     使用 Provider 策略进行请求构建
     """
+    requested_max_tokens = max_tokens
+    max_tokens = normalize_ocr_max_tokens(api_url, model, max_tokens)
+    if max_tokens != requested_max_tokens:
+        log.warning(
+            "[OCR] max_tokens adjusted from %s to %s for model=%s api_url=%s",
+            requested_max_tokens,
+            max_tokens,
+            model,
+            api_url,
+        )
     
     # 1. 准备消息列表 (深拷贝以避免修改原列表)
     processed_messages = [msg.copy() for msg in messages]

@@ -1,0 +1,100 @@
+Analyze poster content and identify keywords for strategic visual highlighting using three distinct formatting styles.
+
+**Input Data:**
+- Enhanced Narrative: {{ enhanced_narrative }}
+- Curated Content: {{ curated_content }}
+
+**Core Task:**
+For each section, identify keywords and assign them to specific highlighting styles based on their semantic importance and role in the research narrative.
+
+**Highlighting Style Categories:**
+
+**1. BOLD + CONTRAST COLOR (will be rendered as `**<color:{contrast_color}>text</color>**`)**
+- **Purpose**: Core method/methodology names that represent the paper's unique contribution
+- **Criteria**: 
+  * Novel algorithms, architectures, or techniques introduced by this work
+  * The main methodological innovation that defines the paper
+  * Must be unique to this research (not generic terms)
+- **Limit**: Maximum 2 per section, prefer 1 if it captures the main contribution
+
+**2. BOLD (will be rendered as `**text**`)**
+- **Purpose**: Important quantitative results and core technical terms within each section
+- **Criteria**:
+  * Performance metrics and numerical results (e.g., "95% accuracy", "5.2x speedup")
+  * Key technical concepts central to understanding the section
+  * Architecture names, dataset names, established method names
+  * Word-level emphasis, not entire phrases
+- **Limit**: Maximum 3 per section
+
+**3. ITALIC (will be rendered as `*text*`)**
+- **Purpose**: Defining terms, single-word emphasis, and foreign terminology  
+- **Criteria**:
+  * Technical terms being defined or introduced for the first time
+  * Single-word emphasis (e.g., "This was the only experiment")
+  * Foreign words, Latin terms, or specialized vocabulary
+  * Word-level application only, never entire sentences
+- **Limit**: Maximum 2 per section
+
+**Critical Rules:**
+1. **Word-Level Only**: Never apply formatting to entire sentences or long phrases
+2. **Mutual Exclusivity**: Each keyword gets exactly one formatting style
+3. **Semantic Appropriateness**: Style choice based on semantic role, not arbitrary assignment
+4. **Conservative Application**: Better to under-highlight than over-highlight
+
+**Output Format Requirements:**
+- **Output ONLY pure text keywords**: No formatting markup in the JSON output
+- Keywords must match EXACTLY as they appear in the content text (without any ** or * or <color> tags)
+- Case-sensitive matching: use exact capitalization from source text
+- Include technical terminology and proper nouns as written
+
+**Output Schema:**
+```json
+{
+  "section_keywords": {
+    "motivation": {
+      "bold_contrast": ["DP-CutMixSL"],
+      "bold": ["Vision Transformers", "privacy leakage"],
+      "italic": ["federated"]
+    },
+    "method": {
+      "bold_contrast": ["CutMix", "differential privacy"],
+      "bold": ["95% accuracy", "ResNet-50"],
+      "italic": ["only"]
+    },
+    "results": {
+      "bold_contrast": ["TransformerNet"],
+      "bold": ["top-1 accuracy", "5.2x speedup", "CIFAR-10"],
+      "italic": ["a priori"]
+    }
+  },
+  "formatting_summary": {
+    "total_bold_contrast": 4,
+    "total_bold": 7,
+    "total_italic": 3,
+    "sections_processed": 3,
+    "formatting_strategy": "Semantic-based highlighting with method names prioritized for contrast color"
+  }
+}
+```
+
+**Quality Guidelines:**
+- **Precision Over Quantity**: Better to under-highlight than create visual clutter
+- **Semantic Consistency**: Same term type should use same formatting across sections
+- **Technical Recognition**: Each keyword should be immediately recognizable to domain experts
+- **Visual Balance**: Distribute highlighting styles evenly across the poster for visual harmony
+
+**Implementation Notes:**
+- **Bullet Point Independence**: This keyword highlighting is separate from bullet point formatting (• **Key Point:**)
+- **Exact Matching**: Keywords must appear in text exactly as specified for proper highlighting
+- **Style Hierarchy**: Bold+contrast > Bold > Italic in terms of visual prominence
+- **Readability Focus**: Ensure highlighted terms enhance rather than overwhelm content comprehension
+
+**Final Verification:**
+Before finalizing selections, ensure:
+1. Bold+contrast keywords represent truly unique contributions
+2. Bold keywords include key quantitative results and established technical terms
+3. Italic keywords are appropriate for definitional or emphatic use
+4. No keyword appears in multiple formatting categories
+5. Total highlighting per section stays within specified limits
+
+Return a JSON object with the exact schema above that maximizes research impact through strategic visual emphasis.

@@ -49,6 +49,10 @@ from dataflow_agent.utils import (
 )
 from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_aio_two_step_extract
 from dataflow_agent.toolkits.multimodaltool.req_img import generate_or_edit_and_save_image_async
+from dataflow_agent.utils.request_credentials import (
+    get_request_image_api_key,
+    get_request_image_api_url,
+)
 
 
 log = get_logger(__name__)
@@ -858,6 +862,8 @@ output_path = {repr(str(chart_path))}
         save_dir.mkdir(parents=True, exist_ok=True)
         
         stylize_prompt = f"把这张统计图放大字体，并进行以 {state.request.style} 为主题的风格化，让它更美观，但需要保障数据的准确性，避免恶性的溢出和重叠"
+        image_api_url = get_request_image_api_url(state.request)
+        image_api_key = get_request_image_api_key(state.request)
         
         async def stylize_task(table_id: str, save_dir_path: str, chart_path: str):
             save_dir_p = Path(save_dir_path)
@@ -872,8 +878,8 @@ output_path = {repr(str(chart_path))}
                 b64_result = await generate_or_edit_and_save_image_async(
                     prompt=stylize_prompt,
                     save_path=str(save_path),
-                    api_url=state.request.chat_api_url,
-                    api_key=state.request.api_key, 
+                    api_url=image_api_url,
+                    api_key=image_api_key,
                     model=state.request.gen_fig_model,
                     image_path=str(chart_path_p),
                     use_edit=True

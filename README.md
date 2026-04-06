@@ -59,6 +59,16 @@ English | [中文](README_CN.md)
 ## 🔥 News
 
 > [!TIP]
+> 🆕 <strong>2026-03-28 · Editable PPT Showcase Refresh</strong><br>
+> Added two new <strong>editable PPT</strong> showcase screenshots for the frontend-deck workflow:<br>
+> a generated multi-slide gallery view and the canvas editing workspace with deck theme lock.
+
+> [!TIP]
+> 🆕 <strong>2026-03-26 · Workflow Showcase Update</strong><br>
+> Added showcase coverage for <strong>Paper2Video</strong>, <strong>Paper2Poster</strong>, and <strong>Paper2Citation</strong>.<br>
+> The README now includes a compressed video demo plus refreshed English/Chinese workflow previews.
+
+> [!TIP]
 > 🆕 <strong>2026-02-02 · Paper2Rebuttal</strong><br>
 > Added rebuttal drafting support with structured response guidance and image-aware revision prompts.
 
@@ -103,6 +113,8 @@ Paper2Any currently includes the following sub-capabilities:
 - **🖼️ Image2PPT - Image to Slides**: Convert images or screenshots into structured slides.
 - **🎨 PPTPolish - Smart Beautification**: AI-based layout optimization and style transfer.
 - **🎬 Paper2Video**: Generate video scripts and narration assets.
+- **🖼️ Paper2Poster - Academic Poster**: Turn paper PDFs into poster-ready layouts with configurable sections, logos, and export assets.
+- **🔎 Paper2Citation - Citation Explorer**: Track citing authors, institutions, and notable downstream works from author names or DOI/paper URLs.
 - **📝 Paper2Technical**: Produce technical reports and method summaries.
 - **📚 Knowledge Base (KB)**: Ingest/embedding, semantic search, and KB-driven PPT/podcast/mindmap generation.
 
@@ -114,17 +126,37 @@ Paper2Any currently includes the following sub-capabilities:
 
 <div align="center">
 
+<table>
+  <tr>
+    <td width="33%" align="center" valign="top">
+      <img src="static/new_readme/drawio/image-to-drawio-upload.png" width="100%"/>
+      <br><sub>✨ Upload a paper figure or screenshot as the starting point</sub>
+    </td>
+    <td width="34%" align="center" valign="top">
+      <img src="static/new_readme/drawio/image-to-drawio-source.png" width="100%"/>
+      <br><sub>✨ Keep the source structure visible before conversion</sub>
+    </td>
+    <td width="33%" align="center" valign="top">
+      <img src="static/new_readme/drawio/image-to-drawio-editor.gif" width="100%"/>
+      <br><sub>✨ Convert the image into an editable DrawIO canvas</sub>
+    </td>
+  </tr>
+</table>
+
 <br>
-<img src="static/new_readme/drawio/drawio-1.gif" width="90%"/>
-<br><sub>✨ Diagram generation (mindmap / flowchart / ER ...)</sub>
 
-<br><br>
-<img src="static/new_readme/drawio/drawio-2.gif" width="90%"/>
-<br><sub>✨ Model diagrams from PDF or text (research figure generation)</sub>
-
-<br><br>
-<img src="static/new_readme/drawio/image-to-editable.png" width="90%"/>
-<br><sub>✨ Image to editable DrawIO diagram</sub>
+<table>
+  <tr>
+    <td width="48%" align="center" valign="top">
+      <img src="static/new_readme/drawio/framework-drawio-workbench.png" width="100%"/>
+      <br><sub>✨ Generate a model or system diagram directly inside the DrawIO workbench</sub>
+    </td>
+    <td width="52%" align="center" valign="top">
+      <img src="static/new_readme/drawio/framework-drawio-editor.gif" width="100%"/>
+      <br><sub>✨ Refine the generated architecture with chat editing and export-ready layout</sub>
+    </td>
+  </tr>
+</table>
 
 </div>
 
@@ -155,10 +187,18 @@ Paper2Any currently includes the following sub-capabilities:
 <br><sub>✨ Model Architecture Diagram Generation</sub>
 
 <br><br>
-<img src="static/new_readme/paper2figure/technical-roadmap-1.png" width="90%"/>
-<br><br>
-<img src="static/new_readme/paper2figure/technical-roadmap-3.png" width="80%"/>
-<br><sub>✨ Technical Roadmap Generation</sub>
+<table>
+  <tr>
+    <td width="56%" align="center" valign="top">
+      <img src="static/new_readme/paper2figure/technical-roadmap-workbench.png" width="100%"/>
+      <br><sub>✨ Technical roadmap workbench: choose route type, input source, model config, and visual template</sub>
+    </td>
+    <td width="44%" align="center" valign="top">
+      <img src="static/new_readme/paper2figure/technical-roadmap-output.png" width="100%"/>
+      <br><sub>✨ Generated technical roadmap figure with structured dual-column layout</sub>
+    </td>
+  </tr>
+</table>
 
 <br><br>
 <img src="static/new_readme/paper2figure/experimental-plot.png" width="90%"/>
@@ -172,29 +212,104 @@ Paper2Any currently includes the following sub-capabilities:
 
 <div align="center">
 
-<br>
-<img src="static/new_readme/paper2ppt/demo.gif" width="85%"/>
-<br><sub>✨ PPT Generation Demo</sub>
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/demo.gif" width="100%"/>
+      <br><sub>✨ End-to-end PPT generation demo</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/case-1.png" width="100%"/>
+      <br><sub>✨ Paper / text / topic to polished slide deck</sub>
+    </td>
+  </tr>
+</table>
 
 <br>
-<img src="static/new_readme/paper2ppt/case-1.png" width="90%"/>
-<br><sub>✨ Paper / Text / Topic → PPT</sub>
 
-<br><br>
-<img src="static/new_readme/paper2ppt/long-doc.png" width="85%"/>
-<br><sub>✨ Long Document Support (40+ Slides)</sub>
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/frontend-canvas-edit.gif" width="100%"/>
+      <br><sub>✨ Edit slide text directly on canvas while keeping the deck theme locked</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/frontend-gallery-review.gif" width="100%"/>
+      <br><sub>✨ Review the generated multi-page gallery before export</sub>
+    </td>
+  </tr>
+</table>
 
-<br><br>
-<img src="static/new_readme/paper2ppt/table-extraction.png" width="90%"/>
-<br><sub>✨ Intelligent Table Extraction & Insertion</sub>
+<br>
 
-<br><br>
-<img src="static/new_readme/paper2ppt/outline-edit.png" width="90%"/>
-<br><sub>✨ AI-Assisted Outline Editing</sub>
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/outline-assist-panel.png" width="100%"/>
+      <br><sub>✨ AI-assisted outline refinement with targeted rewrite prompts</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/outline-assist-detail.png" width="100%"/>
+      <br><sub>✨ Structured outline editing down to section and bullet detail</sub>
+    </td>
+  </tr>
+</table>
 
-<br><br>
-<img src="static/new_readme/paper2ppt/version-history.png" width="90%"/>
-<br><sub>✨ Version History Management</sub>
+<br>
+
+<img src="static/new_readme/paper2ppt/long-doc.png" width="78%"/>
+<br>
+<img src="static/new_readme/paper2ppt/table-extraction.png" width="80%"/>
+<br>
+<img src="static/new_readme/paper2ppt/version-history.png" width="80%"/>
+<br><sub>✨ Long document support for 40+ slides · Intelligent table extraction and insertion · Version history and iterative deck management</sub>
+
+</div>
+
+---
+
+### 🎬 Paper2Video: PPT to Narrated Video
+
+<div align="center">
+
+<br>
+<img src="static/new_readme/paper2video/demo.gif" width="90%"/>
+<br><sub>✨ PPT / PDF to narrated video with script confirmation, Aliyun TTS voices, and downloadable output</sub>
+
+</div>
+
+---
+
+### 🖼️ Paper2Poster: Paper to Poster
+
+<div align="center">
+
+<br>
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="static/new_readme/paper2poster/paper2poster-ppt-result.png" width="100%"/>
+      <br><sub>PNG poster result</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="static/new_readme/paper2poster/paper2poster-png-result.png" width="100%"/>
+      <br><sub>PPT poster result</sub>
+    </td>
+  </tr>
+</table>
+<br><sub>✨ Paper PDF to academic poster with configurable layout, editable poster output, and one-click export</sub>
+
+</div>
+
+---
+
+### 🔎 Paper2Citation: Citation Explorer
+
+<div align="center">
+
+<br>
+<img src="static/new_readme/paper2citation/citation-explorer.png" width="90%"/>
+<br><sub>✨ Search authors or papers to inspect citation candidates, institutions, and downstream citation context</sub>
 
 </div>
 
@@ -247,30 +362,97 @@ Paper2Any currently includes the following sub-capabilities:
 git clone https://github.com/OpenDCAI/Paper2Any.git
 cd Paper2Any
 
-# 2. Backend env (required for your API keys/models)
+# 2. Configure environment variables
 cp fastapi_app/.env.example fastapi_app/.env
+cp frontend-workflow/.env.example frontend-workflow/.env
+cp deploy/docker.env.example deploy/docker.env
+```
 
+**Required configuration:**
+
+`fastapi_app/.env` (backend):
+```bash
+# Internal API auth key. Must match frontend VITE_API_KEY.
+BACKEND_API_KEY=your-backend-api-key
+
+# Required: Your LLM API URL (replace with your own)
+DEFAULT_LLM_API_URL=https://api.openai.com/v1/
+
+# Optional: DrawIO OCR / VLM service
+PAPER2DRAWIO_OCR_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+PAPER2DRAWIO_OCR_API_KEY=your_dashscope_key
+
+# Optional: MinerU official remote API
+MINERU_API_BASE_URL=https://mineru.net/api/v4
+MINERU_API_KEY=your_mineru_api_key
+
+# Optional: SAM3 segmentation service for PDF2PPT / Image2PPT / Image2Drawio
+# SAM3_SERVER_URLS=http://GPU_MACHINE_IP:8001
+# SAM3_SERVER_URLS=http://GPU1:8021,http://GPU2:8022
+
+# Optional: Supabase (skip for no auth — core features still work)
+# SUPABASE_URL=https://your-project-id.supabase.co
+# SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+`frontend-workflow/.env` (frontend):
+```bash
+# Must match BACKEND_API_KEY in fastapi_app/.env
+VITE_API_KEY=your-backend-api-key
+
+# Usually keep VITE_API_BASE_URL empty in Docker, because nginx proxies /api and /outputs
+VITE_API_BASE_URL=
+
+# Optional: Supabase (keep consistent with backend)
+# VITE_SUPABASE_URL=https://your-project-id.supabase.co
+# VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+`deploy/docker.env` (compose overrides):
+```bash
+BACKEND_PORT=8000
+FRONTEND_PORT=3000
+DOCKER_APP_WORKERS=1
+
+# Optional: enable local SAM3 container by running DOCKER_WITH_SAM3=1 bash deploy/docker-up.sh
+SAM3_PORT=8021
+SAM3_SERVER_URLS=
+```
+
+```bash
 # 3. Build + run
-docker compose up -d --build
+bash deploy/docker-up.sh
 ```
 
 Open:
 - Frontend: http://localhost:3000
 - Backend health: http://localhost:8000/health
 
+> **GPU services note:** Docker starts backend + frontend by default.
+> - Paper2PPT, Paper2Figure, Knowledge Base, etc. only need LLM APIs and work out of the box.
+> - **PDF2PPT, Image2PPT, Image2Drawio** require SAM3 segmentation.
+> - You can either point backend `.env` to an external SAM3 service with `SAM3_SERVER_URLS=...`,
+>   or start the optional local SAM3 compose profile:
+>   ```bash
+>   DOCKER_WITH_SAM3=1 bash deploy/docker-up.sh
+>   ```
+>
+> See the "Advanced: Local Model Server Load Balancing" section below for details.
+
 Modify & update:
-- After changing code or `.env`, rebuild: `docker compose up -d --build`
+- After changing code or `.env`, rebuild: `bash deploy/docker-up.sh`
 - Pull latest code and rebuild:
   - `git pull`
-  - `docker compose up -d --build`
+  - `bash deploy/docker-up.sh`
 
 Common commands:
-- View logs: `docker compose logs -f`
-- Stop services: `docker compose down`
+- View logs: `bash deploy/docker-logs.sh`
+- Stop services: `bash deploy/docker-down.sh`
+- Build only: `bash deploy/docker-build.sh`
 
 Notes:
 - The first build may take a while (system deps + Python deps).
-- Frontend env is baked at build time (compose build args). If you change it, rebuild with `docker compose up -d --build`.
+- Frontend env is baked at build time. If you change `frontend-workflow/.env` or `deploy/docker.env`, rebuild with `bash deploy/docker-up.sh`.
 - Outputs/models are mounted to the host (`./outputs`, `./models`) for persistence.
 
 </details>
@@ -299,22 +481,36 @@ pip install -e .
 
 #### 2. Install Paper2Any-specific Dependencies (Required)
 
-Paper2Any involves LaTeX rendering, vector graphics processing as well as PPT/PDF conversion, which require extra dependencies:
+Paper2Any involves LaTeX rendering, vector graphics processing as well as PPT/PDF conversion, which require extra dependencies.
+
+The dependency boundary is now:
+- `requirements-base.txt`: shared cross-platform Python runtime
+- `requirements-paper.txt`: paper / PDF / figure extras
+- `requirements-cu12.txt`: NVIDIA CUDA 12 Linux GPU extras
+- `requirements-system-ubuntu.txt`: Ubuntu/Debian system packages, not Python packages
 
 ```bash
-# 1. Python dependencies
-pip install -r requirements-paper.txt || pip install -r requirements-paper-backup.txt
+# 1. Paper / PDF / figure Python extras
+pip install -r requirements-paper.txt
 
-# 2. LaTeX engine (tectonic) - recommended via conda
+# 2. NVIDIA GPU runtime extras (Linux + CUDA 12 only)
+pip install -r requirements-cu12.txt
+
+# 3. LaTeX engine (tectonic) - recommended via conda
 conda install -c conda-forge tectonic -y
 
-# 3. Resolve doclayout_yolo dependency conflicts (Important)
+# 4. Resolve doclayout_yolo dependency conflicts (Important)
 pip install doclayout_yolo --no-deps
 
-# 4. System dependencies (Ubuntu example)
+# 5. System dependencies (Ubuntu example; full list is mirrored in requirements-system-ubuntu.txt)
 sudo apt-get update
-sudo apt-get install -y inkscape libreoffice poppler-utils wkhtmltopdf
+sudo apt-get install -y ffmpeg inkscape libreoffice poppler-utils wkhtmltopdf
 ```
+
+> [!IMPORTANT]
+> `ffmpeg`, `libreoffice/soffice`, `inkscape`, `poppler-utils`, `wkhtmltopdf`, and `tectonic`
+> are external system tools. They are not installed by `pip`, and `deploy/start*.sh`
+> does not auto-install them.
 
 #### 3. Environment Variables
 
@@ -362,6 +558,24 @@ PAPER2PPT_DEFAULT_MODEL=gpt-5.1
 PAPER2PPT_DEFAULT_IMAGE_MODEL=gemini-3-pro-image-preview
 PDF2PPT_DEFAULT_MODEL=gpt-4o
 # ... see .env.example for full list
+```
+
+**Service Integration Configuration** - External or local services used by image/PDF workflows:
+```bash
+# DrawIO OCR / VLM
+PAPER2DRAWIO_OCR_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+PAPER2DRAWIO_OCR_API_KEY=your_dashscope_key
+
+# MinerU official remote API; if MINERU_API_KEY is empty, backend falls back to local MINERU_PORT
+MINERU_API_BASE_URL=https://mineru.net/api/v4
+MINERU_API_KEY=your_mineru_api_key
+MINERU_API_MODEL_VERSION=vlm
+
+# SAM3 segmentation service for PDF2PPT / Image2PPT / Image2Drawio
+# One endpoint:
+SAM3_SERVER_URLS=http://127.0.0.1:8001
+# Or multiple endpoints for load balancing:
+# SAM3_SERVER_URLS=http://127.0.0.1:8021,http://127.0.0.1:8022
 ```
 
 ##### Step 3: Frontend Configuration (`frontend-workflow/.env`)
@@ -414,12 +628,12 @@ Script location: `/DataFlow-Agent/script/start_model_servers.sh`
 
 - **MinerU (PDF Parsing)**
   - `MINERU_MODEL_PATH`: Model path (default `models/MinerU2.5-2509-1.2B`)
-  - `MINERU_GPU_UTIL`: GPU memory utilization (default 0.2)
-  - **Instance configuration**: By default, 4 instances are started on GPU 0 and GPU 4 respectively (8 in total), ports 8011-8018.
+  - `MINERU_GPU_UTIL`: GPU memory utilization (default 0.85)
+  - **Instance configuration**: By default, one instance is started on each configured GPU, ports 8011-8013.
   - **Load Balancer**: Port 8010, automatically dispatches requests.
 
 - **SAM3 (Segment Anything Model 3)**
-  - **Instance configuration**: By default, one instance per configured GPU, ports start from 8021.
+  - **Instance configuration**: By default, one instance per configured GPU, ports 8021-8022.
   - **Model assets**: default paths are `./models/sam3/sam3.pt` and `./models/sam3/bpe_simple_vocab_16e6.txt.gz`.
   - **Load Balancer**: Port 8020.
 
@@ -428,13 +642,6 @@ Script location: `/DataFlow-Agent/script/start_model_servers.sh`
   - **Port**: 8003.
 
 > Before using, please modify `gpu_id` and the number of instances in the script according to your actual GPU count and memory.
-
-For SAM3 assets migration into this repository, run:
-
-```bash
-bash script/setup_sam3_assets.sh link
-# or: bash script/setup_sam3_assets.sh copy
-```
 
 For local one-command development test on a single GPU (SAM3 + backend + frontend), run:
 
@@ -471,11 +678,14 @@ pip install -e .
 
 #### 2. Install Paper2Any-specific Dependencies (Recommended)
 
-Paper2Any involves LaTeX rendering and vector graphics processing, which require extra dependencies (see `requirements-paper.txt`):
+Paper2Any involves LaTeX rendering and vector graphics processing, which require extra dependencies:
 
 ```bash
 # Python dependencies
 pip install -r requirements-paper.txt
+
+# NVIDIA GPU runtime extras (Linux only; skip on Windows)
+# pip install -r requirements-cu12.txt
 
 # tectonic: LaTeX engine (recommended via conda)
 conda install -c conda-forge tectonic -y
@@ -509,15 +719,32 @@ pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
 **Paper2Any - Paper Workflow Web Frontend (Recommended)**
 
 ```bash
+# Configure local backend runtime (single source of truth)
+# Edit deploy/app_config.sh:
+#   APP_PORT=8000
+#   APP_WORKERS=2
+
 # Start backend API
-cd fastapi_app
-uvicorn main:app --host 0.0.0.0 --port 8000
+./deploy/start.sh
 
 # Start frontend (new terminal)
 cd frontend-workflow
 npm install
 npm run dev
 ```
+
+Default local addresses:
+- Frontend dev server: http://localhost:3000
+- Backend health: http://127.0.0.1:8000/health
+
+Useful local deploy commands:
+- Start backend: `./deploy/start.sh`
+- Stop backend: `./deploy/stop.sh`
+- Restart backend: `./deploy/restart.sh`
+
+Notes:
+- `deploy/start.sh` and `deploy/stop.sh` both read the same runtime config from `deploy/app_config.sh`.
+- If you change `APP_PORT`, update the frontend proxy target in `frontend-workflow/vite.config.ts` as well.
 
 **Configure Frontend Proxy**
 
@@ -533,6 +760,10 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',  // FastAPI backend address
+        changeOrigin: true,
+      },
+      '/outputs': {
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
     },
@@ -562,9 +793,10 @@ vllm serve opendatalab/MinerU2.5-2509-1.2B `
 #### 🎨 Web Frontend (Recommended)
 
 ```bash
+# Configure deploy/app_config.sh first if you want to change the local port/workers
+
 # Start backend API
-cd fastapi_app
-uvicorn main:app --host 0.0.0.0 --port 8000
+./deploy/start.sh
 
 # Start frontend (new terminal)
 cd frontend-workflow
@@ -573,6 +805,7 @@ npm run dev
 ```
 
 Visit `http://localhost:3000`.
+Backend health is available at `http://127.0.0.1:8000/health` by default.
 
 ---
 

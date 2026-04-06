@@ -17,7 +17,7 @@
     "buyLink": "购买 Key",
     "apiKey": "API Key",
     "genModel": "分析模型",
-    "validating": "验证 API Key..."
+    "validating": "正在验证模型连接..."
   },
   "status": {
     "uploading": "正在上传图片...",
@@ -58,7 +58,7 @@
     "imgOnly": "仅支持图片格式 (PNG, JPG)",
     "sizeLimit": "文件大小超过 20MB 限制",
     "selectFile": "请先选择图片文件",
-    "quotaFull": "今日配额已用完",
+    "quotaFull": "当前点数不足，请先获取兑换码并到账户页兑换加点。",
     "enterKey": "开启 AI 增强需要 API Key",
     "enterUrl": "开启 AI 增强需要 API URL",
     "apiFail": "API 验证失败",

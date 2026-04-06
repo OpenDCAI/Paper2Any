@@ -107,9 +107,8 @@
     "status": "Beautified",
     "generateFinal": "Generate Final File",
     "generating": "Generating final file...",
+    "downloadPptx": "Download PPTX",
     "downloadPdf": "Download PDF",
-    "pdf2pptLink": "If you need to convert PDF to editable PPTX, please go to",
-    "pdf2pptText": "PDF2PPT Page",
     "new": "Process New Document"
   },
   "demo": {
@@ -134,8 +133,8 @@
     "config": "Please configure Model API URL and API Key first",
     "prompt": "Please enter style prompt",
     "reference": "Please upload reference image",
-    "quota": "Daily quota used up",
-    "validating": "Validating API Key...",
+    "quota": "Insufficient points. Please get a redeem code and redeem it in Account first.",
+    "validating": "Verifying model connection...",
     "serverBusy": "Server busy, please try again later",
     "noResultPath": "Missing result_path",
     "emptyResult": "Parsing result is empty",

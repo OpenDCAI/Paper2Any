@@ -25,6 +25,7 @@ export interface GenerateResponse {
   xml_content: string;
   file_path: string;
   error?: string;
+  used_model?: string;
 }
 
 export interface ChatRequest {

@@ -3,7 +3,6 @@
  *
  * Displays:
  * - Points balance for authenticated users
- * - Remaining daily quota for anonymous users
  * - "∞" if Supabase is not configured (unlimited local usage)
  */
 
@@ -12,7 +11,7 @@ import { useAuthStore } from "../stores/authStore";
 import { Coins, Loader2 } from "lucide-react";
 
 export function PointsDisplay() {
-  const { quota, refreshQuota } = useAuthStore();
+  const { user, quota, refreshQuota } = useAuthStore();
   
   useEffect(() => {
     // Initial fetch
@@ -47,12 +46,17 @@ export function PointsDisplay() {
 
   // Check for "unlimited" quota (returned when Supabase is not configured)
   const isUnlimited = quota.remaining > 1000000;
+  const isAuthenticatedUser = Boolean(user);
+  const balanceLabel = "点";
+  const title = isUnlimited
+    ? (quota.billingMode === 'paid' ? '当前为付费模式，平台不扣点' : '当前为无限用量')
+    : (isAuthenticatedUser ? '剩余点数' : '当前点数');
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-white/5 border-white/10" title={isUnlimited ? "无限次数" : "剩余次数"}>
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-white/5 border-white/10" title={title}>
       <Coins size={16} className="text-yellow-400" />
       <span className="text-sm text-gray-300">
-        {isUnlimited ? "∞" : `${quota.remaining} 次`}
+        {isUnlimited ? "∞" : `${quota.remaining} ${balanceLabel}`}
       </span>
     </div>
   );

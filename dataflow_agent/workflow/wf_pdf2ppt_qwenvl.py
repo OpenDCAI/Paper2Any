@@ -43,8 +43,17 @@ from dataflow_agent.toolkits.multimodaltool.sam3_tool import (
 )
 from dataflow_agent.toolkits.multimodaltool.bg_tool import local_tool_for_bg_remove, free_bg_rm_model
 from dataflow_agent.toolkits.multimodaltool.req_img import generate_or_edit_and_save_image_async
+from dataflow_agent.utils.request_credentials import (
+    get_request_image_api_key,
+    get_request_image_api_url,
+)
 from dataflow_agent.toolkits.multimodaltool.ocr_config import get_ocr_api_credentials
+from dataflow_agent.toolkits.multimodaltool.ocr_utils import extract_bbox_items
 from dataflow_agent.toolkits.multimodaltool import ppt_tool
+from dataflow_agent.workflow.sam3_segment_hint import (
+    dedupe_prompts,
+    generate_sam3_segment_hints,
+)
 
 from pptx import Presentation
 from pptx.util import Inches, Pt
@@ -246,7 +255,25 @@ def _bbox_area_px(b: List[int]) -> int:
     return max(0, b[2] - b[0]) * max(0, b[3] - b[1])
 
 
-def _sam3_predict_groups(client: Any, image_path: str) -> List[Dict[str, Any]]:
+def _resolve_icon_bg_remove_mode() -> str:
+    raw = str(os.getenv("PAPER2PPT_ICON_BG_REMOVE_MODE", "auto")).strip().lower()
+    if raw in {"", "auto"}:
+        return "auto"
+    if raw in {"off", "false", "0", "disable", "disabled", "none"}:
+        return "off"
+    if raw == "cpu":
+        return "cpu"
+    if raw == "cuda" or raw.startswith("cuda:"):
+        return raw
+    log.warning(f"[pdf2ppt_qwenvl][RMBG] unknown mode={raw}, fallback to auto")
+    return "auto"
+
+
+def _sam3_predict_groups(
+    client: Any,
+    image_path: str,
+    extra_image_prompts: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
     image_area: Optional[int] = None
     try:
         with Image.open(image_path) as img:
@@ -254,14 +281,18 @@ def _sam3_predict_groups(client: Any, image_path: str) -> List[Dict[str, Any]]:
     except Exception:
         image_area = None
 
+    merged_image_prompts = dedupe_prompts(IMAGE_PROMPT + (extra_image_prompts or []))
+    merged_recall_prompts = dedupe_prompts(IMAGE_PROMPT_RECALL + (extra_image_prompts or []))
+
     try:
         base_runs: List[Sam3PredictRun] = []
         for group, prompts in SAM3_GROUPS.items():
             cfg = SAM3_GROUP_CONFIG.get(group, {})
+            group_prompts = merged_image_prompts if group == "image" else prompts
             base_runs.append(
                 Sam3PredictRun(
                     group=group,
-                    prompts=prompts,
+                    prompts=group_prompts,
                     score_threshold=cfg.get("score_threshold"),
                     min_area=cfg.get("min_area"),
                 )
@@ -298,7 +329,7 @@ def _sam3_predict_groups(client: Any, image_path: str) -> List[Dict[str, Any]]:
                 core_image_hits += 1
 
         should_recall = core_image_hits <= SAM3_IMAGE_RECALL_TRIGGER_MAX_IMAGES
-        if should_recall and IMAGE_PROMPT_RECALL:
+        if should_recall and merged_recall_prompts:
             recall_min_area = SAM3_IMAGE_RECALL_MIN_AREA_BASE
             if image_area and image_area > 0:
                 recall_min_area = max(
@@ -312,7 +343,7 @@ def _sam3_predict_groups(client: Any, image_path: str) -> List[Dict[str, Any]]:
                 runs=[
                     Sam3PredictRun(
                         group="image",
-                        prompts=IMAGE_PROMPT_RECALL,
+                        prompts=merged_recall_prompts,
                         score_threshold=SAM3_IMAGE_RECALL_SCORE_THRESHOLD,
                         min_area=recall_min_area,
                     )
@@ -392,7 +423,12 @@ def _ensure_result_path(state: Paper2FigureState) -> str:
     state.result_path = str(base_dir)
     return state.result_path
 
-def _process_single_sam_page(page_idx: int, img_path: str, base_dir: str) -> Dict[str, Any]:
+def _process_single_sam_page(
+    page_idx: int,
+    img_path: str,
+    base_dir: str,
+    extra_image_prompts: Optional[List[str]] = None,
+) -> Dict[str, Any]:
     log.info(f"[pdf2ppt_qwenvl][SAM3] processing page#{page_idx+1}: {img_path}")
     img_path_obj = Path(img_path)
     if not img_path_obj.exists():
@@ -415,7 +451,11 @@ def _process_single_sam_page(page_idx: int, img_path: str, base_dir: str) -> Dic
 
     layout_items: List[Dict[str, Any]] = []
     try:
-        sam3_results = _sam3_predict_groups(client, str(img_path_obj))
+        sam3_results = _sam3_predict_groups(
+            client,
+            str(img_path_obj),
+            extra_image_prompts=extra_image_prompts,
+        )
         for idx, item in enumerate(sam3_results):
             group = item.get("group") or ""
             if group == "background":
@@ -450,19 +490,33 @@ def _process_single_sam_page(page_idx: int, img_path: str, base_dir: str) -> Dic
                     "type": "layout_box",
                 }
             )
-        log.info(f"[pdf2ppt_qwenvl][SAM3] page#{page_idx+1} returned {len(layout_items)} items")
+        log.info(
+            f"[pdf2ppt_qwenvl][SAM3] page#{page_idx+1} returned {len(layout_items)} items "
+            f"extra_image_prompts={extra_image_prompts or []}"
+        )
     except Exception as e:
         log.error(f"[pdf2ppt_qwenvl][SAM3] page#{page_idx+1} failed: {e}")
         layout_items = []
 
     return {"page_idx": page_idx, "layout_items": layout_items}
 
-def _run_sam_on_pages(image_paths: List[str], base_dir: str) -> List[Dict[str, Any]]:
+def _run_sam_on_pages(
+    image_paths: List[str],
+    base_dir: str,
+    extra_image_prompts_by_page: Optional[Dict[int, List[str]]] = None,
+) -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
     log.info(f"[pdf2ppt_qwenvl][SAM3] start, images={len(image_paths)}")
     for idx, path in enumerate(image_paths):
         try:
-            results.append(_process_single_sam_page(idx, path, base_dir))
+            results.append(
+                _process_single_sam_page(
+                    idx,
+                    path,
+                    base_dir,
+                    extra_image_prompts=(extra_image_prompts_by_page or {}).get(idx) or [],
+                )
+            )
         except Exception as e:
             log.error(f"[pdf2ppt_qwenvl][SAM3] page#{idx+1} task exception: {e}")
             results.append({"page_idx": idx, "layout_items": []})
@@ -484,7 +538,6 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
         if state.request.input_type == "FIGURE":
             img_path = state.request.input_content
             log.info(f"[pdf2ppt_qwenvl] FIGURE mode: using input image {img_path}")
-            state.use_ai_edit = True
             if img_path and os.path.exists(img_path):
                 state.slide_images = [img_path]
             else:
@@ -537,6 +590,7 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                             name="ImageTextBBoxAgent",
                             model_name=getattr(state.request, "vlm_model", "qwen-vl-ocr-2025-11-20"),
                             chat_api_url=ocr_api_url,
+                            max_tokens=4096,
                             vlm_mode="ocr",
                             additional_params={
                                 "input_image": img_path
@@ -545,11 +599,17 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
 
                         log.info(f"[pdf2ppt_qwenvl][VLM] page#{page_idx+1} attempt {attempt+1}/{max_retries}...")
                         new_state = await agent.execute(temp_state)
-                        bbox_res = getattr(new_state, "bbox_result", [])
-                        
-                        if isinstance(bbox_res, list):
+                        raw_bbox_res = getattr(new_state, "bbox_result", [])
+                        bbox_res = extract_bbox_items(raw_bbox_res)
+
+                        if isinstance(raw_bbox_res, list):
                             break
-                        log.warning(f"[pdf2ppt_qwenvl][VLM] page#{page_idx+1} attempt {attempt+1} got invalid result: {type(bbox_res)}")
+                        if bbox_res:
+                            break
+                        log.warning(
+                            f"[pdf2ppt_qwenvl][VLM] page#{page_idx+1} attempt {attempt+1} "
+                            f"got invalid result: {type(raw_bbox_res)}"
+                        )
                     except Exception as e:
                         log.warning(f"[pdf2ppt_qwenvl][VLM] page#{page_idx+1} attempt {attempt+1} failed: {e}")
                         if attempt == max_retries - 1:
@@ -643,6 +703,48 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
         state.vlm_pages = results
         return state
 
+    async def slides_segment_hint_node(state: Paper2FigureState) -> Paper2FigureState:
+        vlm_pages: List[Dict[str, Any]] = getattr(state, "vlm_pages", []) or []
+        state.temp_data["pdf2ppt_sam3_segment_hints_by_page"] = {}
+        state.temp_data["pdf2ppt_sam3_segment_hints_raw_by_page"] = {}
+        if not vlm_pages:
+            return state
+
+        async def _process_single_page(pinfo: Dict[str, Any]) -> tuple[int, List[str], Any]:
+            page_idx = int(pinfo.get("page_idx", 0))
+            img_path = pinfo.get("path") or pinfo.get("sam_input_path") or ""
+            if not img_path or not os.path.exists(img_path):
+                return page_idx, [], {}
+            try:
+                hints, raw_result, _, _ = await generate_sam3_segment_hints(
+                    state=state,
+                    image_path=img_path,
+                    text_blocks=pinfo.get("vlm_data", []) or [],
+                    env_prefix="PAPER2PPT_SEGMENT_HINT",
+                    base_image_prompts=IMAGE_PROMPT,
+                    base_recall_prompts=IMAGE_PROMPT_RECALL,
+                    extra_blocked_prompts=SHAPE_PROMPT + ARROW_PROMPT + BACKGROUND_PROMPT,
+                    log_prefix=f"[pdf2ppt_qwenvl][segment_hint][page#{page_idx+1}]",
+                )
+                return page_idx, hints, raw_result
+            except Exception as e:
+                log.warning(f"[pdf2ppt_qwenvl][segment_hint] page#{page_idx+1} failed: {e}")
+                return page_idx, [], {"error": str(e)}
+
+        results = await asyncio.gather(*[_process_single_page(p) for p in vlm_pages])
+        hints_by_page: Dict[int, List[str]] = {}
+        raw_by_page: Dict[int, Any] = {}
+        for page_idx, hints, raw_result in results:
+            hints_by_page[page_idx] = hints
+            raw_by_page[page_idx] = raw_result
+
+        state.temp_data["pdf2ppt_sam3_segment_hints_by_page"] = hints_by_page
+        state.temp_data["pdf2ppt_sam3_segment_hints_raw_by_page"] = raw_by_page
+        for pinfo in vlm_pages:
+            page_idx = int(pinfo.get("page_idx", 0))
+            pinfo["sam3_segment_hints"] = hints_by_page.get(page_idx, [])
+        return state
+
     async def slides_sam_node(state: Paper2FigureState) -> Paper2FigureState:
         """SAM3 图标分割"""
         vlm_pages: List[Dict[str, Any]] = getattr(state, "vlm_pages", []) or []
@@ -672,8 +774,16 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
         if not image_paths:
             return state
         base_dir = _ensure_result_path(state)
+        extra_image_prompts_by_page: Dict[int, List[str]] = (
+            state.temp_data.get("pdf2ppt_sam3_segment_hints_by_page", {}) or {}
+        )
         try:
-            sam_pages = await asyncio.to_thread(_run_sam_on_pages, image_paths, base_dir)
+            sam_pages = await asyncio.to_thread(
+                _run_sam_on_pages,
+                image_paths,
+                base_dir,
+                extra_image_prompts_by_page,
+            )
             log.info(f"[pdf2ppt_qwenvl][SAM3] done, pages={len(sam_pages)}")
         except Exception as e:
             log.error(f"[pdf2ppt_qwenvl][SAM3] processing failed: {e}")
@@ -686,6 +796,20 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
         if sam_pages is None:
             sam_pages = getattr(state, "sam_pages", []) or []
         if not sam_pages:
+            return state
+
+        bg_remove_mode = _resolve_icon_bg_remove_mode()
+        total_items = sum(len(p.get("layout_items", []) or []) for p in sam_pages)
+        if bg_remove_mode == "off":
+            for p in sam_pages:
+                for it in p.get("layout_items", []) or []:
+                    png_path = it.get("png_path")
+                    if png_path and os.path.exists(png_path):
+                        it["fg_png_path"] = png_path
+            log.info(
+                f"[pdf2ppt_qwenvl][RMBG] skipped icon bg remove: mode=off items={total_items}"
+            )
+            state.sam_pages = sam_pages
             return state
 
         base_dir = Path(_ensure_result_path(state))
@@ -708,6 +832,7 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                         
                         req = {"image_path": png_path, "output_dir": str(icons_dir)}
                         if model_path: req["model_path"] = model_path
+                        if bg_remove_mode != "auto": req["device"] = bg_remove_mode
                         
                         fg_path = local_tool_for_bg_remove(req)
                         
@@ -729,6 +854,9 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
             except Exception: pass
             return processed
 
+        log.info(
+            f"[pdf2ppt_qwenvl][RMBG] start icon bg remove: mode={bg_remove_mode} items={total_items}"
+        )
         await asyncio.to_thread(_sync_bg_remove)
         state.sam_pages = sam_pages
         return state
@@ -746,8 +874,8 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
         # API 配置
         req_cfg = getattr(state, "request", None) or {}
         if not isinstance(req_cfg, dict): req_cfg = req_cfg.__dict__ if hasattr(req_cfg, "__dict__") else {}
-        api_key = req_cfg.get("api_key") or os.getenv("DF_API_KEY")
-        api_url = req_cfg.get("chat_api_url") or "https://api.apiyi.com"
+        api_key = get_request_image_api_key(getattr(state, "request", None))
+        api_url = get_request_image_api_url(getattr(state, "request", None)) or "https://api.apiyi.com"
         model_name = req_cfg.get("gen_fig_model") or "gemini-3-pro-image-preview"
         is_comfly = "comfly" in str(api_url).lower()
         
@@ -941,14 +1069,25 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                         log.warning(f"[pdf2ppt_qwenvl][Inpainting] page#{page_idx+1} adaptive fill failed: {e}")
             
             mask_path = pinfo.get("text_mask_path")
-            if state.use_ai_edit and api_key and img_path and os.path.exists(img_path):
+            # AI 编辑输入图：优先使用 merged no_text 图，其次原图
+            edit_image_path = None
+            if no_text_path and os.path.exists(no_text_path):
+                edit_image_path = no_text_path
+            elif img_path and os.path.exists(img_path):
+                edit_image_path = img_path
+
+            if state.use_ai_edit and api_key and edit_image_path:
                 ratio_str = "16:9"
                 try:
-                    with Image.open(img_path) as tmp_img:
+                    with Image.open(edit_image_path) as tmp_img:
                         ratio_str = get_closest_aspect_ratio(tmp_img.width, tmp_img.height)
                 except Exception: pass
                 
                 inpainting_prompt = "Fill the masked areas with matching background. Remove text."
+                log.info(
+                    f"[pdf2ppt_qwenvl][Inpainting] page#{page_idx+1} edit_image={edit_image_path}, "
+                    f"mask={mask_path if (mask_path and os.path.exists(mask_path)) else 'None'}"
+                )
                 
                 async with sem:
                     await _call_image_api_with_retry(
@@ -959,7 +1098,7 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
                             api_key=api_key,
                             model=model_name,
                             use_edit=True,
-                            image_path=img_path,
+                            image_path=edit_image_path,
                             mask_path=mask_path if (mask_path and os.path.exists(mask_path)) else None,
                             aspect_ratio=ratio_str,
                             resolution="2K"
@@ -979,7 +1118,9 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
 
             if final_bg_path:
                 cleaned_bg_path = _cleanup_bg_overlay(page_idx, pinfo, final_bg_path, img_w, img_h)
-                pinfo["clean_bg_path"] = cleaned_bg_path or final_bg_path
+                # 保持 clean_bg_path 指向“原始AI编辑背景图”；overlay_free 单独记录
+                if cleaned_bg_path:
+                    pinfo["clean_bg_overlay_free_path"] = cleaned_bg_path
 
         tasks = [_process_inpainting(p) for p in vlm_pages]
         if tasks:
@@ -1000,6 +1141,7 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
         start_time = time.time()
 
         state = await vlm_recognition_node(state)
+        state = await slides_segment_hint_node(state)
         state = await slides_sam_node(state)
         sam_pages = getattr(state, "sam_pages", [])
         state = await slides_layout_bg_remove_node(state, sam_pages=sam_pages)
@@ -1045,12 +1187,22 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
             page_idx = pinfo.get("page_idx", 0)
             img_path = pinfo.get("path")
             vlm_data = pinfo.get("vlm_data", [])
-            # 从 vlm_pages 里获取 clean_bg_path，如果并行步骤成功，这里应该有值
-            clean_bg_path = (
-                pinfo.get("clean_bg_path")
-                or pinfo.get("clean_bg_lite_path")
-                or pinfo.get("no_text_path")
+            # 背景图优先级：clean_bg(模型编辑) > overlay_free > clean_bg_lite > no_text > 原图
+            bg_candidates = [
+                pinfo.get("clean_bg_path"),
+                pinfo.get("clean_bg_overlay_free_path"),
+                pinfo.get("clean_bg_lite_path"),
+                pinfo.get("no_text_path"),
+                img_path,
+            ]
+            clean_bg_path = next(
+                (p for p in bg_candidates if p and os.path.exists(p)),
+                None,
             )
+            if clean_bg_path:
+                log.info(
+                    f"[pdf2ppt_qwenvl][PPT] page#{page_idx+1} background={clean_bg_path}"
+                )
 
             if not img_path or not os.path.exists(img_path): continue
 
@@ -1129,6 +1281,7 @@ def create_pdf2ppt_qwenvl_graph() -> GenericGraphBuilder:
         prs.save(str(out_path))
         state.ppt_path = str(out_path)
         log.info(f"[pdf2ppt_qwenvl] PPT Generated: {out_path}")
+
         return state
 
     nodes = {

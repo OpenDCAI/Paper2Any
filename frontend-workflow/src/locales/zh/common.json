@@ -4,13 +4,19 @@
   "success": "操作成功",
   "app": {
     "subtitle": "Agent 驱动的科研创作新体验",
+    "purchaseMore": "积分兑换",
     "githubProject": "GitHub开源项目",
     "exploreMore": "🚀 探索更多 AI 数据处理工具",
     "quotaRemaining": "剩余次数: {{remaining}}/{{limit}}",
     "nav": {
+      "home": "首页总览",
       "paper2figure": "科研绘图生成",
+      "mindmap": "思维导图",
       "paper2drawio": "图表生成 (DrawIO)",
       "paper2ppt": "PPT生成",
+      "paper2video": "PPT转视频",
+      "paper2poster": "论文转海报",
+      "paper2citation": "论文引用追踪",
       "pdf2ppt": "PDF转PPT",
       "image2ppt": "图片转PPT",
       "image2drawio": "图片转DrawIO",
@@ -22,10 +28,14 @@
     "navSub": {
       "paper2figureTechExp": "技术路线图/实验图生成",
       "paper2drawioAi": "流程图/架构图生成",
-      "paper2figureModelDrawio": "模型结构图生成"
+      "paper2figureModelDrawio": "模型结构图生成",
+      "paper2pptImage": "图片版 PPT 生成",
+      "paper2pptFrontend": "可编辑版 PPT 生成"
     },
     "navTooltip": {
+      "home": "查看全部功能入口、示例预览与推荐使用路径，快速进入各个工作流",
       "paper2figure": "根据文档内容生成科研绘图，包括模型架构图、技术路线图、实验数据图等可编辑的PPTX格式图表",
+      "mindmap": "上传论文、讲义、会议笔记或直接粘贴正文，生成独立树状思维导图，并在页面内继续编辑节点与分支结构",
       "paper2drawio": "将图片转换为可编辑的DrawIO图表，支持流程图、架构图等多种类型",
       "paper2ppt": "上传PDF或输入主题，AI智能分析内容并生成精美的学术汇报幻灯片",
       "pdf2ppt": "将任意PDF版本的ppt文档快速转换为可编辑的PPTX格式，保留原有排版和内容结构",
@@ -34,16 +44,130 @@
       "ppt2polish": "对已有的PPT进行AI智能润色，优化排版、美化设计、完善内容",
       "knowledge": "管理和检索您的文档知识库，支持智能问答和内容搜索",
       "files": "查看和管理所有工作流生成的文件，支持下载和删除操作",
-      "paper2rebuttal": "AI辅助生成学术论文反驳信，自动分析评审意见并给出回复策略"
+      "paper2rebuttal": "AI辅助生成学术论文反驳信，自动分析评审意见并给出回复策略",
+      "paper2video": "将论文 PDF 转为汇报视频，可选数字人与语音；AI 按页生成脚本再合成视频",
+      "paper2poster": "将论文 PDF 转为学术海报，自动完成内容提炼、版式设计、配色与导出",
+      "paper2citation": "按作者姓名或 DOI / 论文链接追踪引用网络，查看引用作者、机构与引用统计"
     },
     "navSubTooltip": {
       "paper2figureTechExp": "从 PDF / 文本生成技术路线图与实验数据图，支持模板与配色，可导出 PPT / SVG",
       "paper2drawioAi": "输入文本生成流程图/架构图（DrawIO），可在线编辑并导出 PNG / SVG / DrawIO",
-      "paper2figureModelDrawio": "生成模型结构图，支持提示词微调与预览，并可转 DrawIO 在线编辑或导出 PPT / PNG / SVG"
+      "paper2figureModelDrawio": "生成模型结构图，支持提示词微调与预览，并可转 DrawIO 在线编辑或导出 PPT / PNG / SVG",
+      "paper2pptImage": "上传论文 PDF 或输入主题，生成带图像设计的图片版学术 PPT",
+      "paper2pptFrontend": "生成 16:9 HTML/CSS 可编辑版 PPT，支持逐页编辑、视觉检查和截图导出 PPTX / PDF"
     },
     "sidebar": {
       "toggle": "切换菜单",
       "navigation": "导航"
+    },
+    "home": {
+      "kicker": "Research Creation Console",
+      "title": "一个入口，串起 Paper2Any 的全部科研工作流",
+      "description": "先在这里看懂每个功能能做什么，再直接进入对应页面。首页会优先展示已有参考图的工具，没有参考图的功能先以高级占位卡呈现，后续可以继续补示例。",
+      "primaryCta": "先看科研绘图",
+      "secondaryCta": "图片版 PPT",
+      "frontendCta": "可编辑版 PPT",
+      "sections": {
+        "creation": {
+          "title": "从论文内容直接生成",
+          "description": "适合从 PDF、论文正文或主题描述直接出图、出 PPT、出视频或海报。"
+        },
+        "conversion": {
+          "title": "把现有素材继续加工",
+          "description": "适合你已经有 PDF、图片或 PPT，希望进一步转为可编辑内容或做视觉优化。"
+        },
+        "research": {
+          "title": "围绕论文做追踪与写作",
+          "description": "适合做引用网络分析、审稿回复、知识库管理和历史产物回看。"
+        }
+      },
+      "cards": {
+        "paper2figureTechExp": {
+          "title": "技术路线图 / 实验图生成",
+          "description": "从论文 PDF 或正文提炼方法流程、实验对比和关键模块，直接生成科研风格图示。",
+          "badge": "Paper → Figure"
+        },
+        "paper2ppt": {
+          "title": "论文一键转学术汇报 PPT",
+          "description": "自动拆解论文结构、整理讲述主线并生成可编辑幻灯片，适合组会和答辩准备。",
+          "badge": "Paper → Slides"
+        },
+        "paper2pptImage": {
+          "title": "图片版 PPT 生成",
+          "description": "更偏视觉稿路线，逐页生成图片型学术页面，适合强调版式氛围与展示效果的汇报。",
+          "badge": "Image Deck"
+        },
+        "paper2pptFrontend": {
+          "title": "可编辑版 PPT 生成",
+          "description": "生成 16:9 HTML/CSS 可编辑页面，支持画布内直接改字、逐页视觉检查和截图导出 PPTX / PDF。",
+          "badge": "Editable Deck"
+        },
+        "paper2video": {
+          "title": "论文 / PPT 转讲解视频",
+          "description": "按页生成讲稿与配音，可选数字人形象，适合课程讲解和成果传播。",
+          "badge": "Slides → Video"
+        },
+        "paper2figureModel": {
+          "title": "模型结构图生成",
+          "description": "针对模型架构与模块关系生成更偏结构化的示意图，支持后续继续编辑和导出。",
+          "badge": "Model Diagram"
+        },
+        "paper2drawioAi": {
+          "title": "流程图 / 架构图生成",
+          "description": "输入论文段落或文字说明，快速生成可继续编辑的 DrawIO 流程图与系统架构图。",
+          "badge": "Text → DrawIO"
+        },
+        "mindmap": {
+          "title": "独立思维导图工作台",
+          "description": "从文档或正文提炼知识结构，生成 Mermaid 思维导图，并在同一页面内继续可视化编辑与保存源码。",
+          "badge": "Mind Map"
+        },
+        "paper2poster": {
+          "title": "论文转学术海报",
+          "description": "自动做内容提炼、版式规划和视觉组织，适合会议海报与项目展示。",
+          "badge": "Poster"
+        },
+        "pdf2ppt": {
+          "title": "PDF 转可编辑 PPT",
+          "description": "把已有 PDF 文档或演示稿转成可编辑 PPTX，尽量保留原始结构与内容布局。",
+          "badge": "PDF → PPTX"
+        },
+        "image2ppt": {
+          "title": "图片转 PPT 页面",
+          "description": "把截图、海报或单页设计稿快速转成可编辑幻灯片，方便继续改版。",
+          "badge": "Image → Slide"
+        },
+        "image2drawio": {
+          "title": "图片转 DrawIO",
+          "description": "把流程图、白板图或架构草图转为可编辑 DrawIO 文件，减少手工重绘。",
+          "badge": "Image → DrawIO"
+        },
+        "ppt2polish": {
+          "title": "PPT 润色优化",
+          "description": "针对已有 PPT 做版式清理、层级强化和视觉优化，适合最后交付前统一风格。",
+          "badge": "Polish"
+        },
+        "paper2citation": {
+          "title": "论文引用追踪",
+          "description": "围绕作者、DOI 或论文链接追踪引用网络，快速查看机构、学者和引用分布。",
+          "badge": "Citation Graph"
+        },
+        "paper2rebuttal": {
+          "title": "审稿回复 / Rebuttal 生成",
+          "description": "自动分析评审意见，组织回复策略与最终 rebuttal 文本，适合论文返修阶段。",
+          "badge": "Rebuttal"
+        },
+        "knowledge": {
+          "title": "知识库工作台",
+          "description": "把文档沉淀进知识库，后续做问答、筛选、汇总和二次创作。",
+          "badge": "Knowledge"
+        },
+        "files": {
+          "title": "历史文件中心",
+          "description": "查看之前所有工作流生成的结果文件，方便回溯、下载和继续复用。",
+          "badge": "Workspace"
+        }
+      }
     },
     "footer": {
       "ready": "就绪",
@@ -51,16 +175,12 @@
     }
   },
   "userMenu": {
-    "anonymous": "匿名用户",
     "user": "用户",
-    "identity": "当前身份",
     "loggedIn": "已登录",
-    "guestMode": "访客模式",
-    "limited": "仅限部分功能可用",
     "pro": "尊贵会员功能已解锁",
-    "signIn": "登录以获取完整权限",
+    "buyPoints": "购买兑换码",
+    "redeemPoints": "兑换点数",
     "thanks": "感谢您的使用与支持",
-    "exitGuest": "退出访客模式",
     "signOut": "退出登录"
   },
   "filesPage": {

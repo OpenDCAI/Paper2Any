@@ -21,6 +21,10 @@ from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.workflow.registry import register
 from dataflow_agent.agentroles import create_graph_agent, create_react_agent
 from dataflow_agent.toolkits.multimodaltool.req_img import generate_or_edit_and_save_image_async
+from dataflow_agent.utils.request_credentials import (
+    get_request_image_api_key,
+    get_request_image_api_url,
+)
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
 
@@ -138,8 +142,8 @@ def create_p2fig_image_only_graph() -> GenericGraphBuilder:
         fig_name = f"fig_{int(time.time())}.png"
         save_path = str((result_root / fig_name).resolve())
 
-        api_url = state.request.chat_api_url
-        api_key = state.request.chat_api_key or os.getenv("DF_API_KEY")
+        api_url = get_request_image_api_url(state.request)
+        api_key = get_request_image_api_key(state.request)
         model = state.request.gen_fig_model
         aspect_ratio = state.aspect_ratio
 

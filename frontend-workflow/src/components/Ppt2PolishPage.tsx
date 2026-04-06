@@ -7,7 +7,7 @@ import {
   MessageSquare, Eye, RefreshCw, FileText, Image as ImageIcon, Copy, Info
 } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
-import { API_KEY, API_URL_OPTIONS, DEFAULT_LLM_API_URL, getPurchaseUrl } from '../config/api';
+import { API_URL_OPTIONS, DEFAULT_LLM_API_URL, getPurchaseUrl } from '../config/api';
 import {
   DEFAULT_PPT2POLISH_GEN_FIG_MODEL,
   DEFAULT_PPT2POLISH_MODEL,
@@ -19,8 +19,20 @@ import { checkQuota, recordUsage } from '../services/quotaService';
 import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
 import { getApiSettings, saveApiSettings } from '../services/apiSettingsService';
+import { backendFetch } from '../services/backendClient';
 import QRCodeTooltip from './QRCodeTooltip';
+import ManagedApiNotice from './ManagedApiNotice';
+import { useRuntimeBilling } from '../hooks/useRuntimeBilling';
 import VersionHistory from './paper2ppt/VersionHistory';
+import {
+  buildInsufficientPointsMessage,
+  buildQuotaExhaustedMessage,
+  getManagedValidationText,
+  isInsufficientPointsError,
+  resolvePointsPurchaseUrl,
+} from '../utils/pointsMessaging';
+
+const MANAGED_CREDENTIAL_SCOPE = 'ppt2polish';
 
 // ============== 类型定义 ==============
 type Step = 'upload' | 'beautify' | 'complete';
@@ -43,6 +55,7 @@ interface SlideOutline {
   layout_description: string;  // 布局描述
   key_points: string[];        // 要点数组
   asset_ref: string | null;    // 资源引用（图片路径或 null）
+  asset_ref_preview_path?: string;
 }
 
 // 版本历史类型定义
@@ -51,18 +64,36 @@ interface ImageVersion {
   imageUrl: string;
   prompt: string;
   timestamp: number;
-  isCurrentVersion?: boolean;
+  isCurrentVersion: boolean;
 }
 
 interface BeautifyResult {
   slideId: string;
   beforeImage: string;
+  beforeImagePreview?: string;
   afterImage: string;
-  status: 'pending' | 'processing' | 'done';
+  afterImagePreview?: string;
+  status: 'pending' | 'processing' | 'done' | 'failed';
+  errorMessage?: string;
   userPrompt?: string;
   versionHistory: ImageVersion[];
   currentVersionIndex: number;
 }
+
+interface FailedPageInfo {
+  page_idx?: number;
+  reason?: string;
+  error?: string;
+  mode?: string;
+}
+
+const getFailedPageNumbers = (results: BeautifyResult[]): number[] =>
+  results
+    .map((result, index) => (result.status === 'failed' || !result.afterImage ? index + 1 : null))
+    .filter((value): value is number => value !== null);
+
+const getPreviewPath = (item: any, key: string) =>
+  String(item?.[`${key}_preview_path`] || item?.[`${key}PreviewPath`] || '').trim();
 
 // ============== 假数据模拟 ==============
 // 模拟后端返回的数据（转换为前端格式）
@@ -160,6 +191,10 @@ const STORAGE_KEY = 'pptpolish-storage';
 const Ppt2PolishPage = () => {
   const { t, i18n } = useTranslation(['pptPolish', 'common']);
   const { user, refreshQuota } = useAuthStore();
+  const { userApiConfigRequired, runtimeConfig } = useRuntimeBilling();
+  const purchaseUrl = runtimeConfig.billing_mode === 'free'
+    ? resolvePointsPurchaseUrl(runtimeConfig)
+    : '';
   // 步骤状态
   const [currentStep, setCurrentStep] = useState<Step>('upload');
   
@@ -227,6 +262,80 @@ const Ppt2PolishPage = () => {
 
 转发本文案+截图，联系微信群管理员即可获取免费Key！🎁
 #AI工具 #PPT制作 #科研效率 #开源项目`;
+
+  const getQuotaContext = () => ({
+    userId: user?.id || null,
+    isAnonymous: user?.is_anonymous || false,
+  });
+
+  const ensureQuotaForAction = async (required: number, action: string) => {
+    const { userId, isAnonymous } = getQuotaContext();
+    const quota = await checkQuota(userId, isAnonymous);
+    if (quota.remaining < required) {
+      setError(buildInsufficientPointsMessage(required, quota.remaining, action, purchaseUrl));
+      return false;
+    }
+    return true;
+  };
+
+  const consumeQuotaForAction = async (workflowType: string, amount: number, warningMessage: string) => {
+    const { userId, isAnonymous } = getQuotaContext();
+    const ok = await recordUsage(userId, workflowType, { amount, isAnonymous });
+    refreshQuota();
+    if (!ok) {
+      setError((prev) => prev || warningMessage);
+    }
+    return ok;
+  };
+
+  const extractErrorMessage = async (res: Response, fallback: string) => {
+    if (res.status === 403) {
+      return '邀请码不正确或已失效';
+    }
+    if (res.status === 429) {
+      return '请求过于频繁，请稍后再试';
+    }
+    try {
+      const errBody = await res.json();
+      if (typeof errBody?.detail === 'string' && errBody.detail.trim()) {
+        return errBody.detail;
+      }
+      if (typeof errBody?.error === 'string' && errBody.error.trim()) {
+        return errBody.error;
+      }
+      if (typeof errBody?.message === 'string' && errBody.message.trim()) {
+        return errBody.message;
+      }
+    } catch {
+      // ignore parse error
+    }
+    return fallback;
+  };
+
+  const renderErrorAlert = (className: string = 'mt-4') => {
+    if (!error) {
+      return null;
+    }
+
+    return (
+      <div className={`${className} flex items-start gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-4 py-3`}>
+        <AlertCircle size={16} className="mt-0.5 shrink-0" />
+        <div className="flex-1">
+          <p>{error}</p>
+          {purchaseUrl && isInsufficientPointsError(error) && (
+            <a
+              href={purchaseUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex items-center gap-1 rounded-md border border-red-300/30 px-2.5 py-1 text-xs font-medium text-red-100 transition-colors hover:border-red-200/60 hover:text-white"
+            >
+              前往购买页获取兑换码
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const modelOptions = withModelOptions(PPT2POLISH_MODELS, model);
   const genFigModelOptions = withModelOptions(PPT2POLISH_GEN_FIG_MODELS, genFigModel);
@@ -372,7 +481,7 @@ const Ppt2PolishPage = () => {
     } catch (e) {
       console.error('Failed to restore pptpolish config', e);
     }
-  }, [user?.id]);
+  }, [user?.id, userApiConfigRequired]);
 
   // 将配置写入 localStorage
   useEffect(() => {
@@ -482,7 +591,7 @@ const Ppt2PolishPage = () => {
       return;
     }
     
-    if (!llmApiUrl.trim() || !apiKey.trim()) {
+    if (userApiConfigRequired && (!llmApiUrl.trim() || !apiKey.trim())) {
       setError(t('errors.config'));
       return;
     }
@@ -500,7 +609,7 @@ const Ppt2PolishPage = () => {
     // Check quota before proceeding
     const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
     if (quota.remaining <= 0) {
-      setError(t('errors.quota'));
+      setError(buildQuotaExhaustedMessage(purchaseUrl));
       return;
     }
 
@@ -545,8 +654,11 @@ const Ppt2PolishPage = () => {
     try {
       // 调用 /paper2ppt/pagecontent_json 接口
       const formData = new FormData();
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
+      formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+      }
       formData.append('model', model);
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
@@ -571,27 +683,15 @@ const Ppt2PolishPage = () => {
       
       console.log('Sending request to /api/v1/paper2ppt/page-content'); // 调试信息
       
-      const res = await fetch('/api/v1/paper2ppt/page-content', {
+      const res = await backendFetch('/api/v1/paper2ppt/page-content', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
 
       console.log('Response status:', res.status, res.statusText); // 调试信息
       
       if (!res.ok) {
-        let msg = t('errors.serverBusy');
-        if (res.status === 403) {
-          msg = '邀请码不正确或已失效';
-        } else if (res.status === 429) {
-          msg = '请求过于频繁，请稍后再试';
-        } else {
-          try {
-            const errBody = await res.json();
-            if (errBody?.error) msg = errBody.error;
-          } catch { /* ignore parse error */ }
-        }
-        throw new Error(msg);
+        throw new Error(await extractErrorMessage(res, t('errors.serverBusy')));
       }
 
       const data = await res.json();
@@ -627,15 +727,16 @@ const Ppt2PolishPage = () => {
             url.includes(item.ppt_img_path.split('/').pop() || '')
           );
           
-          return {
-            id: String(index + 1),
-            pageNum: index + 1,
-            title: `第 ${index + 1} 页`,
-            layout_description: '待编辑：请填写此页的布局描述',
-            key_points: ['待编辑：请添加要点'],
-            asset_ref: imgUrl || item.ppt_img_path || null,
-          };
-        }
+        return {
+          id: String(index + 1),
+          pageNum: index + 1,
+          title: `第 ${index + 1} 页`,
+          layout_description: '待编辑：请填写此页的布局描述',
+          key_points: ['待编辑：请添加要点'],
+          asset_ref: imgUrl || item.ppt_img_path || null,
+          asset_ref_preview_path: getPreviewPath(item, 'ppt_img_path') || getPreviewPath(item, 'asset_ref') || imgUrl || item.ppt_img_path || '',
+        };
+      }
         
         // 标准格式（pdf/text 类型）
         return {
@@ -645,6 +746,7 @@ const Ppt2PolishPage = () => {
           layout_description: item.layout_description || '',
           key_points: item.key_points || [],
           asset_ref: item.asset_ref || item.ppt_img_path || null,
+          asset_ref_preview_path: getPreviewPath(item, 'asset_ref') || getPreviewPath(item, 'ppt_img_path') || item.asset_ref || item.ppt_img_path || '',
         };
       });
       
@@ -653,6 +755,11 @@ const Ppt2PolishPage = () => {
       if (convertedSlides.length === 0) {
         throw new Error('转换后的数据为空');
       }
+      if (!(await ensureQuotaForAction(convertedSlides.length, `批量美化 ${convertedSlides.length} 页 PPT`))) {
+        clearInterval(progressInterval);
+        setProgress(0);
+        return;
+      }
       
       setOutlineData(convertedSlides);
       
@@ -660,7 +767,9 @@ const Ppt2PolishPage = () => {
       const results: BeautifyResult[] = convertedSlides.map((slide, index) => ({
         slideId: slide.id,
         beforeImage: slide.asset_ref || '',
+        beforeImagePreview: slide.asset_ref_preview_path || slide.asset_ref || '',
         afterImage: '',
+        afterImagePreview: '',
         status: 'pending',
         versionHistory: [],
         currentVersionIndex: 0,
@@ -693,11 +802,7 @@ const Ppt2PolishPage = () => {
           generateInitialPPT(convertedSlides, results, currentResultPath)
             .then((updatedResults) => {
               console.log('批量美化完成');
-              const finalResults = updatedResults.map(res => ({
-                ...res,
-                status: 'done' as const
-              }));
-              setBeautifyResults(finalResults);
+              setBeautifyResults(updatedResults);
             })
             .catch((err) => {
               console.error("Batch generation failed:", err);
@@ -787,11 +892,17 @@ const Ppt2PolishPage = () => {
   };
 
   const handleConfirmOutline = async () => {
+    const requiredPoints = Math.max(1, outlineData.length);
+    if (!(await ensureQuotaForAction(requiredPoints, `批量美化 ${requiredPoints} 页 PPT`))) {
+      return;
+    }
     // 初始化结果状态，使用 Slide 数据中的 asset_ref 作为 beforeImage
     const results: BeautifyResult[] = outlineData.map((slide) => ({
       slideId: slide.id,
       beforeImage: slide.asset_ref || '',  // 确保使用真实的图片路径
+      beforeImagePreview: slide.asset_ref_preview_path || slide.asset_ref || '',
       afterImage: '', // 初始为空，等待批量生成
+      afterImagePreview: '',
       status: 'pending',
       versionHistory: [],
       currentVersionIndex: 0,
@@ -806,12 +917,7 @@ const Ppt2PolishPage = () => {
       // 传入 outlineData，因为 generateInitialPPT 内部需要用它来构建 pagecontent
       const updatedResults = await generateInitialPPT(outlineData, results);
       
-      // 更新结果状态，将状态标记为 done
-      const finalResults = updatedResults.map(res => ({
-        ...res,
-        status: 'done' as const // 显式类型断言
-      }));
-      setBeautifyResults(finalResults);
+      setBeautifyResults(updatedResults);
     } catch (error) {
       console.error("Batch generation failed:", error);
       // 错误已在 generateInitialPPT 中通过 setError 处理，这里只需确保 loading 状态结束
@@ -841,8 +947,11 @@ const Ppt2PolishPage = () => {
       
       const formData = new FormData();
       formData.append('img_gen_model_name', genFigModel);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
+      formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+      }
       formData.append('model', model);
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
@@ -864,25 +973,18 @@ const Ppt2PolishPage = () => {
         // ... 其他参数
       });
 
-      const res = await fetch('/api/v1/paper2ppt/generate', {
+      const res = await backendFetch('/api/v1/paper2ppt/generate', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
+        headers: {
+          'X-Workflow-Amount': String(Math.max(1, slides.length)),
+        },
         body: formData,
       });
 
       console.log('Response status:', res.status, res.statusText);
       
       if (!res.ok) {
-        let msg = '服务器繁忙，请稍后再试';
-        if (res.status === 429) {
-          msg = '请求过于频繁，请稍后再试';
-        } else {
-          try {
-            const errBody = await res.json();
-            if (errBody?.error) msg = errBody.error;
-          } catch { /* ignore parse error */ }
-        }
-        throw new Error(msg);
+        throw new Error(await extractErrorMessage(res, '服务器繁忙，请稍后再试'));
       }
 
       const data = await res.json();
@@ -891,18 +993,39 @@ const Ppt2PolishPage = () => {
       if (!data.success) {
         throw new Error(data.error || '服务器繁忙，请稍后再试');
       }
+
+      const responsePagecontent = Array.isArray(data.pagecontent) ? data.pagecontent : [];
+      const failedPages = Array.isArray(data.failed_pages) ? data.failed_pages as FailedPageInfo[] : [];
+      const failedReasonByIndex = new Map<number, string>();
+      failedPages.forEach((item) => {
+        const pageIdx = Number(item?.page_idx);
+        if (!Number.isInteger(pageIdx) || pageIdx < 0) {
+          return;
+        }
+        const reason = String(item?.reason || item?.error || item?.mode || '该页生成失败，请重试').trim();
+        failedReasonByIndex.set(pageIdx, reason || '该页生成失败，请重试');
+      });
       
       // 更新美化结果，使用生成的 ppt_pages/page_*.png 作为 afterImage
       let updatedResults = initialResults;
       if (data.all_output_files) {
         updatedResults = initialResults.map((result, index) => {
+          const pageMeta = responsePagecontent[index] && typeof responsePagecontent[index] === 'object'
+            ? responsePagecontent[index]
+            : null;
           const pageImageUrl = data.all_output_files.find((url: string) => 
             url.includes(`page_${String(index).padStart(3, '0')}.png`)
-          );
+          ) || (typeof pageMeta?.generated_img_path === 'string' ? pageMeta.generated_img_path : '');
+          const pageFailureReason = failedReasonByIndex.get(index)
+            || String(pageMeta?.error || pageMeta?.mode || '').trim()
+            || '该页生成失败，请点击“重新生成”重试';
           return {
             ...result,
             // beforeImage 保持原始 PPT 截图
             afterImage: pageImageUrl || '',
+            afterImagePreview: getPreviewPath(pageMeta, 'generated_img_path') || pageImageUrl || '',
+            status: pageImageUrl ? 'done' : 'failed',
+            errorMessage: pageImageUrl ? undefined : pageFailureReason,
           };
         });
         setBeautifyResults(updatedResults);
@@ -928,6 +1051,18 @@ const Ppt2PolishPage = () => {
           }
         });
       }
+
+      const failedPageNumbers = getFailedPageNumbers(updatedResults);
+      if (failedPageNumbers.length > 0) {
+        setError(`批量美化已完成，但第 ${failedPageNumbers.join('、')} 页生成失败，请点“重新生成”重试。`);
+      } else {
+        setError(null);
+      }
+      await consumeQuotaForAction(
+        'ppt2polish',
+        Math.max(1, slides.length),
+        `PPT 批量美化已完成，但 ${Math.max(1, slides.length)} 点扣费记录失败，请刷新余额确认。`,
+      );
       
       // 返回更新后的结果，供调用方使用
       return updatedResults;
@@ -945,7 +1080,7 @@ const Ppt2PolishPage = () => {
     index: number, 
     resultPathParam?: string,
     outlineDataParam?: SlideOutline[]
-  ) => {
+  ): Promise<boolean> => {
     // 优先使用传入的参数，其次使用 state
     const currentPath = resultPathParam || resultPath;
     const currentOutlineData = outlineDataParam || outlineData;
@@ -958,7 +1093,7 @@ const Ppt2PolishPage = () => {
     if (!currentPath) {
       setError('缺少 result_path，请重新上传文件');
       console.error('currentPath 为空');
-      return;
+      return false;
     }
     
     // 如果 results 为 null，从 state 中读取
@@ -968,13 +1103,13 @@ const Ppt2PolishPage = () => {
     if (currentResults.length === 0) {
       setError('没有可美化的页面');
       console.error('currentResults 为空');
-      return;
+      return false;
     }
     
     if (currentOutlineData.length === 0) {
       setError('没有 outline 数据');
       console.error('currentOutlineData 为空');
-      return;
+      return false;
     }
     
     setIsBeautifying(true);
@@ -986,8 +1121,11 @@ const Ppt2PolishPage = () => {
       // 调用 /paper2ppt/ppt_json 接口进行编辑
       const formData = new FormData();
       formData.append('img_gen_model_name', genFigModel);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
+      formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+      }
       formData.append('model', model);
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
@@ -1013,23 +1151,16 @@ const Ppt2PolishPage = () => {
       console.log('pagecontent to send:', pagecontent);
       formData.append('pagecontent', JSON.stringify(pagecontent));
 
-      const res = await fetch('/api/v1/paper2ppt/generate', {
+      const res = await backendFetch('/api/v1/paper2ppt/generate', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
+        headers: {
+          'X-Workflow-Amount': '1',
+        },
         body: formData,
       });
       
       if (!res.ok) {
-        let msg = '服务器繁忙，请稍后再试';
-        if (res.status === 429) {
-          msg = '请求过于频繁，请稍后再试';
-        } else {
-          try {
-            const errBody = await res.json();
-            if (errBody?.error) msg = errBody.error;
-          } catch { /* ignore parse error */ }
-        }
-        throw new Error(msg);
+        throw new Error(await extractErrorMessage(res, '服务器繁忙，请稍后再试'));
       }
 
       const data = await res.json();
@@ -1039,6 +1170,17 @@ const Ppt2PolishPage = () => {
       if (!data.success) {
         throw new Error(data.error || '服务器繁忙，请稍后再试');
       }
+
+      const responsePagecontent = Array.isArray(data.pagecontent) ? data.pagecontent : [];
+      const currentPageMeta = responsePagecontent.find((item: any, itemIndex: number) => {
+        const pageIdx = Number(item?.page_idx);
+        if (Number.isInteger(pageIdx)) {
+          return pageIdx === index;
+        }
+        return itemIndex === index;
+      });
+      const failedPages = Array.isArray(data.failed_pages) ? data.failed_pages as FailedPageInfo[] : [];
+      const currentFailedPage = failedPages.find((item) => Number(item?.page_idx) === index);
       
       // 从 all_output_files 中找到对应的页面图片
       // 优先匹配美化后的图 (ppt_pages/page_xxx.png)，其次才是原图 (ppt_images/slide_xxx.png)
@@ -1048,7 +1190,8 @@ const Ppt2PolishPage = () => {
       console.log('查找原图模式:', slidePattern);
       
       // 先找美化后的图
-      let pageImageUrl = data.all_output_files?.find((url: string) => url.includes(pagePattern));
+      let pageImageUrl = data.all_output_files?.find((url: string) => url.includes(pagePattern))
+        || (typeof currentPageMeta?.generated_img_path === 'string' ? currentPageMeta.generated_img_path : '');
       console.log('美化后图片 URL:', pageImageUrl);
       
       // 如果没有美化后的图，再找原图作为 fallback
@@ -1063,24 +1206,52 @@ const Ppt2PolishPage = () => {
       }
       
       console.log('最终使用的图片 URL:', pageImageUrl);
+
+      if (!pageImageUrl) {
+        const failureReason = String(
+          currentFailedPage?.reason
+          || currentFailedPage?.error
+          || currentFailedPage?.mode
+          || currentPageMeta?.error
+          || currentPageMeta?.mode
+          || '该页生成失败，请稍后重试'
+        ).trim();
+        updatedResults[index] = {
+          ...updatedResults[index],
+          status: updatedResults[index].afterImage ? 'done' : 'failed',
+          errorMessage: failureReason || '该页生成失败，请稍后重试',
+        };
+        setBeautifyResults(updatedResults);
+        setError(`第 ${index + 1} 页生成失败：${failureReason || '请稍后重试'}`);
+        return false;
+      }
       
       updatedResults[index] = {
         ...updatedResults[index],
         status: 'done',
         afterImage: pageImageUrl || updatedResults[index].afterImage,
+        afterImagePreview: getPreviewPath(currentPageMeta, 'generated_img_path') || pageImageUrl || updatedResults[index].afterImagePreview,
+        errorMessage: undefined,
         userPrompt: slidePrompt || undefined,
       };
-    setBeautifyResults(updatedResults);
+      setBeautifyResults(updatedResults);
+      setError(null);
 
-    // 获取更新的版本历史
-    await fetchVersionHistory(index);
+      // 获取更新的版本历史
+      await fetchVersionHistory(index);
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
-      updatedResults[index] = { ...updatedResults[index], status: 'pending' };
-    setBeautifyResults(updatedResults);
+      updatedResults[index] = {
+        ...updatedResults[index],
+        status: updatedResults[index].afterImage ? 'done' : 'failed',
+        errorMessage: message,
+      };
+      setBeautifyResults(updatedResults);
+      return false;
     } finally {
-    setIsBeautifying(false);
+      setIsBeautifying(false);
     }
   };
 
@@ -1091,12 +1262,20 @@ const Ppt2PolishPage = () => {
       setSlidePrompt('');
       // 移除自动美化逻辑，因为现在是预先批量生成好了
     } else {
+      const failedPageNumbers = getFailedPageNumbers(beautifyResults);
+      if (failedPageNumbers.length > 0) {
+        setError(`第 ${failedPageNumbers.join('、')} 页仍未生成成功，请先重试这些页面再导出。`);
+        return;
+      }
       setCurrentStep('complete');
     }
   };
 
 
   const handleRegenerateSlide = async () => {
+    if (!(await ensureQuotaForAction(1, `重新美化第 ${currentSlideIndex + 1} 页 PPT`))) {
+      return;
+    }
     const updatedResults = [...beautifyResults];
     updatedResults[currentSlideIndex] = {
       ...updatedResults[currentSlideIndex],
@@ -1104,7 +1283,14 @@ const Ppt2PolishPage = () => {
       status: 'pending'
     };
     setBeautifyResults(updatedResults);
-    await startBeautifyCurrentSlide(updatedResults, currentSlideIndex);
+    const success = await startBeautifyCurrentSlide(updatedResults, currentSlideIndex);
+    if (success) {
+      await consumeQuotaForAction(
+        'ppt2polish',
+        1,
+        `PPT 单页美化已完成，但第 ${currentSlideIndex + 1} 页的 1 点扣费记录失败，请刷新余额确认。`,
+      );
+    }
   };
 
   // ============== 版本历史管理 ==============
@@ -1113,10 +1299,7 @@ const Ppt2PolishPage = () => {
 
     try {
       const encodedPath = btoa(resultPath);
-      const res = await fetch(
-        `/api/v1/paper2ppt/version-history/${encodedPath}/${pageIndex}`,
-        { headers: { 'X-API-Key': API_KEY } }
-      );
+      const res = await backendFetch(`/api/v1/paper2ppt/version-history/${encodedPath}/${pageIndex}`);
 
       if (!res.ok) return;
 
@@ -1157,9 +1340,8 @@ const Ppt2PolishPage = () => {
       formData.append('page_id', String(currentSlideIndex));
       formData.append('target_version', String(versionNumber));
 
-      const res = await fetch('/api/v1/paper2ppt/revert-version', {
+      const res = await backendFetch('/api/v1/paper2ppt/revert-version', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
 
@@ -1172,6 +1354,7 @@ const Ppt2PolishPage = () => {
         updatedResults[currentSlideIndex] = {
           ...updatedResults[currentSlideIndex],
           afterImage: data.currentImageUrl + '?t=' + Date.now(),
+          afterImagePreview: data.currentImageUrl + '?t=' + Date.now(),
           currentVersionIndex: versionNumber - 1,
         };
         setBeautifyResults(updatedResults);
@@ -1198,8 +1381,11 @@ const Ppt2PolishPage = () => {
       // 调用 /paper2ppt/ppt_json 接口生成最终 PPT
       const formData = new FormData();
       formData.append('img_gen_model_name', genFigModel);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
+      formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+      }
       formData.append('model', model);
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
@@ -1222,9 +1408,8 @@ const Ppt2PolishPage = () => {
       }));
       formData.append('pagecontent', JSON.stringify(pagecontent));
 
-      const res = await fetch('/api/v1/paper2ppt/generate', {
+      const res = await backendFetch('/api/v1/paper2ppt/generate', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
       
@@ -1263,10 +1448,6 @@ const Ppt2PolishPage = () => {
       if (!pptxUrl && !pdfUrl) {
         throw new Error('未找到生成的文件');
       }
-
-      // Record usage
-      await recordUsage(user?.id || null, 'ppt2polish');
-      refreshQuota();
 
       // Upload generated file to Supabase Storage (either PPTX or PDF)
       // Prefer PPTX, fallback to PDF
@@ -1445,47 +1626,53 @@ const Ppt2PolishPage = () => {
             />
           </div> */}
           
-          <div>
-            <label className="block text-sm text-gray-300 mb-2">{t('upload.config.apiUrl')}</label>
-            <div className="flex items-center gap-2">
-                        <select 
-                          value={llmApiUrl} 
-                          onChange={e => {
-                            const val = e.target.value;
-                            setLlmApiUrl(val);
-                            if (val.includes('123.129.219.111')) {
-                              setGenFigModel('gemini-3-pro-image-preview');
-                            }
-                          }}
-                          className="flex-1 rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
-                        >
-                          {API_URL_OPTIONS.map((url: string) => (
-                            <option key={url} value={url}>{url}</option>
-                          ))}
-                        </select>
-              <QRCodeTooltip>
-                <a
-                  href={getPurchaseUrl(llmApiUrl)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="whitespace-nowrap text-[10px] text-teal-300 hover:text-teal-200 hover:underline px-1"
-                >
-                  {t('upload.config.buyLink')}
-                </a>
-              </QRCodeTooltip>
-            </div>
-          </div>
-          
-          <div>
-            <label className="block text-sm text-gray-300 mb-2">{t('upload.config.apiKey')}</label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={t('upload.config.apiKeyPlaceholder')}
-              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500"
-            />
-          </div>
+          {userApiConfigRequired ? (
+            <>
+              <div>
+                <label className="block text-sm text-gray-300 mb-2">{t('upload.config.apiUrl')}</label>
+                <div className="flex items-center gap-2">
+                            <select 
+                              value={llmApiUrl} 
+                              onChange={e => {
+                                const val = e.target.value;
+                                setLlmApiUrl(val);
+                                if (val.includes('123.129.219.111')) {
+                                  setGenFigModel('gemini-3-pro-image-preview');
+                                }
+                              }}
+                              className="flex-1 rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
+                            >
+                              {API_URL_OPTIONS.map((url: string) => (
+                                <option key={url} value={url}>{url}</option>
+                              ))}
+                            </select>
+                  <QRCodeTooltip>
+                    <a
+                      href={getPurchaseUrl(llmApiUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="whitespace-nowrap text-[10px] text-teal-300 hover:text-teal-200 hover:underline px-1"
+                    >
+                      {t('upload.config.buyLink')}
+                    </a>
+                  </QRCodeTooltip>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm text-gray-300 mb-2">{t('upload.config.apiKey')}</label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder={t('upload.config.apiKeyPlaceholder')}
+                  className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500"
+                />
+              </div>
+            </>
+          ) : (
+            <ManagedApiNotice />
+          )}
           
           <div>
             <label className="block text-sm text-gray-300 mb-2">{t('upload.config.model')}</label>
@@ -1662,11 +1849,11 @@ const Ppt2PolishPage = () => {
       {isValidating && (
         <div className="mt-4 flex items-center gap-2 text-sm text-cyan-300 bg-cyan-500/10 border border-cyan-500/40 rounded-lg px-4 py-3 animate-pulse">
             <Loader2 size={16} className="animate-spin" />
-            <p>{t('errors.validating')}</p>
+            <p>{getManagedValidationText(userApiConfigRequired)}</p>
         </div>
       )}
 
-      {error && <div className="mt-4 flex items-center gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-4 py-3"><AlertCircle size={16} /> {error}</div>}
+      {renderErrorAlert()}
 
       {/* 示例区 */}
       {/* 示例区 */}
@@ -1883,18 +2070,19 @@ const Ppt2PolishPage = () => {
           <p className="text-gray-400">{t('beautify.pageInfo', { current: currentSlideIndex + 1, total: outlineData.length, title: currentSlide?.title })}</p>
           <p className="text-xs text-gray-500 mt-1">{t('beautify.modeInfo')}</p>
         </div>
+        {renderErrorAlert('mb-6')}
         <div className="mb-6">
-          <div className="flex gap-1">{beautifyResults.map((result, index) => (<div key={result.slideId} className={`flex-1 h-2 rounded-full transition-all ${result.status === 'done' ? 'bg-teal-400' : result.status === 'processing' ? 'bg-gradient-to-r from-cyan-400 to-teal-400 animate-pulse' : index === currentSlideIndex ? 'bg-teal-400/50' : 'bg-white/10'}`} />))}</div>
+          <div className="flex gap-1">{beautifyResults.map((result, index) => (<div key={result.slideId} className={`flex-1 h-2 rounded-full transition-all ${result.status === 'done' ? 'bg-teal-400' : result.status === 'failed' ? 'bg-red-400' : result.status === 'processing' ? 'bg-gradient-to-r from-cyan-400 to-teal-400 animate-pulse' : index === currentSlideIndex ? 'bg-teal-400/50' : 'bg-white/10'}`} />))}</div>
         </div>
         <div className="glass rounded-xl border border-white/10 p-6 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h4 className="text-sm text-gray-400 mb-3 flex items-center gap-2"><Eye size={14} /> {t('beautify.original')}</h4>
-              <div className="rounded-lg overflow-hidden border border-white/10 aspect-[16/9] bg-white/5 flex items-center justify-center">{currentResult?.beforeImage ? <img src={currentResult.beforeImage} alt="Before" className="max-w-full max-h-full object-contain" /> : <Loader2 size={24} className="text-gray-500 animate-spin" />}</div>
+              <div className="rounded-lg overflow-hidden border border-white/10 aspect-[16/9] bg-white/5 flex items-center justify-center">{currentResult?.beforeImage ? <img src={currentResult.beforeImagePreview || currentResult.beforeImage} alt="Before" className="max-w-full max-h-full object-contain" /> : <Loader2 size={24} className="text-gray-500 animate-spin" />}</div>
             </div>
             <div>
               <h4 className="text-sm text-gray-400 mb-3 flex items-center gap-2"><Sparkles size={14} className="text-teal-400" /> {t('beautify.result')}</h4>
-              <div className="rounded-lg overflow-hidden border border-teal-500/30 aspect-[16/9] bg-gradient-to-br from-cyan-500/10 to-teal-500/10 flex items-center justify-center">{isBeautifying ? <div className="text-center"><Loader2 size={32} className="text-teal-400 animate-spin mx-auto mb-2" /><p className="text-sm text-teal-300">{t('beautify.processing')}</p></div> : currentResult?.afterImage ? <img src={currentResult.afterImage} alt="After" className="max-w-full max-h-full object-contain" /> : <span className="text-gray-500">{t('beautify.waiting')}</span>}</div>
+              <div className="rounded-lg overflow-hidden border border-teal-500/30 aspect-[16/9] bg-gradient-to-br from-cyan-500/10 to-teal-500/10 flex items-center justify-center">{isBeautifying ? <div className="text-center"><Loader2 size={32} className="text-teal-400 animate-spin mx-auto mb-2" /><p className="text-sm text-teal-300">{t('beautify.processing')}</p></div> : currentResult?.afterImage ? <img src={currentResult.afterImagePreview || currentResult.afterImage} alt="After" className="max-w-full max-h-full object-contain" /> : currentResult?.status === 'failed' ? <div className="text-center px-6"><AlertCircle size={28} className="text-red-300 mx-auto mb-2" /><p className="text-sm text-red-200 mb-1">该页生成失败</p><p className="text-xs text-red-200/80">{currentResult.errorMessage || '请点击“重新生成”重试'}</p></div> : <span className="text-gray-500">{t('beautify.waiting')}</span>}</div>
             </div>
           </div>
         </div>
@@ -1927,7 +2115,7 @@ const Ppt2PolishPage = () => {
             >
               <ArrowLeft size={18} /> {t('beautify.prev')}
             </button>
-            <button onClick={handleConfirmSlide} disabled={isBeautifying || !currentResult?.afterImage} className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white font-semibold flex items-center gap-2 transition-all disabled:opacity-50"><CheckCircle2 size={18} /> {t('beautify.next')}</button>
+            <button onClick={handleConfirmSlide} disabled={isBeautifying} className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white font-semibold flex items-center gap-2 transition-all disabled:opacity-50"><CheckCircle2 size={18} /> {t('beautify.next')}</button>
           </div>
         </div>
       </div>
@@ -1949,17 +2137,16 @@ const Ppt2PolishPage = () => {
       ) : (
         <div className="space-y-4">
           <div className="flex gap-4 justify-center">
-            {/* 已移除 PPTX 下载按钮 */}
+            {downloadUrl && (
+              <button onClick={handleDownload} className="px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white font-semibold flex items-center gap-2 transition-all">
+                <Download size={18} /> {t('complete.downloadPptx')}
+              </button>
+            )}
             {pdfDownloadUrl && (
               <a href={pdfDownloadUrl} target="_blank" rel="noopener noreferrer" className="px-6 py-3 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold flex items-center gap-2 transition-all">
                 <Download size={18} /> {t('complete.downloadPdf')}
               </a>
             )}
-          </div>
-
-          {/* 引导去 PDF2PPT */}
-          <div className="text-center text-sm text-gray-400 bg-white/5 border border-white/10 rounded-lg p-3">
-            {t('complete.pdf2pptLink')} <a href="/pdf2ppt" className="text-teal-400 hover:text-teal-300 hover:underline font-medium transition-colors">{t('complete.pdf2pptText')}</a>
           </div>
 
           <div>
@@ -1969,8 +2156,8 @@ const Ppt2PolishPage = () => {
           </div>
 
           {/* 分享与交流群区域 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8 text-left">
-            {/* 获取免费 Key */}
+          <div className={`grid grid-cols-1 gap-4 mt-8 text-left ${userApiConfigRequired ? 'md:grid-cols-2' : ''}`}>
+            {userApiConfigRequired && (
             <div className="glass rounded-xl border border-white/10 p-5 flex flex-col items-center text-center hover:bg-white/5 transition-colors">
               <div className="w-12 h-12 rounded-full bg-yellow-500/20 text-yellow-300 flex items-center justify-center mb-3">
                 <Star size={24} />
@@ -2015,25 +2202,26 @@ const Ppt2PolishPage = () => {
                 </div>
               )}
 
-            <div className="w-full space-y-2">
-               <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-teal-300 truncate transition-colors border border-white/5 text-center">
-                 ✨如果本项目对你有帮助，可以点个star嘛～
-               </a>
-               <div className="flex gap-2">
-                 <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
-                   <Github size={10} />
-                   <span>Agent</span>
-                   <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.agent || 'Star'}</span>
+              <div className="w-full space-y-2">
+                 <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-teal-300 truncate transition-colors border border-white/5 text-center">
+                   ✨如果本项目对你有帮助，可以点个star嘛～
                  </a>
-                 <a href="https://github.com/OpenDCAI/DataFlow" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
-                   <Github size={10} />
-                   <span>Core</span>
-                   <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
-                 </a>
-               </div>
-            </div>
+                 <div className="flex gap-2">
+                   <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
+                     <Github size={10} />
+                     <span>Agent</span>
+                     <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.agent || 'Star'}</span>
+                   </a>
+                   <a href="https://github.com/OpenDCAI/DataFlow" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
+                     <Github size={10} />
+                     <span>Core</span>
+                     <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
+                   </a>
+                 </div>
+              </div>
               <p className="text-[10px] text-gray-500">点亮 Star ⭐ 支持开源开发</p>
             </div>
+            )}
 
             {/* 交流群 */}
             <div className="glass rounded-xl border border-white/10 p-5 flex flex-col items-center text-center hover:bg-white/5 transition-colors">

@@ -107,9 +107,8 @@
     "status": "已美化",
     "generateFinal": "生成最终文件",
     "generating": "正在生成最终文件...",
+    "downloadPptx": "下载 PPTX",
     "downloadPdf": "下载 PDF",
-    "pdf2pptLink": "如果需要继续 PDF 转可编辑 PPTX，请前往",
-    "pdf2pptText": "PDF2PPT 页面",
     "new": "处理新的文档"
   },
   "demo": {
@@ -134,8 +133,8 @@
     "config": "请先配置模型 API URL 和 API Key",
     "prompt": "请输入风格提示词",
     "reference": "请上传参考图片",
-    "quota": "今日配额已用完",
-    "validating": "正在验证 API Key 有效性...",
+    "quota": "当前点数不足，请先获取兑换码并到账户页兑换加点。",
+    "validating": "正在验证模型连接...",
     "serverBusy": "服务器繁忙，请稍后再试",
     "noResultPath": "缺少 result_path",
     "emptyResult": "解析结果为空",

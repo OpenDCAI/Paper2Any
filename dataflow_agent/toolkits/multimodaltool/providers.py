@@ -5,8 +5,8 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Tuple, Optional, Any, Dict, List
 from dataflow_agent.toolkits.multimodaltool.utils import (
-    Provider, detect_provider, extract_base64, 
-    is_gemini_model, is_gemini_25, is_gemini_3_pro
+    Provider, detect_provider, extract_base64,
+    is_gemini_model, is_gemini_25, is_gemini_3_pro, is_gemini_31_flash
 )
 from dataflow_agent.logger import get_logger
 
@@ -175,7 +175,21 @@ class ApiYiGeminiProvider(AIProviderStrategy):
                 },
             }
             return url, payload, False
-        
+
+        if is_gemini_31_flash(model):
+            url = f"{base}/v1beta/models/gemini-3.1-flash-image-preview:generateContent"
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "responseModalities": ["IMAGE"],
+                    "imageConfig": {
+                        "aspectRatio": aspect_ratio,
+                        "imageSize": resolution,
+                    },
+                },
+            }
+            return url, payload, False
+
         raise ValueError(f"Unsupported Gemini model for APIYI Generation: {model}")
 
     def build_edit_request(self, api_url: str, model: str, prompt: str, image_b64: str, **kwargs) -> Tuple[str, Dict[str, Any], bool]:
@@ -222,7 +236,28 @@ class ApiYiGeminiProvider(AIProviderStrategy):
                 },
             }
             return url, payload, False
-            
+
+        if is_gemini_31_flash(model):
+            url = f"{base}/v1beta/models/gemini-3.1-flash-image-preview:generateContent"
+            payload = {
+                "contents": [
+                    {
+                        "parts": [
+                            {"text": prompt},
+                            {"inline_data": {"mime_type": f"image/{fmt}", "data": image_b64}}
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "responseModalities": ["IMAGE"],
+                    "imageConfig": {
+                        "aspectRatio": aspect_ratio,
+                        "imageSize": resolution,
+                    },
+                },
+            }
+            return url, payload, False
+
         raise ValueError(f"Unsupported Gemini Edit combination for APIYI: {model}")
 
     def build_multi_image_edit_request(
@@ -249,7 +284,7 @@ class ApiYiGeminiProvider(AIProviderStrategy):
         url = f"{base}/v1beta/models/{model}:generateContent"
         
         image_config = {"aspectRatio": aspect_ratio}
-        if is_gemini_3_pro(model):
+        if is_gemini_3_pro(model) or is_gemini_31_flash(model):
             image_config["imageSize"] = resolution
             
         payload = {
@@ -275,15 +310,43 @@ class ApiYiGeminiProvider(AIProviderStrategy):
             log.error(f"Response preview: {str(data)[:500]}")
             raise
 
+    # Gemini TTS 无 speakingRate 参数，通过文本前加 Pacing 指令控制语速
+    # steady：不论长短都保持稳定、自然的语速（避免短句偏慢、fast 偏快）
+    _TTS_PACE_PREFIX = {
+        "slow": "Say at a slow, relaxed pace. Transcript: ",
+        "normal": "",  # 不加指令，模型可能随文本长短自行调节（短句易偏慢）
+        "steady": (
+            "Speak at a natural conversational pace, like an adult speaking in everyday dialogue. "
+            "Avoid slow, careful, or narrated delivery. "
+            "Transcript: "
+        ),
+        "fast": "Say at a little bit faster pace than natural pace. Transcript: ",
+    }
+
     def build_tts_request(self, api_url: str, model: str, text: str, **kwargs) -> Tuple[str, Dict[str, Any], bool]:
         base = self._get_base_url(api_url)
         url = f"{base}/v1beta/models/{model}:generateContent"
-        
-        voice_name = kwargs.get("voice_name", "Kore")
-        
+
+        voice_name = kwargs.get("voice_name", "") or "Kore"  # 空时保留 Kore 以兼容旧请求
+        speech_speed = kwargs.get("speech_speed")
+        if speech_speed == "normal":
+            prefix = self._TTS_PACE_PREFIX["normal"]
+        elif speech_speed is None or speech_speed == "steady":
+            prefix = self._TTS_PACE_PREFIX["steady"]
+        elif isinstance(speech_speed, (int, float)):
+            if speech_speed >= 1.25:
+                prefix = self._TTS_PACE_PREFIX["fast"]
+            elif speech_speed <= 0.75:
+                prefix = self._TTS_PACE_PREFIX["slow"]
+            else:
+                prefix = self._TTS_PACE_PREFIX["steady"]
+        else:
+            prefix = self._TTS_PACE_PREFIX.get(str(speech_speed).lower(), self._TTS_PACE_PREFIX["steady"])
+        content_text = (prefix + text) if prefix else text
+
         payload = {
             "contents": [{
-                "parts": [{"text": text}]
+                "parts": [{"text": content_text}]
             }],
             "generationConfig": {
                 "responseModalities": ["AUDIO"],
@@ -683,6 +746,94 @@ class OpenAIDalleProvider(AIProviderStrategy):
         raise RuntimeError("Failed to parse DALL-E response")
 
 
+# CosyVoice 模型名（百炼 DashScope，仅 WebSocket SDK，不走 HTTP）
+COSYVOICE_TTS_MODELS = ("cosyvoice-v3-flash", "cosyvoice-v3-plus", "cosyvoice-v2")
+
+# 各模型仅支持各自音色，不能混用。v2 不支持 longanyang，此处按模型设默认音色
+COSYVOICE_DEFAULT_VOICE_BY_MODEL = {
+    "cosyvoice-v3-flash": "longanyang",
+    "cosyvoice-v3-plus": "longanyang",
+    "cosyvoice-v2": "longanli",  # 利落从容女，v2 预置音色
+}
+# 非 CosyVoice 音色名（如原 Gemini 等），CosyVoice 不支持时用上面按模型默认音色
+COSYVOICE_OTHER_PROVIDER_VOICES = frozenset(
+    {"Kore", "Aoede", "Charon", "Fenrir", "Puck", "Orbit", "Orus", "Trochilidae", "Zephyr"}
+)
+
+
+class CosyVoiceProvider(AIProviderStrategy):
+    """
+    阿里云百炼 CosyVoice TTS（DashScope SDK WebSocket），不走 HTTP。
+    通过 synthesize_to_bytes() 同步合成，由 req_tts 在 executor 中调用。
+    """
+    def match(self, api_url: str, model: str) -> bool:
+        return (model or "").strip().lower() in COSYVOICE_TTS_MODELS
+
+    def build_generation_request(self, api_url: str, model: str, prompt: str, **kwargs) -> Tuple[str, Dict[str, Any], bool]:
+        raise NotImplementedError("Generation not supported by CosyVoiceProvider")
+
+    def parse_generation_response(self, data: Dict[str, Any]) -> str:
+        raise NotImplementedError("Generation not supported by CosyVoiceProvider")
+
+    def build_tts_request(self, api_url: str, model: str, text: str, **kwargs) -> Tuple[str, Dict[str, Any], bool]:
+        raise NotImplementedError("CosyVoice uses SDK, not HTTP")
+
+    def parse_tts_response(self, response_data: Dict[str, Any]) -> bytes:
+        raise NotImplementedError("CosyVoice uses SDK, not HTTP")
+
+    def synthesize_to_bytes(
+        self,
+        api_key: str,
+        text: str,
+        model: str,
+        voice_name: str = "longanyang",
+        **kwargs,
+    ) -> bytes:
+        """同步调用 DashScope CosyVoice，返回音频 bytes（WAV/MP3 等，由 format 决定）。"""
+        import os
+        try:
+            import dashscope
+            from dashscope.audio.tts_v2 import SpeechSynthesizer
+            from dashscope.audio.tts_v2 import AudioFormat
+        except ModuleNotFoundError as e:
+            raise RuntimeError(
+                "CosyVoice 依赖未安装：缺少 Python 包 'dashscope'。"
+                "请在当前后端 Python 环境执行 `pip install dashscope`。"
+            ) from e
+        key = (os.environ.get("COSYVOICE_KEY", "") or api_key or "").strip()
+        if not key:
+            raise RuntimeError("CosyVoice 需要提供阿里云 DashScope Key（环境变量 COSYVOICE_KEY 或请求 api_key）")
+        dashscope.api_key = key
+        # 可选：地域（北京/新加坡）
+        base_ws = os.environ.get("DASHSCOPE_BASE_WEBSOCKET_URL", "wss://dashscope.aliyuncs.com/api-ws/v1/inference")
+        if base_ws:
+            dashscope.base_websocket_api_url = base_ws
+        model_key = (model or "").strip().lower()
+        default_voice = COSYVOICE_DEFAULT_VOICE_BY_MODEL.get(model_key, "longanli")
+        raw_voice = (voice_name or "").strip()
+        # 若传入的是非 CosyVoice 音色或 v2 误传 longanyang，用该模型默认音色
+        if not raw_voice or raw_voice in COSYVOICE_OTHER_PROVIDER_VOICES:
+            voice = default_voice
+        elif model_key == "cosyvoice-v2" and raw_voice == "longanyang":
+            voice = "longanli"
+        else:
+            voice = raw_voice
+        # 输出 WAV 24kHz 与 Gemini 一致，便于下游统一
+        try:
+            synthesizer = SpeechSynthesizer(
+                model=model,
+                voice=voice,
+                format=AudioFormat.WAV_24000HZ_MONO_16BIT,
+            )
+            audio = synthesizer.call(text)
+        except Exception as e:
+            log.error("CosyVoice synthesize_to_bytes failed: %s", e)
+            raise
+        if not audio or len(audio) == 0:
+            raise RuntimeError("CosyVoice 返回空音频")
+        return bytes(audio)
+
+
 class OpenAITTSProvider(AIProviderStrategy):
     """
     OpenAI TTS (/audio/speech)
@@ -889,6 +1040,7 @@ class ComflyProvider(AIProviderStrategy):
         model_mapping = {
             "gemini-2.5-flash-image": "nano-banana",
             "gemini-3-pro-image-preview": "nano-banana-2-2k",
+            "gemini-3.1-flash-image-preview": "nano-banana-2-2k",
         }
         translated = model_mapping.get(model, model)
         if translated != model:
@@ -1080,6 +1232,7 @@ STRATEGIES = [
     Local123GeminiProvider(),
     OpenAIDalleProvider(),
     OpenAITTSProvider(),
+    CosyVoiceProvider(),
     ComflyProvider(),
     # Add GoogleNativeProvider() here if needed
     OpenAICompatGeminiProvider(), # Default Fallback

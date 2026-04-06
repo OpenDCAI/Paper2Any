@@ -41,12 +41,104 @@ class AppSettings(BaseSettings):
 
     # API Configuration
     DEFAULT_LLM_API_URL: str = "http://123.129.219.111:3000/v1/"
+    DF_API_URL: str = "http://123.129.219.111:3000/v1"
+    DF_API_KEY: str = ""
+    DF_IMAGE_API_URL: str = ""
+    DF_IMAGE_API_KEY: str = ""
+    PAPER2ANY_MANAGED_API_URL: str = ""
+    PAPER2ANY_MANAGED_API_KEY: str = ""
+    PAPER2ANY_MANAGED_IMAGE_API_URL: str = ""
+    PAPER2ANY_MANAGED_IMAGE_API_KEY: str = ""
+    PAPER2PPT_MANAGED_API_URL: str = ""
+    PAPER2PPT_MANAGED_API_KEY: str = ""
+    PAPER2PPT_MANAGED_IMAGE_API_URL: str = ""
+    PAPER2PPT_MANAGED_IMAGE_API_KEY: str = ""
+    PPT2POLISH_MANAGED_API_URL: str = ""
+    PPT2POLISH_MANAGED_API_KEY: str = ""
+    PPT2POLISH_MANAGED_IMAGE_API_URL: str = ""
+    PPT2POLISH_MANAGED_IMAGE_API_KEY: str = ""
+    PDF2PPT_MANAGED_API_URL: str = ""
+    PDF2PPT_MANAGED_API_KEY: str = ""
+    PDF2PPT_MANAGED_IMAGE_API_URL: str = ""
+    PDF2PPT_MANAGED_IMAGE_API_KEY: str = ""
+    IMAGE2PPT_MANAGED_API_URL: str = ""
+    IMAGE2PPT_MANAGED_API_KEY: str = ""
+    IMAGE2PPT_MANAGED_IMAGE_API_URL: str = ""
+    IMAGE2PPT_MANAGED_IMAGE_API_KEY: str = ""
+    PAPER2DRAWIO_MANAGED_API_URL: str = ""
+    PAPER2DRAWIO_MANAGED_API_KEY: str = ""
+    PAPER2DRAWIO_MANAGED_IMAGE_API_URL: str = ""
+    PAPER2DRAWIO_MANAGED_IMAGE_API_KEY: str = ""
+    PAPER2POSTER_MANAGED_API_URL: str = ""
+    PAPER2POSTER_MANAGED_API_KEY: str = ""
+    PAPER2POSTER_MANAGED_IMAGE_API_URL: str = ""
+    PAPER2POSTER_MANAGED_IMAGE_API_KEY: str = ""
+    PAPER2VIDEO_MANAGED_API_URL: str = ""
+    PAPER2VIDEO_MANAGED_API_KEY: str = ""
+    PAPER2VIDEO_MANAGED_IMAGE_API_URL: str = ""
+    PAPER2VIDEO_MANAGED_IMAGE_API_KEY: str = ""
+    KB_MANAGED_API_URL: str = ""
+    KB_MANAGED_API_KEY: str = ""
+    KB_MANAGED_IMAGE_API_URL: str = ""
+    KB_MANAGED_IMAGE_API_KEY: str = ""
+    KB_DEEPRESEARCH_MANAGED_API_URL: str = ""
+    KB_DEEPRESEARCH_MANAGED_API_KEY: str = ""
+    KB_DEEPRESEARCH_MANAGED_IMAGE_API_URL: str = ""
+    KB_DEEPRESEARCH_MANAGED_IMAGE_API_KEY: str = ""
+    PAPER2REBUTTAL_MANAGED_API_URL: str = ""
+    PAPER2REBUTTAL_MANAGED_API_KEY: str = ""
+    PAPER2REBUTTAL_MANAGED_IMAGE_API_URL: str = ""
+    PAPER2REBUTTAL_MANAGED_IMAGE_API_KEY: str = ""
+    LLM_VERIFY_TIMEOUT_SECONDS: int = 25
+    LLM_VERIFY_MAX_TOKENS: int = 32
+    APP_BILLING_MODE: str = "paid"
+    BILLING_PRICING_CONFIG_PATH: str = str(_project_root() / "fastapi_app" / "config" / "pricing.yaml")
+    GUEST_USAGE_DB_PATH: str = str(_project_root() / "outputs" / "system" / "guest_quota.sqlite3")
+    SECURITY_RATE_LIMIT_ENABLED: bool = True
+    SECURITY_TRUST_PROXY_HEADERS: bool = False
+    FILE_ACCESS_URL_TTL_SECONDS: int = 900
+    FILE_ACCESS_TOKEN_SECRET: str = ""
+    SECURITY_BLOCKED_PUBLIC_OUTPUT_PREFIXES: str = "kb_data,kb_outputs,kb_exports,system"
+    CORS_ALLOW_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+    CORS_ALLOW_ORIGIN_REGEX: str = ""
+    POINTS_PURCHASE_URL: str = ""
+    POINTS_REDEEM_CODE_FILE_10: str = str(_project_root() / "data" / "redeem_codes" / "points_10.txt")
+    POINTS_REDEEM_CODE_FILE_50: str = str(_project_root() / "data" / "redeem_codes" / "points_50.txt")
+    POINTS_REDEEM_CODE_FILE_100: str = str(_project_root() / "data" / "redeem_codes" / "points_100.txt")
+    DEFAULT_SEARCH_API_KEY: str = ""
+    DEFAULT_GOOGLE_CSE_ID: str = ""
+    SUPABASE_URL: str = ""
+    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    SUPABASE_POSTGREST_TIMEOUT_SECONDS: float = 8.0
+    BILLING_QUOTA_CACHE_TTL_SECONDS: int = 10
+    BILLING_QUOTA_STALE_TTL_SECONDS: int = 300
+
+    # RMBG-2.0 background removal model path
+    RMBG_MODEL_PATH: str = str(_project_root() / "models" / "RMBG-2.0")
 
     # Paper2Drawio SAM3 + OCR service configuration
+    # 阿里云相关真实 key 统一放在 fastapi_app/.env，本文件不再写死密钥。
     PAPER2DRAWIO_SAM3_CHECKPOINT_PATH: str = str(_project_root() / "models" / "sam3" / "sam3.pt")
     PAPER2DRAWIO_SAM3_BPE_PATH: str = str(_project_root() / "models" / "sam3" / "bpe_simple_vocab_16e6.txt.gz")
     PAPER2DRAWIO_OCR_API_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     PAPER2DRAWIO_OCR_API_KEY: str = ""
+    MINERU_API_BASE_URL: str = "https://mineru.net/api/v4"
+    MINERU_API_KEY: str = ""
+    MINERU_API_MODEL_VERSION: str = "vlm"
+    MINERU_API_POLL_INTERVAL_SECONDS: int = 5
+    MINERU_API_TIMEOUT_SECONDS: int = 900
+
+    # Paper2Citation optional websearch-LLM enrichment
+    PAPER2CITATION_WEBSEARCH_ENABLED: bool = False
+    PAPER2CITATION_WEBSEARCH_API_URL: str = ""
+    PAPER2CITATION_WEBSEARCH_API_KEY: str = ""
+    PAPER2CITATION_WEBSEARCH_MODEL: str = ""
+    PAPER2CITATION_WEBSEARCH_TOOL: str = "web_search_preview"
+    PAPER2CITATION_WEBSEARCH_TIMEOUT_SECONDS: int = 45
+    PAPER2CITATION_WEBSEARCH_DISABLE_SECONDS: int = 600
+    PAPER2CITATION_WEBSEARCH_MAX_AUTHORS: int = 24
+    PAPER2CITATION_WEBSEARCH_MAX_OUTPUT_TOKENS: int = 1200
 
     # ============================================
     # Layer 2: Workflow-level Default Models
@@ -67,7 +159,7 @@ class AppSettings(BaseSettings):
     PAPER2VIDEO_DEFAULT_MODEL: str = "gpt-4o"
 
     # Paper2Drawio Workflow
-    PAPER2DRAWIO_DEFAULT_MODEL: str = "claude-sonnet-4-5-20250929"
+    PAPER2DRAWIO_DEFAULT_MODEL: str = "gpt-5.4"
     PAPER2DRAWIO_VLM_MODEL: str = "gpt-4o"
     PAPER2DRAWIO_ENABLE_VLM_VALIDATION: bool = False
 
@@ -83,6 +175,7 @@ class AppSettings(BaseSettings):
     PAPER2PPT_CONTENT_MODEL: str = "gpt-5.1"           # Content generation
     PAPER2PPT_IMAGE_GEN_MODEL: str = "gemini-3-pro-image-preview"  # Image generation
     PAPER2PPT_VLM_MODEL: str = "qwen-vl-ocr-2025-11-20"  # VLM vision understanding
+    PAPER2PPT_VLM_TIMEOUT_SECONDS: int = 45
     PAPER2PPT_CHART_MODEL: str = "gpt-4o"              # Chart generation
     PAPER2PPT_DESC_MODEL: str = "gpt-5.1"              # Figure description
     PAPER2PPT_TECHNICAL_MODEL: str = "claude-haiku-4-5-20251001"  # Technical details
@@ -94,7 +187,7 @@ class AppSettings(BaseSettings):
     PAPER2FIGURE_CHART_MODEL: str = "gpt-4o"
     PAPER2FIGURE_DESC_MODEL: str = "gpt-5.1"
     PAPER2FIGURE_REF_IMG_DESC_MODEL: str = "gpt-4o"
-    PAPER2FIGURE_TECHNICAL_MODEL: str = "claude-haiku-4-5-20251001"
+    PAPER2FIGURE_TECHNICAL_MODEL: str = "gpt-5.4"
 
     class Config:
         env_file = str(Path(__file__).resolve().parent.parent / ".env")

@@ -4,8 +4,6 @@
 
 **从论文到多模态输出的智能化工作流平台**
 
-<!-- ![Paper2Any Logo](static/new_logo_bgrm.png) -->
-
 </div>
 
 ---
@@ -45,77 +43,50 @@
 
 ---
 
-## 🚀 快速开始
+## 🚀 新用户先看这里
 
-### 环境要求
+这个项目目前已经不是“只有一个 Python 环境、一个 `.env`、一个启动命令”的结构。
 
-- **Python**: 3.10 或更高版本（[下载 Python](https://www.python.org/downloads/)）
-- **操作系统**: Linux (推荐) / Windows / macOS
-- **GPU**: 推荐 NVIDIA GPU（用于视觉生成任务）
-- **内存**: 至少 16GB RAM
+如果你是从 GitHub clone 下来准备自己部署，请按这个顺序阅读：
 
-### 安装步骤
+1. [开源部署与配置总指南](guides/open_source_deployment.md)
+2. [快速开始](quickstart.md)
+3. [安装与环境准备](installation.md)
+4. [配置文件参考](guides/configuration.md)
 
-#### 1. 克隆仓库
+先给出最短事实：
 
-```bash
-git clone https://github.com/OpenDCAI/Paper2Any.git
-cd Paper2Any
-```
+- 前端是 `Node.js/Vite`
+- 后端是 `Python/FastAPI`
+- 模型服务通常也是 `Python`，可与后端共用，也可拆分
+- 核心配置分为 `fastapi_app/.env`、`frontend-workflow/.env`、`deploy/profiles/*.env`
 
-#### 2. 创建虚拟环境（推荐）
-
-```bash
-# 使用 venv
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 或使用 conda
-conda create -n paper2any python=3.10
-conda activate paper2any
-```
-
-#### 3. 安装依赖
+最小可运行链路通常是：
 
 ```bash
-# 安装基础依赖
-pip install -r requirements-base.txt
+cp fastapi_app/.env.example fastapi_app/.env
+cp frontend-workflow/.env.example frontend-workflow/.env
 
-# 安装开发依赖（可选）
-pip install -r requirements-dev.txt
-
-# 安装Paper2Any包
-pip install -e .
+bash deploy/start.sh
+bash deploy/start_frontend.sh
 ```
 
-#### 4. 配置模型服务
+默认访问地址：
 
-某些功能需要运行额外的模型服务。请参考[安装指南](installation.md)的详细说明。
+- 前端：`http://127.0.0.1:3000`
+- 后端：`http://127.0.0.1:8000`
 
-#### 5. 启动应用
-
-```bash
-# 启动 Gradio Web 界面（推荐用于测试）
-python gradio_app/app.py
-```
-
-访问 **http://127.0.0.1:7860** 使用可视化界面。
-
-或者使用 FastAPI 后端：
-
-```bash
-# 启动 FastAPI 后端
-cd fastapi_app
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
+如果你还想启用本地 SAM3 / OCR / 视频 worker，再继续看 [开源部署与配置总指南](guides/open_source_deployment.md) 里的模型服务章节。
 
 ---
 
 ## 📖 文档导航
 
-- **[快速开始](quickstart.md)** - 新手入门指南
-- **[安装指南](installation.md)** - 详细安装和配置说明
-- **[功能指南](guides/)** - 各功能模块的详细使用说明
+- **[开源部署与配置总指南](guides/open_source_deployment.md)** - 当前仓库最重要的部署入口文档
+- **[快速开始](quickstart.md)** - 最短跑通路径
+- **[安装与环境准备](installation.md)** - 环境与依赖准备
+- **[配置文件参考](guides/configuration.md)** - 三类 `.env` 的职责边界
+- **[功能指南总览](guides/index.md)** - 各 workflow 的用途、输入输出与阅读入口
   - [Paper2Figure](guides/paper2figure.md)
   - [Paper2PPT](guides/paper2ppt.md)
   - [Paper2Video](guides/paper2video.md)
@@ -131,23 +102,15 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 ```
 Paper2Any/
-├── dataflow_agent/          # 底层工作流引擎
-│   ├── agentroles/          # Agent 角色定义
-│   ├── workflow/            # 工作流定义 (wf_*.py)
-│   ├── toolkits/            # 工具集
-│   └── ...
-├── fastapi_app/             # FastAPI 后端服务
-│   ├── routers/             # API 路由
-│   ├── workflow_adapters/   # 工作流适配器
-│   └── ...
-├── gradio_app/              # Gradio Web 界面
-│   ├── app.py               # 主应用入口
-│   └── pages/               # 页面模块
-├── frontend-workflow/       # 前端界面 (Vite + TypeScript)
-├── script/                  # 运行脚本
-├── docs/                    # 项目文档
-├── tests/                   # 测试文件
-└── outputs/                 # 输出目录
+├── dataflow_agent/          # 工作流引擎、agent、toolkits、底层 workflow
+├── fastapi_app/             # FastAPI 后端服务与业务配置
+├── frontend-workflow/       # 前端界面 (Vite + React + TypeScript)
+├── deploy/                  # 前后端启动、停止、profile、日志脚本
+├── script/                  # 模型服务、CLI、准备脚本
+├── docs/                    # MkDocs 文档
+├── tests/                   # 测试与手工验证样例
+├── models/                  # 本地模型目录（SAM3、RMBG 等）
+└── outputs/                 # 生成结果输出目录
 ```
 
 
@@ -178,7 +141,7 @@ Paper2Any/
 
 ## 📄 开源协议
 
-本项目采用 **Apache License 2.0** 开源协议。详情请查看 [LICENSE](LICENSE) 文件。
+本项目采用 **Apache License 2.0** 开源协议。详情请查看仓库根目录的 `LICENSE` 文件。
 
 ---
 
@@ -187,8 +150,8 @@ Paper2Any/
 感谢所有为本项目做出贡献的开发者和使用者！
 
 特别鸣谢：
-- [DataFlow-Agent](https://github.com/OpenDCAI/Paper2Any) - 底层工作流框架
-- [Gradio](https://gradio.app/) - 优秀的 Web 界面框架
+- DataFlow-Agent - 底层工作流框架
+- React / Vite - 前端界面与构建工具
 - [FastAPI](https://fastapi.tiangolo.com/) - 高性能 API 框架
 - [LangGraph](https://github.com/langchain-ai/langgraph) - 工作流编排灵感来源
 

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Settings2, ChevronUp, ChevronDown, Loader2, Download, Info, CheckCircle2, AlertCircle, ImageIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import QRCodeTooltip from '../QRCodeTooltip';
+import ManagedApiNotice from '../ManagedApiNotice';
 import { GraphType, Language, StyleType, FigureComplex } from './types';
 import { GENERATION_STAGES, TECH_ROUTE_PALETTES, TECH_ROUTE_TEMPLATES } from './constants';
 import { API_URL_OPTIONS, getPurchaseUrl } from '../../config/api';
@@ -32,6 +33,7 @@ interface SettingsCardProps {
   resolution: '2K' | '4K';
   setResolution: (resolution: '2K' | '4K') => void;
   isLoading: boolean;
+  isSubmitLocked: boolean;
   handleSubmit: () => void;
   currentStage: number;
   stageProgress: number;
@@ -53,6 +55,7 @@ interface SettingsCardProps {
   isValidating: boolean;
   error: string | null;
   successMessage: string | null;
+  showApiConfig: boolean;
 }
 
 const SettingsCard: React.FC<SettingsCardProps> = ({
@@ -74,6 +77,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
   resolution,
   setResolution,
   isLoading,
+  isSubmitLocked,
   handleSubmit,
   currentStage,
   stageProgress,
@@ -95,6 +99,7 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
   isValidating,
   error,
   successMessage,
+  showApiConfig,
 }) => {
   const { t } = useTranslation('paper2graph');
   const selectedPalette = TECH_ROUTE_PALETTES.find(p => p.id === techRoutePalette) || TECH_ROUTE_PALETTES[0];
@@ -142,49 +147,51 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
 
       {showAdvanced && (
         <div className="space-y-3">
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">{t('advanced.apiUrlLabel')}</label>
-            <div className="flex items-center gap-2">
-              <select
-                value={llmApiUrl}
-                onChange={e => {
-                  const val = e.target.value;
-                  setLlmApiUrl(val);
-                  if (val === 'http://123.129.219.111:3000/v1') {
-                    setModel('gemini-3-pro-image-preview');
-                  }
-                }}
-                className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                {API_URL_OPTIONS.map((url: string) => (
-                  <option key={url} value={url}>{url}</option>
-                ))}
-              </select>
-              <QRCodeTooltip>
-                <a
-                  href={getPurchaseUrl(llmApiUrl)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="whitespace-nowrap text-[10px] text-primary-300 hover:text-primary-200 hover:underline px-2"
-                >
-                  {t('advanced.buyLink')}
-                </a>
-              </QRCodeTooltip>
-            </div>
-          </div>
+          {showApiConfig ? (
+            <>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">{t('advanced.apiUrlLabel')}</label>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={llmApiUrl}
+                    onChange={e => {
+                      setLlmApiUrl(e.target.value);
+                    }}
+                    className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    {API_URL_OPTIONS.map((url: string) => (
+                      <option key={url} value={url}>{url}</option>
+                    ))}
+                  </select>
+                  <QRCodeTooltip>
+                    <a
+                      href={getPurchaseUrl(llmApiUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="whitespace-nowrap text-[10px] text-primary-300 hover:text-primary-200 hover:underline px-2"
+                    >
+                      {t('advanced.buyLink')}
+                    </a>
+                  </QRCodeTooltip>
+                </div>
+              </div>
 
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">
-              {t('advanced.apiKeyLabel')}
-            </label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-              placeholder={t('advanced.apiKeyPlaceholder')}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            />
-          </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">
+                  {t('advanced.apiKeyLabel')}
+                </label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={e => setApiKey(e.target.value)}
+                  placeholder={t('advanced.apiKeyPlaceholder')}
+                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-200 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+            </>
+          ) : (
+            <ManagedApiNotice />
+          )}
 
           <div>
             <label className="block text-xs text-gray-400 mb-1">{t('advanced.modelLabel')}</label>
@@ -469,11 +476,11 @@ const SettingsCard: React.FC<SettingsCardProps> = ({
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={isLoading}
+          disabled={isLoading || isValidating || isSubmitLocked}
           className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/60 disabled:cursor-not-allowed text-white text-sm font-medium py-2.5 transition-colors glow"
         >
-          {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-          <span>{isLoading ? t('submit.buttonLoading') : t('submit.buttonIdle')}</span>
+          {(isLoading || isValidating || isSubmitLocked) ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+          <span>{(isLoading || isValidating || isSubmitLocked) ? t('submit.buttonLoading') : t('submit.buttonIdle')}</span>
         </button>
 
         <div className="flex items-start gap-2 text-xs text-gray-400 bg-white/5 border border-white/10 rounded-lg px-3 py-2">

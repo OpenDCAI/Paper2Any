@@ -1,21 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Headphones, Loader2, CheckCircle2, X } from 'lucide-react';
-import { API_KEY, API_URL_OPTIONS } from '../../../config/api';
+import { API_URL_OPTIONS } from '../../../config/api';
 import { KnowledgeFile } from '../types';
 import { getApiSettings } from '../../../services/apiSettingsService';
+import { backendFetch } from '../../../services/backendClient';
 import { useAuthStore } from '../../../stores/authStore';
 
-const GEMINI_TTS_VOICES = [
-  'Kore',
-  'Aoede',
-  'Charon',
-  'Fenrir',
-  'Puck',
-  'Orbit',
-  'Orus',
-  'Trochilidae',
-  'Zephyr'
-];
+const COSYVOICE_TTS_MODELS = ['cosyvoice-v3-flash', 'cosyvoice-v3-plus', 'cosyvoice-v2'];
+const COSYVOICE_VOICE_LABEL = '默认';
 
 const OPENAI_TTS_VOICES = [
   'alloy',
@@ -62,13 +54,17 @@ const isOpenAITtsModel = (model: string) => {
   return lowered.includes('gpt-4o-mini-tts') || lowered.startsWith('tts-1');
 };
 
+const isCosyVoiceTtsModel = (model: string) => {
+  return COSYVOICE_TTS_MODELS.includes(model);
+};
+
 const normalizeVoice = (voice: string, options: string[]) => {
-  if (!voice) return options[0];
+  if (!voice) return options[0] ?? '';
   const exact = options.find(v => v === voice);
   if (exact) return exact;
   const lower = voice.toLowerCase();
   const matchInsensitive = options.find(v => v.toLowerCase() === lower);
-  return matchInsensitive || options[0];
+  return matchInsensitive || options[0] || '';
 };
 
 interface PodcastToolProps {
@@ -84,15 +80,16 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
     api_key: '',
     api_url: 'https://api.apiyi.com/v1',
     model: 'gpt-5.1',
-    tts_model: 'gemini-2.5-pro-preview-tts',
-    voice_name: 'Kore',
-    voice_name_b: 'Puck',
+    tts_model: 'cosyvoice-v3-flash',
+    voice_name: '',
+    voice_name_b: '',
     podcast_mode: 'monologue',
     podcast_length: 'standard',
     language: 'zh'
   });
   const isOpenAITts = isOpenAITtsModel(podcastParams.tts_model);
-  const voiceOptions = isOpenAITts ? OPENAI_TTS_VOICES : GEMINI_TTS_VOICES;
+  const isCosyVoiceTts = isCosyVoiceTtsModel(podcastParams.tts_model);
+  const voiceOptions = isOpenAITts ? OPENAI_TTS_VOICES : (isCosyVoiceTts ? [''] : []);
 
   useEffect(() => {
     const settings = getApiSettings(user?.id || null);
@@ -106,7 +103,7 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
   }, [user?.id]);
 
   useEffect(() => {
-    const nextOptions = isOpenAITts ? OPENAI_TTS_VOICES : GEMINI_TTS_VOICES;
+    const nextOptions = isOpenAITts ? OPENAI_TTS_VOICES : (isCosyVoiceTts ? [''] : []);
     const nextVoice = normalizeVoice(podcastParams.voice_name, nextOptions);
     const nextVoiceB = normalizeVoice(podcastParams.voice_name_b, nextOptions);
     if (nextVoice !== podcastParams.voice_name || nextVoiceB !== podcastParams.voice_name_b) {
@@ -116,7 +113,7 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
         voice_name_b: nextVoiceB
       }));
     }
-  }, [isOpenAITts, podcastParams.voice_name, podcastParams.voice_name_b, podcastParams.tts_model]);
+  }, [isOpenAITts, isCosyVoiceTts, podcastParams.voice_name, podcastParams.voice_name_b, podcastParams.tts_model]);
 
   const handleGeneratePodcast = async () => {
     if (!user?.id || !user?.email) {
@@ -145,11 +142,10 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
 
     setPodcastGenerating(true);
     try {
-      const res = await fetch('/api/v1/kb/generate-podcast', {
+      const res = await backendFetch('/api/v1/kb/generate-podcast', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': API_KEY
         },
         body: JSON.stringify({
           file_paths: filePaths,
@@ -280,7 +276,8 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
               onChange={e => {
                 const nextModel = e.target.value;
                 const nextIsOpenAI = isOpenAITtsModel(nextModel);
-                const nextOptions = nextIsOpenAI ? OPENAI_TTS_VOICES : GEMINI_TTS_VOICES;
+                const nextIsCosyVoice = isCosyVoiceTtsModel(nextModel);
+                const nextOptions = nextIsOpenAI ? OPENAI_TTS_VOICES : (nextIsCosyVoice ? [''] : []);
                 setPodcastParams(prev => ({
                   ...prev,
                   tts_model: nextModel,
@@ -290,7 +287,9 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
               }}
               className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-green-500"
             >
-              <option value="gemini-2.5-pro-preview-tts">Gemini 2.5 Pro TTS</option>
+              {COSYVOICE_TTS_MODELS.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
               <option value="gpt-4o-mini-tts">gpt-4o-mini-tts</option>
             </select>
           </div>
@@ -302,9 +301,13 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
               onChange={e => setPodcastParams({...podcastParams, voice_name: e.target.value})}
               className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-green-500"
             >
-              {voiceOptions.map(voice => (
-                <option key={voice} value={voice}>{voice}</option>
-              ))}
+              {isCosyVoiceTts ? (
+                <option value="">{COSYVOICE_VOICE_LABEL}</option>
+              ) : (
+                voiceOptions.map(voice => (
+                  <option key={voice} value={voice}>{voice}</option>
+                ))
+              )}
             </select>
           </div>
 
@@ -355,9 +358,13 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
                 onChange={e => setPodcastParams({...podcastParams, voice_name_b: e.target.value})}
                 className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-green-500"
               >
-                {voiceOptions.map(voice => (
-                  <option key={voice} value={voice}>{voice}</option>
-                ))}
+                {isCosyVoiceTts ? (
+                  <option value="">{COSYVOICE_VOICE_LABEL}</option>
+                ) : (
+                  voiceOptions.map(voice => (
+                    <option key={voice} value={voice}>{voice}</option>
+                  ))
+                )}
               </select>
             </div>
           )}

@@ -16,6 +16,8 @@
   "buyLink": "Buy Now",
   "apiKey": "API Key",
   "model": "Model",
+  "modelRace": "Concurrent race mode",
+  "modelRaceHint": "Run all configured candidate models in parallel and accept the first one that returns valid parsable XML. Each model still keeps its own retries.",
   "inputMode": "Input Mode",
   "textInput": "Text Input",
   "uploadPdf": "Upload PDF",

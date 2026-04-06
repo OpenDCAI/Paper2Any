@@ -1770,4 +1770,3 @@ if __name__ == "__main__":
     # )
     # code_str = result["pipe_code"]
     # write_pipeline_file(code_str, file_name="my_recommend_pipeline.py", overwrite=True)
-    # print("Generated pipeline code written to my_recommend_pipeline.py")

@@ -1,0 +1,22 @@
+Extract ABT narrative structure optimized for poster presentation:
+
+Input: Academic paper markdown text
+Output: JSON with poster-ready ABT structure
+
+Guidelines:
+- Each section (and/but/therefore) should be 1-2 concise sentences
+- Focus on visual impact and poster audience understanding
+- Emphasize key contributions and results
+- Avoid technical jargon where possible
+
+Required JSON structure:
+{
+  "and": "Current knowledge and established facts (background context)",
+  "but": "Specific problem, gap, or challenge identified", 
+  "therefore": "Your solution, contribution, and key findings",
+  "poster_hook": "One compelling sentence that grabs attention",
+  "key_impact": "Why this research matters (practical implications)"
+}
+
+Paper content:
+{{ markdown_document }}

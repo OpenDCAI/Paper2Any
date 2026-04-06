@@ -1,0 +1,26 @@
+# Ubuntu/Debian system packages required for the full Linux feature set.
+# These are OS packages, not Python packages.
+# Install with apt manually, for example:
+#   sudo apt-get update
+#   sudo apt-get install -y $(grep -v '^#' requirements-system-ubuntu.txt | tr '\n' ' ')
+#
+# Note:
+# - tectonic is intentionally not listed here; install it via conda-forge or your preferred OS channel.
+# - Node.js / npm are intentionally not listed here; frontend setup is managed separately.
+
+build-essential
+curl
+ffmpeg
+git
+inkscape
+libgl1
+libglib2.0-0
+libgomp1
+libsndfile1
+libsm6
+libxext6
+libxrender1
+libreoffice
+poppler-utils
+wget
+wkhtmltopdf

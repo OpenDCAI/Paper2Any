@@ -16,6 +16,8 @@
   "buyLink": "点击购买",
   "apiKey": "API 密钥",
   "model": "模型",
+  "modelRace": "并发抢答模式",
+  "modelRaceHint": "对当前配置的多个候选模型并发生成，谁先产出可解析 XML 就直接采用；每个模型仍保留自身重试。",
   "inputMode": "输入模式",
   "textInput": "文本输入",
   "uploadPdf": "上传 PDF",

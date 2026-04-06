@@ -1,0 +1,12 @@
+services:
+  paper2any-backend:
+    network_mode: host
+    ports: !reset []
+
+  paper2any-frontend:
+    network_mode: host
+    ports: !reset []
+
+  paper2any-sam3:
+    network_mode: host
+    ports: !reset []

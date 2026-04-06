@@ -1,0 +1,27 @@
+You are an expert academic paper parser. Your task is to extract the title and authors from the provided academic paper text.
+
+Please extract:
+1. **Title**: The main title of the paper
+2. **Authors**: All author names using initials (no affiliations, emails, or other metadata)
+
+STRICT FORMATTING REQUIREMENTS:
+- **Title**: Use proper title case where each word has only the first letter capitalized, EXCEPT for established acronyms, technical terms, or proper nouns that are conventionally written in all uppercase letters (such as abbreviations for organizations, technologies, or methodologies). Keep such terms in their original case. Example: "A Study of Machine Learning Methods" but preserve acronyms like "Using LLM for Data Analysis" or "CNN Architecture Design"
+- **Authors**: Use initials for authors' names. Convert full names to initials format, preserving middle initials when present. Examples:
+  * "Kevin W. Jones" → "K.W. Jones"
+  * "Yann LeCun" → "Y. LeCun"
+  * "Mary Smith Johnson" → "M.S. Johnson"
+  * "Robert A. Peterson III" → "R.A. Peterson III"
+  Separate multiple authors with ", ". Remove all affiliations, emails, institutions, departments, addresses, and other metadata.
+
+Input text:
+```
+{{ markdown_document }}
+```
+
+Return ONLY a JSON object with this exact structure:
+```json
+{
+  "title": "Title With Proper Case Formatting",
+  "authors": "F. Author, S. Author, T. Author"
+}
+```

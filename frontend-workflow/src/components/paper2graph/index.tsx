@@ -1,16 +1,21 @@
-import React, { useState, useEffect, ChangeEvent, useCallback } from 'react';
+import React, { useState, useEffect, ChangeEvent, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../stores/authStore';
 import { uploadAndSaveFile } from '../../services/fileService';
-import { API_KEY, DEFAULT_LLM_API_URL } from '../../config/api';
+import { DEFAULT_LLM_API_URL } from '../../config/api';
 import {
   DEFAULT_PAPER2FIGURE_MODELS,
   DEFAULT_IMAGE2DRAWIO_GEN_FIG_MODEL,
   DEFAULT_IMAGE2DRAWIO_VLM_MODEL,
+  PAPER2FIGURE_EXP_DATA_MODELS,
+  PAPER2FIGURE_MODEL_ARCH_MODELS,
+  PAPER2FIGURE_TECH_ROUTE_MODELS,
 } from '../../config/models';
 import { checkQuota, recordUsage } from '../../services/quotaService';
 import { verifyLlmConnection } from '../../services/llmService';
 import { getApiSettings, saveApiSettings } from '../../services/apiSettingsService';
+import { backendFetch, normalizeBackendAssetUrl } from '../../services/backendClient';
+import { useRuntimeBilling } from '../../hooks/useRuntimeBilling';
 
 import {
   UploadMode,
@@ -84,6 +89,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
 }) => {
   const { t } = useTranslation('paper2graph');
   const { user, refreshQuota } = useAuthStore();
+  const { userApiConfigRequired } = useRuntimeBilling();
   
   // State from original file
   const [uploadMode, setUploadMode] = useState<UploadMode>('file');
@@ -118,6 +124,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
   const [drawioXml, setDrawioXml] = useState('');
   const [drawioError, setDrawioError] = useState<string | null>(null);
   const [drawioLoading, setDrawioLoading] = useState(false);
+  const [isDrawioLocked, setIsDrawioLocked] = useState(false);
   const emptyDrawioXml =
     '<mxfile host="app.diagrams.net"><diagram id="blank" name="Page-1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>';
 
@@ -153,6 +160,10 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
   // 新增：生成阶段状态
   const [currentStage, setCurrentStage] = useState(0);
   const [stageProgress, setStageProgress] = useState(0);
+  const submitGuardRef = useRef(false);
+  const submitGuardTimerRef = useRef<number | null>(null);
+  const [isSubmitLocked, setIsSubmitLocked] = useState(false);
+  const drawioGuardRef = useRef(false);
 
   // 当图类型变化时，自动切换为对应的默认模型
   useEffect(() => {
@@ -238,6 +249,42 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
     };
   }, [downloadUrl]);
 
+  useEffect(() => {
+    return () => {
+      if (submitGuardTimerRef.current !== null) {
+        window.clearTimeout(submitGuardTimerRef.current);
+      }
+    };
+  }, []);
+
+  const releaseSubmitGuard = useCallback((cooldownMs: number = 1500) => {
+    if (submitGuardTimerRef.current !== null) {
+      window.clearTimeout(submitGuardTimerRef.current);
+    }
+    submitGuardTimerRef.current = window.setTimeout(() => {
+      submitGuardRef.current = false;
+      setIsSubmitLocked(false);
+      submitGuardTimerRef.current = null;
+    }, cooldownMs);
+  }, []);
+
+  const normalizePaper2FigureAsset = useCallback((value: string | null | undefined) => {
+    return value ? normalizeBackendAssetUrl(value) : value ?? '';
+  }, []);
+
+  const normalizeModelForGraphType = useCallback((candidate: string | undefined, nextGraphType: GraphType) => {
+    const allowed =
+      nextGraphType === 'tech_route'
+        ? PAPER2FIGURE_TECH_ROUTE_MODELS
+        : nextGraphType === 'exp_data'
+          ? PAPER2FIGURE_EXP_DATA_MODELS
+          : PAPER2FIGURE_MODEL_ARCH_MODELS;
+    if (candidate && allowed.includes(candidate)) {
+      return candidate;
+    }
+    return DEFAULT_PAPER2FIGURE_MODELS[nextGraphType] || DEFAULT_PAPER2FIGURE_MODELS.model_arch;
+  }, []);
+
   // 从 localStorage 恢复配置
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -272,7 +319,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
         if (saved.style) setStyle(saved.style);
         if (saved.figureComplex) setFigureComplex(saved.figureComplex);
         if (saved.resolution) setResolution(saved.resolution);
-        if (saved.model) setModel(saved.model);
+        if (saved.model) setModel(normalizeModelForGraphType(saved.model, saved.graphType && (!allowedGraphTypes?.length || allowedGraphTypes.includes(saved.graphType)) ? saved.graphType : graphType));
 
         // API settings: prioritize user-specific settings from apiSettingsService
         const userApiSettings = getApiSettings(user?.id || null);
@@ -290,7 +337,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
     } catch (e) {
       console.error('Failed to restore paper2figure config', e);
     }
-  }, [allowedGraphTypes, defaultGraphType, user?.id]);
+  }, [allowedGraphTypes, defaultGraphType, user?.id, userApiConfigRequired]);
 
   // 将配置写入 localStorage
   useEffect(() => {
@@ -321,23 +368,27 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
   }, [uploadMode, textContent, graphType, language, style, figureComplex, resolution, llmApiUrl, apiKey, model, techRoutePalette, techRouteTemplate, user?.id]);
 
   const handleConvertToDrawio = useCallback(async () => {
-    if (!previewImgUrl || drawioLoading) return;
-    if (!llmApiUrl.trim() || !apiKey.trim()) {
-      setDrawioError(t('errors.missingApiConfig'));
-      return;
-    }
-
-    const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
-    if (quota.remaining <= 0) {
-      setDrawioError(user?.is_anonymous ? t('errors.quotaGuestExhausted') : t('errors.quotaUserExhausted'));
-      return;
-    }
-
-    setDrawioLoading(true);
-    setDrawioError(null);
+    if (drawioGuardRef.current || !previewImgUrl || drawioLoading) return;
+    drawioGuardRef.current = true;
+    setIsDrawioLocked(true);
 
     try {
-      let fetchUrl = previewImgUrl;
+      if (userApiConfigRequired && (!llmApiUrl.trim() || !apiKey.trim())) {
+        setDrawioError(t('errors.missingApiConfig'));
+        return;
+      }
+
+      const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
+      if (quota.remaining <= 0) {
+        setDrawioError(user?.is_anonymous ? t('errors.quotaGuestExhausted') : t('errors.quotaUserExhausted'));
+        return;
+      }
+
+      setDrawioLoading(true);
+      setDrawioError(null);
+
+      let fetchUrl = normalizePaper2FigureAsset(previewImgUrl) || previewImgUrl;
+      fetchUrl = fetchUrl.split('?')[0];
       if (typeof window !== 'undefined' && window.location.protocol === 'https:' && fetchUrl.startsWith('http:')) {
         fetchUrl = fetchUrl.replace(/^http:/, 'https:');
       }
@@ -351,15 +402,16 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
 
       const formData = new FormData();
       formData.append('image_file', file);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+      }
       formData.append('gen_fig_model', DEFAULT_IMAGE2DRAWIO_GEN_FIG_MODEL);
       formData.append('vlm_model', DEFAULT_IMAGE2DRAWIO_VLM_MODEL);
       formData.append('email', user?.id || user?.email || '');
 
-      const res = await fetch('/api/v1/image2drawio/generate', {
+      const res = await backendFetch('/api/v1/image2drawio/generate', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
       const data = await res.json();
@@ -368,18 +420,21 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
       }
 
       setDrawioXml(data.xml_content);
-      await recordUsage(user?.id || null, 'image2drawio');
+      await recordUsage(user?.id || null, 'image2drawio', { isAnonymous: user?.is_anonymous || false });
       refreshQuota();
     } catch (e) {
       const message = e instanceof Error ? e.message : 'DrawIO 生成失败';
       setDrawioError(message);
     } finally {
       setDrawioLoading(false);
+      setIsDrawioLocked(false);
+      drawioGuardRef.current = false;
     }
   }, [
     apiKey,
     drawioLoading,
     llmApiUrl,
+    normalizePaper2FigureAsset,
     previewImgUrl,
     refreshQuota,
     t,
@@ -523,6 +578,13 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
   };
 
   const handleSubmit = async () => {
+    if (submitGuardRef.current) {
+      return;
+    }
+    submitGuardRef.current = true;
+    setIsSubmitLocked(true);
+
+    try {
     // 当前 UploadMode 仅支持 'file' | 'text'，此分支保留作为防御性检查
 
     if (graphType === 'model_arch') {
@@ -548,15 +610,17 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
         return;
       }
 
-      if (!llmApiUrl.trim() || !apiKey.trim()) {
+      if (userApiConfigRequired && (!llmApiUrl.trim() || !apiKey.trim())) {
         setError(t('errors.missingApiConfig'));
         return;
       }
 
       const formData = new FormData();
       formData.append('img_gen_model_name', model);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+      }
       formData.append('input_type', uploadMode);
       formData.append('email', user?.id || user?.email || '');
       formData.append('graph_type', graphType);
@@ -588,9 +652,8 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
         setIsValidating(false);
 
         setIsLoading(true);
-        const res = await fetch(JSON_API, {
+        const res = await backendFetch(JSON_API, {
           method: 'POST',
-          headers: { 'X-API-Key': API_KEY },
           body: formData,
         });
 
@@ -625,13 +688,15 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
           throw new Error(data.error || t('errors.serverBusy'));
         }
 
-        setAllOutputFiles(data.all_output_files ?? []);
+        const normalizedAllOutputFiles = (data.all_output_files ?? []).map((item) => normalizePaper2FigureAsset(item));
+        const normalizedPptFilename = normalizePaper2FigureAsset(data.ppt_filename);
+        setAllOutputFiles(normalizedAllOutputFiles);
         
-        console.log('[Paper2Figure] All output files:', data.all_output_files);
+        console.log('[Paper2Figure] All output files:', normalizedAllOutputFiles);
 
         // 选一张主图做预览：优先 fig_*.png，其次最大 png
         let mainImg: string | null = null;
-        const files = data.all_output_files ?? [];
+        const files = normalizedAllOutputFiles;
         const pngs = files.filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f));
         const figPngs = pngs.filter(f => /fig_/i.test(f));
         if (figPngs.length > 0) {
@@ -653,13 +718,13 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
         }
 
         setSuccessMessage(t('success.previewGenerated', '模型结构图预览已生成，请确认并转为 PPT'));
-        await recordUsage(user?.id || null, 'paper2figure');
+        await recordUsage(user?.id || null, 'paper2figure', { isAnonymous: user?.is_anonymous || false });
         refreshQuota();
 
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         let pptUrlCandidate: string | null = null;
-        if (data.ppt_filename) {
-          pptUrlCandidate = data.ppt_filename;
+        if (normalizedPptFilename) {
+          pptUrlCandidate = normalizedPptFilename;
         } else {
           const pptx = files.find(f => /\.pptx$/i.test(f));
           if (pptx) pptUrlCandidate = pptx;
@@ -701,7 +766,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
       return;
     }
 
-    if (!llmApiUrl.trim() || !apiKey.trim()) {
+    if (userApiConfigRequired && (!llmApiUrl.trim() || !apiKey.trim())) {
       setError(t('errors.missingApiConfig'));
       return;
     }
@@ -710,8 +775,10 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
     
     const formData = new FormData();
     formData.append('img_gen_model_name', model);
-    formData.append('chat_api_url', llmApiUrl.trim());
-    formData.append('api_key', apiKey.trim());
+    if (userApiConfigRequired) {
+      formData.append('chat_api_url', llmApiUrl.trim());
+      formData.append('api_key', apiKey.trim());
+    }
     formData.append('input_type', uploadMode);
     formData.append('email', user?.email || '');
     formData.append('graph_type', graphType);
@@ -755,16 +822,17 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
       // Step 0: Verify LLM Connection first
       setIsValidating(true);
       setError(null);
-      await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || "deepseek-v3.2");
+      if (userApiConfigRequired) {
+        await verifyLlmConnection(llmApiUrl, apiKey, model);
+      }
       setIsValidating(false);
 
       setIsLoading(true);
 
       if (graphType === 'tech_route') {
         // 技术路线图：调用 JSON 接口，返回 PPT + SVG
-        const res = await fetch(JSON_API, {
+        const res = await backendFetch(JSON_API, {
           method: 'POST',
-          headers: { 'X-API-Key': API_KEY },
           body: formData,
         });
 
@@ -802,21 +870,30 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
           throw new Error(data.error || t('errors.serverBusy'));
         }
 
+        const normalizedPptFilename = normalizePaper2FigureAsset(data.ppt_filename);
+        const normalizedSvgFilename = normalizePaper2FigureAsset(data.svg_filename);
+        const normalizedSvgImageFilename = normalizePaper2FigureAsset(data.svg_image_filename);
+        const normalizedSvgBwFilename = normalizePaper2FigureAsset(data.svg_bw_filename ?? data.svg_filename);
+        const normalizedSvgBwImageFilename = normalizePaper2FigureAsset(data.svg_bw_image_filename);
+        const normalizedSvgColorFilename = normalizePaper2FigureAsset(data.svg_color_filename);
+        const normalizedSvgColorImageFilename = normalizePaper2FigureAsset(data.svg_color_image_filename);
+        const normalizedAllOutputFiles = (data.all_output_files ?? []).map((item) => normalizePaper2FigureAsset(item));
+
         // 校验关键文件路径是否有效，防止后端返回 success 但实际未生成文件
-        const hasSvg = !!(data.svg_image_filename || data.svg_bw_image_filename || data.svg_color_image_filename);
-        if (!hasSvg && !data.ppt_filename) {
-          throw new Error(data.error || '生成失败：未能获取到有效的文件，请检查 API Key 余额后重试');
+        const hasSvg = !!(normalizedSvgImageFilename || normalizedSvgBwImageFilename || normalizedSvgColorImageFilename);
+        if (!hasSvg && !normalizedPptFilename) {
+          throw new Error(data.error || '生成失败：后端未返回有效文件，请查看后端日志后重试');
         }
 
-        setPptPath(data.ppt_filename);
-        setSvgPath(data.svg_filename);
-        setSvgPreviewPath(data.svg_image_filename);
-        setSvgBwPath(data.svg_bw_filename ?? data.svg_filename ?? null);
-        setSvgColorPath(data.svg_color_filename ?? null);
-        setAllOutputFiles(data.all_output_files ?? []);
+        setPptPath(normalizedPptFilename || null);
+        setSvgPath(normalizedSvgFilename || null);
+        setSvgPreviewPath(normalizedSvgImageFilename || null);
+        setSvgBwPath(normalizedSvgBwFilename || null);
+        setSvgColorPath(normalizedSvgColorFilename || null);
+        setAllOutputFiles(normalizedAllOutputFiles);
 
         // 设置技术路线图预览
-        const svgPreview = data.svg_color_image_filename || data.svg_bw_image_filename || data.svg_image_filename;
+        const svgPreview = normalizedSvgColorImageFilename || normalizedSvgBwImageFilename || normalizedSvgImageFilename;
         if (svgPreview) {
           setTechRouteSvgPreview(svgPreview);
           setTechRouteStep('preview');
@@ -825,19 +902,19 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
         setSuccessMessage(t('success.techRouteGenerated'));
 
         // 校验通过后才扣积分
-        await recordUsage(user?.id || null, 'paper2figure');
+        await recordUsage(user?.id || null, 'paper2figure', { isAnonymous: user?.is_anonymous || false });
         refreshQuota();
 
         // Fetch PPT file and upload to Supabase Storage
-        if (data.ppt_filename) {
+        if (normalizedPptFilename) {
           try {
-            console.log('[Paper2GraphPage] Fetching tech_route file from:', data.ppt_filename);
-            const pptRes = await fetch(data.ppt_filename);
+            console.log('[Paper2GraphPage] Fetching tech_route file from:', normalizedPptFilename);
+            const pptRes = await fetch(normalizedPptFilename);
             if (!pptRes.ok) {
               throw new Error(`HTTP ${pptRes.status}: ${pptRes.statusText}`);
             }
             const pptBlob = await pptRes.blob();
-            const pptName = data.ppt_filename.split('/').pop() || 'tech_route.pptx';
+            const pptName = normalizedPptFilename.split('/').pop() || 'tech_route.pptx';
             console.log('[Paper2GraphPage] Uploading tech_route file to storage:', pptName);
             const uploadResult = await uploadAndSaveFile(pptBlob, pptName, 'paper2figure');
             if (uploadResult) {
@@ -851,9 +928,8 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
         }
       } else {
         // 其他类型：保持原来的 PPTX blob 下载逻辑
-        const res = await fetch(BACKEND_API, {
+        const res = await backendFetch(BACKEND_API, {
           method: 'POST',
-          headers: { 'X-API-Key': API_KEY },
           body: formData,
         });
 
@@ -881,7 +957,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
 
         const blob = await res.blob();
         if (!blob || blob.size === 0) {
-          throw new Error('生成失败：未能获取到有效的文件，请检查 API Key 余额后重试');
+          throw new Error('生成失败：后端未返回有效文件，请查看后端日志后重试');
         }
         const url = URL.createObjectURL(blob);
         setDownloadUrl(url);
@@ -889,7 +965,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
         setSuccessMessage(t('success.pptGenerated'));
 
         // 校验通过后才扣积分
-        await recordUsage(user?.id || null, 'paper2figure');
+        await recordUsage(user?.id || null, 'paper2figure', { isAnonymous: user?.is_anonymous || false });
         refreshQuota();
 
         console.log('[Paper2GraphPage] Uploading file to storage:', filename);
@@ -913,6 +989,9 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
     } finally {
       setIsLoading(false);
       setIsValidating(false);
+    }
+    } finally {
+      releaseSubmitGuard();
     }
   };
 
@@ -972,6 +1051,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
               resolution={resolution}
               setResolution={setResolution}
               isLoading={isLoading}
+              isSubmitLocked={isSubmitLocked}
               handleSubmit={handleSubmit}
               currentStage={currentStage}
               stageProgress={stageProgress}
@@ -993,6 +1073,7 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
               isValidating={isValidating}
               error={error}
               successMessage={successMessage}
+              showApiConfig={userApiConfigRequired}
             />
           </div>
 
@@ -1016,13 +1097,14 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
             figureComplex={figureComplex}
             language={language}
             showDrawioButton={enableDrawio && graphType === 'model_arch'}
-            drawioLoading={drawioLoading}
+            drawioLoading={drawioLoading || isDrawioLocked}
             onConvertToDrawio={handleConvertToDrawio}
             drawioLabel={drawioLabel}
             onReset={() => {
               setDrawioXml('');
               setDrawioError(null);
             }}
+            userApiConfigRequired={userApiConfigRequired}
           />
 
           {enableDrawio && drawioError && (

@@ -1,3 +1,9 @@
+# Cross-platform Python runtime dependencies.
+# Paper-specific extras live in requirements-paper.txt.
+# NVIDIA CUDA 12 runtime extras live in requirements-cu12.txt.
+# OS-level packages such as ffmpeg / libreoffice / inkscape are not pip packages;
+# see requirements-system-ubuntu.txt and DEPLOY.md.
+
 open-dataflow==1.0.6
 
 numpy==1.26.4
@@ -8,6 +14,8 @@ torchvision==0.25.0
 torchaudio==2.10.0
 tqdm==4.67.2
 transformers==4.57.3
+einops==0.8.1
+ftfy==6.3.1
 aisuite==0.1.14
 math-verify==0.8.0
 word2number==1.1
@@ -55,16 +63,18 @@ httpx==0.27.2
 
 # dataflow agent
 cloudpickle==3.1.2
-fastapi==0.124.0
+fastapi==0.115.12
 pandas==2.3.3
 psutil==7.2.2
 pyfiglet==1.0.4
 PyYAML==6.0.3
 requests==2.32.5
+dashscope==1.25.14
 termcolor==3.3.0
 uvicorn==0.40.0
 sseclient-py==1.9.0
 supabase==2.27.2
+iopath==0.1.10
 
 langgraph==0.6.7
 langgraph-checkpoint==2.1.1
@@ -82,12 +92,20 @@ beautifulsoup4==4.14.3
 playwright==1.56.0
 ipython==8.18.1
 opencv-python==4.11.0.86
+pycocotools==2.0.11
+decord==0.6.0
 
 # rebuttal
 docling==2.71.0
-
+# websearch knowledge store
+playwright-stealth
 # speech
 librosa==0.11.0
 soundfile==0.13.1
 python-pptx==1.0.2
 scikit-learn==1.8.0
+moviepy==1.0.3
+cairosvg==2.8.2
+svglib==1.5.1
+reportlab==4.4.5
+json_repair==0.54.2

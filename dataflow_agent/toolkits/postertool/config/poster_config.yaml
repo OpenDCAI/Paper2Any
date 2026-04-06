@@ -1,0 +1,218 @@
+# poster layout configuration
+
+layout:
+  # dimensions (inches)
+  poster_margin: 1.0
+  column_spacing: 1.0
+  title_height_fraction: 0.18     # fraction of ( title height / effective height)
+  
+  # spacing
+  section_spacing: 1.0
+  element_spacing: 0.2
+  title_to_content_spacing: 0.4
+  
+  # padding
+  text_padding:
+    left_right: 0.3
+    top_bottom: 0.3
+  
+  # visual elements
+  visual_spacing:
+    below_visual: 0.3
+    side_padding: 0.3
+
+typography:
+  fonts:
+    title: "Helvetica Neue"
+    authors: "Arial"
+    section_title: "Helvetica Neue"
+    body_text: "Arial"
+  
+  sizes:  # points
+    title: 100
+    authors: 72
+    section_title: 64
+    body_text: 44
+    min_font_size: 36
+  
+  line_spacing: 1.0
+  paragraph_spacing: 0.0
+
+colors:
+  # defaults
+  fallback_theme: "#1E3A8A"
+  fallback_text: "#000000"
+  fallback_background: "#FFFFFF"
+  
+  # color variants
+  mono_light:
+    saturation: 0.04              # 4%
+    brightness: 0.94              # 94%
+  
+  mono_dark:
+    saturation_range: [0.5, 0.6]
+    saturation_default: 0.6
+  
+  contrast_color:
+    saturation: 0.85
+    brightness_start: 0.50
+    brightness_step: 0.05
+    brightness_max: 0.90
+    wcag_contrast_ratio: 4.5      # WCAG AA standard
+    
+  complementary:
+    hue_offset: 0.5               # 180 degrees
+    intensity_reduction: 0.7
+    
+  # adjustments
+  saturation_adjustments:
+    light_increase: 0.3
+    light_brightness: 0.25
+    dark_decrease: 0.2
+    contrast_saturation: 0.6
+    contrast_brightness: 0.75
+  
+  # hsv bounds
+  hsv_bounds:
+    saturation_min: 0.2
+    saturation_max: 1.0
+    brightness_min: 0.2
+    brightness_max: 1.0
+    
+  # srgb gamma
+  srgb:
+    gamma_threshold: 0.03928
+    gamma_divisor: 1.055
+    gamma_offset: 0.055
+    gamma_exponent: 2.4
+    
+  # luminance weights (BT.709)
+  luminance_weights:
+    red: 0.2126
+    green: 0.7152
+    blue: 0.0722
+  
+  # color constants
+  constants:
+    max_rgb: 255
+    white_rgb: [255, 255, 255]
+    black_text: "#000000"
+    white_text: "#FFFFFF"
+    brightness_threshold: 128
+    gamma_linear_divisor: 12.92
+    # perceived brightness weights
+    red_weight: 299
+    green_weight: 587
+    blue_weight: 114
+    brightness_divisor: 1000
+
+text_measurement:
+  # binary search
+  min_height: 0.1                 # inches
+  max_height: 20.0                # inches
+  precision: 0.001
+  
+  # margins (must match renderer)
+  margins:
+    left: 0.3
+    right: 0.3
+    top: 0.3
+    bottom: 0.3
+  
+  newline_offset_ratio: 1.0       # font_size/72 per newline
+
+pdf_processing: # for marker PDF converter
+  batch_sizes:
+    recognition: 4
+    layout: 4
+    detection: 4
+    table_rec: 4
+    ocr_error: 4
+    equation: 4
+  
+  max_section_words: 1000
+
+rendering:
+  logo_spacing: 0.5               # inches
+  logo_margin: 0.2
+  debug_borders: False
+  slide_layout_index: 6           # blank slide
+  default_shape_fill: "#FFFFFF"
+
+# spacing presets
+spacing_presets:
+  tight:
+    text_margin: 0.03
+    visual_margin: 0.05
+    section_margin: 0.1
+    element_spacing: 0.1
+  
+  normal:
+    text_margin: 0.05
+    visual_margin: 0.1
+    section_margin: 0.15
+    element_spacing: 0.15
+  
+  loose:
+    text_margin: 0.1
+    visual_margin: 0.2
+    section_margin: 0.2
+    element_spacing: 0.2
+
+# column balancing
+column_balancing:
+  target_utilization: 0.9         # 90%
+  overflow_threshold: 1.0
+  underuse_threshold: 0.7
+  max_adjustment_ratio: 0.3       # 30%
+
+# height estimation
+section_estimation:
+  base_title_height: 1.5          # inches
+  bullet_point_height: 0.8
+  visual_spacing_ratio: 0.1
+
+# validation
+validation:
+  max_section_count: 8
+  min_section_count: 5
+  max_title_words: 4
+  min_text_content_items: 2
+  max_llm_attempts: 3
+  
+# utilization thresholds
+utilization_thresholds:
+  overflow_warning: 1.0           # 100%
+  overflow_critical: 1.1          # 110%
+  underutilized: 0.7             # 70%
+  high_visual_density: 0.8       # 80%
+  low_visual_density: 0.2        # 20%
+  
+# layout constants
+layout_constants:
+  title_padding: 0.3              # inches
+  section_padding: 0.3
+  visual_padding: 0.3
+  default_logo_aspect_ratio: 1.0
+  section_bottom_margin: 1.5
+  text_margin_renderer: 0.3
+  
+# powerpoint
+powerpoint:
+  slide_layout_blank: 6
+  debug_border_width_pt: 2
+  text_frame_positioning:
+    default_left: 1
+    default_top: 1
+  
+# indentation
+indentation:
+  secondary_bullet_char: "\u25e6" # ◦
+  secondary_level: 1
+  primary_level: 0
+
+# llm
+llm:
+  temperature: 0.7
+  max_tokens: 4096
+  max_retries: 3

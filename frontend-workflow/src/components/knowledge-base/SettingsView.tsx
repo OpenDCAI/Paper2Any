@@ -2,14 +2,23 @@ import { useEffect, useState } from 'react';
 import { Settings, Key, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { API_URL_OPTIONS, DEFAULT_LLM_API_URL } from '../../config/api';
 import { getApiSettings, saveApiSettings } from '../../services/apiSettingsService';
+import { fetchRuntimeConfig, getRuntimeConfigSync, RuntimeConfig } from '../../services/runtimeConfigService';
 import { useAuthStore } from '../../stores/authStore';
+import { buildManagedModeDescription, resolvePointsPurchaseUrl } from '../../utils/pointsMessaging';
 
 export const SettingsView = () => {
   const { user } = useAuthStore();
+  const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(getRuntimeConfigSync());
   const [apiUrl, setApiUrl] = useState(DEFAULT_LLM_API_URL);
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetchRuntimeConfig()
+      .then(setRuntimeConfig)
+      .catch(() => setRuntimeConfig(getRuntimeConfigSync()));
+  }, []);
 
   useEffect(() => {
     const settings = getApiSettings(user?.id || null);
@@ -18,6 +27,10 @@ export const SettingsView = () => {
       setApiKey(settings.apiKey || '');
     }
   }, [user?.id]);
+
+  const purchaseUrl = runtimeConfig.billing_mode === 'free'
+    ? resolvePointsPurchaseUrl(runtimeConfig)
+    : '';
 
   const handleSave = () => {
     if (!user?.id) return;
@@ -51,60 +64,78 @@ export const SettingsView = () => {
       </div>
 
       <div className="bg-white/5 border border-white/10 rounded-xl p-6 space-y-5">
-        <div>
-          <label className="block text-sm font-medium text-gray-400 mb-2">API URL</label>
-          <select
-            value={apiUrl}
-            onChange={(e) => setApiUrl(e.target.value)}
-            className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-          >
-            {[apiUrl, ...API_URL_OPTIONS].filter((v, i, a) => a.indexOf(v) === i).map((url: string) => (
-              <option key={url} value={url}>{url}</option>
-            ))}
-          </select>
-        </div>
+        {runtimeConfig.user_api_config_required ? (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-2">API URL</label>
+              <select
+                value={apiUrl}
+                onChange={(e) => setApiUrl(e.target.value)}
+                className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+              >
+                {[apiUrl, ...API_URL_OPTIONS].filter((v, i, a) => a.indexOf(v) === i).map((url: string) => (
+                  <option key={url} value={url}>{url}</option>
+                ))}
+              </select>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-400 mb-2">API Key</label>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="sk-..."
-            className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-          />
-        </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-2">API Key</label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="sk-..."
+                className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+              />
+            </div>
 
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full py-3 rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white font-medium disabled:opacity-50 transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2"
-        >
-          {saving ? (
-            <>
-              <Loader2 size={18} className="animate-spin" />
-              <span>保存中...</span>
-            </>
-          ) : saved ? (
-            <>
-              <CheckCircle2 size={18} />
-              <span>已保存</span>
-            </>
-          ) : (
-            <>
-              <Key size={18} />
-              <span>保存配置</span>
-            </>
-          )}
-        </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="w-full py-3 rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white font-medium disabled:opacity-50 transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2"
+            >
+              {saving ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  <span>保存中...</span>
+                </>
+              ) : saved ? (
+                <>
+                  <CheckCircle2 size={18} />
+                  <span>已保存</span>
+                </>
+              ) : (
+                <>
+                  <Key size={18} />
+                  <span>保存配置</span>
+                </>
+              )}
+            </button>
 
-        <div className="flex items-start gap-2 text-xs text-gray-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-4 py-3">
-          <AlertCircle size={16} className="mt-0.5 shrink-0" />
-          <p>
-            API 配置仅保存在当前设备的浏览器本地存储中（明文），不会上传到服务器。
-            请避免在公共设备上保存敏感信息。
-          </p>
-        </div>
+            <div className="flex items-start gap-2 text-xs text-gray-400 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-4 py-3">
+              <AlertCircle size={16} className="mt-0.5 shrink-0" />
+              <p>
+                API 配置仅保存在当前设备的浏览器本地存储中（明文），不会上传到服务器。
+                请避免在公共设备上保存敏感信息。
+              </p>
+            </div>
+          </>
+        ) : (
+          <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-4 py-4 text-sm text-cyan-100">
+            <p>{buildManagedModeDescription(purchaseUrl)}</p>
+            {purchaseUrl && (
+              <a
+                href={purchaseUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-cyan-100 transition-colors hover:text-white"
+              >
+                前往购买页获取兑换码
+              </a>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

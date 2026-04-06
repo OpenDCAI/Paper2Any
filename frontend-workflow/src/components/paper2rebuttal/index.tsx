@@ -5,11 +5,14 @@ import { useAuthStore } from '../../stores/authStore';
 import { getApiSettings, saveApiSettings } from '../../services/apiSettingsService';
 import { API_KEY, DEFAULT_LLM_API_URL, API_URL_OPTIONS, getPurchaseUrl } from '../../config/api';
 import { DEFAULT_PAPER2REBUTTAL_MODEL, PAPER2REBUTTAL_MODELS, withModelOptions } from '../../config/models';
+import { backendFetch } from '../../services/backendClient';
 import ReactMarkdown from 'react-markdown';
 import Timeline from './Timeline';
 import TodoList from './TodoList';
 import PaperList from './PaperList';
 import QRCodeTooltip from '../QRCodeTooltip';
+import ManagedApiNotice from '../ManagedApiNotice';
+import { useRuntimeBilling } from '../../hooks/useRuntimeBilling';
 
 interface TodoItem {
   id: number;
@@ -98,6 +101,7 @@ Minor comments:
 const Paper2RebuttalPage = () => {
   const { t } = useTranslation(['common', 'paper2rebuttal']);
   const { user } = useAuthStore();
+  const { userApiConfigRequired } = useRuntimeBilling();
   const [step, setStep] = useState<'upload' | 'review_check' | 'processing' | 'review' | 'generating' | 'result'>('upload');
   const [session, setSession] = useState<Session | null>(null);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
@@ -133,7 +137,7 @@ const Paper2RebuttalPage = () => {
         setApiKey(savedSettings.apiKey || '');
       }
     }
-  }, [user?.id]);
+  }, [user?.id, userApiConfigRequired]);
 
   useEffect(() => {
     if (step === 'upload') {
@@ -161,9 +165,7 @@ const Paper2RebuttalPage = () => {
       const url = params.toString()
         ? `/api/v1/paper2rebuttal/history?${params.toString()}`
         : '/api/v1/paper2rebuttal/history';
-      const response = await fetch(url, {
-        headers: { 'X-API-Key': API_KEY },
-      });
+      const response = await backendFetch(url);
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data?.detail || t('paper2rebuttal:errors.fetchSessionFailed'));
@@ -180,9 +182,7 @@ const Paper2RebuttalPage = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`/api/v1/paper2rebuttal/session/${targetSessionId}`, {
-        headers: { 'X-API-Key': API_KEY },
-      });
+      const response = await backendFetch(`/api/v1/paper2rebuttal/session/${targetSessionId}`);
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data?.detail || t('paper2rebuttal:errors.fetchSessionFailed'));
@@ -230,14 +230,13 @@ const Paper2RebuttalPage = () => {
         formData.append('review_text', reviewTextDirect.trim());
       }
       // 所有形式的输入都传 API 配置，后端统一用 LLM 形式化为 review-1, review-2... 供 check
-      if (apiKey && llmApiUrl) {
+      if (userApiConfigRequired && apiKey && llmApiUrl) {
         formData.append('chat_api_url', llmApiUrl.trim());
         formData.append('api_key', apiKey);
         formData.append('model', model);
       }
-      const response = await fetch('/api/v1/paper2rebuttal/parse-review', {
+      const response = await backendFetch('/api/v1/paper2rebuttal/parse-review', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
       const { data, raw } = await parseJson(response);
@@ -260,7 +259,7 @@ const Paper2RebuttalPage = () => {
 
   const handleStartAnalysis = async () => {
     // 所有形式的评审输入都必须先经过「解析/预览评审」，得到形式化 review 后再开始分析
-    if (!pdfFile || !reviewTextForStart.trim() || !apiKey || !llmApiUrl) {
+    if (!pdfFile || !reviewTextForStart.trim() || (userApiConfigRequired && (!apiKey || !llmApiUrl))) {
       setError(t('paper2rebuttal:errors.needParsedReview'));
       return;
     }
@@ -287,14 +286,15 @@ const Paper2RebuttalPage = () => {
       if (user?.email || user?.id) {
         formData.append('email', user?.email || user?.id || '');
       }
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey);
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey);
+      }
       formData.append('model', model);
 
       // Start the analysis (non-blocking)
-      const response = await fetch('/api/v1/paper2rebuttal/start', {
+      const response = await backendFetch('/api/v1/paper2rebuttal/start', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
 
@@ -347,9 +347,7 @@ const Paper2RebuttalPage = () => {
               // SSE timeout: switch to polling, wait for all_questions_processed
               addLog('⚠️ SSE 超时，改用轮询等待全部问题处理完成...');
               const pollInterval = setInterval(() => {
-                fetch(`/api/v1/paper2rebuttal/session/${sessionId}`, {
-                  headers: { 'X-API-Key': API_KEY },
-                })
+                backendFetch(`/api/v1/paper2rebuttal/session/${sessionId}`)
                   .then((res) => res.json())
                   .then((data) => {
                     const hasQuestions = data.questions && data.questions.length > 0;
@@ -377,9 +375,7 @@ const Paper2RebuttalPage = () => {
             // Do NOT fetch immediately: backend may still be processing. Poll until all_questions_processed.
             console.log('[Polling] Starting polling due to SSE onerror (CLOSED)');
             const pollInterval = setInterval(() => {
-              fetch(`/api/v1/paper2rebuttal/session/${sessionId}`, {
-                headers: { 'X-API-Key': API_KEY },
-              })
+              backendFetch(`/api/v1/paper2rebuttal/session/${sessionId}`)
                 .then((res) => res.json())
                 .then((data) => {
                   const hasQuestions = data.questions && data.questions.length > 0;
@@ -406,9 +402,7 @@ const Paper2RebuttalPage = () => {
         console.log('[Polling] Starting fallback polling due to EventSource creation failure');
         // Fallback: poll for session data; only switch when ALL questions have strategy (avoid incomplete data)
         const pollInterval = setInterval(() => {
-          fetch(`/api/v1/paper2rebuttal/session/${sessionId}`, {
-            headers: { 'X-API-Key': API_KEY },
-          })
+          backendFetch(`/api/v1/paper2rebuttal/session/${sessionId}`)
             .then(res => res.json())
             .then(data => {
               const hasQuestions = data.questions && data.questions.length > 0;
@@ -445,9 +439,7 @@ const Paper2RebuttalPage = () => {
     try {
       setLoading(true);
       console.log(`[fetchSessionData] Called with sessionId=${sessionId}, retryCount=${retryCount}`);
-      const response = await fetch(`/api/v1/paper2rebuttal/session/${sessionId}`, {
-        headers: { 'X-API-Key': API_KEY },
-      });
+      const response = await backendFetch(`/api/v1/paper2rebuttal/session/${sessionId}`);
 
       if (!response.ok) {
         throw new Error(t('paper2rebuttal:errors.fetchSessionFailed'));
@@ -558,13 +550,14 @@ const Paper2RebuttalPage = () => {
       formData.append('session_id', session.session_id);
       formData.append('question_idx', currentQuestionIdx.toString());
       formData.append('feedback', feedback);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey);
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey);
+      }
       formData.append('model', model);
 
-      const response = await fetch('/api/v1/paper2rebuttal/revise', {
+      const response = await backendFetch('/api/v1/paper2rebuttal/revise', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
 
@@ -607,9 +600,8 @@ const Paper2RebuttalPage = () => {
       formData.append('session_id', session.session_id);
       formData.append('question_idx', currentQuestionIdx.toString());
 
-      const response = await fetch('/api/v1/paper2rebuttal/mark-satisfied', {
+      const response = await backendFetch('/api/v1/paper2rebuttal/mark-satisfied', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
 
@@ -663,8 +655,10 @@ const Paper2RebuttalPage = () => {
     try {
       const formData = new FormData();
       formData.append('session_id', session.session_id);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey);
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey);
+      }
       formData.append('model', model);
       if (user?.email || user?.id) {
         formData.append('email', user?.email || user?.id || '');
@@ -673,9 +667,8 @@ const Paper2RebuttalPage = () => {
       addLog(t('paper2rebuttal:logs.startGenerating'));
       addLog(t('paper2rebuttal:logs.integrating'));
       
-      const response = await fetch('/api/v1/paper2rebuttal/generate-final', {
+      const response = await backendFetch('/api/v1/paper2rebuttal/generate-final', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
 
@@ -720,10 +713,9 @@ const Paper2RebuttalPage = () => {
     setExportingZip(true);
     setError('');
     try {
-      const response = await fetch('/api/v1/paper2rebuttal/export-zip', {
+      const response = await backendFetch('/api/v1/paper2rebuttal/export-zip', {
         method: 'POST',
         headers: {
-          'X-API-Key': API_KEY,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -858,43 +850,49 @@ const Paper2RebuttalPage = () => {
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   {t('paper2rebuttal:upload.apiConfig')}
                 </label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-2xl bg-white/5 border border-white/10">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs text-gray-400">{t('paper2rebuttal:upload.apiUrl')}</label>
-                      <QRCodeTooltip>
-                        <a
-                          href={getPurchaseUrl(llmApiUrl)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[10px] text-purple-300 hover:text-purple-200 hover:underline"
+                <div className={`grid grid-cols-1 gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 ${userApiConfigRequired ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+                  {userApiConfigRequired ? (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs text-gray-400">{t('paper2rebuttal:upload.apiUrl')}</label>
+                        <QRCodeTooltip>
+                          <a
+                            href={getPurchaseUrl(llmApiUrl)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-purple-300 hover:text-purple-200 hover:underline"
+                          >
+                            {t('paper2rebuttal:upload.buyLink')}
+                          </a>
+                        </QRCodeTooltip>
+                      </div>
+                      {API_URL_OPTIONS.length > 1 ? (
+                        <select
+                          value={llmApiUrl}
+                          onChange={(e) => setLlmApiUrl(e.target.value)}
+                          className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
                         >
-                          {t('paper2rebuttal:upload.buyLink')}
-                        </a>
-                      </QRCodeTooltip>
+                          {API_URL_OPTIONS.map((url: string) => (
+                            <option key={url} value={url}>
+                              {url}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={llmApiUrl}
+                          onChange={(e) => setLlmApiUrl(e.target.value)}
+                          className="w-full px-3 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#0A84FF]/60 focus:bg-black/30 transition"
+                          placeholder="https://api.apiyi.com/v1"
+                        />
+                      )}
                     </div>
-                    {API_URL_OPTIONS.length > 1 ? (
-                      <select
-                        value={llmApiUrl}
-                        onChange={(e) => setLlmApiUrl(e.target.value)}
-                        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white"
-                      >
-                        {API_URL_OPTIONS.map((url) => (
-                          <option key={url} value={url}>
-                            {url}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        type="text"
-                        value={llmApiUrl}
-                        onChange={(e) => setLlmApiUrl(e.target.value)}
-                        className="w-full px-3 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#0A84FF]/60 focus:bg-black/30 transition"
-                        placeholder="https://api.apiyi.com/v1"
-                      />
-                    )}
-                  </div>
+                  ) : (
+                    <div className="md:col-span-2">
+                      <ManagedApiNotice />
+                    </div>
+                  )}
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">{t('paper2rebuttal:upload.model')}</label>
                     <select
@@ -909,16 +907,18 @@ const Paper2RebuttalPage = () => {
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">{t('paper2rebuttal:upload.apiKey')}</label>
-                    <input
-                      type="password"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#0A84FF]/60 focus:bg-black/30 transition"
-                      placeholder={t('paper2rebuttal:upload.apiKeyPlaceholder')}
-                    />
-                  </div>
+                  {userApiConfigRequired && (
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">{t('paper2rebuttal:upload.apiKey')}</label>
+                      <input
+                        type="password"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#0A84FF]/60 focus:bg-black/30 transition"
+                        placeholder={t('paper2rebuttal:upload.apiKeyPlaceholder')}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1133,7 +1133,7 @@ const Paper2RebuttalPage = () => {
               </button>
               <button
                 onClick={handleStartAnalysis}
-                disabled={!pdfFile || !reviewTextForStart.trim() || !apiKey || !llmApiUrl || loading}
+                disabled={!pdfFile || !reviewTextForStart.trim() || (userApiConfigRequired && (!apiKey || !llmApiUrl)) || loading}
                 className="flex-1 px-6 py-3 bg-gradient-to-r from-[#0A84FF] to-[#AF52DE] text-white rounded-2xl font-semibold hover:from-[#0974E0] hover:to-[#9E44CE] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-[0_12px_30px_rgba(175,82,222,0.25)]"
               >
                 {loading ? (
@@ -1539,9 +1539,7 @@ const Paper2RebuttalPage = () => {
                 <button
                   onClick={async () => {
                     try {
-                      const response = await fetch(`/api/v1/paper2rebuttal/summary/${session.session_id}`, {
-                        headers: { 'X-API-Key': API_KEY },
-                      });
+                      const response = await backendFetch(`/api/v1/paper2rebuttal/summary/${session.session_id}`);
                       const data = await response.json();
                       const blob = new Blob([data.markdown], { type: 'text/markdown' });
                       const url = URL.createObjectURL(blob);

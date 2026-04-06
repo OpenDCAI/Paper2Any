@@ -1283,21 +1283,6 @@ def execute_matplotlib_code(
             }
 
     # 构建完整的执行代码
-#     full_code = f'''
-# import matplotlib
-# matplotlib.use('Agg')  # 非交互式后端
-# import matplotlib.pyplot as plt
-# import numpy as np
-
-# # 用户代码
-# {code}
-
-# # 保存图表
-# plt.tight_layout()
-# plt.savefig(r"{str(output_path)}", dpi=150, bbox_inches='tight')
-# plt.close('all')
-# print("SUCCESS")
-# '''
     full_code = f'''
 {code}
 '''

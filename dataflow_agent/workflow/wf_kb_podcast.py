@@ -285,14 +285,14 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
             tts_model = getattr(state.request, "tts_model", "")
             tts_model_l = str(tts_model).lower()
             is_openai_tts = tts_model_l.startswith("gpt-4o-mini-tts") or tts_model_l.startswith("tts-1")
-            is_gemini_tts = "gemini" in tts_model_l and "tts" in tts_model_l
+            is_cosyvoice_tts = "cosyvoice" in tts_model_l
 
             max_chars: int | None = None
             max_bytes: int | None = None
             if is_openai_tts:
                 max_chars = 3800  # OpenAI TTS input limit is 4096 chars
-            elif is_gemini_tts:
-                max_bytes = 4000  # Gemini TTS: reduced byte limit to avoid truncation
+            elif is_cosyvoice_tts:
+                max_bytes = 4000  # CosyVoice: reduced byte limit to avoid truncation
             else:
                 max_chars = 3000
 
@@ -304,7 +304,7 @@ def create_kb_podcast_graph() -> GenericGraphBuilder:
                 concurrency = 1
             else:
                 concurrency = 2
-            if is_gemini_tts:
+            if is_cosyvoice_tts:
                 concurrency = 1
 
             segments = []

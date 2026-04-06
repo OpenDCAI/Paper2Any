@@ -17,7 +17,7 @@
     "buyLink": "Buy Now",
     "apiKey": "API Key",
     "genModel": "Generation Model",
-    "validating": "Validating API Key..."
+    "validating": "Verifying model connection..."
   },
   "status": {
     "uploading": "Uploading file...",
@@ -58,7 +58,7 @@
     "pdfOnly": "Supports PDF format only",
     "sizeLimit": "File size exceeds 50MB limit",
     "selectFile": "Please select PDF file first",
-    "quotaFull": "Daily quota used up",
+    "quotaFull": "Insufficient points. Please get a redeem code and redeem it in Account first.",
     "enterKey": "API Key required for AI enhancement",
     "enterUrl": "API URL required for AI enhancement",
     "apiFail": "API Validation Failed",

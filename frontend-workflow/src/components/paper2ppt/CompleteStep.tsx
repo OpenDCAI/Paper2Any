@@ -11,7 +11,9 @@ interface CompleteStepProps {
   downloadUrl: string | null;
   pdfPreviewUrl: string | null;
   isGeneratingFinal: boolean;
+  taskMessage?: string;
   handleGenerateFinal: () => void;
+  handleDownloadPptx: () => void;
   handleDownloadPdf: () => void;
   handleReset: () => void;
   error: string | null;
@@ -22,6 +24,7 @@ interface CompleteStepProps {
     agent: number | null;
     dataflex: number | null;
   };
+  showFreeApiPromo: boolean;
 }
 
 const CompleteStep: React.FC<CompleteStepProps> = ({
@@ -30,13 +33,16 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
   downloadUrl,
   pdfPreviewUrl,
   isGeneratingFinal,
+  taskMessage,
   handleGenerateFinal,
+  handleDownloadPptx,
   handleDownloadPdf,
   handleReset,
   error,
   handleCopyShareText,
   copySuccess,
-  stars
+  stars,
+  showFreeApiPromo,
 }) => {
   const doneCount = generateResults.filter(r => r.status === 'done').length;
 
@@ -56,7 +62,7 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
           {generateResults.map((result, index) => (
             <div key={result.slideId} className="aspect-[16/9] rounded-lg border border-white/20 overflow-hidden bg-white/5">
               {result.afterImage ? (
-                <img src={result.afterImage} alt={`Page ${index + 1}`} className="w-full h-full object-contain" />
+                <img src={result.afterImagePreview || result.afterImage} alt={`Page ${index + 1}`} className="w-full h-full object-contain" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">第 {index + 1} 页</div>
               )}
@@ -72,17 +78,16 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
       ) : (
         <div className="space-y-4">
           <div className="flex gap-4 justify-center">
-            {/* 已移除 PPTX 下载按钮 */}
+            {downloadUrl && (
+              <button onClick={handleDownloadPptx} className="px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold flex items-center gap-2 transition-all">
+                <Download size={18} /> 下载 PPTX
+              </button>
+            )}
             {pdfPreviewUrl && (
               <button onClick={handleDownloadPdf} className="px-6 py-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold flex items-center gap-2 transition-all">
                 <Download size={18} /> 下载 PDF
               </button>
             )}
-          </div>
-          
-          {/* 引导去 PDF2PPT */}
-          <div className="text-center text-sm text-gray-400 bg-white/5 border border-white/10 rounded-lg p-3">
-            如果需要继续 PDF 转可编辑 PPTX，请前往 <a href="/pdf2ppt" className="text-purple-400 hover:text-purple-300 hover:underline font-medium transition-colors">PDF2PPT 页面</a>
           </div>
 
           <div>
@@ -99,9 +104,15 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
         </div>
       )}
 
+      {isGeneratingFinal && taskMessage && (
+        <div className="mt-4 text-sm text-purple-200 bg-purple-500/10 border border-purple-500/30 rounded-lg px-4 py-3">
+          {taskMessage}
+        </div>
+      )}
+
       {/* 分享与交流群区域 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8 text-left">
-        {/* 获取免费 Key */}
+      <div className={`grid grid-cols-1 gap-4 mt-8 text-left ${showFreeApiPromo ? 'md:grid-cols-2' : ''}`}>
+        {showFreeApiPromo && (
         <div className="glass rounded-xl border border-white/10 p-5 flex flex-col items-center text-center hover:bg-white/5 transition-colors">
           <div className="w-12 h-12 rounded-full bg-yellow-500/20 text-yellow-300 flex items-center justify-center mb-3">
             <Star size={24} />
@@ -164,6 +175,7 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
              </div>
           </div>
         </div>
+        )}
 
         {/* 交流群 */}
         <div className="glass rounded-xl border border-white/10 p-5 flex flex-col items-center text-center hover:bg-white/5 transition-colors">

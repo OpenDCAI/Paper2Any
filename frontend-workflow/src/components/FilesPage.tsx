@@ -7,6 +7,7 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { getFileRecords, deleteFileRecord, FileRecord } from "../services/fileService";
+import { downloadSecureAsset } from "../services/secureAssetService";
 import { FileText, Download, Trash2, RefreshCw, Loader2 } from "lucide-react";
 
 function formatSize(bytes: number | null | undefined): string {
@@ -31,6 +32,7 @@ export function FilesPage() {
   const [files, setFiles] = useState<FileRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   const loadFiles = async () => {
     setLoading(true);
@@ -47,6 +49,20 @@ export function FilesPage() {
   useEffect(() => {
     loadFiles();
   }, []);
+
+  const handleDownload = async (file: FileRecord) => {
+    if (!file.download_url) return;
+
+    setDownloading(file.id || file.file_name);
+    try {
+      await downloadSecureAsset(file.download_url, file.file_name);
+    } catch (e) {
+      console.error("Failed to download file:", e);
+      alert("下载失败");
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   const handleDelete = async (id: string, fileName: string) => {
     if (!confirm(t("filesPage.actions.confirmDelete", { fileName }))) return;
@@ -144,15 +160,18 @@ export function FilesPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         {file.download_url && (
-                          <a
-                            href={file.download_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            onClick={() => handleDownload(file)}
+                            disabled={downloading === (file.id || file.file_name)}
                             className="p-1.5 hover:bg-primary-500/20 rounded text-primary-400 transition-colors"
                             title={t("filesPage.actions.download")}
                           >
-                            <Download size={16} />
-                          </a>
+                            {downloading === (file.id || file.file_name) ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Download size={16} />
+                            )}
+                          </button>
                         )}
                         <button
                           onClick={() => file.id && handleDelete(file.id, file.file_name)}

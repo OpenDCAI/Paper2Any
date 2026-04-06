@@ -1,5 +1,8 @@
 .git
 .gitignore
+fastapi_app/.env
+deploy/docker.env
+deploy/profiles/*.env
 __pycache__/
 *.pyc
 *.pyo

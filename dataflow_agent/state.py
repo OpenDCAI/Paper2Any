@@ -20,6 +20,8 @@ class MainRequest:
     chat_api_url: str = os.getenv("DF_API_URL", "test")
     api_key: str = os.getenv("DF_API_KEY", "test")
     chat_api_key: str = os.getenv("DF_API_KEY", "test") #没区别，但是不想改之前代码了；
+    image_api_url: str = os.getenv("DF_IMAGE_API_URL", "")
+    image_api_key: str = os.getenv("DF_IMAGE_API_KEY", "")
 
     # ③ 选用的 LLM 名称
     model: str = "gpt-4o"
@@ -103,9 +105,29 @@ class DFState(MainState):
 @dataclass
 class Paper2VideoRequest(MainRequest):
     paper_pdf_path: str = ""
+    # 用户上传的图片，添加在ppt中的，现在这个字段不用了
     user_imgs_path: str = ""
-    
+    # tts使用的模型（CosyVoice）
+    tts_model: str = "cosyvoice-v3-flash"
+    tts_voice_name: str = ""
+    # 判断当前处于什么stage
+    script_stage: bool = True
+
+    # 用户决定是否上传自己的声音
+    use_specific_sound: bool = False
+    # 用户上传的声音
     ref_audio_path: str = ""
+    # 用户上传声音对应的文本
+    ref_text: str = ""
+    # 用户上传的人像图片
+    ref_img_path: str = ""
+    # 数字人模型：echomimic（本地）或 liveportrait（云，默认）
+    talking_model: str = "liveportrait"
+    # 用户上传的cursor图片
+    cursor_path: str = field(
+        default_factory=lambda: str((PROJDIR / "dataflow_agent" / "toolkits" / "p2vtool" / "red.png").resolve())
+    )
+    
 
 # ==================== Paper2Video 生成 State ======================
 @dataclass
@@ -119,14 +141,30 @@ class Paper2VideoState(MainState):
     is_beamer_warning: bool = False
     code_debug_result: str = ""
     ppt_path: str = ""
+    img_size_debug: bool = True
+    result_path: str = ""
+
+    # 生成音频的语言
+    slide_timesteps_path: str = ""
     
     # 生成字幕 + cursor的位置信息
     slide_img_dir: str = ""
     subtitle_and_cursor: List[str] = field(default_factory=list)
     subtitle_and_cursor_path: str = ""
+    # 临时的字段，不用保存它
+    tmp_sentence: str = ""
     
     # 生成的音频路径
     speech_save_dir: str = ""
+    # 生成的cursor路径
+    cursor_save_path: str = ""
+    # 生成的talking video路径
+    talking_video_save_dir: str = ""
+
+    # 用来返回给前端的脚本信息
+    script_pages: List[Dict[str, Any]] = field(default_factory=list)
+    # 生成的视频路径
+    video_path: str = ""
 
 
 
@@ -260,7 +298,7 @@ class Paper2FigureRequest(MainRequest):
     fig_desc_model: str = "gpt-5.1"
     
     # 新增：用于 wf_paper2technical.py 的技术路线生成模型
-    technical_model: str = "claude-haiku-4-5-20251001"
+    technical_model: str = "gpt-5.4"
     # 技术路线图模板/配色（可选）
     tech_route_template: str = ""
     tech_route_palette: str = ""
@@ -307,7 +345,7 @@ class Paper2FigureState(MainState):
     figure_tec_svg_bw_content: str = ""
     figure_tec_svg_color_content: str = ""
     svg_img_path: str = ""
-    mineru_port: int = 8010
+    mineru_port: int = int(os.environ.get("MINERU_PORT", 8010))
     svg_file_path: str = ""  # svg 带文字图的 地址
     svg_bg_file_path: str = ""
     svg_bw_file_path: str = ""
@@ -376,9 +414,12 @@ class Paper2FigureState(MainState):
     target_pages: int = 60
     pages_per_batch: int = 10
     pages_to_generate: int = 12
+    max_batch_tokens: int = 0
     max_rounds: int = 1
     current_chunk: str = ""
     current_text: str = ""
+    current_section_titles: List[str] = field(default_factory=list)
+    markdown_sections: List[Dict[str, Any]] = field(default_factory=list)
 
     # pdf2ppt 专用 ==============================
     pdf_file: str = ""
@@ -430,9 +471,9 @@ class KBPodcastRequest(MainRequest):
     files: List[str] = field(default_factory=list)  # 文件路径列表
     podcast_mode: str = "monologue"  # monologue | dialog
     podcast_length: str = "standard"  # brief | standard | long
-    tts_model: str = "gemini-2.5-pro-preview-tts"
-    voice_name: str = "Kore"
-    voice_name_b: str = "Puck"
+    tts_model: str = "cosyvoice-v3-flash"
+    voice_name: str = ""
+    voice_name_b: str = ""
     language: str = "zh"
 
 @dataclass
@@ -601,3 +642,144 @@ class Paper2DrawioState(MainState):
     output_xml_path: str = ""      # XML 文件路径
     output_png_path: str = ""      # PNG 导出路径
     output_svg_path: str = ""      # SVG 导出路径
+
+
+@dataclass
+class Paper2PosterRequest(MainRequest):
+    """Paper2Poster 工作流请求。"""
+    vision_model: str = "gpt-4o-2024-08-06"
+    poster_width: float = 54.0
+    poster_height: float = 36.0
+    logo_path: str = ""
+    aff_logo_path: str = ""
+    url: str = ""
+
+
+@dataclass
+class Paper2PosterState(MainState):
+    """Paper2Poster 工作流状态。"""
+    request: Paper2PosterRequest = field(default_factory=Paper2PosterRequest)
+
+    # 输入与输出目录
+    paper_file: str = ""
+    result_path: str = ""
+
+    # 海报基础配置
+    poster_width: float = 54.0
+    poster_height: float = 36.0
+    logo_path: str = ""
+    aff_logo_path: str = ""
+    url: str = ""
+
+    # 工作流中间结果
+    poster_name: str = ""
+    structured_sections: Any = None
+    classified_visuals: Any = None
+    narrative_content: Any = None
+    story_board: Any = None
+    optimized_story_board: Any = None
+    initial_layout_data: Any = None
+    optimized_layout: Any = None
+    final_design_layout: Any = None
+    color_scheme: Any = None
+    section_title_design: Any = None
+    keywords: Any = None
+    styled_layout: Any = None
+
+    # 最终产物
+    output_pptx_path: str = ""
+    output_png_path: str = ""
+
+    # 错误收集
+    errors: List[str] = field(default_factory=list)
+
+
+@dataclass
+class Paper2CitationRequest(MainRequest):
+    """Paper2Citation query request."""
+    mode: str = "author_search"
+    author_name: str = ""
+    openalex_author_id: str = ""
+    dblp_id: str = ""
+    display_name: str = ""
+    affiliation_hint: str = ""
+    candidate_source: str = ""
+    doi_or_url: str = ""
+    citing_work_openalex_id: str = ""
+    citing_work_doi_or_url: str = ""
+    citing_work_title: str = ""
+    max_author_candidates: int = 12
+    max_publications: int = 25
+    max_citing_works: int = 60
+    publication_page: int = 1
+    publication_page_size: int = 20
+    max_seed_works: int = 20
+
+
+@dataclass
+class Paper2CitationState(MainState):
+    """Paper2Citation workflow state."""
+    request: Paper2CitationRequest = field(default_factory=Paper2CitationRequest)
+
+    mode: str = ""
+    query: str = ""
+    author_candidates: List[Dict[str, Any]] = field(default_factory=list)
+    author_profile: Dict[str, Any] = field(default_factory=dict)
+    publication_stats: Dict[str, Any] = field(default_factory=dict)
+    citation_stats: Dict[str, Any] = field(default_factory=dict)
+    publications: List[Dict[str, Any]] = field(default_factory=list)
+    citing_works: List[Dict[str, Any]] = field(default_factory=list)
+    citing_authors: List[Dict[str, Any]] = field(default_factory=list)
+    citing_institutions: List[Dict[str, Any]] = field(default_factory=list)
+    honors_stats: List[Dict[str, Any]] = field(default_factory=list)
+    matched_honorees: List[Dict[str, Any]] = field(default_factory=list)
+    paper_detail: Dict[str, Any] = field(default_factory=dict)
+    citation_context: Dict[str, Any] = field(default_factory=dict)
+    publication_pagination: Dict[str, Any] = field(default_factory=dict)
+    best_effort_notice: str = ""
+    errors: List[str] = field(default_factory=list)
+
+# ==================== WebSearch Knowledge Store State ====================
+@dataclass
+class WebsearchKnowledgeRequest(MainRequest):
+    """
+    Web 搜索知识入库任务的 Request
+    - input_urls: 用户初始输入的 URL 列表
+    """
+    input_urls: List[str] = field(default_factory=list)
+
+
+@dataclass
+class WebsearchKnowledgeState(MainState):
+    """
+    Web 搜索知识入库任务的 State，继承自 MainState
+    
+    全局状态字段：
+    - input_urls: 用户初始输入的 URL 列表
+    - research_routes: 由初始 URL 分析得出的不同领域调研路线队列（会被 planner 逐步弹出）
+    - original_research_routes: 原始的研究路线列表（不会被修改，供 curator 使用）
+    - raw_data_store: 追加型列表，存储所有阶段抓取到的原始内容
+    - knowledge_base_summary: 最终清洗后的结构化数据的总结
+    """
+    # 重写 request 类型
+    request: WebsearchKnowledgeRequest = field(default_factory=WebsearchKnowledgeRequest)
+
+    # === 全局状态 ===
+    # Input URLs: 用户初始输入的 URL 列表
+    input_urls: List[str] = field(default_factory=list)
+    
+    # Research Routes (研究计划队列) - 会被 planner 逐步弹出
+    research_routes: List[str] = field(default_factory=list)
+    
+    # Original Research Routes (原始研究路线) - 不会被修改，供 chief_curator 使用
+    original_research_routes: List[str] = field(default_factory=list)
+    
+    # 当前由 Planner 分配给 Web Researcher 执行的任务
+    # 注意：必须作为显式字段存在，避免在 LangGraph 状态合并时被丢弃
+    current_task: str = ""
+    
+    # Raw Data Store: 存储原始内容（文本、多模态资源引用等）
+    raw_data_store: List[Dict[str, Any]] = field(default_factory=list)
+    
+    # Knowledge Base Summary: 最终结构化总结
+    knowledge_base_summary: str = ""
