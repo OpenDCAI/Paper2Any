@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
+from fastapi_app.utils import resolve_outputs_path
 
 log = get_logger(__name__)
 
@@ -30,7 +31,7 @@ async def run_paper2poster_generate_wf_api(
 ) -> Dict[str, Any]:
     """通过独立子进程执行 paper2poster 工作流，隔离 cwd/env/sys.path 变更。"""
     project_root = get_project_root()
-    result_root = Path(result_path).resolve()
+    result_root = resolve_outputs_path(result_path, must_exist=False, allow_dirs=True)
     worker_dir = result_root / ".worker" / uuid4().hex
     worker_dir.mkdir(parents=True, exist_ok=True)
     input_json = worker_dir / "input.json"

@@ -59,6 +59,16 @@ English | [中文](README_CN.md)
 ## 🔥 News
 
 > [!TIP]
+> 🆕 <strong>2026-03-28 · Editable PPT Showcase Refresh</strong><br>
+> Added two new <strong>editable PPT</strong> showcase screenshots for the frontend-deck workflow:<br>
+> a generated multi-slide gallery view and the canvas editing workspace with deck theme lock.
+
+> [!TIP]
+> 🆕 <strong>2026-03-26 · Workflow Showcase Update</strong><br>
+> Added showcase coverage for <strong>Paper2Video</strong>, <strong>Paper2Poster</strong>, and <strong>Paper2Citation</strong>.<br>
+> The README now includes a compressed video demo plus refreshed English/Chinese workflow previews.
+
+> [!TIP]
 > 🆕 <strong>2026-02-02 · Paper2Rebuttal</strong><br>
 > Added rebuttal drafting support with structured response guidance and image-aware revision prompts.
 
@@ -103,6 +113,8 @@ Paper2Any currently includes the following sub-capabilities:
 - **🖼️ Image2PPT - Image to Slides**: Convert images or screenshots into structured slides.
 - **🎨 PPTPolish - Smart Beautification**: AI-based layout optimization and style transfer.
 - **🎬 Paper2Video**: Generate video scripts and narration assets.
+- **🖼️ Paper2Poster - Academic Poster**: Turn paper PDFs into poster-ready layouts with configurable sections, logos, and export assets.
+- **🔎 Paper2Citation - Citation Explorer**: Track citing authors, institutions, and notable downstream works from author names or DOI/paper URLs.
 - **📝 Paper2Technical**: Produce technical reports and method summaries.
 - **📚 Knowledge Base (KB)**: Ingest/embedding, semantic search, and KB-driven PPT/podcast/mindmap generation.
 
@@ -114,17 +126,37 @@ Paper2Any currently includes the following sub-capabilities:
 
 <div align="center">
 
+<table>
+  <tr>
+    <td width="33%" align="center" valign="top">
+      <img src="static/new_readme/drawio/image-to-drawio-upload.png" width="100%"/>
+      <br><sub>✨ Upload a paper figure or screenshot as the starting point</sub>
+    </td>
+    <td width="34%" align="center" valign="top">
+      <img src="static/new_readme/drawio/image-to-drawio-source.png" width="100%"/>
+      <br><sub>✨ Keep the source structure visible before conversion</sub>
+    </td>
+    <td width="33%" align="center" valign="top">
+      <img src="static/new_readme/drawio/image-to-drawio-editor.gif" width="100%"/>
+      <br><sub>✨ Convert the image into an editable DrawIO canvas</sub>
+    </td>
+  </tr>
+</table>
+
 <br>
-<img src="static/new_readme/drawio/drawio-1.gif" width="90%"/>
-<br><sub>✨ Diagram generation (mindmap / flowchart / ER ...)</sub>
 
-<br><br>
-<img src="static/new_readme/drawio/drawio-2.gif" width="90%"/>
-<br><sub>✨ Model diagrams from PDF or text (research figure generation)</sub>
-
-<br><br>
-<img src="static/new_readme/drawio/image-to-editable.png" width="90%"/>
-<br><sub>✨ Image to editable DrawIO diagram</sub>
+<table>
+  <tr>
+    <td width="48%" align="center" valign="top">
+      <img src="static/new_readme/drawio/framework-drawio-workbench.png" width="100%"/>
+      <br><sub>✨ Generate a model or system diagram directly inside the DrawIO workbench</sub>
+    </td>
+    <td width="52%" align="center" valign="top">
+      <img src="static/new_readme/drawio/framework-drawio-editor.gif" width="100%"/>
+      <br><sub>✨ Refine the generated architecture with chat editing and export-ready layout</sub>
+    </td>
+  </tr>
+</table>
 
 </div>
 
@@ -155,10 +187,18 @@ Paper2Any currently includes the following sub-capabilities:
 <br><sub>✨ Model Architecture Diagram Generation</sub>
 
 <br><br>
-<img src="static/new_readme/paper2figure/technical-roadmap-1.png" width="90%"/>
-<br><br>
-<img src="static/new_readme/paper2figure/technical-roadmap-3.png" width="80%"/>
-<br><sub>✨ Technical Roadmap Generation</sub>
+<table>
+  <tr>
+    <td width="56%" align="center" valign="top">
+      <img src="static/new_readme/paper2figure/technical-roadmap-workbench.png" width="100%"/>
+      <br><sub>✨ Technical roadmap workbench: choose route type, input source, model config, and visual template</sub>
+    </td>
+    <td width="44%" align="center" valign="top">
+      <img src="static/new_readme/paper2figure/technical-roadmap-output.png" width="100%"/>
+      <br><sub>✨ Generated technical roadmap figure with structured dual-column layout</sub>
+    </td>
+  </tr>
+</table>
 
 <br><br>
 <img src="static/new_readme/paper2figure/experimental-plot.png" width="90%"/>
@@ -172,29 +212,104 @@ Paper2Any currently includes the following sub-capabilities:
 
 <div align="center">
 
-<br>
-<img src="static/new_readme/paper2ppt/demo.gif" width="85%"/>
-<br><sub>✨ PPT Generation Demo</sub>
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/demo.gif" width="100%"/>
+      <br><sub>✨ End-to-end PPT generation demo</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/case-1.png" width="100%"/>
+      <br><sub>✨ Paper / text / topic to polished slide deck</sub>
+    </td>
+  </tr>
+</table>
 
 <br>
-<img src="static/new_readme/paper2ppt/case-1.png" width="90%"/>
-<br><sub>✨ Paper / Text / Topic → PPT</sub>
 
-<br><br>
-<img src="static/new_readme/paper2ppt/long-doc.png" width="85%"/>
-<br><sub>✨ Long Document Support (40+ Slides)</sub>
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/frontend-canvas-edit.gif" width="100%"/>
+      <br><sub>✨ Edit slide text directly on canvas while keeping the deck theme locked</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/frontend-gallery-review.gif" width="100%"/>
+      <br><sub>✨ Review the generated multi-page gallery before export</sub>
+    </td>
+  </tr>
+</table>
 
-<br><br>
-<img src="static/new_readme/paper2ppt/table-extraction.png" width="90%"/>
-<br><sub>✨ Intelligent Table Extraction & Insertion</sub>
+<br>
 
-<br><br>
-<img src="static/new_readme/paper2ppt/outline-edit.png" width="90%"/>
-<br><sub>✨ AI-Assisted Outline Editing</sub>
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/outline-assist-panel.png" width="100%"/>
+      <br><sub>✨ AI-assisted outline refinement with targeted rewrite prompts</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="static/new_readme/paper2ppt/outline-assist-detail.png" width="100%"/>
+      <br><sub>✨ Structured outline editing down to section and bullet detail</sub>
+    </td>
+  </tr>
+</table>
 
-<br><br>
-<img src="static/new_readme/paper2ppt/version-history.png" width="90%"/>
-<br><sub>✨ Version History Management</sub>
+<br>
+
+<img src="static/new_readme/paper2ppt/long-doc.png" width="78%"/>
+<br>
+<img src="static/new_readme/paper2ppt/table-extraction.png" width="80%"/>
+<br>
+<img src="static/new_readme/paper2ppt/version-history.png" width="80%"/>
+<br><sub>✨ Long document support for 40+ slides · Intelligent table extraction and insertion · Version history and iterative deck management</sub>
+
+</div>
+
+---
+
+### 🎬 Paper2Video: PPT to Narrated Video
+
+<div align="center">
+
+<br>
+<img src="static/new_readme/paper2video/demo.gif" width="90%"/>
+<br><sub>✨ PPT / PDF to narrated video with script confirmation, Aliyun TTS voices, and downloadable output</sub>
+
+</div>
+
+---
+
+### 🖼️ Paper2Poster: Paper to Poster
+
+<div align="center">
+
+<br>
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="static/new_readme/paper2poster/paper2poster-ppt-result.png" width="100%"/>
+      <br><sub>PNG poster result</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="static/new_readme/paper2poster/paper2poster-png-result.png" width="100%"/>
+      <br><sub>PPT poster result</sub>
+    </td>
+  </tr>
+</table>
+<br><sub>✨ Paper PDF to academic poster with configurable layout, editable poster output, and one-click export</sub>
+
+</div>
+
+---
+
+### 🔎 Paper2Citation: Citation Explorer
+
+<div align="center">
+
+<br>
+<img src="static/new_readme/paper2citation/citation-explorer.png" width="90%"/>
+<br><sub>✨ Search authors or papers to inspect citation candidates, institutions, and downstream citation context</sub>
 
 </div>
 

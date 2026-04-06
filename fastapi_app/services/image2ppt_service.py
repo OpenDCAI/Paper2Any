@@ -1,20 +1,23 @@
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 from fastapi import File, UploadFile, HTTPException
 from fastapi_app.schemas import Paper2PPTRequest
+from fastapi_app.interprocess_lock import AsyncInterProcessSemaphore
+from fastapi_app.services.managed_api_service import (
+    resolve_image_generation_credentials,
+    resolve_llm_credentials,
+)
 from fastapi_app.workflow_adapters.wa_pdf2ppt import run_pdf2ppt_wf_api
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.logger import get_logger
 
 log = get_logger(__name__)
 
-# 全局信号量控制并发
-task_semaphore = asyncio.Semaphore(1)
+VISUAL_WORKFLOW_LIMITER = AsyncInterProcessSemaphore("sam3_visual_workflows", limit=1)
 
 PROJECT_ROOT = get_project_root()
 BASE_OUTPUT_DIR = (PROJECT_ROOT / "outputs").resolve()
@@ -51,9 +54,19 @@ class Image2PPTService:
         """
         执行 image2ppt 的业务逻辑，返回生成的 PPTX 文件路径
         """
+        resolved_chat_api_url, resolved_api_key = resolve_llm_credentials(
+            chat_api_url,
+            api_key,
+            scope="image2ppt",
+        )
+        resolved_image_api_url, resolved_image_api_key = resolve_image_generation_credentials(
+            chat_api_url,
+            api_key,
+            scope="image2ppt",
+        )
         # 0.5 如果启用 AI 增强，必须校验 API 配置
         if use_ai_edit:
-            if not chat_api_url or not api_key:
+            if not resolved_chat_api_url or not resolved_api_key:
                 raise HTTPException(
                     status_code=400, 
                     detail="When use_ai_edit is True, chat_api_url and api_key are required"
@@ -82,8 +95,11 @@ class Image2PPTService:
         wf_req = Paper2PPTRequest(
             input_type="FIGURE",
             input_content=str(abs_img_path),
-            chat_api_url=chat_api_url or "",
-            api_key=api_key or "",
+            chat_api_url=resolved_chat_api_url or "",
+            chat_api_key=resolved_api_key or "",
+            api_key=resolved_api_key or "",
+            image_api_url=resolved_image_api_url or "",
+            image_api_key=resolved_image_api_key or "",
             model=model,
             gen_fig_model=gen_fig_model,
             language=language,
@@ -94,7 +110,7 @@ class Image2PPTService:
         )
 
         # 4. 调用 workflow（受信号量保护）
-        async with task_semaphore:
+        async with VISUAL_WORKFLOW_LIMITER.hold():
             wf_resp = await run_pdf2ppt_wf_api(wf_req, result_path=run_dir)
 
         # 5. 获取生成的 PPT 路径

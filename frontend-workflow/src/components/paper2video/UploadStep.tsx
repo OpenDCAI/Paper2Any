@@ -1,6 +1,7 @@
 import React, { ChangeEvent, useRef, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { API_URL_OPTIONS } from '../../config/api';
+import ManagedApiNotice from '../ManagedApiNotice';
 import {
   COSYVOICE_V3_FLASH_VOICES,
   COSYVOICE_VOICE_LIST_URL,
@@ -32,6 +33,7 @@ interface UploadStepProps {
   progress: number;
   progressStatus: string;
   error: string | null;
+  showApiConfig: boolean;
   apiKey: string;
   setApiKey: (v: string) => void;
   scriptApiUrl: string;
@@ -65,6 +67,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
   progress,
   progressStatus,
   error,
+  showApiConfig,
   apiKey,
   setApiKey,
   scriptApiUrl,
@@ -252,50 +255,73 @@ const UploadStep: React.FC<UploadStepProps> = ({
             <Settings2 size={18} className="text-teal-400" /> {t('upload.config.title')}
           </h3>
 
-          <div>
-            <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
-              <Key size={12} /> {t('upload.config.apiKey')}
-            </label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={t('upload.config.apiKeyPlaceholder')}
-              className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
-            />
-          </div>
+          {showApiConfig ? (
+            <>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
+                  <Key size={12} /> {t('upload.config.apiKey')}
+                </label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder={t('upload.config.apiKeyPlaceholder')}
+                  className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
-                <Globe size={12} /> {t('upload.config.scriptApiUrl')}
-              </label>
-              <select
-                value={scriptApiUrl}
-                onChange={(e) => setScriptApiUrl(e.target.value)}
-                className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
-              >
-                {API_URL_OPTIONS.map((url: string) => (
-                  <option key={url} value={url}>{url}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
-                <Cpu size={12} /> {t('upload.config.scriptModel')}
-              </label>
-              <select
-                value={scriptModel}
-                onChange={(e) => setScriptModel(e.target.value)}
-                className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
-              >
-                <option value="gpt-4o">gpt-4o</option>
-                <option value="gpt-4o-mini">gpt-4o-mini</option>
-                <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-              </select>
-            </div>
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
+                    <Globe size={12} /> {t('upload.config.scriptApiUrl')}
+                  </label>
+                  <select
+                    value={scriptApiUrl}
+                    onChange={(e) => setScriptApiUrl(e.target.value)}
+                    className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
+                  >
+                    {API_URL_OPTIONS.map((url: string) => (
+                      <option key={url} value={url}>{url}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
+                    <Cpu size={12} /> {t('upload.config.scriptModel')}
+                  </label>
+                  <select
+                    value={scriptModel}
+                    onChange={(e) => setScriptModel(e.target.value)}
+                    className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
+                  >
+                    <option value="gpt-4o">gpt-4o</option>
+                    <option value="gpt-4o-mini">gpt-4o-mini</option>
+                    <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                    <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                  </select>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <ManagedApiNotice />
+              <div>
+                <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">
+                  <Cpu size={12} /> {t('upload.config.scriptModel')}
+                </label>
+                <select
+                  value={scriptModel}
+                  onChange={(e) => setScriptModel(e.target.value)}
+                  className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="gpt-4o">gpt-4o</option>
+                  <option value="gpt-4o-mini">gpt-4o-mini</option>
+                  <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                  <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                </select>
+              </div>
+            </>
+          )}
 
           <div>
             <label className="block text-xs text-gray-400 mb-1 flex items-center gap-1">

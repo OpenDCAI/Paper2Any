@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import time
@@ -19,6 +20,10 @@ from dataflow_agent.toolkits.multimodaltool.req_img import (
     gemini_multi_image_edit_async
 )
 from dataflow_agent.toolkits.multimodaltool.ppt_tool import convert_images_dir_to_pdf_and_full_slide_ppt
+from dataflow_agent.utils.request_credentials import (
+    get_request_image_api_key,
+    get_request_image_api_url,
+)
 
 log = get_logger(__name__)
 
@@ -50,6 +55,15 @@ def _abs_path(p: str) -> str:
         return str(Path(p).expanduser().resolve())
     except Exception:
         return p
+
+
+def _get_parallel_limit(page_count: int) -> int:
+    raw = str(os.getenv("PAPER2PPT_PARALLEL_CONSISTENT_MAX_CONCURRENCY", "")).strip()
+    try:
+        configured = int(raw) if raw else page_count
+    except ValueError:
+        configured = page_count
+    return max(1, min(page_count, configured))
 
 
 def _is_table_asset(asset_ref: Optional[str]) -> bool:
@@ -200,6 +214,137 @@ def _extract_image_path_from_pagecontent_item(item: Any) -> Optional[str]:
     return None
 
 
+async def _regenerate_single_page_from_content(
+    state: Paper2FigureState,
+    idx: int,
+    item: Dict[str, Any],
+    save_path: str,
+    ref_img_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    async def _call_image_api_with_retry(coro_factory, retries: int = 3, delay: float = 1.0) -> bool:
+        last_err: Optional[Exception] = None
+        for attempt in range(1, retries + 1):
+            try:
+                await coro_factory()
+                return True
+            except Exception as exc:  # noqa: BLE001
+                last_err = exc
+                log.error(f"[paper2ppt] single page regen failed attempt {attempt}/{retries}: {exc}")
+                if attempt < retries:
+                    with contextlib.suppress(Exception):
+                        await asyncio.sleep(delay)
+        log.error(f"[paper2ppt] single page regen failed after {retries} attempts. last_err={last_err}")
+        return False
+
+    style = getattr(state.request, "style", None) or "kartoon"
+    aspect_ratio = getattr(state, "aspect_ratio", None) or "16:9"
+    image_resolution = getattr(state.request, "image_resolution", None) or "2K"
+    image_api_url = get_request_image_api_url(state.request)
+    image_api_key = get_request_image_api_key(state.request)
+
+    style_hint = ""
+    if style and style.strip() and style.strip().lower() != "kartoon":
+        style_hint = f"\nAdditional style guidance: {style.strip()}\n"
+
+    base_content, asset_path, is_edit_originally = await _make_prompt_for_structured_page(
+        item,
+        style=style,
+        state=state,
+    )
+
+    use_ref = bool(ref_img_path and os.path.exists(ref_img_path))
+
+    if use_ref:
+        if is_edit_originally and asset_path:
+            final_prompt = (
+                f"{base_content}\n\n"
+                f"--------------------------------------------------\n"
+                f"TASK: Generate a {style} presentation slide.\n"
+                f"INPUT IMAGES:\n"
+                f"  - IMAGE 1 (First Image): STYLE REFERENCE. Strictly follow its color palette, and background style.\n"
+                f"  - IMAGE 2 (Second Image): CONTENT ASSET. Incorporate the chart/table/figure from this image into the slide.\n\n"
+                f"INSTRUCTION: Create a cohesive slide that presents the content from Image 2 but looks exactly like it belongs to the deck of Image 1.\n"
+                f"{style_hint}"
+                f"Language: {state.request.language}"
+            )
+            mode = "regen_multi_edit_ref_asset"
+            ok = await _call_image_api_with_retry(
+                lambda: gemini_multi_image_edit_async(
+                    prompt=final_prompt,
+                    image_paths=[ref_img_path, asset_path],
+                    save_path=save_path,
+                    api_url=image_api_url,
+                    api_key=image_api_key,
+                    model=state.request.gen_fig_model,
+                    aspect_ratio=aspect_ratio,
+                    resolution=image_resolution,
+                )
+            )
+        else:
+            final_prompt = (
+                f"{base_content}\n\n"
+                f"Reference the style of the provided image (layout, color, background), "
+                f"but generate NEW CONTENT based on the text description above. "
+                f"Keep the background style consistent.\n"
+                f"{style_hint}"
+                f"Language: {state.request.language}"
+            )
+            mode = "regen_ref_style"
+            ok = await _call_image_api_with_retry(
+                lambda: generate_or_edit_and_save_image_async(
+                    prompt=final_prompt,
+                    save_path=save_path,
+                    aspect_ratio=aspect_ratio,
+                    api_url=image_api_url,
+                    api_key=image_api_key,
+                    model=state.request.gen_fig_model,
+                    image_path=ref_img_path,
+                    use_edit=True,
+                    resolution=image_resolution,
+                )
+            )
+    else:
+        if is_edit_originally:
+            final_prompt = (
+                f"{base_content}\n\n"
+                f"根据上述内容绘制ppt，把这个图作为PPT的一部分。生成{style}风格的PPT. \n "
+                f"使用语言：{state.request.language} !!!"
+            )
+        else:
+            final_prompt = (
+                f"{base_content}\n\n"
+                f"根据上述内容。生成{style}风格的 PPT 图像, \n "
+                f"使用语言：{state.request.language}"
+            )
+
+        mode = "regen_origin_edit" if is_edit_originally else "regen_origin_gen"
+        ok = await _call_image_api_with_retry(
+            lambda: generate_or_edit_and_save_image_async(
+                prompt=final_prompt,
+                save_path=save_path,
+                aspect_ratio=aspect_ratio,
+                api_url=image_api_url,
+                api_key=image_api_key,
+                model=state.request.gen_fig_model,
+                image_path=asset_path,
+                use_edit=is_edit_originally,
+                resolution=image_resolution,
+            )
+        )
+
+    if not ok:
+        raise ValueError(f"[paper2ppt] failed to regenerate page from outline: idx={idx}")
+
+    out_item = dict(item)
+    out_item.update({
+        "generated_img_path": save_path,
+        "page_idx": idx,
+        "mode": mode,
+        "style": style,
+    })
+    return out_item
+
+
 @register("paper2ppt_parallel_consistent_style")
 def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa: N802
     """
@@ -225,6 +370,8 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
     def _route(state: Paper2FigureState) -> str:
         if getattr(state.request, "all_edited_down", False):
             return "export_ppt_assets"
+        if getattr(state, "regenerate_from_outline", False):
+            return "regenerate_single_page_from_content"
         if not getattr(state, "gen_down", False):
             return "generate_pages"
         return "edit_single_page"
@@ -245,10 +392,18 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                     return True
                 except Exception as e:  # noqa: BLE001
                     last_err = e
-                    log.error(f"[paper2ppt] image gen failed attempt {attempt}/{retries}: {e}")
+                    err_text = str(e)
+                    is_rate_limited = "429" in err_text or "Too Many Requests" in err_text
+                    sleep_for = delay * (2 ** (attempt - 1))
+                    if is_rate_limited:
+                        sleep_for = max(sleep_for, 8.0 * attempt)
+                    log.error(
+                        f"[paper2ppt] image gen failed attempt {attempt}/{retries}: {e}. "
+                        f"retry_in={sleep_for:.1f}s"
+                    )
                     if attempt < retries:
                         try:
-                            await asyncio.sleep(delay)
+                            await asyncio.sleep(sleep_for)
                         except Exception:
                             pass
             log.error(f"[paper2ppt] image gen failed after {retries} attempts. last_err={last_err}")
@@ -261,6 +416,8 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
         style = getattr(state.request, "style", None) or "kartoon"
         aspect_ratio = getattr(state, "aspect_ratio", None) or "16:9"
         image_resolution = getattr(state.request, "image_resolution", None) or "2K"
+        image_api_url = get_request_image_api_url(state.request)
+        image_api_key = get_request_image_api_key(state.request)
         
         page_items = state.pagecontent or []
         if not page_items:
@@ -315,8 +472,8 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                             prompt=prompt,
                             image_paths=[ref_img_path, image_path],
                             save_path=save_path,
-                            api_url=state.request.chat_api_url,
-                            api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
+                            api_url=image_api_url,
+                            api_key=image_api_key,
                             model=state.request.gen_fig_model,
                             aspect_ratio=aspect_ratio,
                             resolution=image_resolution,
@@ -333,8 +490,8 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                             prompt=prompt,
                             save_path=save_path,
                             aspect_ratio=aspect_ratio,
-                            api_url=state.request.chat_api_url,
-                            api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
+                            api_url=image_api_url,
+                            api_key=image_api_key,
                             model=state.request.gen_fig_model,
                             image_path=image_path,
                             use_edit=True,
@@ -394,8 +551,8 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                             prompt=final_prompt,
                             image_paths=[ref_img_path, asset_path],
                             save_path=save_path,
-                            api_url=state.request.chat_api_url,
-                            api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
+                            api_url=image_api_url,
+                            api_key=image_api_key,
                             model=state.request.gen_fig_model,
                             aspect_ratio=aspect_ratio,
                             resolution=image_resolution,
@@ -420,8 +577,8 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                             prompt=final_prompt,
                             save_path=save_path,
                             aspect_ratio=aspect_ratio,
-                            api_url=state.request.chat_api_url,
-                            api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
+                            api_url=image_api_url,
+                            api_key=image_api_key,
                             model=state.request.gen_fig_model,
                             image_path=ref_img_path,  # Use ref as base
                             use_edit=True,
@@ -452,8 +609,8 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                         prompt=final_prompt,
                         save_path=save_path,
                         aspect_ratio=aspect_ratio,
-                        api_url=state.request.chat_api_url,
-                        api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
+                        api_url=image_api_url,
+                        api_key=image_api_key,
                         model=state.request.gen_fig_model,
                         image_path=asset_path,
                         use_edit=is_edit_originally,
@@ -481,39 +638,94 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
         # --- Execution Flow ---
         
         results_map = {}
+        skip_set = set(getattr(state, "skip_pages", None) or [])
+        parallel_limit = _get_parallel_limit(len(page_items))
+        semaphore = asyncio.Semaphore(parallel_limit)
+
+        def _try_skip_page(idx: int) -> bool:
+            if idx not in skip_set:
+                return False
+            existing_path = str((img_dir / f"page_{idx:03d}.png").resolve())
+            if os.path.exists(existing_path):
+                log.info(f"[paper2ppt_consistent] Skipping page {idx} (unchanged), reusing {existing_path}")
+                results_map[idx] = {
+                    "page_idx": idx,
+                    "generated_img_path": existing_path,
+                    "mode": "skipped_unchanged",
+                }
+                return True
+            log.warning(
+                f"[paper2ppt_consistent] Page {idx} in skip_pages but image not found, will regenerate"
+            )
+            return False
+
+        async def _process_single_page_with_limit(
+            idx: int,
+            item: Any,
+            ref_img_path: Optional[str] = None,
+        ) -> Dict[str, Any]:
+            async with semaphore:
+                return await _process_single_page(idx, item, ref_img_path=ref_img_path)
         
         # 场景 A: 用户提供了参考图 (ref_img) -> 全量并行
+        if skip_set:
+            log.info(f"[paper2ppt_consistent] Incremental mode: skip_pages={sorted(skip_set)}")
+
         if user_ref_img:
-            log.info(f"[paper2ppt_consistent] User ref_img provided. Processing all {len(page_items)} pages in parallel...")
+            log.info(
+                f"[paper2ppt_consistent] User ref_img provided. Processing all {len(page_items)} pages "
+                f"with parallel_limit={parallel_limit}..."
+            )
             tasks = []
+            task_indices = []
             for idx in range(len(page_items)):
-                tasks.append(_process_single_page(idx, page_items[idx], ref_img_path=user_ref_img))
+                if _try_skip_page(idx):
+                    continue
+                tasks.append(_process_single_page_with_limit(idx, page_items[idx], ref_img_path=user_ref_img))
+                task_indices.append(idx)
             
-            t_start = time.time()
-            all_results = await asyncio.gather(*tasks, return_exceptions=True)
-            log.info(f"[paper2ppt_consistent] All pages done in {time.time()-t_start:.2f}s")
-            
-            for i, res in enumerate(all_results):
-                if isinstance(res, Exception):
-                    log.error(f"[paper2ppt_consistent] Page {i} exception: {res}")
-                    results_map[i] = {"page_idx": i, "generated_img_path": None, "mode": "exception", "error": str(res)}
-                else:
-                    results_map[i] = res
+            if tasks:
+                t_start = time.time()
+                all_results = await asyncio.gather(*tasks, return_exceptions=True)
+                log.info(
+                    f"[paper2ppt_consistent] {len(tasks)} pages done in {time.time()-t_start:.2f}s "
+                    f"(skipped {len(page_items) - len(tasks)})"
+                )
+
+                for i, res in enumerate(all_results):
+                    real_idx = task_indices[i]
+                    if isinstance(res, Exception):
+                        log.error(f"[paper2ppt_consistent] Page {real_idx} exception: {res}")
+                        results_map[real_idx] = {
+                            "page_idx": real_idx,
+                            "generated_img_path": None,
+                            "mode": "exception",
+                            "error": str(res),
+                        }
+                    else:
+                        results_map[real_idx] = res
 
         # 场景 B: 无参考图 -> 生成第0页作为 Anchor，再并行后续
         else:
-            # 1. Process Page 0
-            log.info("[paper2ppt_consistent] Generating Page 0 as Style Anchor...")
-            t0_start = time.time()
-            res0 = await _process_single_page(0, page_items[0], ref_img_path=None)
-            log.info(f"[paper2ppt_consistent] Page 0 done in {time.time()-t0_start:.2f}s. Result: {res0.get('mode')}")
-            
-            results_map[0] = res0
-            
-            # 获取 Anchor Image
-            anchor_img_path = res0.get("generated_img_path")
+            anchor_img_path = None
+            if _try_skip_page(0):
+                anchor_img_path = results_map[0].get("generated_img_path")
+                log.info(f"[paper2ppt_consistent] Page 0 skipped, using as anchor: {anchor_img_path}")
+            else:
+                log.info("[paper2ppt_consistent] Generating Page 0 as Style Anchor...")
+                t0_start = time.time()
+                res0 = await _process_single_page(0, page_items[0], ref_img_path=None)
+                log.info(
+                    f"[paper2ppt_consistent] Page 0 done in {time.time()-t0_start:.2f}s. "
+                    f"Result: {res0.get('mode')}"
+                )
+
+                results_map[0] = res0
+                anchor_img_path = res0.get("generated_img_path")
             if not anchor_img_path or not os.path.exists(anchor_img_path):
-                log.warning("[paper2ppt_consistent] Page 0 generation failed! Subsequent pages will be generated independently.")
+                log.warning(
+                    "[paper2ppt_consistent] Page 0 generation failed! Subsequent pages will be generated independently."
+                )
                 anchor_img_path = None
             else:
                 log.info(f"[paper2ppt_consistent] Anchor Image established: {anchor_img_path}")
@@ -521,26 +733,36 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
             # 2. Process remaining pages in parallel
             if len(page_items) > 1:
                 tasks = []
+                task_indices = []
                 for idx in range(1, len(page_items)):
-                    tasks.append(_process_single_page(idx, page_items[idx], ref_img_path=anchor_img_path))
-                
-                log.info(f"[paper2ppt_consistent] Generating remaining {len(tasks)} pages concurrently...")
-                t_rest_start = time.time()
-                rest_results = await asyncio.gather(*tasks, return_exceptions=True)
-                log.info(f"[paper2ppt_consistent] Remaining pages done in {time.time()-t_rest_start:.2f}s")
-                
-                for i, res in enumerate(rest_results):
-                    real_idx = i + 1
-                    if isinstance(res, Exception):
-                        log.error(f"[paper2ppt_consistent] Page {real_idx} exception: {res}")
-                        results_map[real_idx] = {
-                            "page_idx": real_idx,
-                            "generated_img_path": None,
-                            "mode": "exception",
-                            "error": str(res)
-                        }
-                    else:
-                        results_map[real_idx] = res
+                    if _try_skip_page(idx):
+                        continue
+                    tasks.append(_process_single_page_with_limit(idx, page_items[idx], ref_img_path=anchor_img_path))
+                    task_indices.append(idx)
+
+                if tasks:
+                    log.info(
+                        f"[paper2ppt_consistent] Generating {len(tasks)} changed pages concurrently "
+                        f"(skipped {len(page_items) - 1 - len(tasks)})..."
+                    )
+                    t_rest_start = time.time()
+                    rest_results = await asyncio.gather(*tasks, return_exceptions=True)
+                    log.info(
+                        f"[paper2ppt_consistent] Changed pages done in {time.time()-t_rest_start:.2f}s"
+                    )
+
+                    for i, res in enumerate(rest_results):
+                        real_idx = task_indices[i]
+                        if isinstance(res, Exception):
+                            log.error(f"[paper2ppt_consistent] Page {real_idx} exception: {res}")
+                            results_map[real_idx] = {
+                                "page_idx": real_idx,
+                                "generated_img_path": None,
+                                "mode": "exception",
+                                "error": str(res),
+                            }
+                        else:
+                            results_map[real_idx] = res
         
         # 3. Assemble final list
         new_pagecontent = []
@@ -564,6 +786,43 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
             state.generated_pages.append(gen_path if gen_path else "")
 
         state.pagecontent = new_pagecontent
+        state.gen_down = True
+        return state
+
+    async def regenerate_single_page_from_content(state: Paper2FigureState) -> Paper2FigureState:
+        idx = int(getattr(state, "edit_page_num", -1))
+        if idx < 0 or idx >= len(state.pagecontent or []):
+            raise ValueError(f"[paper2ppt] regenerate_from_outline page index out of range: {idx}")
+
+        result_root = Path(_ensure_result_path(state))
+        img_dir = result_root / "ppt_pages"
+        img_dir.mkdir(parents=True, exist_ok=True)
+        save_path = str((img_dir / f"page_{idx:03d}.png").resolve())
+        item = state.pagecontent[idx]
+        if not isinstance(item, dict):
+            raise ValueError(f"[paper2ppt] regenerate_from_outline requires structured pagecontent: idx={idx}")
+
+        user_ref_img = getattr(state.request, "ref_img", None)
+        if user_ref_img:
+            user_ref_img = _abs_path(str(user_ref_img))
+            if not os.path.exists(user_ref_img):
+                log.warning(f"[paper2ppt] regenerate_from_outline ref_img not found: {user_ref_img}")
+                user_ref_img = None
+
+        updated_item = await _regenerate_single_page_from_content(
+            state=state,
+            idx=idx,
+            item=item,
+            save_path=save_path,
+            ref_img_path=user_ref_img,
+        )
+
+        if getattr(state, "generated_pages", None) and idx < len(state.generated_pages):
+            state.generated_pages[idx] = save_path
+        if idx < len(state.pagecontent or []):
+            state.pagecontent[idx] = updated_item
+
+        state.regenerate_from_outline = False
         state.gen_down = True
         return state
 
@@ -603,6 +862,8 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
         aspect_ratio = getattr(state, "aspect_ratio", None) or "16:9"
         style = getattr(state.request, "style", None) or "kartoon"
         image_resolution = getattr(state.request, "image_resolution", None) or "2K"
+        image_api_url = get_request_image_api_url(state.request)
+        image_api_key = get_request_image_api_key(state.request)
 
         # 检查 ref_img
         user_ref_img = getattr(state.request, "ref_img", None)
@@ -641,8 +902,8 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                 prompt=full_prompt,
                 image_paths=[user_ref_img, old_path],
                 save_path=temp_save_path,
-                api_url=state.request.chat_api_url,
-                api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
+                api_url=image_api_url,
+                api_key=image_api_key,
                 model=state.request.gen_fig_model,
                 aspect_ratio=aspect_ratio,
                 resolution=image_resolution,
@@ -666,8 +927,8 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
                 prompt=full_prompt,
                 save_path=temp_save_path,
                 aspect_ratio=aspect_ratio,
-                api_url=state.request.chat_api_url,
-                api_key=state.request.chat_api_key or os.getenv("DF_API_KEY"),
+                api_url=image_api_url,
+                api_key=image_api_key,
                 model=state.request.gen_fig_model,
                 image_path=old_path,
                 use_edit=True,
@@ -739,6 +1000,7 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
     nodes = {
         "_start_": _start_,
         "generate_pages": generate_pages,
+        "regenerate_single_page_from_content": regenerate_single_page_from_content,
         "edit_single_page": edit_single_page,
         "export_ppt_assets": export_ppt_assets,
         "_end_": lambda state: state,
@@ -746,6 +1008,7 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
 
     edges = [
         ("generate_pages", "export_ppt_assets"),
+        ("regenerate_single_page_from_content", "export_ppt_assets"),
         ("edit_single_page", "export_ppt_assets"),
         ("export_ppt_assets", "_end_"),
     ]

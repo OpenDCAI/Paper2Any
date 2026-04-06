@@ -1,6 +1,5 @@
 export const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 export const STORAGE_KEY = 'paper2video-storage';
-export const VIDEO_GENERATION_COST = 10;
 
 /** 仅使用 cosyvoice-v3-flash */
 export const TTS_MODEL = 'cosyvoice-v3-flash';

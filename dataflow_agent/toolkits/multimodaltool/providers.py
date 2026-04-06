@@ -791,9 +791,15 @@ class CosyVoiceProvider(AIProviderStrategy):
     ) -> bytes:
         """同步调用 DashScope CosyVoice，返回音频 bytes（WAV/MP3 等，由 format 决定）。"""
         import os
-        import dashscope
-        from dashscope.audio.tts_v2 import SpeechSynthesizer
-        from dashscope.audio.tts_v2 import AudioFormat
+        try:
+            import dashscope
+            from dashscope.audio.tts_v2 import SpeechSynthesizer
+            from dashscope.audio.tts_v2 import AudioFormat
+        except ModuleNotFoundError as e:
+            raise RuntimeError(
+                "CosyVoice 依赖未安装：缺少 Python 包 'dashscope'。"
+                "请在当前后端 Python 环境执行 `pip install dashscope`。"
+            ) from e
         key = (os.environ.get("COSYVOICE_KEY", "") or api_key or "").strip()
         if not key:
             raise RuntimeError("CosyVoice 需要提供阿里云 DashScope Key（环境变量 COSYVOICE_KEY 或请求 api_key）")

@@ -5,6 +5,7 @@ pdf text and asset extraction
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import os
 import re
@@ -61,6 +62,8 @@ class Parser:
 
             raw_text, raw_result = self._extract_raw_text(state["pdf_path"], content_dir)
             figures, tables = self._extract_assets(raw_result, state["poster_name"], assets_dir)
+            if not figures and not tables:
+                figures, tables = self._extract_assets_with_pymupdf(state["pdf_path"], assets_dir)
 
             title, authors = self._extract_title_authors(raw_text, state["text_model"])
 
@@ -385,6 +388,166 @@ class Parser:
             json.dump(caption_map, f, indent=2, ensure_ascii=False)
 
         return figures, tables
+
+    def _extract_assets_with_pymupdf(self, pdf_path: str, assets_dir: Path) -> Tuple[Dict, Dict]:
+        log_agent_warning(
+            self.name,
+            "MinerU assets unavailable, falling back to PyMuPDF image extraction",
+        )
+
+        figures: Dict[str, Dict[str, Any]] = {}
+        tables: Dict[str, Dict[str, Any]] = {}
+        caption_map: Dict[str, Dict[str, Any]] = {}
+        figure_count = 0
+        table_count = 0
+
+        try:
+            with fitz.open(pdf_path) as document:
+                for page_index, page in enumerate(document, start=1):
+                    page_rect = page.rect
+                    page_blocks = self._build_pymupdf_asset_blocks(page.get_text("dict").get("blocks", []))
+
+                    for block_index, block in enumerate(page_blocks):
+                        if block.get("type") != "figure":
+                            continue
+
+                        bbox = block.get("bbox")
+                        if not self._should_keep_pymupdf_image_block(bbox, page_rect):
+                            continue
+
+                        image_bytes = block.get("image")
+                        if not isinstance(image_bytes, (bytes, bytearray)):
+                            continue
+
+                        try:
+                            with Image.open(io.BytesIO(image_bytes)) as image:
+                                image = image.convert("RGB")
+                                width, height = image.size
+                                out_path = assets_dir / f"figure-p{page_index:03d}-b{block_index:04d}.png"
+                                image.save(out_path, format="PNG")
+                        except Exception:
+                            continue
+
+                        caption = self._infer_asset_caption(page_blocks, block_index, "figure")
+                        asset_kind = self._classify_pymupdf_asset_kind_from_caption(caption)
+                        item = {
+                            "caption": caption,
+                            "path": str(out_path.resolve()),
+                            "width": width,
+                            "height": height,
+                            "aspect": width / height if height > 0 else 1,
+                        }
+
+                        if asset_kind == "table":
+                            table_count += 1
+                            tables[str(table_count)] = item
+                            key = f"table_{table_count}"
+                        else:
+                            figure_count += 1
+                            figures[str(figure_count)] = item
+                            key = f"figure_{figure_count}"
+
+                        caption_map[key] = {
+                            "page": page_index,
+                            "block_type": asset_kind,
+                            "bbox": bbox,
+                            "captions": [caption],
+                        }
+        except Exception as exc:
+            log_agent_warning(self.name, f"PyMuPDF asset extraction failed: {exc}")
+            return self._write_asset_metadata({}, {}, {}, assets_dir)
+
+        if figures or tables:
+            log_agent_info(
+                self.name,
+                f"PyMuPDF fallback extracted {len(figures)} figures and {len(tables)} tables",
+            )
+        else:
+            log_agent_warning(self.name, "PyMuPDF fallback did not find usable image assets")
+        return self._write_asset_metadata(figures, tables, caption_map, assets_dir)
+
+    def _build_pymupdf_asset_blocks(self, blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        normalized_blocks: List[Dict[str, Any]] = []
+
+        for block in blocks:
+            block_type = block.get("type")
+            bbox = block.get("bbox")
+            if not bbox:
+                continue
+
+            if block_type == 1:
+                normalized_blocks.append(
+                    {
+                        "type": "figure",
+                        "bbox": bbox,
+                        "image": block.get("image"),
+                    }
+                )
+                continue
+
+            text = self._extract_pymupdf_block_text(block)
+            if text:
+                normalized_blocks.append(
+                    {
+                        "type": "text",
+                        "bbox": bbox,
+                        "text": text,
+                    }
+                )
+
+        return self._sort_blocks_for_reading(normalized_blocks)
+
+    def _extract_pymupdf_block_text(self, block: Dict[str, Any]) -> str:
+        lines = block.get("lines")
+        if not isinstance(lines, list):
+            return ""
+
+        spans_text: List[str] = []
+        for line in lines:
+            spans = line.get("spans") if isinstance(line, dict) else None
+            if not isinstance(spans, list):
+                continue
+            line_text = "".join(
+                str(span.get("text", ""))
+                for span in spans
+                if isinstance(span, dict)
+            ).strip()
+            if line_text:
+                spans_text.append(line_text)
+
+        return " ".join(spans_text).strip()
+
+    def _should_keep_pymupdf_image_block(self, bbox: Any, page_rect: fitz.Rect) -> bool:
+        if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+            return False
+
+        try:
+            x0, y0, x1, y1 = [float(value) for value in bbox]
+        except Exception:
+            return False
+
+        width = max(0.0, x1 - x0)
+        height = max(0.0, y1 - y0)
+        if width <= 0 or height <= 0:
+            return False
+
+        page_width = max(float(page_rect.width), 1.0)
+        page_height = max(float(page_rect.height), 1.0)
+        area_ratio = (width * height) / (page_width * page_height)
+        width_ratio = width / page_width
+        height_ratio = height / page_height
+
+        return (
+            area_ratio >= 0.015
+            or (width_ratio >= 0.18 and height_ratio >= 0.08)
+            or (width_ratio >= 0.12 and height_ratio >= 0.12)
+        )
+
+    def _classify_pymupdf_asset_kind_from_caption(self, caption: str) -> str:
+        lowered = (caption or "").strip().lower()
+        if lowered.startswith("table ") or lowered.startswith("table.") or lowered.startswith("tab."):
+            return "table"
+        return "figure"
 
     def _sort_blocks_for_reading(self, blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         def _key(block: Dict[str, Any]) -> tuple[float, float]:

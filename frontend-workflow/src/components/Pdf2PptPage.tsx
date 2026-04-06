@@ -5,13 +5,16 @@ import {
   AlertCircle, Github, Star, X, FileText, ArrowRight, Key, Globe, ToggleLeft, ToggleRight, Sparkles, Image, MessageSquare, Copy, Info
 } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
-import { API_KEY, API_URL_OPTIONS, DEFAULT_LLM_API_URL, getPurchaseUrl } from '../config/api';
+import { API_URL_OPTIONS, DEFAULT_LLM_API_URL, getPurchaseUrl } from '../config/api';
 import { DEFAULT_PDF2PPT_GEN_FIG_MODEL, PDF2PPT_GEN_FIG_MODELS, withModelOptions } from '../config/models';
 import { checkQuota, recordUsage } from '../services/quotaService';
 import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
 import { getApiSettings, saveApiSettings } from '../services/apiSettingsService';
+import { backendFetch } from '../services/backendClient';
 import QRCodeTooltip from './QRCodeTooltip';
+import ManagedApiNotice from './ManagedApiNotice';
+import { useRuntimeBilling } from '../hooks/useRuntimeBilling';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const STORAGE_KEY = 'pdf2ppt-storage';
@@ -20,6 +23,7 @@ const STORAGE_KEY = 'pdf2ppt-storage';
 const Pdf2PptPage = () => {
   const { t } = useTranslation(['pdf2ppt', 'common']);
   const { user, refreshQuota } = useAuthStore();
+  const { userApiConfigRequired } = useRuntimeBilling();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -131,7 +135,7 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
     } catch (e) {
       console.error('Failed to restore pdf2ppt config', e);
     }
-  }, [user?.id]);
+  }, [user?.id, userApiConfigRequired]);
 
   // 将配置写入 localStorage
   useEffect(() => {
@@ -203,11 +207,11 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
     }
 
     if (useAiEdit) {
-      if (!apiKey.trim()) {
+      if (userApiConfigRequired && !apiKey.trim()) {
         setError(t('errors.enterKey'));
         return;
       }
-      if (!llmApiUrl.trim()) {
+      if (userApiConfigRequired && !llmApiUrl.trim()) {
         setError(t('errors.enterUrl'));
         return;
       }
@@ -260,16 +264,17 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
       
       if (useAiEdit) {
         formData.append('use_ai_edit', 'true');
+      if (userApiConfigRequired) {
         formData.append('chat_api_url', llmApiUrl.trim());
         formData.append('api_key', apiKey.trim());
+      }
         formData.append('gen_fig_model', genFigModel);
       } else {
         formData.append('use_ai_edit', 'false');
       }
       
-      const res = await fetch('/api/v1/pdf2ppt/generate', {
+      const res = await backendFetch('/api/v1/pdf2ppt/generate', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
       
@@ -290,6 +295,11 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
         throw new Error(msg);
       }
 
+      const actualPageCount = Math.max(
+        1,
+        Number.parseInt(res.headers.get('X-Paper2Any-Page-Count') || '1', 10) || 1
+      );
+
       // 获取文件 blob
       const blob = await res.blob();
       if (!blob || blob.size === 0) {
@@ -301,8 +311,15 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
       setIsComplete(true);
 
       // 校验通过后才扣积分
-      await recordUsage(user?.id || null, 'pdf2ppt', { isAnonymous: user?.is_anonymous || false });
-      refreshQuota();
+      const usageRecorded = await recordUsage(user?.id || null, 'pdf2ppt', {
+        amount: actualPageCount,
+        isAnonymous: user?.is_anonymous || false,
+      });
+      if (usageRecorded) {
+        refreshQuota();
+      } else {
+        setError(`PPT 已生成，但 ${actualPageCount} 点扣费记录失败，请刷新余额确认。`);
+      }
       const outputName = selectedFile?.name.replace('.pdf', '.pptx') || 'pdf2ppt_output.pptx';
       console.log('[Pdf2PptPage] Uploading file to storage:', outputName);
       await uploadAndSaveFile(blob, outputName, 'pdf2ppt');
@@ -510,7 +527,7 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
                 </div>
 
                 {/* AI 增强配置面板 - 仅开启时显示 */}
-                {useAiEdit && (
+                {useAiEdit && userApiConfigRequired && (
                   <div className="space-y-4 mb-6 p-4 rounded-xl border border-purple-500/20 bg-purple-500/5 animate-in fade-in slide-in-from-top-2">
                     <div>
                       <label className="block text-xs text-gray-400 mb-1.5 flex items-center gap-1">
@@ -577,6 +594,10 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
                       </div>
                     </div>
                   </div>
+                )}
+
+                {useAiEdit && !userApiConfigRequired && (
+                  <ManagedApiNotice className="mb-6" />
                 )}
 
                 {/* 验证状态 */}
@@ -647,8 +668,8 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
                 </div>
 
                 {/* 分享与交流群区域 */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8 text-left">
-                  {/* 获取免费 Key */}
+                <div className={`grid grid-cols-1 gap-4 mt-8 text-left ${userApiConfigRequired ? 'md:grid-cols-2' : ''}`}>
+                  {userApiConfigRequired && (
                   <div className="glass rounded-xl border border-white/10 p-5 flex flex-col items-center text-center hover:bg-white/5 transition-colors">
                     <div className="w-12 h-12 rounded-full bg-yellow-500/20 text-yellow-300 flex items-center justify-center mb-3">
                       <Star size={24} />
@@ -711,6 +732,7 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
                </div>
             </div>
                   </div>
+                  )}
 
                   {/* 交流群 */}
                   <div className="glass rounded-xl border border-white/10 p-5 flex flex-col items-center text-center hover:bg-white/5 transition-colors">

@@ -15,13 +15,17 @@ from fastapi import UploadFile, Request
 from dataflow_agent.state import Paper2DrawioState, Paper2DrawioRequest
 from dataflow_agent.toolkits.drawio_tools import wrap_xml, extract_cells
 from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract_http
+from dataflow_agent.workflow import get_workflow
 from dataflow_agent.logger import get_logger
 from fastapi_app.config.settings import settings
+from fastapi_app.interprocess_lock import AsyncInterProcessSemaphore
+from fastapi_app.services.managed_api_service import resolve_llm_credentials
 
 log = get_logger(__name__)
 
 BASE_OUTPUT_DIR = Path("outputs").resolve()
-task_semaphore = asyncio.Semaphore(2)
+VISUAL_WORKFLOW_LIMITER = AsyncInterProcessSemaphore("sam3_visual_workflows", limit=1)
+SEMANTIC_WORKFLOW_LIMITER = AsyncInterProcessSemaphore("paper2drawio_semantic", limit=2)
 
 
 class Paper2DrawioService:
@@ -54,7 +58,11 @@ class Paper2DrawioService:
     def _create_run_dir(self, prefix: str, email: Optional[str]) -> Path:
         """创建运行目录"""
         ts = int(time.time())
-        run_dir = BASE_OUTPUT_DIR / prefix / str(ts)
+        owner = (email or "").strip()
+        if owner:
+            run_dir = BASE_OUTPUT_DIR / owner / prefix / str(ts)
+        else:
+            run_dir = BASE_OUTPUT_DIR / prefix / str(ts)
         run_dir.mkdir(parents=True, exist_ok=True)
         (run_dir / "input").mkdir(exist_ok=True)
         return run_dir
@@ -96,15 +104,14 @@ class Paper2DrawioService:
             result_path=str(result_dir),
         )
 
-        from dataflow_agent.workflow.registry import RuntimeRegistry
-
         try:
-            async with task_semaphore:
-                workflow_name = "paper2drawio_visual" if use_sam3_workflow else "paper2drawio_semantic"
+            workflow_name = "paper2drawio_visual" if use_sam3_workflow else "paper2drawio_semantic"
+            limiter = VISUAL_WORKFLOW_LIMITER if use_sam3_workflow else SEMANTIC_WORKFLOW_LIMITER
+            async with limiter.hold():
                 log.info(
                     f"[paper2drawio] selected workflow={workflow_name}, input_type={workflow_input_type}, model={candidate_model}"
                 )
-                factory = RuntimeRegistry.get(workflow_name)
+                factory = get_workflow(workflow_name)
                 builder = factory()
                 graph = builder.build()
                 final_state = await graph.ainvoke(state)
@@ -151,6 +158,11 @@ class Paper2DrawioService:
         text_content: Optional[str],
     ) -> Dict[str, Any]:
         """生成图表"""
+        resolved_chat_api_url, resolved_api_key = resolve_llm_credentials(
+            chat_api_url,
+            api_key,
+            scope="paper2drawio",
+        )
         run_dir = self._create_run_dir("paper2drawio", email)
         input_dir = run_dir / "input"
 
@@ -206,8 +218,8 @@ class Paper2DrawioService:
             workflow_text_content = markdown_text
 
         # SAM3 流程使用平台内置 OCR 服务配置；普通流程沿用用户入参
-        request_chat_api_url = chat_api_url
-        request_api_key = api_key
+        request_chat_api_url = resolved_chat_api_url
+        request_api_key = resolved_api_key
         if use_sam3_workflow:
             request_chat_api_url = settings.PAPER2DRAWIO_OCR_API_URL
             request_api_key = settings.PAPER2DRAWIO_OCR_API_KEY
@@ -303,6 +315,11 @@ class Paper2DrawioService:
         model: str,
     ) -> Dict[str, Any]:
         """对话式编辑"""
+        resolved_chat_api_url, resolved_api_key = resolve_llm_credentials(
+            chat_api_url,
+            api_key,
+            scope="paper2drawio",
+        )
         current_cells = (
             extract_cells(current_xml)
             if ("<mxfile" in current_xml or "<diagram" in current_xml)
@@ -310,8 +327,8 @@ class Paper2DrawioService:
         )
         state = Paper2DrawioState(
             request=Paper2DrawioRequest(
-                chat_api_url=chat_api_url,
-                api_key=api_key,
+                chat_api_url=resolved_chat_api_url,
+                api_key=resolved_api_key,
                 model=model,
                 input_type="TEXT",
                 edit_instruction=message,
@@ -321,11 +338,9 @@ class Paper2DrawioService:
             text_content=message,
         )
 
-        from dataflow_agent.workflow.registry import RuntimeRegistry
-
         try:
-            async with task_semaphore:
-                factory = RuntimeRegistry.get("paper2drawio_semantic")
+            async with SEMANTIC_WORKFLOW_LIMITER.hold():
+                factory = get_workflow("paper2drawio_semantic")
                 builder = factory()
                 graph = builder.build()
                 final_state = await graph.ainvoke(state)

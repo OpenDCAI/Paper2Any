@@ -78,8 +78,8 @@ class GenerateVideoResponse(BaseModel):
 
 
 class VerifyLlmRequest(BaseModel):
-    api_url: str
-    api_key: str
+    api_url: Optional[str] = None
+    api_key: Optional[str] = None
     model: str = settings.MODEL_GPT_4O
 
 
@@ -120,6 +120,9 @@ class Paper2FigureRequest(BaseModel):
 
     api_key: str = ""
     # 如果使用第三方外部 API（如 OpenAI），在此填写外部 API Key；为空则使用内部服务
+
+    image_api_url: str = ""
+    image_api_key: str = ""
 
     model: str = settings.PAPER2FIGURE_TEXT_MODEL
     # 用于执行理解、抽象、描述生成的文本模型名称
@@ -204,8 +207,9 @@ class Paper2FigureResponse(BaseModel):
 
 class PageContentRequest(BaseModel):
     """专用于pagecontent生成的请求模型"""
-    chat_api_url: str
-    api_key: str
+    chat_api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    credential_scope: Optional[str] = None
     email: Optional[str] = None
     input_type: Literal["text", "pdf", "pptx", "topic"]
     file: Optional[Any] = None  # UploadFile 在路由层处理，这里用Any占位
@@ -225,8 +229,9 @@ class PageContentRequest(BaseModel):
 
 class OutlineRefineRequest(BaseModel):
     """Refine outline based on user feedback without re-parsing input."""
-    chat_api_url: str
-    api_key: str
+    chat_api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    credential_scope: Optional[str] = None
     email: Optional[str] = None
     model: str = settings.PAPER2PPT_OUTLINE_MODEL
     language: str = "zh"
@@ -235,14 +240,51 @@ class OutlineRefineRequest(BaseModel):
     pagecontent: str
 
 
+class FrontendPPTGenerationRequest(BaseModel):
+    """Generate editable frontend slides for paper2ppt."""
+    chat_api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    credential_scope: Optional[str] = None
+    email: Optional[str] = None
+    model: str = settings.PAPER2PPT_CONTENT_MODEL
+    language: str = "zh"
+    style: str = ""
+    result_path: str
+    pagecontent: str
+    include_images: bool = False
+    image_style: str = "academic_illustration"
+    image_model: Optional[str] = None
+    page_id: Optional[int] = None
+    edit_prompt: Optional[str] = None
+    current_slide: Optional[str] = None
+    skip_slides: Optional[str] = None
+
+
+class FrontendPPTExportRequest(BaseModel):
+    """Export frontend slides into screenshot-based PPTX/PDF."""
+    result_path: str
+    slides: str
+
+
+class FrontendPPTReviewRequest(BaseModel):
+    """Review a rendered frontend slide screenshot and return repair advice."""
+    result_path: str
+    slide: str
+    chat_api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    credential_scope: Optional[str] = None
+    language: str = "zh"
+    layout_issues: Optional[str] = None
+
+
 # ===================== KB Deep Research 相关 =====================
 
 class DeepResearchRequest(BaseModel):
     mode: Literal["llm", "web"] = "llm"
     topic: str = ""
     file_paths: List[str] = []
-    api_url: str
-    api_key: str
+    api_url: Optional[str] = None
+    api_key: Optional[str] = None
     model: str = settings.MODEL_GPT_4O
     language: str = "zh"
     email: Optional[str] = None
@@ -434,8 +476,8 @@ class Paper2CitationPaperContextResponse(BaseModel):
 
 class KBReportRequest(BaseModel):
     file_paths: List[str] = []
-    api_url: str
-    api_key: str
+    api_url: Optional[str] = None
+    api_key: Optional[str] = None
     model: str = "gpt-5.1"
     language: str = "zh"
     report_style: Literal["insight", "analysis"] = "insight"
@@ -455,8 +497,9 @@ class KBReportResponse(BaseModel):
 class PPTGenerationRequest(BaseModel):
     """专用于PPT生成/编辑的请求模型"""
     img_gen_model_name: str
-    chat_api_url: str
-    api_key: str
+    chat_api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    credential_scope: Optional[str] = None
     email: Optional[str] = None
     style: str = ""
     reference_img: Optional[Any] = None
@@ -469,15 +512,19 @@ class PPTGenerationRequest(BaseModel):
     pagecontent: Optional[str] = None
     page_id: Optional[int] = None
     edit_prompt: Optional[str] = None
+    regenerate_from_outline: str = "false"
     # 图像生成分辨率（1K/2K/4K 等）
     image_resolution: Optional[str] = None
+    # 增量生成：跳过的页码列表（JSON 格式，0-based），复用已有图片
+    skip_pages: Optional[str] = None
 
 
 class FullPipelineRequest(BaseModel):
     """专用于完整流水线的请求模型"""
     img_gen_model_name: str
-    chat_api_url: str
-    api_key: str
+    chat_api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    credential_scope: Optional[str] = None
     email: Optional[str] = None
     input_type: Literal["text", "pdf", "pptx"]
     file: Optional[Any] = None
@@ -500,10 +547,13 @@ class Paper2PPTRequest(BaseModel):
     # ---------------------- 基础 LLM 设置 ----------------------
     language: str = "en"
     chat_api_url: str = settings.DEFAULT_LLM_API_URL
+    credential_scope: Optional[str] = None
 
     # ---------------------- 图类型 & 难度设置 ----------------------
     chat_api_key: str = "fill the key"
     api_key: str = ""
+    image_api_url: str = ""
+    image_api_key: str = ""
     # 用于对话的模型
     model: str = settings.PAPER2PPT_DEFAULT_MODEL
 

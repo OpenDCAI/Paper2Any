@@ -173,7 +173,7 @@
     "enterText": "请输入长文本内容",
     "enterTopic": "请输入 Topic 主题",
     "enterKey": "请输入 API Key",
-    "quotaFull": "今日配额已用完",
+    "quotaFull": "当前点数不足，请先获取兑换码并到账户页兑换加点。",
     "serverBusy": "服务器繁忙，请稍后再试",
     "noResultPath": "缺少 result_path",
     "enterPrompt": "请输入重新生成的提示词"

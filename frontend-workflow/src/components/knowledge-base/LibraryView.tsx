@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { KnowledgeBaseEntry, KnowledgeFile, ToolType } from './types';
 import { FileText, Image, Video, Link as LinkIcon, Trash2, Search, Filter, X, Database, Loader2, AlertCircle, Folder, Download, PencilLine, Plus, List, LayoutGrid, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { API_KEY, API_URL_OPTIONS } from '../../config/api';
+import { API_URL_OPTIONS } from '../../config/api';
 import { useAuthStore } from '../../stores/authStore';
 import { getApiSettings } from '../../services/apiSettingsService';
+import { backendFetch } from '../../services/backendClient';
+import { downloadSecureAsset } from '../../services/secureAssetService';
 
 interface LibraryViewProps {
   files: KnowledgeFile[];
@@ -260,11 +262,10 @@ export const LibraryView = ({ files, knowledgeBases, kbLoading = false, selected
       if (kbDeleteFiles && filesInKb.length > 0) {
         const storagePaths = filesInKb.map(f => f.url).filter(Boolean);
         if (storagePaths.length > 0) {
-          await fetch('/api/v1/kb/delete-batch', {
+          await backendFetch('/api/v1/kb/delete-batch', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-API-Key': API_KEY
             },
             body: JSON.stringify({ storage_paths: storagePaths })
           });
@@ -331,11 +332,10 @@ export const LibraryView = ({ files, knowledgeBases, kbLoading = false, selected
     }
     setKbActionLoading(true);
     try {
-      const res = await fetch('/api/v1/kb/export-zip', {
+      const res = await backendFetch('/api/v1/kb/export-zip', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': API_KEY
         },
         body: JSON.stringify({
           files: filesInKb.map(f => f.url),
@@ -349,7 +349,7 @@ export const LibraryView = ({ files, knowledgeBases, kbLoading = false, selected
       }
       const data = await res.json();
       if (data?.zip_path) {
-        window.open(data.zip_path, '_blank');
+        await downloadSecureAsset(data.zip_path, `${kb.name || 'knowledge-base'}.zip`);
       } else {
         alert('导出完成，但未返回下载链接');
       }
@@ -370,11 +370,7 @@ export const LibraryView = ({ files, knowledgeBases, kbLoading = false, selected
     setManifestLoading(true);
     setManifestError('');
     try {
-      const res = await fetch(`/api/v1/kb/list?email=${encodeURIComponent(user.email)}`, {
-        headers: {
-          'X-API-Key': API_KEY
-        }
-      });
+      const res = await backendFetch(`/api/v1/kb/list?email=${encodeURIComponent(user.email)}`);
       if (!res.ok) {
         throw new Error(await res.text());
       }
@@ -403,11 +399,10 @@ export const LibraryView = ({ files, knowledgeBases, kbLoading = false, selected
             }));
 
         // Call Real API
-        const res = await fetch('/api/v1/kb/embedding', {
+        const res = await backendFetch('/api/v1/kb/embedding', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-API-Key': 'df-internal-2024-workflow-key'
           },
           body: JSON.stringify({ 
               files: filesToProcess,

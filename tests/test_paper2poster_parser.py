@@ -3,12 +3,16 @@ from __future__ import annotations
 import json
 import sys
 import types
+from io import BytesIO
 from pathlib import Path
 
 import fitz
+from PIL import Image
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 POSTERTOOL_ROOT = PROJECT_ROOT / "dataflow_agent" / "toolkits" / "postertool"
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 if str(POSTERTOOL_ROOT) not in sys.path:
     sys.path.insert(0, str(POSTERTOOL_ROOT))
 
@@ -44,6 +48,20 @@ def _create_pdf(path: Path, text: str) -> None:
     doc = fitz.open()
     page = doc.new_page()
     page.insert_text((72, 72), text)
+    doc.save(path)
+    doc.close()
+
+
+def _create_pdf_with_image(path: Path) -> None:
+    image = Image.new("RGB", (320, 180), color=(64, 128, 192))
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "Poster fallback parser test.")
+    page.insert_image(fitz.Rect(72, 140, 392, 320), stream=buffer.getvalue())
+    page.insert_text((72, 340), "Figure 1. Demo fallback figure")
     doc.save(path)
     doc.close()
 
@@ -120,3 +138,32 @@ def test_parser_extracts_assets_via_mineru_blocks(tmp_path, monkeypatch) -> None
     assert Path(tables["1"]["path"]).exists()
     assert figures["1"]["caption"] == "Figure 1. System overview"
     assert tables["1"]["caption"] == "Table 1. Main results"
+
+
+def test_parser_extracts_assets_via_pymupdf_image_fallback(tmp_path, monkeypatch) -> None:
+    pdf_path = tmp_path / "sample_with_image.pdf"
+    _create_pdf_with_image(pdf_path)
+
+    parser = parser_module.Parser()
+    content_dir = tmp_path / "content"
+    assets_dir = tmp_path / "assets"
+    content_dir.mkdir()
+    assets_dir.mkdir()
+    monkeypatch.setattr(
+        parser,
+        "_extract_raw_text_with_mineru",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("mineru unavailable in test")),
+    )
+
+    raw_text, raw_result = parser._extract_raw_text(str(pdf_path), content_dir)
+    figures, tables = parser._extract_assets(raw_result, "sample", assets_dir)
+    assert figures == {}
+    assert tables == {}
+
+    fallback_figures, fallback_tables = parser._extract_assets_with_pymupdf(str(pdf_path), assets_dir)
+
+    assert "Poster fallback parser test." in raw_text
+    assert len(fallback_figures) == 1
+    assert fallback_tables == {}
+    assert Path(fallback_figures["1"]["path"]).exists()
+    assert fallback_figures["1"]["caption"] == "Figure 1. Demo fallback figure"

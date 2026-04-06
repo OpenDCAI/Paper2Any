@@ -4,7 +4,6 @@
  * Supports:
  * - Email/password login and registration
  * - OTP verification for email confirmation
- * - Anonymous login for limited access
  * - Bypass when Supabase is not configured (no auth mode)
  */
 
@@ -14,7 +13,7 @@ import { isSupabaseConfigured } from "../../lib/supabase";
 import { LoginPage } from "./LoginPage";
 import { RegisterPage } from "./RegisterPage";
 import { VerifyOtpPage } from "./VerifyOtpPage";
-import { Loader2, User } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 interface Props {
   children: React.ReactNode;
@@ -27,10 +26,8 @@ export function AuthGate({ children }: Props) {
     needsOtpVerification,
     pendingEmail,
     clearPendingVerification,
-    signInAnonymously,
   } = useAuthStore();
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
-  const [isAnonymousLoading, setIsAnonymousLoading] = useState(false);
 
   // Skip auth when Supabase is not configured
   if (!isSupabaseConfigured()) {
@@ -38,12 +35,12 @@ export function AuthGate({ children }: Props) {
   }
 
   // Show loading spinner during initial session check
-  if (loading && !isAnonymousLoading) {
+  if (loading) {
     return (
-      <div className="portal-shell min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a1a]">
         <div className="flex flex-col items-center gap-3">
           <Loader2 size={32} className="animate-spin text-primary-500" />
-          <span className="text-slate-500 text-sm">Loading...</span>
+          <span className="text-gray-400 text-sm">Loading...</span>
         </div>
       </div>
     );
@@ -64,41 +61,16 @@ export function AuthGate({ children }: Props) {
 
   // Show auth pages when not authenticated
   if (!user) {
-    const handleAnonymousLogin = async () => {
-      setIsAnonymousLoading(true);
-      await signInAnonymously();
-      setIsAnonymousLoading(false);
-    };
-
-    const authFooter = (
-      <div className="mt-4 pt-4 border-t border-primary-500/10">
-        <button
-          onClick={handleAnonymousLogin}
-          disabled={isAnonymousLoading}
-          className="w-full py-2 text-slate-500 hover:text-primary-700 text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-        >
-          {isAnonymousLoading ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            <User size={16} />
-          )}
-          访客登录 （使用次数限制）
-        </button>
-      </div>
-    );
-
     if (authMode === "login") {
       return (
         <LoginPage
           onSwitchToRegister={() => setAuthMode("register")}
-          footer={authFooter}
         />
       );
     }
     return (
       <RegisterPage
         onSwitchToLogin={() => setAuthMode("login")}
-        footer={authFooter}
       />
     );
   }

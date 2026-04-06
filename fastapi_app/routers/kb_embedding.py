@@ -1,16 +1,49 @@
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends
 from typing import List, Dict, Optional, Any
-import os
 from pathlib import Path
-from dataflow_agent.toolkits.ragtool.vector_store_tool import process_knowledge_base_files, VectorStoreManager
-from dataflow_agent.utils import get_project_root
 from fastapi_app.config import settings
-from fastapi_app.utils import _to_outputs_url
+from fastapi_app.dependencies import AuthUser, get_current_user
+from fastapi_app.utils import _to_outputs_url, get_outputs_root, resolve_outputs_path
 from fastapi_app.dependencies.auth import get_supabase_client
 from dataflow_agent.logger import get_logger
 
 router = APIRouter(prefix="/kb", tags=["Knowledge Base Embedding"])
 log = get_logger(__name__)
+
+
+def _canonical_user_email(user: AuthUser) -> str:
+    email = (user.email or user.id or "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="Authenticated user email is required")
+    return email
+
+
+def _canonical_user_id(user: AuthUser) -> str:
+    user_id = (user.id or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Authenticated user id is required")
+    return user_id
+
+
+def _allowed_user_roots(user: AuthUser) -> List[Path]:
+    email = _canonical_user_email(user)
+    outputs_root = get_outputs_root()
+    return [
+        (outputs_root / "kb_data" / email).resolve(),
+        (outputs_root / "kb_outputs" / email).resolve(),
+        (outputs_root / "kb_exports" / email).resolve(),
+    ]
+
+
+def _resolve_user_owned_output_path(path_or_url: str, user: AuthUser) -> Path:
+    resolved = resolve_outputs_path(path_or_url, must_exist=False)
+    for root in _allowed_user_roots(user):
+        try:
+            resolved.relative_to(root)
+            return resolved
+        except ValueError:
+            continue
+    raise HTTPException(status_code=403, detail="Path does not belong to the authenticated user")
 
 
 def _extract_email_from_path(path_str: str) -> Optional[str]:
@@ -65,6 +98,7 @@ async def create_embedding(
     video_model: Optional[str] = Body(None, embed=True),
     notebook_id: Optional[str] = Body(None, embed=True),
     user_id: Optional[str] = Body(None, embed=True),
+    user: AuthUser = Depends(get_current_user),
 ):
     """
     Generate embeddings for knowledge base files.
@@ -79,14 +113,9 @@ async def create_embedding(
         video_model: Custom Video Model Name.
     """
     try:
-        project_root = get_project_root()
-        
-        # Convert web paths to local absolute paths
-        # Web path: /outputs/kb_data/user@example.com/file.pdf
-        # Local path: {project_root}/outputs/kb_data/user@example.com/file.pdf
-        
         process_list = []
-        user_email = None
+        user_email = _canonical_user_email(user)
+        resolved_user_id = _canonical_user_id(user)
 
         for f in files:
             web_path = f.get("path")
@@ -95,30 +124,12 @@ async def create_embedding(
             if not web_path:
                 continue
                 
-            # Remove leading slash if present to join correctly
-            clean_path = web_path.lstrip('/')
-            local_path = project_root / clean_path
-            
+            local_path = _resolve_user_owned_output_path(web_path, user)
             if local_path.exists():
                 process_list.append({
                     "path": str(local_path),
                     "description": desc
                 })
-                
-                # Extract email from path if not yet found
-                # Path structure: .../outputs/kb_data/{email}/filename
-                if not user_email:
-                    try:
-                        parts = local_path.parts
-                        if "kb_data" in parts:
-                            idx = parts.index("kb_data")
-                            if idx + 1 < len(parts):
-                                candidate = parts[idx + 1]
-                                # Simple validation: check if it looks like an email or user dir
-                                if "@" in candidate or len(candidate) > 0:
-                                    user_email = candidate
-                    except Exception:
-                        pass
             else:
                 log.warning(f"File not found locally: {local_path}")
         
@@ -131,12 +142,14 @@ async def create_embedding(
         # Define vector store location
         if notebook_id and user_email:
             from fastapi_app.routers.kb import _vector_store_dir
-            vector_store_dir = _vector_store_dir(user_email, notebook_id, user_id or "default")
+            vector_store_dir = _vector_store_dir(user_email, notebook_id, resolved_user_id)
         elif user_email:
-            vector_store_dir = project_root / "outputs" / "kb_data" / user_email / "vector_store"
+            vector_store_dir = get_outputs_root() / "kb_data" / user_email / "vector_store"
         else:
-            vector_store_dir = project_root / "outputs" / "kb_data" / "vector_store_main"
-        
+            vector_store_dir = get_outputs_root() / "kb_data" / "vector_store_main"
+
+        from dataflow_agent.toolkits.ragtool.vector_store_tool import process_knowledge_base_files
+
         manifest = await process_knowledge_base_files(
             process_list, 
             base_dir=str(vector_store_dir),
@@ -168,20 +181,22 @@ async def list_kb_files(
     email: Optional[str] = None,
     notebook_id: Optional[str] = None,
     user_id: Optional[str] = None,
+    user: AuthUser = Depends(get_current_user),
 ):
     """
     List all processed files in the knowledge base (with UUIDs).
     """
     try:
-        project_root = get_project_root()
+        email = _canonical_user_email(user)
+        user_id = _canonical_user_id(user)
 
         if notebook_id and email:
             from fastapi_app.routers.kb import _vector_store_dir
-            vector_store_dir = _vector_store_dir(email, notebook_id, user_id or "default")
+            vector_store_dir = _vector_store_dir(email, notebook_id, user_id)
         elif email:
-            vector_store_dir = project_root / "outputs" / "kb_data" / email / "vector_store"
+            vector_store_dir = get_outputs_root() / "kb_data" / email / "vector_store"
         else:
-            vector_store_dir = project_root / "outputs" / "kb_data" / "vector_store_main"
+            vector_store_dir = get_outputs_root() / "kb_data" / "vector_store_main"
             
         manifest_path = vector_store_dir / "knowledge_manifest.json"
         
@@ -209,20 +224,22 @@ async def search_kb(
     api_key: Optional[str] = Body(None, embed=True),
     model_name: Optional[str] = Body(None, embed=True),
     file_ids: Optional[List[str]] = Body(None, embed=True),
+    user: AuthUser = Depends(get_current_user),
 ):
     """
     Vector search in knowledge base.
     Returns matched text (or media description) with source file info.
     """
     try:
-        project_root = get_project_root()
+        email = _canonical_user_email(user)
+        user_id = _canonical_user_id(user)
         if notebook_id and email:
             from fastapi_app.routers.kb import _vector_store_dir
-            base_dir = _vector_store_dir(email, notebook_id, user_id or "default")
+            base_dir = _vector_store_dir(email, notebook_id, user_id)
         elif email:
-            base_dir = project_root / "outputs" / "kb_data" / email / "vector_store"
+            base_dir = get_outputs_root() / "kb_data" / email / "vector_store"
         else:
-            base_dir = project_root / "outputs" / "kb_data" / "vector_store_main"
+            base_dir = get_outputs_root() / "kb_data" / "vector_store_main"
 
         kwargs = {"base_dir": str(base_dir)}
         if api_url:
@@ -233,6 +250,8 @@ async def search_kb(
             kwargs["api_key"] = api_key
         if model_name:
             kwargs["embedding_model"] = model_name
+
+        from dataflow_agent.toolkits.ragtool.vector_store_tool import VectorStoreManager
 
         manager = VectorStoreManager(**kwargs)
         results = manager.search(query=query, top_k=top_k, file_ids=file_ids)

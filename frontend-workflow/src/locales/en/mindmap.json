@@ -1,0 +1,96 @@
+{
+  "hero": {
+    "badge": "Mind Map Studio",
+    "title": "Standalone Mind Map Workspace",
+    "description": "Extract structure from papers, PDFs, PPTs, documents, or raw notes, generate a dedicated tree-shaped mind map, then keep editing, rebalancing, and saving inside one page."
+  },
+  "pricing": {
+    "title": "Billing",
+    "description": "Mind maps are charged by the size of the final tree: node count plus a small depth bonus for deeper structures.",
+    "tierSummary": "Node tiers: 1-8 / 9-16 / 17-32 / 33-64 / 65+",
+    "depthSummary": "Depth bonus: after depth 4, each extra level adds 1 point, capped at +2.",
+    "preview": "Current input estimates about {{points}} points; the final charge is based on the actual tree.",
+    "previewNote": "The estimate is only a preview. Final billing follows the generated tree.",
+    "actual": "This run produced {{nodes}} nodes at depth {{depth}}, charged {{points}} points.",
+    "ruleSummary": "Rule: node-count tiers plus a small depth bonus."
+  },
+  "input": {
+    "title": "Input Sources",
+    "subtitle": "Upload multiple documents or paste raw text directly.",
+    "filesTab": "Upload Files",
+    "textTab": "Paste Text",
+    "dropzone": "Click to choose files, or drop PDF / DOCX / PPTX / TXT files here",
+    "picked": "{{count}} file(s) selected",
+    "clear": "Clear Files",
+    "textPlaceholder": "Paste an abstract, outline, meeting notes, or any raw text you want transformed into a mind map..."
+  },
+  "settings": {
+    "title": "Generation Settings",
+    "model": "Text Model",
+    "style": "Mind Map Style",
+    "depth": "Max Depth",
+    "language": "Output Language",
+    "apiUrl": "API URL",
+    "apiKey": "API Key",
+    "styleDefault": "Default radial layout",
+    "styleFlowchart": "Flow-oriented hierarchy",
+    "styleTree": "Tree expansion"
+  },
+  "actions": {
+    "generate": "Generate Mind Map",
+    "generating": "Generating mind map...",
+    "save": "Save Mind Map",
+    "saving": "Saving...",
+    "openFile": "Open Source File",
+    "copyOutline": "Copy Outline",
+    "downloadJson": "Download JSON",
+    "downloadSvg": "Download SVG",
+    "downloadPng": "Download PNG",
+    "exportingSvg": "Exporting SVG…",
+    "exportingPng": "Exporting PNG…",
+    "fitView": "Fit View",
+    "addChild": "Add Child",
+    "addSibling": "Add Sibling"
+  },
+  "editor": {
+    "title": "Mind Map Workbench",
+    "subtitle": "The center canvas uses a dedicated tree layout. The right panel edits node content and branch structure.",
+    "techRoute": "Tree Layout",
+    "treeJson": "JSON Mind Map",
+    "costBadge": "Estimated {{points}} points",
+    "emptyTitle": "No mind map yet",
+    "emptyDesc": "Upload documents or paste text, then generate a mind map. After generation, keep editing nodes, add branches, and save the structured tree here."
+  },
+  "details": {
+    "title": "Node Details",
+    "subtitle": "Click a node in the canvas, then edit its label, summary, and branch structure here.",
+    "selectedNode": "Selected Node",
+    "label": "Node Label",
+    "summary": "Node Summary",
+    "empty": "Select a node from the canvas to edit it.",
+    "highlights": "Key Highlights",
+    "highlightsEmpty": "No extra highlights were returned for this run.",
+    "source": "Result File",
+    "sourceEmpty": "The saved file path will appear here after generation."
+  },
+  "stats": {
+    "nodes": "Nodes",
+    "depth": "Depth",
+    "branches": "Top Branches"
+  },
+  "status": {
+    "generating": "Generating mind map, estimated {{points}} points...",
+    "generated": "Mind map generated. You can keep editing and save the tree.",
+    "saved": "Mind map tree saved.",
+    "copied": "Outline copied to clipboard.",
+    "exportedSvg": "SVG downloaded.",
+    "exportedPng": "PNG downloaded."
+  },
+  "errors": {
+    "missingInput": "Please upload files or enter some text first.",
+    "missingApi": "This deployment requires an API URL and API Key.",
+    "quota": "Not enough points to generate a mind map (estimated {{points}} points).",
+    "exportFailed": "Mind map export failed. Please try again later.",
+    "server": "Mind map generation failed. Please try again later."
+  }
+}

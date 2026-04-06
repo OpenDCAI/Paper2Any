@@ -64,14 +64,15 @@
     "scriptLabel": "Voice script",
     "scriptPlaceholder": "Edit script for this page...",
     "loadingImage": "Loading image...",
-    "costHint": "Generating the final video will consume {{count}} usage credits",
+    "costHint": "Video generation costs {{perPage}} points per page. This run has {{pages}} pages, so it will consume {{count}} points.",
     "back": "Back to upload",
-    "confirmAndGenerate": "Confirm and generate video",
+    "confirmAndGenerate": "Confirm and generate video ({{count}} points)",
+    "confirmPrompt": "Start generating the video?\\nThere are {{pages}} pages, {{perPage}} points per page, total {{count}} points.",
     "generating": "Generating video..."
   },
   "errors": {
-    "quotaUserInsufficient": "You need at least {{count}} remaining credits to generate a video",
-    "quotaGuestInsufficient": "Guest quota is below {{count}} remaining credits, so video generation is unavailable"
+    "quotaUserInsufficient": "Insufficient points. This video has {{pages}} pages at {{perPage}} points per page, so {{count}} points are required.",
+    "authRequired": "Please sign in to continue."
   },
   "complete": {
     "title": "Video ready",
@@ -81,7 +82,7 @@
     "progressTts": "Synthesizing speech...",
     "progressVideo": "Generating talking video...",
     "noVideo": "No video URL yet.",
-    "usageRecordFailed": "The video is ready, but deducting {{count}} usage credits failed",
+    "usageRecordFailed": "The video is ready, but deducting {{count}} points failed",
     "download": "Download video",
     "videoNotSupported": "Your browser does not support the video tag.",
     "newTask": "Process new paper"

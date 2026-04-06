@@ -13,6 +13,7 @@ paper2figure 工作流适配器。
 """
 
 import json
+import os
 import time
 import urllib.parse
 import uuid
@@ -25,6 +26,11 @@ from dataflow_agent.utils import get_project_root
 from dataflow_agent.workflow import run_workflow
 
 from fastapi_app.schemas import Paper2FigureRequest, Paper2FigureResponse
+from fastapi_app.utils import get_outputs_root
+from fastapi_app.workflow_adapters.heavy_workflow_subprocess import (
+    run_heavy_workflow_in_subprocess,
+    should_use_heavy_workflow_subprocess,
+)
 
 log = get_logger(__name__)
 
@@ -118,10 +124,20 @@ def _build_result_root(result_path: Path | None, project_root: Path, email: str,
     未传入时按 outputs/{email}/{task_name}/{ts} 自动生成。
     """
     if result_path:
-        return Path(result_path).resolve()
+        resolved = Path(result_path).expanduser()
+        if not resolved.is_absolute():
+            resolved = (project_root / resolved).resolve()
+        else:
+            resolved = resolved.resolve()
+        allowed_root = (project_root / "outputs").resolve()
+        try:
+            resolved.relative_to(allowed_root)
+        except ValueError as exc:
+            raise ValueError(f"Invalid output path outside outputs/: {resolved}") from exc
+        return resolved
 
     user_dir = email or ""
-    return (project_root / "outputs" / user_dir / task_name / ts).resolve()
+    return (get_outputs_root() / user_dir / task_name / ts).resolve()
 
 
 def _get_state_attr(state: Any, key: str, default: str = "") -> str:
@@ -131,11 +147,69 @@ def _get_state_attr(state: Any, key: str, default: str = "") -> str:
     return str(getattr(state, key, default) or default)
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = (os.getenv(name) or "").strip().lower()
+    if not raw:
+        return default
+    return raw in {"1", "true", "yes", "on"}
+
+
+def _has_valid_paper2figure_output(
+    *,
+    ppt_filename: str,
+    drawio_filename: str,
+    svg_filename: str,
+    svg_image_filename: str,
+    svg_bw_filename: str,
+    svg_bw_image_filename: str,
+    svg_color_filename: str,
+    svg_color_image_filename: str,
+    all_output_files: list[str],
+) -> bool:
+    return any(
+        [
+            ppt_filename,
+            drawio_filename,
+            svg_filename,
+            svg_image_filename,
+            svg_bw_filename,
+            svg_bw_image_filename,
+            svg_color_filename,
+            svg_color_image_filename,
+            *all_output_files,
+        ]
+    )
+
+
 # ---------------------------------------------------------------------------
 # 主入口
 # ---------------------------------------------------------------------------
 
 async def run_paper2figure_wf_api(req: Paper2FigureRequest, result_path: Path | None = None) -> Paper2FigureResponse:
+    wf_name, _ = _resolve_workflow(req.graph_type, req.input_type, req.edit_prompt)
+    risky_workflows = {"pdf2ppt_qwenvl", "paper2fig_image_only"}
+    if wf_name in risky_workflows and should_use_heavy_workflow_subprocess(default=True):
+        log.info("[paper2figure] routing workflow=%s through subprocess", wf_name)
+        return await _run_paper2figure_wf_via_subprocess(req, result_path=result_path)
+    return await run_paper2figure_wf_api_local(req, result_path=result_path)
+
+
+async def _run_paper2figure_wf_via_subprocess(
+    req: Paper2FigureRequest,
+    result_path: Path | None = None,
+) -> Paper2FigureResponse:
+    out_data = await run_heavy_workflow_in_subprocess(
+        mode="paper2figure",
+        payload={
+            "request": req.model_dump(mode="json"),
+            "result_path": str(result_path) if result_path else "",
+        },
+        result_path=result_path,
+    )
+    return Paper2FigureResponse.model_validate(out_data.get("response") or {})
+
+
+async def run_paper2figure_wf_api_local(req: Paper2FigureRequest, result_path: Path | None = None) -> Paper2FigureResponse:
     """
     paper2figure 工作流主入口。
 
@@ -190,6 +264,15 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest, result_path: Path | 
 
     state.result_path = str(result_root)
     state.mask_detail_level = 2
+    if (
+        wf_name == "pdf2ppt_qwenvl"
+        and req.graph_type == "model_arch"
+        and req.input_type == "FIGURE"
+        and not req.edit_prompt
+        and _env_flag("PAPER2FIGURE_TO_PPT_FORCE_AI_EDIT", default=True)
+    ):
+        state.use_ai_edit = True
+        log.info("[paper2figure] enabled AI inpainting for model_arch FIGURE -> PPT")
     log.info(f"[paper2figure] workflow={wf_name}, result_path={result_root}")
 
     # ------------------------------------------------------------------
@@ -213,12 +296,16 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest, result_path: Path | 
 
     # 保存完整 state 到 tmps/ 供调试
     save_final_state_json(to_serializable(final_state), out_dir=tmps_dir / ts)
-    log.info(f"[paper2figure] 完成，ppt_path={final_state['ppt_path']}")
+    log.info(f"[paper2figure] 完成，ppt_path={_get_state_attr(final_state, 'ppt_path')}")
 
     # ------------------------------------------------------------------
     # 5. 收集输出文件，构造响应
     # ------------------------------------------------------------------
     ppt_filename = _get_state_attr(final_state, "ppt_path")
+    drawio_filename = (
+        _get_state_attr(final_state, "output_xml_path")
+        or _get_state_attr(final_state, "drawio_output_path")
+    )
 
     # SVG 相关路径仅 tech_route 会有值，其他类型返回空字符串
     svg_filename        = _get_state_attr(final_state, "svg_file_path")
@@ -239,9 +326,44 @@ async def run_paper2figure_wf_api(req: Paper2FigureRequest, result_path: Path | 
     except Exception as e:
         log.warning(f"[paper2figure] 收集输出文件列表失败: {e}")
 
+    if not _has_valid_paper2figure_output(
+        ppt_filename=ppt_filename,
+        drawio_filename=drawio_filename,
+        svg_filename=svg_filename,
+        svg_image_filename=svg_image_filename,
+        svg_bw_filename=svg_bw_filename,
+        svg_bw_image_filename=svg_bw_image_filename,
+        svg_color_filename=svg_color_filename,
+        svg_color_image_filename=svg_color_image_filename,
+        all_output_files=all_output_files,
+    ):
+        error = "生成失败：后端未产出有效文件，请检查后端日志。"
+        log.error(
+            "[paper2figure] %s workflow=%s graph_type=%s input_type=%s result_path=%s",
+            error,
+            wf_name,
+            req.graph_type,
+            req.input_type,
+            state.result_path,
+        )
+        return Paper2FigureResponse(
+            success=False,
+            error=error,
+            ppt_filename=ppt_filename,
+            drawio_filename=drawio_filename,
+            svg_filename=svg_filename,
+            svg_image_filename=svg_image_filename,
+            svg_bw_filename=svg_bw_filename,
+            svg_bw_image_filename=svg_bw_image_filename,
+            svg_color_filename=svg_color_filename,
+            svg_color_image_filename=svg_color_image_filename,
+            all_output_files=all_output_files,
+        )
+
     return Paper2FigureResponse(
         success=True,
         ppt_filename=ppt_filename,
+        drawio_filename=drawio_filename,
         svg_filename=svg_filename,
         svg_image_filename=svg_image_filename,
         svg_bw_filename=svg_bw_filename,

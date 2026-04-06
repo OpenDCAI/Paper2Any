@@ -1,8 +1,7 @@
 import React from 'react';
 import { ImageIcon, MessageSquare, Loader2, RotateCcw, Download, ExternalLink } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { GraphType, FigureComplex, Language } from './types';
-import { API_KEY } from '../../config/api';
+import { backendFetch, normalizeBackendAssetUrl } from '../../services/backendClient';
 import { JSON_API } from './constants';
 
 interface PreviewSectionProps {
@@ -29,6 +28,7 @@ interface PreviewSectionProps {
   onConvertToDrawio?: () => void;
   drawioLabel?: string;
   onReset?: () => void;
+  userApiConfigRequired: boolean;
 }
 
 const PreviewSection: React.FC<PreviewSectionProps> = ({
@@ -55,58 +55,98 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
   onConvertToDrawio,
   drawioLabel,
   onReset,
+  userApiConfigRequired,
 }) => {
   const [imgError, setImgError] = React.useState(false);
+  const previewActionGuardRef = React.useRef(false);
+  const [isPreviewActionLocked, setIsPreviewActionLocked] = React.useState(false);
+  const normalizedPreviewImgUrl = previewImgUrl ? normalizeBackendAssetUrl(previewImgUrl) : null;
+  const normalizedPptUrl = pptUrl ? normalizeBackendAssetUrl(pptUrl) : null;
+  const previewImgSourceForBackend = normalizedPreviewImgUrl ? normalizedPreviewImgUrl.split('?')[0] : null;
+
+  const lockPreviewAction = () => {
+    if (previewActionGuardRef.current) {
+      return false;
+    }
+    previewActionGuardRef.current = true;
+    setIsPreviewActionLocked(true);
+    return true;
+  };
+
+  const unlockPreviewAction = () => {
+    previewActionGuardRef.current = false;
+    setIsPreviewActionLocked(false);
+  };
 
   // 当 previewImgUrl 改变时重置错误状态
   React.useEffect(() => {
     setImgError(false);
-  }, [previewImgUrl]);
+  }, [normalizedPreviewImgUrl]);
 
   // 允许 graphStep 为 'done' 时显示，只要 previewImgUrl 存在
   if (graphType !== 'model_arch' || graphStep === 'input' || !previewImgUrl) return null;
   return (
-    <div className="portal-panel-dark relative mb-8 overflow-hidden rounded-xl border border-primary-100 p-6 animate-fade-in">
+    <div className="mb-8 glass rounded-xl border border-white/10 p-6 animate-fade-in relative overflow-hidden">
       {/* 装饰光效 */}
-      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-500/70 via-primary-400/45 to-amber-500/55"></div>
+      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500/50 via-purple-500/50 to-pink-500/50"></div>
       
       <div className="flex justify-between items-center mb-4">
-        <h3 className="flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]">
+        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
           <ImageIcon size={20} className="text-primary-400" />
           模型结构图预览
         </h3>
         
-        {/* 新增：下载图片按钮 */}
-        <a
-          href={previewImgUrl}
-          download={`model_arch_preview_${Date.now()}.png`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 rounded-lg border border-primary-100 bg-white/82 px-3 py-1.5 text-xs text-primary-800 transition-colors hover:bg-white"
+        <button
+          type="button"
+          onClick={async () => {
+            if (!normalizedPreviewImgUrl) return;
+
+            try {
+              const response = await fetch(normalizedPreviewImgUrl);
+              if (!response.ok) {
+                throw new Error('下载失败');
+              }
+
+              const blob = await response.blob();
+              const blobUrl = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = blobUrl;
+              a.download = `model_arch_preview_${Date.now()}.png`;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(blobUrl);
+            } catch (downloadError) {
+              console.error('Image download failed:', downloadError);
+              window.open(normalizedPreviewImgUrl, '_blank', 'noopener,noreferrer');
+            }
+          }}
+          disabled={!normalizedPreviewImgUrl}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs text-gray-300 transition-colors"
         >
           <Download size={14} />
           下载图片
-        </a>
+        </button>
       </div>
       
-      <div className="portal-preview-canvas mb-6 flex min-h-[300px] w-full items-center justify-center overflow-hidden rounded-xl p-4">
+      <div className="w-full bg-black/40 rounded-xl border border-white/10 flex items-center justify-center overflow-hidden mb-6 p-4 min-h-[300px]">
         {imgError ? (
-          <div className="flex flex-col items-center justify-center p-4 text-[var(--text-secondary)]">
+          <div className="flex flex-col items-center justify-center text-gray-400 p-4">
             <ImageIcon size={48} className="mb-4 opacity-50" />
             <p className="mb-2 font-medium">图片加载失败</p>
-            <p className="max-w-md break-all text-center text-xs text-[#8b726b]">{previewImgUrl}</p>
+            <p className="text-xs text-gray-500 text-center max-w-md break-all">{normalizedPreviewImgUrl}</p>
             <a 
-              href={previewImgUrl} 
+              href={normalizedPreviewImgUrl || undefined}
               target="_blank" 
               rel="noopener noreferrer"
-              className="mt-4 rounded-lg border border-primary-100 bg-white/86 px-4 py-2 text-sm text-primary-800 transition-colors hover:bg-white"
+              className="mt-4 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm transition-colors"
             >
               尝试在新标签页打开
             </a>
           </div>
         ) : (
           <img
-            src={previewImgUrl}
+            src={normalizedPreviewImgUrl || undefined}
             alt="模型结构图预览"
             className="max-w-full h-auto object-contain max-h-[600px] rounded-lg shadow-2xl"
             onError={() => setImgError(true)}
@@ -116,7 +156,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
       
       <div className="flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-1 w-full">
-          <label className="mb-2 flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+          <label className="block text-sm text-gray-400 mb-2 flex items-center gap-2">
             <MessageSquare size={16} />
             不满意？输入提示词微调重绘
           </label>
@@ -126,12 +166,13 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
               value={editPrompt}
               onChange={e => setEditPrompt(e.target.value)}
               placeholder="例如：把背景改成深色，增加一些连接线..."
-              className="portal-input-soft w-full rounded-xl px-4 py-3 pr-24 text-sm outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-3 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-primary-500 pr-24"
             />
             <button
               type="button"
               onClick={async () => {
-                if (!editPrompt.trim() || !previewImgUrl) return;
+                if (!editPrompt.trim() || !previewImgSourceForBackend || isLoading) return;
+                if (!lockPreviewAction()) return;
                 
                 try {
                   setIsLoading(true);
@@ -139,8 +180,10 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                   
                   const formData = new FormData();
                   formData.append('img_gen_model_name', model);
-                  formData.append('chat_api_url', llmApiUrl.trim());
-                  formData.append('api_key', apiKey.trim());
+                  if (userApiConfigRequired) {
+                    formData.append('chat_api_url', llmApiUrl.trim());
+                    formData.append('api_key', apiKey.trim());
+                  }
                   formData.append('input_type', 'FIGURE'); // 使用 FIGURE 模式触发
                   formData.append('email', email);
                   formData.append('graph_type', 'model_arch');
@@ -150,14 +193,13 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                   // 传入上一次的图片路径作为 prev_image
                   // 注意：后端 wa_paper2figure 会在 input_type=FIGURE 且有 edit_prompt 时进入 paper2fig_image_only
                   // 此时 input_content (即这里的 text/file) 会被当作 prev_image 使用
-                  formData.append('text', previewImgUrl); 
+                  formData.append('text', previewImgSourceForBackend); 
                   
                   // 传入修改提示词
                   formData.append('edit_prompt', editPrompt.trim());
                   
-                  const res = await fetch(JSON_API, {
+                  const res = await backendFetch(JSON_API, {
                     method: 'POST',
-                    headers: { 'X-API-Key': API_KEY },
                     body: formData,
                   });
                   
@@ -179,8 +221,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                   }
                   
                   if (newImg) {
-                    // 添加时间戳防止缓存
-                    setPreviewImgUrl(`${newImg}?t=${Date.now()}`);
+                    setPreviewImgUrl(normalizeBackendAssetUrl(newImg));
                     setEditPrompt(''); // 清空输入框
                   } else {
                     throw new Error('未获取到新生成的图片');
@@ -191,12 +232,13 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                   setError(msg);
                 } finally {
                   setIsLoading(false);
+                  unlockPreviewAction();
                 }
               }}
-              disabled={isLoading || !editPrompt.trim()}
-              className="absolute right-2 top-1.5 rounded-lg bg-primary-500 px-3 py-1.5 text-xs text-white transition-colors hover:bg-primary-600 disabled:opacity-50"
+              disabled={isLoading || isPreviewActionLocked || !editPrompt.trim()}
+              className="absolute right-2 top-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs text-gray-300 transition-colors disabled:opacity-50"
             >
-              {isLoading ? <Loader2 size={12} className="animate-spin" /> : '重新生成'}
+              {(isLoading || isPreviewActionLocked) ? <Loader2 size={12} className="animate-spin" /> : '重新生成'}
             </button>
           </div>
         </div>
@@ -211,7 +253,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
               setEditPrompt('');
               onReset?.();
             }}
-            className="flex items-center justify-center gap-2 rounded-xl border border-primary-100 bg-white/78 px-5 py-3 text-sm text-[var(--text-primary)] transition-all hover:bg-white"
+            className="px-5 py-3 rounded-xl border border-white/20 text-sm text-gray-300 hover:bg-white/10 flex items-center justify-center gap-2 transition-all"
           >
             <RotateCcw size={16} />
             放弃
@@ -220,8 +262,8 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
             <button
               type="button"
               onClick={onConvertToDrawio}
-              disabled={drawioLoading || isLoading}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-primary-700 to-amber-600 hover:from-primary-600 hover:to-amber-500 text-white font-semibold flex items-center justify-center gap-2 shadow-lg shadow-primary-900/25 transition-all disabled:opacity-60 disabled:cursor-not-allowed min-w-[200px]"
+              disabled={drawioLoading || isLoading || isPreviewActionLocked}
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-60 disabled:cursor-not-allowed min-w-[200px]"
             >
               {drawioLoading ? <Loader2 size={18} className="animate-spin" /> : <ExternalLink size={18} />}
               {drawioLabel || '转成 DrawIO 在线编辑'}
@@ -231,10 +273,10 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
             <button
               type="button"
               onClick={async () => {
-                if (!pptUrl) return;
+                if (!normalizedPptUrl) return;
                 try {
                   // 如果当前页面是 HTTPS，但资源是 HTTP，尝试升级协议以避免 Mixed Content 错误
-                  let fetchUrl = pptUrl;
+                  let fetchUrl = normalizedPptUrl;
                   if (window.location.protocol === 'https:' && fetchUrl.startsWith('http:')) {
                     fetchUrl = fetchUrl.replace(/^http:/, 'https:');
                   }
@@ -266,7 +308,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                   if (btn && btn.innerText === '下载中...') btn.innerText = '下载 PPT';
                 }
               }}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-primary-700 to-amber-600 hover:from-primary-600 hover:to-amber-500 text-white font-semibold flex items-center justify-center gap-2 shadow-lg shadow-primary-900/25 transition-all min-w-[180px]"
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 transition-all min-w-[180px]"
             >
               <Download size={18} />
               下载 PPT
@@ -275,7 +317,8 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
             <button
               type="button"
               onClick={async () => {
-                  if (!previewImgUrl) return;
+                  if (!previewImgSourceForBackend || isLoading) return;
+                  if (!lockPreviewAction()) return;
                   
                   // 触发 Step 2：将图片转 PPT
                   try {
@@ -291,11 +334,10 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                     formData.append('graph_type', 'model_arch');
                     formData.append('figure_complex', figureComplex);
                     formData.append('language', language);
-                    formData.append('text', previewImgUrl); // 复用 text 传路径
+                    formData.append('text', previewImgSourceForBackend); // 复用 text 传路径
                     
-                    const res = await fetch(JSON_API, {
+                    const res = await backendFetch(JSON_API, {
                       method: 'POST',
-                      headers: { 'X-API-Key': API_KEY },
                       body: formData,
                     });
                     
@@ -310,7 +352,7 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                     }
                     
                     if (finalPpt) {
-                      setPptUrl(finalPpt);
+                      setPptUrl(normalizeBackendAssetUrl(finalPpt));
                       // window.open(finalPpt, '_blank'); // 用户可能会被拦截，改为显示下载按钮
                       setGraphStep('done');
                     } else {
@@ -322,12 +364,13 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                     setError(msg);
                   } finally {
                     setIsLoading(false);
+                    unlockPreviewAction();
                   }
               }}
-              disabled={isLoading}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-primary-700 to-primary-500 hover:from-primary-600 hover:to-primary-400 text-white font-semibold flex items-center justify-center gap-2 shadow-lg shadow-primary-900/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed min-w-[180px]"
+              disabled={isLoading || isPreviewActionLocked}
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed min-w-[180px]"
             >
-              {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+              {(isLoading || isPreviewActionLocked) ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
               确认并转 PPT
             </button>
           )}

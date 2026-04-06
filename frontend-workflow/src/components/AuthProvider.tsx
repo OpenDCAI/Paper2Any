@@ -25,16 +25,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
+    const syncSession = async (session: any) => {
+      if (session?.user?.is_anonymous) {
+        await supabase.auth.signOut();
+        setSession(null);
+        return;
+      }
+      setSession(session);
+    };
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+      void syncSession(session);
     });
 
     // Subscribe to auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+      void syncSession(session);
     });
 
     // Cleanup subscription on unmount

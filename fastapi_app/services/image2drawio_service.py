@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -11,14 +10,14 @@ from fastapi_app.config.settings import settings
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.workflow import run_workflow
+from fastapi_app.interprocess_lock import AsyncInterProcessSemaphore
 
 log = get_logger(__name__)
 
 PROJECT_ROOT = get_project_root()
 BASE_OUTPUT_DIR = (PROJECT_ROOT / "outputs").resolve()
 
-# 全局信号量控制并发
-task_semaphore = asyncio.Semaphore(1)
+VISUAL_WORKFLOW_LIMITER = AsyncInterProcessSemaphore("sam3_visual_workflows", limit=1)
 
 
 class Image2DrawioService:
@@ -72,7 +71,7 @@ class Image2DrawioService:
         state.text_content = str(abs_img_path)
         state.result_path = str(run_dir)
 
-        async with task_semaphore:
+        async with VISUAL_WORKFLOW_LIMITER.hold():
             final_state = await run_workflow("paper2drawio_visual", state)
 
         drawio_xml = final_state.get("drawio_xml", "") if isinstance(final_state, dict) else getattr(final_state, "drawio_xml", "")

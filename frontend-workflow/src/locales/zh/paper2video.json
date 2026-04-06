@@ -64,14 +64,15 @@
     "scriptLabel": "语音脚本",
     "scriptPlaceholder": "编辑本页脚本...",
     "loadingImage": "加载图片中...",
-    "costHint": "确认生成后将扣除 {{count}} 次使用次数",
+    "costHint": "视频生成按每页 {{perPage}} 点计费，当前共 {{pages}} 页，确认生成后将扣除 {{count}} 点。",
     "back": "返回上传",
-    "confirmAndGenerate": "确认并生成视频",
+    "confirmAndGenerate": "确认并生成视频（{{count}} 点）",
+    "confirmPrompt": "确认开始生成视频？\\n共 {{pages}} 页，每页 {{perPage}} 点，合计将扣除 {{count}} 点。",
     "generating": "正在生成视频..."
   },
   "errors": {
-    "quotaUserInsufficient": "当前剩余次数不足 {{count}} 次，无法生成视频",
-    "quotaGuestInsufficient": "游客剩余次数不足 {{count}} 次，无法生成视频"
+    "quotaUserInsufficient": "当前剩余点数不足。视频共 {{pages}} 页，每页 {{perPage}} 点，合计需要 {{count}} 点。",
+    "authRequired": "请先登录后继续使用。"
   },
   "complete": {
     "title": "视频已生成",
@@ -81,7 +82,7 @@
     "progressTts": "正在合成语音...",
     "progressVideo": "正在生成口播视频...",
     "noVideo": "暂无视频地址。",
-    "usageRecordFailed": "视频已生成，但扣减 {{count}} 次使用次数失败，请检查额度记录",
+    "usageRecordFailed": "视频已生成，但扣减 {{count}} 点失败，请检查点数记录",
     "download": "下载视频",
     "videoNotSupported": "您的浏览器不支持视频播放。",
     "newTask": "处理新论文"

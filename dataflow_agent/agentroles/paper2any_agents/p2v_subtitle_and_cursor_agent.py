@@ -18,8 +18,51 @@ from dataflow_agent.toolkits.tool_manager import ToolManager
 from dataflow_agent.logger import get_logger
 from dataflow_agent.agentroles.cores.base_agent import BaseAgent
 from dataflow_agent.agentroles.cores.registry import register
+import json
+import re
 
 log = get_logger(__name__)
+
+
+def parse_subtitle_and_cursor_result(result: Dict[str, Any]) -> Optional[str]:
+    """从 LLM 返回中提取非空 subtitle_and_cursor 文本。"""
+    if not result:
+        return None
+
+    value = result.get("subtitle_and_cursor")
+    if isinstance(value, str):
+        value = value.strip()
+        return value or None
+    if value is not None:
+        return None
+
+    raw = result.get("raw")
+    if not isinstance(raw, str):
+        return None
+
+    raw_text = raw.strip()
+    if not raw_text:
+        return None
+
+    try:
+        parsed = json.loads(raw_text)
+        if isinstance(parsed, dict):
+            value = parsed.get("subtitle_and_cursor")
+            if isinstance(value, str):
+                value = value.strip()
+                return value or None
+    except json.JSONDecodeError:
+        pass
+
+    match = re.search(
+        r'"subtitle_and_cursor"\s*:\s*"(.*?)"\s*}',
+        raw_text,
+        re.DOTALL,
+    )
+    if match:
+        value = match.group(1).strip()
+        return value or None
+    return None
 
 # ----------------------------------------------------------------------
 # Agent Definition
@@ -48,8 +91,9 @@ class P2vSubtitleAndCursor(BaseAgent):
 
     # ---------- Prompt 参数 ----------
     def get_task_prompt_params(self, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
-        # prompt中不需要占位符
-        return {}
+        return {
+            "language": pre_tool_results.get("video_language", "English"),
+        }
 
     def get_default_pre_tool_results(self) -> Dict[str, Any]:
         """若调用方未显式传入，返回默认前置工具结果"""
@@ -63,11 +107,13 @@ class P2vSubtitleAndCursor(BaseAgent):
         pre_tool_results: Dict[str, Any],
     ):
         """将推理结果写回 MainState，可按需重写"""
-        
-        # state.subtitle_and_cursor_path = result
-        subtitle_and_cursor_info = result.get("subtitle_and_cursor", "")
-        log.info(f"获取了单张slide的Subtitle and Cursor 信息: {subtitle_and_cursor_info}")
-        state.subtitle_and_cursor.append(subtitle_and_cursor_info)
+
+        subtitle_and_cursor_info = parse_subtitle_and_cursor_result(result)
+        if subtitle_and_cursor_info is not None:
+            log.info(f"获取了单张slide的Subtitle and Cursor 信息: {subtitle_and_cursor_info}")
+            state.subtitle_and_cursor.append(subtitle_and_cursor_info)
+        else:
+            log.warning("LLM 返回格式不符合 {\"subtitle_and_cursor\": \"...\"} 或内容为空，未写入 state，上层可重试")
 
         super().update_state_result(state, result, pre_tool_results)
 

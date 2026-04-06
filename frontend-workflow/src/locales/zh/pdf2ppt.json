@@ -17,7 +17,7 @@
     "buyLink": "点击购买",
     "apiKey": "API Key",
     "genModel": "生成模型",
-    "validating": "正在验证 API Key 有效性..."
+    "validating": "正在验证模型连接..."
   },
   "status": {
     "uploading": "正在上传文件...",
@@ -58,7 +58,7 @@
     "pdfOnly": "仅支持 PDF 格式",
     "sizeLimit": "文件大小超过 50MB 限制",
     "selectFile": "请先选择 PDF 文件",
-    "quotaFull": "今日配额已用完",
+    "quotaFull": "当前点数不足，请先获取兑换码并到账户页兑换加点。",
     "enterKey": "开启 AI 增强时必须输入 API Key",
     "enterUrl": "开启 AI 增强时必须输入 API URL",
     "apiFail": "API 验证失败",

@@ -5,7 +5,10 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from dotenv import load_dotenv
 import json
-import json_repair
+try:
+    import json_repair
+except ModuleNotFoundError:
+    json_repair = None
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -286,10 +289,21 @@ def extract_json(response: str) -> Dict[str, Any]:
     else:
         json_content = response.strip()
     
+    repair_error = None
+    if json_repair is not None:
+        try:
+            return json_repair.loads(json_content)
+        except Exception as exc:
+            repair_error = exc
+
     try:
-        return json_repair.loads(json_content)
-    except Exception as e:
-        raise ValueError(f"failed to parse json: {e}")
+        return json.loads(json_content)
+    except Exception as exc:
+        if repair_error is not None:
+            raise ValueError(f"failed to parse json: {repair_error}") from exc
+        raise ValueError(
+            "failed to parse json and optional dependency 'json_repair' is not installed"
+        ) from exc
 
 
 def load_prompt(path: str) -> str:

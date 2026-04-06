@@ -24,4 +24,18 @@ project_root = Path(__file__).resolve().parents[1]
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from .main import app, create_app  # noqa: F401
+__all__ = ["app", "create_app"]
+
+
+def __getattr__(name: str):
+    """
+    Delay importing fastapi_app.main until somebody actually asks for app/create_app.
+
+    This keeps helper subprocesses and lightweight module imports from eagerly
+    pulling the whole FastAPI app graph into memory.
+    """
+    if name in {"app", "create_app"}:
+        from .main import app, create_app
+
+        return {"app": app, "create_app": create_app}[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -45,3 +45,4 @@ reportlab
 imgkit==1.2.3
 
 seaborn==0.13.2
+json_repair==0.54.2

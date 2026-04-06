@@ -21,10 +21,13 @@ from uuid import uuid4
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from script.cli_env import load_project_env
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2PosterState, Paper2PosterRequest
 from dataflow_agent.workflow import run_workflow
 from dataflow_agent.utils import get_project_root
+
+load_project_env()
 
 log = get_logger(__name__)
 

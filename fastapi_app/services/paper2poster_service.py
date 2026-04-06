@@ -10,6 +10,7 @@ from fastapi import HTTPException, UploadFile
 
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
+from fastapi_app.services.managed_api_service import resolve_llm_credentials
 from fastapi_app.utils import _to_outputs_url
 from fastapi_app.workflow_adapters.wa_paper2poster import run_paper2poster_generate_wf_api
 
@@ -57,9 +58,10 @@ class Paper2PosterService:
         dst.write_bytes(await upload.read())
         return dst
 
-    def _create_run_dir(self) -> Path:
+    def _create_run_dir(self, email: Optional[str]) -> Path:
         run_id = f"{int(time.time())}-{uuid4().hex[:8]}"
-        run_dir = PROJECT_ROOT / "outputs" / "api" / "paper2poster" / run_id
+        owner = (email or "").strip() or "api"
+        run_dir = PROJECT_ROOT / "outputs" / owner / "paper2poster" / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
         return run_dir
 
@@ -78,9 +80,14 @@ class Paper2PosterService:
         url: str = "",
         email: Optional[str] = None,
     ) -> Dict[str, Any]:
+        resolved_chat_api_url, resolved_api_key = resolve_llm_credentials(
+            chat_api_url,
+            api_key,
+            scope="paper2poster",
+        )
         self._validate_poster_dimensions(poster_width, poster_height)
 
-        run_dir = self._create_run_dir()
+        run_dir = self._create_run_dir(email)
         input_dir = run_dir / "input"
         input_dir.mkdir(parents=True, exist_ok=True)
 
@@ -115,8 +122,8 @@ class Paper2PosterService:
         result = await run_paper2poster_generate_wf_api(
             result_path=run_dir,
             paper_file=str(paper_path),
-            chat_api_url=chat_api_url,
-            api_key=api_key,
+            chat_api_url=resolved_chat_api_url,
+            api_key=resolved_api_key,
             model=model,
             vision_model=vision_model,
             poster_width=poster_width,

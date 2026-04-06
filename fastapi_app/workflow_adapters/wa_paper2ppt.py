@@ -14,6 +14,7 @@ import json
 import time
 from pathlib import Path
 from typing import Any, List, Tuple
+from uuid import uuid4
 
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureState
@@ -26,6 +27,11 @@ from dataflow_agent.utils_markdown_sections import (
 from dataflow_agent.workflow import run_workflow
 
 from fastapi_app.schemas import Paper2PPTRequest, Paper2PPTResponse
+from fastapi_app.utils import get_outputs_root, resolve_outputs_path
+from fastapi_app.workflow_adapters.heavy_workflow_subprocess import (
+    run_heavy_workflow_in_subprocess,
+    should_use_heavy_workflow_subprocess,
+)
 
 log = get_logger(__name__)
 
@@ -45,15 +51,20 @@ def _to_serializable(obj: Any):
     return str(obj)
 
 
+def _state_get(obj: Any, key: str, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
 def _ensure_result_path_for_full(email: str | None) -> Path:
     """
     为 full pipeline 统一一个根输出目录：
-    outputs/{email or 'default'}/paper2ppt/<timestamp>/
+    outputs/{email or 'default'}/paper2ppt/<run_id>/
     """
-    project_root = get_project_root()
-    ts = int(time.time())
+    run_id = f"{time.time_ns()}-{uuid4().hex[:8]}"
     code = email or "default"
-    base_dir = (project_root / "outputs" / code / "paper2ppt" / str(ts)).resolve()
+    base_dir = (get_outputs_root() / code / "paper2ppt" / run_id).resolve()
     base_dir.mkdir(parents=True, exist_ok=True)
     return base_dir
 
@@ -236,9 +247,9 @@ async def run_paper2page_content_wf_api(req: Paper2PPTRequest, result_path: Path
     )
     final_state: Paper2FigureState = await run_workflow(workflow_name, state)
     # 提取结果
-    pagecontent = final_state["pagecontent"] or []
+    pagecontent = _state_get(final_state, "pagecontent", []) or []
     log.critical(f"[paper2page_content_wf_api] pagecontent={pagecontent}")
-    result_path = final_state["result_path"] or str(result_root)
+    result_path = _state_get(final_state, "result_path", "") or str(result_root)
 
     # 构造响应：目前 Paper2PPTResponse 只有 success，占位扩展字段通过动态属性注入
     resp_data: dict[str, Any] = {
@@ -281,8 +292,8 @@ async def run_paper2page_content_refine_wf_api(
     )
     final_state: Paper2FigureState = await run_workflow(workflow_name, state)
 
-    pagecontent = final_state["pagecontent"] or []
-    result_path = final_state["result_path"] or str(result_root)
+    pagecontent = _state_get(final_state, "pagecontent", []) or []
+    result_path = _state_get(final_state, "result_path", "") or str(result_root)
 
     resp_data: dict[str, Any] = {
         "success": True,
@@ -299,7 +310,60 @@ async def run_paper2ppt_wf_api(
     get_down: bool | None = None,
     edit_page_num: int | None = None,
     edit_page_prompt: str | None = None,
+    regenerate_from_outline: bool = False,
     auto_fill_generated_pages: bool = True,
+    skip_pages: list[int] | None = None,
+) -> Paper2PPTResponse:
+    worker_result_path: Path | None = None
+    if result_path:
+        worker_result_path = resolve_outputs_path(result_path, must_exist=False, allow_dirs=True)
+
+    if should_use_heavy_workflow_subprocess(default=True):
+        log.info(
+            "[paper2ppt_wf_api] routing workflow through subprocess, result_path=%s, pagecontent_len=%s",
+            result_path,
+            len(pagecontent or []),
+        )
+        out_data = await run_heavy_workflow_in_subprocess(
+            mode="paper2ppt",
+            payload={
+                "request": req.model_dump(mode="json"),
+                "pagecontent": pagecontent or [],
+                "result_path": result_path or "",
+                "get_down": get_down,
+                "edit_page_num": edit_page_num,
+                "edit_page_prompt": edit_page_prompt,
+                "regenerate_from_outline": regenerate_from_outline,
+                "auto_fill_generated_pages": auto_fill_generated_pages,
+                "skip_pages": skip_pages or [],
+            },
+            result_path=worker_result_path,
+        )
+        return Paper2PPTResponse.model_validate(out_data.get("response") or {})
+
+    return await run_paper2ppt_wf_api_local(
+        req=req,
+        pagecontent=pagecontent,
+        result_path=result_path,
+        get_down=get_down,
+        edit_page_num=edit_page_num,
+        edit_page_prompt=edit_page_prompt,
+        regenerate_from_outline=regenerate_from_outline,
+        auto_fill_generated_pages=auto_fill_generated_pages,
+        skip_pages=skip_pages,
+    )
+
+
+async def run_paper2ppt_wf_api_local(
+    req: Paper2PPTRequest,
+    pagecontent: list[dict] | None = None,
+    result_path: str | None = None,
+    get_down: bool | None = None,
+    edit_page_num: int | None = None,
+    edit_page_prompt: str | None = None,
+    regenerate_from_outline: bool = False,
+    auto_fill_generated_pages: bool = True,
+    skip_pages: list[int] | None = None,
 ) -> Paper2PPTResponse:
     """
     只执行 paper2ppt 工作流。通常用于：
@@ -318,7 +382,7 @@ async def run_paper2ppt_wf_api(
     """
     base_dir: Path | None = None
     if result_path:
-        base_dir = Path(result_path).expanduser().resolve()
+        base_dir = resolve_outputs_path(result_path, must_exist=False, allow_dirs=True)
         base_dir.mkdir(parents=True, exist_ok=True)
 
     state = _init_state_from_request(
@@ -326,6 +390,9 @@ async def run_paper2ppt_wf_api(
         result_path=base_dir,
         override_pagecontent=pagecontent,
     )
+
+    if skip_pages:
+        state.skip_pages = list(skip_pages)
 
     # 映射 get_down -> workflow state.gen_down
     if get_down is not None:
@@ -337,6 +404,7 @@ async def run_paper2ppt_wf_api(
             state.edit_page_num = int(edit_page_num)
         if edit_page_prompt is not None:
             state.edit_page_prompt = str(edit_page_prompt)
+        state.regenerate_from_outline = bool(regenerate_from_outline)
 
         if auto_fill_generated_pages and base_dir is not None:
             try:
@@ -378,10 +446,10 @@ async def run_paper2ppt_wf_api(
     final_state: Paper2FigureState = await run_workflow("paper2ppt_parallel_consistent_style", state)
 
     # 提取关键输出
-    ppt_pdf_path = getattr(final_state, "ppt_pdf_path", "")
-    ppt_pptx_path = getattr(final_state, "ppt_pptx_path", "")
-    final_pagecontent = getattr(final_state, "pagecontent", []) or []
-    final_result_path = getattr(final_state, "result_path", result_path or "")
+    ppt_pdf_path = _state_get(final_state, "ppt_pdf_path", "")
+    ppt_pptx_path = _state_get(final_state, "ppt_pptx_path", "")
+    final_pagecontent = _state_get(final_state, "pagecontent", []) or []
+    final_result_path = _state_get(final_state, "result_path", result_path or "")
 
     resp_data: dict[str, Any] = {
         "success": True,
@@ -424,31 +492,20 @@ async def run_paper2ppt_full_pipeline(req: Paper2PPTRequest) -> Paper2PPTRespons
     log.info(f"[paper2ppt_full_pipeline] step1 auto-route workflow={workflow_name}, reason={reason}")
     state_pc = await run_workflow(workflow_name, state_pc)
 
-    pagecontent = getattr(state_pc, "pagecontent", []) or []
-    # 确保 result_path 一致
-    final_result_path = getattr(state_pc, "result_path", str(result_root))
+    pagecontent = _state_get(state_pc, "pagecontent", []) or []
+    final_result_path = _state_get(state_pc, "result_path", "") or str(result_root)
 
-    # ---------- 第二步：paper2ppt ----------
-    # 复用 state_pc 继续执行 paper2ppt，避免丢失中间状态
     log.info(
         f"[paper2ppt_full_pipeline] step2 paper2ppt, "
         f"result_path={final_result_path}, pagecontent_len={len(pagecontent)}"
     )
-    state_pc.pagecontent = pagecontent
-    state_pc.result_path = final_result_path
 
-    state_pp: Paper2FigureState = await run_workflow("paper2ppt", state_pc)
-
-    ppt_pdf_path = getattr(state_pp, "ppt_pdf_path", "")
-    ppt_pptx_path = getattr(state_pp, "ppt_pptx_path", "")
-    final_pagecontent = getattr(state_pp, "pagecontent", []) or []
-
-    resp_data: dict[str, Any] = {
-        "success": True,
-        "ppt_pdf_path": str(ppt_pdf_path) if ppt_pdf_path else "",
-        "ppt_pptx_path": str(ppt_pptx_path) if ppt_pptx_path else "",
-        "pagecontent": final_pagecontent,
-        "result_path": final_result_path,
-    }
-
-    return Paper2PPTResponse(**resp_data)
+    return await run_paper2ppt_wf_api_local(
+        req=req,
+        pagecontent=pagecontent,
+        result_path=final_result_path,
+        get_down=None,
+        edit_page_num=None,
+        edit_page_prompt=None,
+        auto_fill_generated_pages=True,
+    )

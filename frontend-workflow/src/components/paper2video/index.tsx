@@ -1,16 +1,16 @@
 import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { API_KEY } from '../../config/api';
 import { useAuthStore } from '../../stores/authStore';
 import { getApiSettings, saveApiSettings } from '../../services/apiSettingsService';
 import { checkQuota, recordUsage } from '../../services/quotaService';
+import { backendFetch } from '../../services/backendClient';
+import { useRuntimeBilling } from '../../hooks/useRuntimeBilling';
 import { Step, ScriptPage } from './types';
 import {
   MAX_FILE_SIZE,
   STORAGE_KEY,
   TTS_MODEL_DEFAULT,
   TALKING_MODEL_DEFAULT,
-  VIDEO_GENERATION_COST,
 } from './constants';
 import Banner from '../paper2ppt/Banner';
 import StepIndicator from './StepIndicator';
@@ -38,6 +38,7 @@ const EXAMPLE_BASE = '/paper2video/example';
 const Paper2VideoPage = () => {
   const { user, refreshQuota } = useAuthStore();
   const { t } = useTranslation(['paper2video', 'common']);
+  const { userApiConfigRequired, runtimeConfig } = useRuntimeBilling();
 
   const [currentStep, setCurrentStep] = useState<Step>('upload');
 
@@ -75,6 +76,8 @@ const Paper2VideoPage = () => {
   const [ttsModel, setTtsModel] = useState<string>(TTS_MODEL_DEFAULT);
   const [ttsVoiceName, setTtsVoiceName] = useState<string>('longanyang');
   const [language, setLanguage] = useState<'zh' | 'en'>('zh');
+  const videoPerPageCost = Math.max(1, Number(runtimeConfig.workflow_costs?.paper2video || 5));
+  const videoGenerationCost = scriptPages.length > 0 ? scriptPages.length * videoPerPageCost : videoPerPageCost;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -97,7 +100,7 @@ const Paper2VideoPage = () => {
     } catch (e) {
       console.error('Failed to restore paper2video config', e);
     }
-  }, [user?.id]);
+  }, [user?.id, userApiConfigRequired]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -203,7 +206,7 @@ const Paper2VideoPage = () => {
       setError('请先选择 PDF 或 PPTX 文件');
       return;
     }
-    if (!apiKey.trim()) {
+    if (userApiConfigRequired && !apiKey.trim()) {
       setError('请输入 API Key');
       return;
     }
@@ -227,8 +230,10 @@ const Paper2VideoPage = () => {
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('email', user?.id || user?.email || '');
-      formData.append('api_key', apiKey.trim());
-      formData.append('chat_api_url', scriptApiUrl.trim());
+      if (userApiConfigRequired) {
+        formData.append('api_key', apiKey.trim());
+        formData.append('chat_api_url', scriptApiUrl.trim());
+      }
       formData.append('model', scriptModel);
       formData.append('tts_model', ttsModel);
       formData.append('tts_voice_name', ttsVoiceName.trim() || 'longanyang');
@@ -239,9 +244,8 @@ const Paper2VideoPage = () => {
         else if (avatarPreset) formData.append('avatar_preset', avatarPreset);
       }
 
-      const res = await fetch('/api/v1/paper2video/generate-subtitle', {
+      const res = await backendFetch('/api/v1/paper2video/generate-subtitle', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
 
@@ -293,11 +297,15 @@ const Paper2VideoPage = () => {
     }
 
     const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
-    if (quota.remaining < VIDEO_GENERATION_COST) {
+    if (quota.remaining < videoGenerationCost) {
       setError(
         quota.isAuthenticated
-          ? t('errors.quotaUserInsufficient', { count: VIDEO_GENERATION_COST })
-          : t('errors.quotaGuestInsufficient', { count: VIDEO_GENERATION_COST })
+          ? t('errors.quotaUserInsufficient', {
+              count: videoGenerationCost,
+              pages: scriptPages.length,
+              perPage: videoPerPageCost,
+            })
+          : t('errors.authRequired')
       );
       return;
     }
@@ -314,9 +322,11 @@ const Paper2VideoPage = () => {
       formData.append('email', user?.id || user?.email || '');
       if (stateSnapshot) formData.append('state_snapshot', stateSnapshot);
 
-      const res = await fetch('/api/v1/paper2video/generate-video', {
+      const res = await backendFetch('/api/v1/paper2video/generate-video', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
+        headers: {
+          'X-Workflow-Amount': String(videoGenerationCost),
+        },
         body: formData,
       });
 
@@ -334,13 +344,13 @@ const Paper2VideoPage = () => {
       else setError(data.message || '后端未返回视频地址');
 
       const usageRecorded = await recordUsage(user?.id || null, 'paper2video', {
-        amount: VIDEO_GENERATION_COST,
+        amount: videoGenerationCost,
         isAnonymous: user?.is_anonymous || false,
       });
       if (usageRecorded) {
         refreshQuota();
       } else {
-        setError(t('complete.usageRecordFailed', { count: VIDEO_GENERATION_COST }));
+        setError(t('complete.usageRecordFailed', { count: videoGenerationCost }));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '视频生成失败');
@@ -400,6 +410,7 @@ const Paper2VideoPage = () => {
               progress={progress}
               progressStatus={progressStatus}
               error={error}
+              showApiConfig={userApiConfigRequired}
               apiKey={apiKey}
               setApiKey={setApiKey}
               scriptApiUrl={scriptApiUrl}
@@ -424,6 +435,8 @@ const Paper2VideoPage = () => {
           {currentStep === 'script' && (
             <ScriptStep
               scriptPages={scriptPages}
+              generationCost={videoGenerationCost}
+              perPageCost={videoPerPageCost}
               setScriptPages={setScriptPages}
               handleConfirmScript={handleConfirmScript}
               setCurrentStep={setCurrentStep}

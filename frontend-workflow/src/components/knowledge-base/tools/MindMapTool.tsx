@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { BrainCircuit, Loader2, CheckCircle2, X } from 'lucide-react';
-import { API_KEY, API_URL_OPTIONS } from '../../../config/api';
+import { API_URL_OPTIONS } from '../../../config/api';
 import { KnowledgeFile } from '../types';
 import { MermaidPreview } from './MermaidPreview';
 import { getApiSettings } from '../../../services/apiSettingsService';
+import { backendFetch } from '../../../services/backendClient';
 import { useAuthStore } from '../../../stores/authStore';
 
 interface MindMapToolProps {
@@ -65,11 +66,10 @@ export const MindMapTool = ({ files = [], selectedIds, onGenerateSuccess }: Mind
     setMindmapGenerating(true);
     setShowPreview(false);
     try {
-      const res = await fetch('/api/v1/kb/generate-mindmap', {
+      const res = await backendFetch('/api/v1/kb/generate-mindmap', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': API_KEY
         },
         body: JSON.stringify({
           file_paths: filePaths,

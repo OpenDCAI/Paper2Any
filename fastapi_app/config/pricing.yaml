@@ -1,0 +1,53 @@
+billing:
+  signup_bonus_points: 0
+  daily_grant_points: 5
+  daily_grant_balance_cap: 15
+  referral_inviter_points: 5
+  referral_invitee_points: 0
+  guest_daily_limit: 0
+  points_purchase_url: https://aceyun.cn/shop/4X1LH2OB
+  redeem_code_files:
+    "10": data/redeem_codes/points_10.txt
+    "50": data/redeem_codes/points_50.txt
+    "100": data/redeem_codes/points_100.txt
+  mindmap:
+    node_tiers:
+      - max_nodes: 8
+        points: 2
+        label: "1-8 节点"
+      - max_nodes: 16
+        points: 3
+        label: "9-16 节点"
+      - max_nodes: 32
+        points: 4
+        label: "17-32 节点"
+      - max_nodes: 64
+        points: 6
+        label: "33-64 节点"
+      - max_nodes: null
+        points: 8
+        label: "65+ 节点"
+    depth_bonus:
+      threshold: 4
+      per_level: 1
+      max_bonus: 2
+
+workflows:
+  paper2figure: 1
+  paper2ppt: 1
+  pdf2ppt: 1
+  image2ppt: 1
+  image2drawio: 1
+  paper2drawio: 1
+  paper2poster: 1
+  paper2video: 5
+  paper2citation: 1
+  paper2rebuttal: 1
+  ppt2polish: 1
+  kb_report: 1
+  kb_deepresearch: 2
+  kb_podcast: 2
+  kb_mindmap: 2
+  kb_ppt: 1
+  kb_chat: 1
+  kb_search: 1

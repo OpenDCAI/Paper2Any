@@ -451,8 +451,8 @@ async def start_analysis(
     pdf_file: UploadFile = File(...),
     review_file: Optional[UploadFile] = File(None),
     review_text: Optional[str] = Form(None),
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
     model: str = Form("deepseek-v3.1"),
     email: Optional[str] = Form(None),
     user: Optional[AuthUser] = Depends(get_optional_user),
@@ -605,8 +605,8 @@ async def revise_strategy(
     session_id: str = Form(...),
     question_idx: int = Form(...),
     feedback: str = Form(...),
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
     model: str = Form("deepseek-v3.1"),
 ):
     """Revise strategy based on feedback"""
@@ -656,8 +656,8 @@ async def mark_question_satisfied(
 async def generate_final_rebuttal(
     request: Request,
     session_id: str = Form(...),
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
     model: str = Form("deepseek-v3.1"),
     email: Optional[str] = Form(None),
     user: Optional[AuthUser] = Depends(get_optional_user),

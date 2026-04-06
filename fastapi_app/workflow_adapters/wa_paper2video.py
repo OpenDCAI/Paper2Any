@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2VideoRequest, Paper2VideoState
-from dataflow_agent.utils import get_project_root
+from fastapi_app.utils import get_outputs_root, resolve_outputs_path
 import os
 
 log = get_logger(__name__)
@@ -100,12 +100,13 @@ def _state_from_snapshot(snapshot: dict, script_pages: List[dict]) -> Paper2Vide
 def _ensure_result_path(result_path: Optional[Path] = None, email: str = "") -> Path:
     """若 result_path 为空，则按 email 与时间戳创建 outputs/.../paper2video/<ts>/。"""
     import time
-    project_root = get_project_root()
     ts = int(time.time())
     code = email or "default"
-    base_dir = (project_root / "outputs" / code / "paper2video" / str(ts)).resolve()
+    base_dir = (get_outputs_root() / code / "paper2video" / str(ts)).resolve()
     base_dir.mkdir(parents=True, exist_ok=True)
-    return result_path if result_path is not None else base_dir
+    if result_path is None:
+        return base_dir
+    return resolve_outputs_path(result_path, must_exist=False, allow_dirs=True)
 
 
 async def run_paper2video_generate_subtitle_wf_api(
@@ -144,7 +145,7 @@ async def run_paper2video_generate_subtitle_wf_api(
     - script_pages: list[dict]，每项含 page_num, image_url 或 image_path, script_text
     - state_snapshot: dict，第一步 state 的序列化（不含 script_pages），第二步请求时原样回传以复用 state
     """
-    result_root = Path(result_path).resolve() if result_path else _ensure_result_path(None, email)
+    result_root = _ensure_result_path(result_path, email)
     log.info("[wa_paper2video] run_paper2video_generate_subtitle_wf_api: result_path=%s, paper_pdf_path=%s", result_root, paper_pdf_path)
 
     normalized_talking_model = "liveportrait"
@@ -179,12 +180,13 @@ async def run_paper2video_generate_subtitle_wf_api(
         log.info("[wa_paper2video] running workflow %s, the state is %s", workflow_name, state)
         final_state: Paper2VideoState= await run_workflow(workflow_name, state)
     except Exception as e:
-        log.warning("[wa_paper2video] workflow %s not found or failed: %s; returning placeholder script_pages", workflow_name, e)
+        log.exception("[wa_paper2video] workflow %s failed during generate_subtitle: %s", workflow_name, e)
         return {
-            "success": True,
-            "result_path": str(result_root),
+            "success": False,
+            "message": f"脚本生成失败：{str(e)}",
+            "result_path": "",
             "script_pages": [],
-            "state_snapshot": _state_to_snapshot(state),
+            "state_snapshot": None,
         }
 
     script_pages = getattr(final_state, "script_pages", None) or (final_state.get("script_pages") if isinstance(final_state, dict) else [])
@@ -221,10 +223,7 @@ async def run_paper2video_generate_video_wf_api(
     - success: bool
     - video_path: str，后端本地路径（Service 层会据此转 video_url）
     """
-    base_dir = Path(result_path).expanduser().resolve()
-    project_root = get_project_root()
-    if not base_dir.is_absolute():
-        base_dir = (project_root / base_dir).resolve()
+    base_dir = resolve_outputs_path(result_path, must_exist=True, allow_dirs=True)
     log.info("[wa_paper2video] run_paper2video_generate_video_wf_api: result_path=%s, script_pages count=%s, has_snapshot=%s", base_dir, len(script_pages), state_snapshot is not None)
 
     if state_snapshot:

@@ -253,9 +253,25 @@ outputs/
 
 fastapi_app/invite_codes.txt
 models/*
+!models/.gitkeep
+!models/README.md
+!models/RMBG-2.0/
+!models/sam3/
+!models/sam3-official/
+models/RMBG-2.0/*
+!models/RMBG-2.0/.gitkeep
+models/sam3/*
+!models/sam3/.gitkeep
+models/sam3-official/*
+!models/sam3-official/sam3/
+models/sam3-official/sam3/*
+!models/sam3-official/sam3/.gitkeep
 outputs/*
 tmps/*
 data/*
+!data/redeem_codes/
+data/redeem_codes/*.txt
+!data/redeem_codes/README.md
 sam_b.pt
 # fastapi
 fastapi_app/outputs/
@@ -272,6 +288,9 @@ logs
 dev-debug.log
 # Dependency directories
 # Environment variables
+deploy/profiles/*.env
+!deploy/profiles/*.env.example
+!deploy/profiles/README.md
 .idea
 # OS specific
 
@@ -305,3 +324,7 @@ deploy/monitor.sh
 deploy/stop_monitor.sh
 deploy/clean_git_history.sh
 deploy/precise_clean.sh
+
+# Runtime temp directories
+/tmp*/
+/outputs/system/tmp/

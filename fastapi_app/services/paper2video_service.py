@@ -23,7 +23,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, Request, UploadFile
 
 from fastapi_app.schemas import GenerateSubtitleResponse, GenerateVideoResponse
-from fastapi_app.utils import _to_outputs_url
+from fastapi_app.services.managed_api_service import resolve_llm_credentials
+from fastapi_app.utils import _to_outputs_url, get_outputs_root, resolve_outputs_path
 from fastapi_app.workflow_adapters.wa_paper2video import (
     run_paper2video_generate_subtitle_wf_api,
     run_paper2video_generate_video_wf_api,
@@ -35,7 +36,7 @@ from dataflow_agent.toolkits.p2vtool.p2v_tool import liveportrait_face_detect, p
 log = get_logger(__name__)
 
 PROJECT_ROOT = get_project_root()
-BASE_OUTPUT_DIR = (PROJECT_ROOT / "outputs").resolve()
+BASE_OUTPUT_DIR = get_outputs_root()
 
 
 class Paper2VideoService:
@@ -85,7 +86,7 @@ class Paper2VideoService:
         import time
         ts = int(time.time())
         code = email or "default"
-        run_dir = PROJECT_ROOT / BASE_OUTPUT_DIR / code / "paper2video" / str(ts)
+        run_dir = BASE_OUTPUT_DIR / code / "paper2video" / str(ts)
         run_dir.mkdir(parents=True, exist_ok=True)
         log.info("[Paper2VideoService] created run_dir: %s", run_dir)
         return run_dir
@@ -135,6 +136,11 @@ class Paper2VideoService:
         if not file:
             log.warning("[Paper2VideoService] run_generate_subtitle: missing file")
             raise HTTPException(status_code=400, detail="file is required (PDF or PPTX)")
+        resolved_chat_api_url, resolved_api_key = resolve_llm_credentials(
+            chat_api_url,
+            api_key,
+            scope="paper2video",
+        )
 
         run_dir = self._create_timestamp_run_dir(email)
         input_dir = run_dir / "input"
@@ -238,8 +244,8 @@ class Paper2VideoService:
             ref_img_path=str(avatar_path) if avatar_path else "",
             ref_audio_path=str(voice_path) if voice_path else "",
             ref_text="",
-            chat_api_url=chat_api_url,
-            api_key=api_key,
+            chat_api_url=resolved_chat_api_url,
+            api_key=resolved_api_key,
             model=model,
             tts_model=tts_model,
             tts_voice_name=tts_voice_name or "",
@@ -281,10 +287,11 @@ class Paper2VideoService:
         # 可选：收集本次任务产出文件 URL，便于前端预加载
         all_output_files: List[str] = []
         if request is not None and result_path:
-            root = Path(result_path)
-            if not root.is_absolute():
-                root = PROJECT_ROOT / root
-            if root.exists():
+            try:
+                root = resolve_outputs_path(result_path, must_exist=True, allow_dirs=True)
+            except HTTPException:
+                root = None
+            if root is not None and root.exists():
                 for p in root.rglob("*"):
                     if p.is_file() and p.suffix.lower() in {".png", ".jpg", ".jpeg", ".pdf", ".wav", ".mp4"}:
                         all_output_files.append(_to_outputs_url(str(p), request))
@@ -316,10 +323,7 @@ class Paper2VideoService:
             log.warning("[Paper2VideoService] run_generate_video: missing result_path")
             raise HTTPException(status_code=400, detail="result_path is required")
 
-        base_dir = Path(result_path)
-        if not base_dir.is_absolute():
-            base_dir = PROJECT_ROOT / base_dir
-        base_dir = base_dir.resolve()
+        base_dir = resolve_outputs_path(result_path, must_exist=True, allow_dirs=True)
         if not base_dir.exists():
             log.warning("[Paper2VideoService] run_generate_video: result_path not exists: %s", base_dir)
             raise HTTPException(status_code=400, detail=f"result_path not exists: {result_path}")
@@ -342,7 +346,7 @@ class Paper2VideoService:
             except json.JSONDecodeError:
                 log.warning("[Paper2VideoService] run_generate_video: invalid state_snapshot json, ignoring")
         resp = await run_paper2video_generate_video_wf_api(
-            result_path=result_path,
+            result_path=str(base_dir),
             script_pages=script_pages,
             state_snapshot=state_snapshot,
         )

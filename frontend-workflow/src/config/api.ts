@@ -50,8 +50,8 @@ export async function apiFetch(
   url: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const headers = new Headers(options.headers);
-  headers.set('X-API-Key', API_KEY);
+  const { getBackendHeaders } = await import('../services/backendClient');
+  const headers = await getBackendHeaders(options.headers);
 
   return fetch(url, {
     ...options,

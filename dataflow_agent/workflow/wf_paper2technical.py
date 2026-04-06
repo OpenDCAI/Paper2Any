@@ -29,6 +29,17 @@ from dataflow_agent.logger import get_logger
 log = get_logger(__name__)
 
 
+def _get_technical_text_model(state: Paper2FigureState) -> str:
+    request = getattr(state, "request", None)
+    technical_model = getattr(request, "technical_model", "") if request is not None else ""
+    if technical_model:
+        return technical_model
+    model = getattr(request, "model", "") if request is not None else ""
+    if model:
+        return model
+    return "gpt-5.4"
+
+
 def _ensure_result_path(state: Paper2FigureState) -> str:
     """
     统一本次 workflow 的根输出目录：
@@ -464,8 +475,8 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
         base_dir = Path(_ensure_result_path(state))
         base_dir.mkdir(parents=True, exist_ok=True)
 
-        # 使用前端传递的模型，默认为 claude-sonnet-4-5
-        model_name = getattr(getattr(state, "request", None), "gen_fig_model", "") or "claude-sonnet-4-5-20250929"
+        # 技术路线图生成是文本/SVG 任务，不应复用生图模型。
+        model_name = _get_technical_text_model(state)
         log.critical(f"[technical_route_bw_svg_generator] 使用模型: {model_name}")
 
         # 使用 create_react_agent 创建带验证器的 agent
@@ -529,8 +540,7 @@ def create_paper2technical_graph() -> GenericGraphBuilder:  # noqa: N802
             state.temp_data = {}
         state.temp_data["palette_json"] = json.dumps(palette_cfg, ensure_ascii=False)
 
-        # 使用前端传递的模型
-        model_name = getattr(getattr(state, "request", None), "gen_fig_model", "") or "claude-sonnet-4-5-20250929"
+        model_name = _get_technical_text_model(state)
         log.critical(f"[technical_route_colorize_svg] 使用模型: {model_name}")
 
         # 使用 create_react_agent 创建带验证器的 agent

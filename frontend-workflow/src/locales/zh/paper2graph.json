@@ -119,15 +119,15 @@
     "template5": "模板 5"
   },
   "validating": {
-    "apiKey": "正在验证 API Key 有效性..."
+    "apiKey": "正在验证模型连接..."
   },
   "errors": {
     "fileTooLarge": "文件大小超过 20MB 限制",
     "unsupportedFile": "仅支持 PDF 和常见图片格式，请检查文件类型",
     "noFile": "请先选择要上传的文件或图片",
     "noText": "请输入要转换为 PPTX 的文本内容",
-    "quotaUserExhausted": "今日配额已用完（10次/天），请明天再试",
-    "quotaGuestExhausted": "今日配额已用完（5次/天），登录后可获得更多配额",
+    "quotaUserExhausted": "点数不足，请先前往购买页获取兑换码，再到账户页兑换加点。",
+    "quotaGuestExhausted": "请先登录后继续使用。",
     "missingApiConfig": "请先配置模型 API URL 和 API Key",
     "techRouteNoImage": "技术路线图和实验数据图不支持图片输入",
     "expDataNoImage": "实验数据图仅支持 PDF 输入，不支持图片",

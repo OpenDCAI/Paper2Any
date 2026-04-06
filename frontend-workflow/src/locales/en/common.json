@@ -4,11 +4,14 @@
   "success": "Success",
   "app": {
     "subtitle": "Agent-driven Research Creation Experience",
+    "purchaseMore": "Redeem Points",
     "githubProject": "GitHub Open Source",
     "exploreMore": "🚀 Explore more AI data processing tools",
     "quotaRemaining": "Remaining: {{remaining}}/{{limit}}",
     "nav": {
+      "home": "Overview",
       "paper2figure": "Research Figure Generator",
+      "mindmap": "Mind Map",
       "paper2drawio": "Diagram Generator (DrawIO)",
       "paper2ppt": "Paper2PPT",
       "paper2video": "PPT to Video",
@@ -25,10 +28,14 @@
     "navSub": {
       "paper2figureTechExp": "Tech Route / Experiment Charts",
       "paper2drawioAi": "Flow / Architecture Diagrams",
-      "paper2figureModelDrawio": "Model Diagram Generation"
+      "paper2figureModelDrawio": "Model Diagram Generation",
+      "paper2pptImage": "Image-style PPT",
+      "paper2pptFrontend": "Editable PPT"
     },
     "navTooltip": {
+      "home": "See all workflows, preview examples, and jump straight into the right tool from a single landing page",
       "paper2figure": "Generate research figures from papers, including model architecture diagrams, technical roadmaps, and experimental data charts in editable PPTX format",
+      "mindmap": "Upload papers, lecture notes, or paste raw text to generate a standalone tree-structured mind map, then keep refining nodes and branches inside the same page",
       "paper2drawio": "Convert images to editable DrawIO diagrams, supporting flowcharts, architecture diagrams, and more",
       "paper2ppt": "Upload paper PDFs or enter topics, AI intelligently analyzes content and generates beautiful academic presentation slides",
       "pdf2ppt": "Quickly convert any PDF document to editable PPTX format while preserving original layout and content structure",
@@ -45,39 +52,120 @@
     "navSubTooltip": {
       "paper2figureTechExp": "Generate technical route and experiment charts from PDF/text with templates, export PPT/SVG",
       "paper2drawioAi": "Text-to-DrawIO flow/architecture diagrams, edit online and export PNG/SVG/DrawIO",
-      "paper2figureModelDrawio": "Generate a model diagram, refine prompts, then edit in DrawIO or export PPT/PNG/SVG"
+      "paper2figureModelDrawio": "Generate a model diagram, refine prompts, then edit in DrawIO or export PPT/PNG/SVG",
+      "paper2pptImage": "Generate a visual academic deck with image-based slides from a paper PDF or topic",
+      "paper2pptFrontend": "Generate editable 16:9 HTML/CSS slides with per-page review, repair, and screenshot export"
     },
     "sidebar": {
       "toggle": "Toggle Menu",
       "navigation": "Navigation"
     },
     "home": {
-      "kicker": "PKU Research Workflow",
-      "title": "Paper2Any for End-to-End Research Production",
-      "description": "The PKU build now exposes a unified home page plus path-based subpages for figures, PPT, rebuttal, poster, video, and conversion workflows, so the portal can jump directly into each concrete tool.",
-      "primaryCta": "Open Figure Workflows",
-      "secondaryCta": "Open PPT Generation",
-      "panelTitle": "What Changed",
-      "panelDescription": "This version keeps the PKU portal visual language and dark readable text while restoring a proper landing page and direct subpage routing.",
-      "featuredTitle": "Common Entry Points",
-      "featuredDescription": "The most-used figure, PPT, and video workflows stay in the first screen for faster entry.",
-      "metrics": {
-        "features": "Covers creation, conversion, and delivery workflows in one workspace",
-        "routing": "Supports direct path-level links to concrete subpages instead of only the home page",
-        "intranet": "Optimized for PKU intranet deployment and portal-based access"
-      },
+      "kicker": "Research Creation Console",
+      "title": "One entrance for every Paper2Any workflow",
+      "description": "Use the landing page to understand what each tool does before you jump into the corresponding workflow. Tools with reference images show live previews; the rest use premium placeholders for now.",
+      "primaryCta": "Start with Figures",
+      "secondaryCta": "Image PPT",
+      "frontendCta": "Editable PPT",
       "sections": {
         "creation": {
-          "title": "Creation and Figures",
-          "description": "Visual generation workflows for figures, diagrams, and posters during paper writing."
-        },
-        "delivery": {
-          "title": "Delivery and Feedback",
-          "description": "Common entry points for citation tracking, rebuttal drafting, and generated files."
+          "title": "Generate directly from paper content",
+          "description": "Best when you start from a paper PDF, raw manuscript text, or a topic and want figures, slides, videos, or posters."
         },
         "conversion": {
-          "title": "Conversion and Polish",
-          "description": "A unified space for PDF, image, and PPT conversion and optimization tasks."
+          "title": "Refine material you already have",
+          "description": "Best when you already have PDFs, images, or PPTs and want editable output or a stronger visual polish."
+        },
+        "research": {
+          "title": "Track, respond, and manage research assets",
+          "description": "Best for citation analysis, rebuttal drafting, knowledge base workflows, and revisiting generated artifacts."
+        }
+      },
+      "cards": {
+        "paper2figureTechExp": {
+          "title": "Tech Route / Experiment Figure Generator",
+          "description": "Extract methods, comparisons, and core modules from a paper PDF or manuscript text and turn them into research-style figures.",
+          "badge": "Paper → Figure"
+        },
+        "paper2ppt": {
+          "title": "Paper to Academic Deck",
+          "description": "Break down paper structure, surface the narrative, and generate editable slides for seminars, lab meetings, or defense prep.",
+          "badge": "Paper → Slides"
+        },
+        "paper2pptImage": {
+          "title": "Image-style PPT Generation",
+          "description": "Use the visual-slide route to generate image-first academic pages with stronger layout atmosphere and presentation polish.",
+          "badge": "Image Deck"
+        },
+        "paper2pptFrontend": {
+          "title": "Editable PPT Generation",
+          "description": "Generate editable 16:9 HTML/CSS slides with inline text editing, per-page visual QA, and screenshot export to PPTX / PDF.",
+          "badge": "Editable Deck"
+        },
+        "paper2video": {
+          "title": "Paper / PPT to Narrated Video",
+          "description": "Generate per-slide scripts and voiceover, with optional digital human presentation, for teaching and outreach.",
+          "badge": "Slides → Video"
+        },
+        "paper2figureModel": {
+          "title": "Model Diagram Generator",
+          "description": "Create more structured model architecture diagrams focused on modules and relations, then keep editing or export them.",
+          "badge": "Model Diagram"
+        },
+        "paper2drawioAi": {
+          "title": "Flow / Architecture Diagram Generator",
+          "description": "Turn paper paragraphs or text instructions into editable DrawIO flowcharts and system diagrams.",
+          "badge": "Text → DrawIO"
+        },
+        "mindmap": {
+          "title": "Standalone Mind Map Workspace",
+          "description": "Extract structure from documents or raw text, generate Mermaid mind maps, and keep editing and saving the source inside one dedicated page.",
+          "badge": "Mind Map"
+        },
+        "paper2poster": {
+          "title": "Paper to Poster",
+          "description": "Summarize content, organize layout, and build a conference-poster style visual automatically.",
+          "badge": "Poster"
+        },
+        "pdf2ppt": {
+          "title": "PDF to Editable PPT",
+          "description": "Convert an existing PDF document or deck into editable PPTX while preserving structure and layout as much as possible.",
+          "badge": "PDF → PPTX"
+        },
+        "image2ppt": {
+          "title": "Image to Slide",
+          "description": "Convert screenshots, posters, or visual mockups into editable slides so you can continue refining them.",
+          "badge": "Image → Slide"
+        },
+        "image2drawio": {
+          "title": "Image to DrawIO",
+          "description": "Turn whiteboard sketches, flowcharts, or architecture screenshots into editable DrawIO assets.",
+          "badge": "Image → DrawIO"
+        },
+        "ppt2polish": {
+          "title": "PPT Polish",
+          "description": "Clean up layout, strengthen hierarchy, and improve visual quality before the final delivery stage.",
+          "badge": "Polish"
+        },
+        "paper2citation": {
+          "title": "Citation Tracker",
+          "description": "Trace citation networks from author names, DOIs, or paper URLs and inspect institutions, scholars, and citation patterns.",
+          "badge": "Citation Graph"
+        },
+        "paper2rebuttal": {
+          "title": "Rebuttal Drafting",
+          "description": "Analyze reviewer comments and structure response strategy and final rebuttal text for revision cycles.",
+          "badge": "Rebuttal"
+        },
+        "knowledge": {
+          "title": "Knowledge Base Workspace",
+          "description": "Store documents in a reusable knowledge base for Q&A, retrieval, synthesis, and downstream generation.",
+          "badge": "Knowledge"
+        },
+        "files": {
+          "title": "History Files Hub",
+          "description": "Revisit all generated outputs, download them again, and continue work without losing previous artifacts.",
+          "badge": "Workspace"
         }
       }
     },
@@ -87,16 +175,12 @@
     }
   },
   "userMenu": {
-    "anonymous": "Guest",
     "user": "User",
-    "identity": "Identity",
     "loggedIn": "Logged In",
-    "guestMode": "Guest Mode",
-    "limited": "Limited Features",
     "pro": "Pro Features Unlocked",
-    "signIn": "Sign in for full access",
+    "buyPoints": "Buy Redeem Codes",
+    "redeemPoints": "Redeem Points",
     "thanks": "Thanks for your support",
-    "exitGuest": "Exit Guest Mode",
     "signOut": "Sign Out"
   },
   "filesPage": {

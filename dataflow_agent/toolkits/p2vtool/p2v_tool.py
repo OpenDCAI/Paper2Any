@@ -1,21 +1,62 @@
 from __future__ import annotations
 
 from dataflow_agent.logger import get_logger
+import asyncio
 import subprocess
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional, List, Union, Optional
+from typing import Dict, Any, Tuple, Optional, List, Union
 import os
 os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
 import json
+import sys
+import tempfile
 from PIL import Image, ImageFont, ImageDraw
 import shutil
 import multiprocessing
 import string
 import cv2
 import numpy as np
+from dataflow_agent.toolkits.multimodaltool.req_understanding import call_image_understanding_async
+from dataflow_agent.utils_common import robust_parse_json
 
 log = get_logger(__name__)
 import re
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+P2V_TOOL_DIR = Path(__file__).resolve().parent
+DEFAULT_P2V_CURSOR_IMAGE_PATH = (P2V_TOOL_DIR / "red.png").resolve()
+DEFAULT_P2V_CURSOR_VLM_MODEL = "gpt-4o-2024-11-20"
+DEFAULT_P2V_CURSOR_TIMEOUT = 120
+DEFAULT_P2V_CURSOR_LOCAL_ENABLED = "auto"
+DEFAULT_P2V_CURSOR_LOCAL_TIMEOUT = 1800
+DEFAULT_P2V_CURSOR_LOCAL_MAX_NEW_TOKENS = 64
+DEFAULT_P2V_CURSOR_LOCAL_ALLOC_CONF = "expandable_segments:True"
+DEFAULT_P2V_TTS_PARALLELISM = 2
+DEFAULT_P2V_VIDEO_RENDER_THREADS = 12
+DEFAULT_P2V_SUBTITLE_FONT_CANDIDATES = [
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+]
+
+
+def _parse_bool_env(name: str, default: bool = False) -> bool:
+    raw_value = (os.getenv(name, "") or "").strip().lower()
+    if not raw_value:
+        return default
+    if raw_value in {"1", "true", "yes", "on"}:
+        return True
+    if raw_value in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
+def _prepend_pythonpath(extra_pythonpath: str, current_pythonpath: str = "") -> str:
+    parts = [part.strip() for part in extra_pythonpath.split(os.pathsep) if part.strip()]
+    if current_pythonpath:
+        parts.extend(part.strip() for part in current_pythonpath.split(os.pathsep) if part.strip())
+    return os.pathsep.join(parts)
 
 
 def pptx_to_pdf(pptx_path: Union[str, Path], output_dir: Union[str, Path]) -> str:
@@ -93,15 +134,50 @@ def get_image_paths(directory_path: str) -> List[str]:
     found_image_paths.sort(key=natural_sort_key)
     return [str(p.resolve()) for p in found_image_paths]
 
-def create_subtitle_image(text, font_size=32, font_path="arial.ttf"):
-    # fixme: 硬编码了路径，后续可能需要修改
-    if font_path == "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc":
-        try:
-            font = ImageFont.truetype(font_path, font_size, index=2)
-        except Exception as e:
-            log.warning("Failed to load font from '%s': %s", font_path, e)
-            log.warning("Using default font; font_size will be ignored.")
+def resolve_p2v_subtitle_font_path(font_path: Optional[str] = None) -> str:
+    requested_path = (font_path or os.getenv("PAPER2VIDEO_SUBTITLE_FONT_PATH", "") or "").strip()
+    resolved = _resolve_existing_path(requested_path)
+    if resolved and resolved.is_file():
+        return str(resolved)
+    for candidate in DEFAULT_P2V_SUBTITLE_FONT_CANDIDATES:
+        if Path(candidate).is_file():
+            return candidate
+    return ""
+
+
+def _resolve_p2v_subtitle_font_index() -> Optional[int]:
+    raw_index = (os.getenv("PAPER2VIDEO_SUBTITLE_FONT_INDEX", "") or "").strip()
+    if not raw_index:
+        return None
+    try:
+        return int(raw_index)
+    except ValueError:
+        log.warning("ignore invalid PAPER2VIDEO_SUBTITLE_FONT_INDEX=%s", raw_index)
+        return None
+
+
+def create_subtitle_image(text, font_size=32, font_path: Optional[str] = None):
+    resolved_font_path = resolve_p2v_subtitle_font_path(font_path)
+    try:
+        if resolved_font_path.endswith((".ttc", ".otc")):
+            explicit_index = _resolve_p2v_subtitle_font_index()
+            font = None
+            candidate_indexes = [explicit_index] if explicit_index is not None else [0, 1, 2, 3]
+            for index in candidate_indexes:
+                try:
+                    font = ImageFont.truetype(resolved_font_path, font_size, index=index)
+                    break
+                except Exception:
+                    continue
+            if font is None:
+                raise OSError(f"failed to load collection font: {resolved_font_path}")
+        elif resolved_font_path:
+            font = ImageFont.truetype(resolved_font_path, font_size)
+        else:
             font = ImageFont.load_default()
+    except Exception as exc:
+        log.warning("Failed to load subtitle font '%s': %s", resolved_font_path, exc)
+        font = ImageFont.load_default()
 
     dummy_img = Image.new("RGBA", (70, 70))
     draw = ImageDraw.Draw(dummy_img)
@@ -119,15 +195,201 @@ def create_subtitle_image(text, font_size=32, font_path="arial.ttf"):
 
     return img
 
+
+def get_default_p2v_cursor_image_path() -> str:
+    return str(DEFAULT_P2V_CURSOR_IMAGE_PATH)
+
+
+def _resolve_existing_path(raw_path: Optional[str]) -> Optional[Path]:
+    if not raw_path:
+        return None
+    candidate = Path(raw_path).expanduser()
+    search_candidates = [candidate]
+    if not candidate.is_absolute():
+        search_candidates.extend(
+            [
+                (PROJECT_ROOT / candidate),
+                (P2V_TOOL_DIR / candidate),
+            ]
+        )
+
+    for item in search_candidates:
+        resolved = item.resolve()
+        if resolved.exists():
+            return resolved
+    return None
+
+
+def _resolve_python_executable(raw_python: Optional[str]) -> str:
+    candidate = (raw_python or "").strip()
+    if not candidate:
+        return ""
+    if os.path.isabs(candidate):
+        return candidate if os.path.exists(candidate) else ""
+    resolved = shutil.which(candidate)
+    return resolved or ""
+
+
+def resolve_p2v_cursor_image_path(cursor_img_path: Optional[str] = None) -> str:
+    resolved = _resolve_existing_path(cursor_img_path)
+    if resolved and resolved.is_file():
+        return str(resolved)
+
+    if DEFAULT_P2V_CURSOR_IMAGE_PATH.is_file():
+        return str(DEFAULT_P2V_CURSOR_IMAGE_PATH)
+
+    raise FileNotFoundError(
+        f"Cursor image not found. checked={cursor_img_path!r}, default={DEFAULT_P2V_CURSOR_IMAGE_PATH}"
+    )
+
+
+def _parse_int_env(name: str, default: int) -> int:
+    try:
+        return int((os.getenv(name, str(default)) or "").strip())
+    except ValueError:
+        return default
+
+
+def _parse_gpu_ids(raw_gpu_ids: str) -> List[int]:
+    gpu_ids: List[int] = []
+    for item in re.split(r"[\s,]+", (raw_gpu_ids or "").strip()):
+        if not item:
+            continue
+        try:
+            gpu_ids.append(int(item))
+        except ValueError:
+            log.warning("[p2v-cursor] ignore invalid gpu id: %s", item)
+    return gpu_ids
+
+
+def discover_p2v_cursor_gpu_ids() -> List[int]:
+    explicit_gpu_ids = _parse_gpu_ids(os.getenv("PAPER2VIDEO_CURSOR_GPUS", ""))
+    if explicit_gpu_ids:
+        return explicit_gpu_ids
+
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            return list(range(torch.cuda.device_count()))
+    except Exception as exc:
+        log.warning("[p2v-cursor] failed to detect CUDA devices: %s", exc)
+
+    return []
+
+
+def _ui_tars_parser_available() -> bool:
+    try:
+        from ui_tars.action_parser import parse_action_to_structure_output  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
+def _current_env_supports_local_cursor_worker() -> bool:
+    return _ui_tars_parser_available()
+
+
+def discover_p2v_local_tts_gpu_ids() -> List[int]:
+    explicit_gpu_ids = _parse_gpu_ids(os.getenv("PAPER2VIDEO_LOCAL_TTS_GPU_IDS", ""))
+    if explicit_gpu_ids:
+        return explicit_gpu_ids
+    return discover_p2v_cursor_gpu_ids()
+
+
+def build_p2v_local_tts_config() -> Dict[str, Any]:
+    gpu_ids = discover_p2v_local_tts_gpu_ids()
+    whisperx_device_id: Optional[int] = None
+    raw_whisperx_device_id = (os.getenv("PAPER2VIDEO_WHISPERX_DEVICE_ID", "") or "").strip()
+    if raw_whisperx_device_id:
+        try:
+            whisperx_device_id = int(raw_whisperx_device_id)
+        except ValueError:
+            log.warning("[p2v-tts] ignore invalid PAPER2VIDEO_WHISPERX_DEVICE_ID=%s", raw_whisperx_device_id)
+    elif gpu_ids:
+        whisperx_device_id = gpu_ids[0]
+
+    return {
+        "enabled": _parse_bool_env("PAPER2VIDEO_ENABLE_LOCAL_TTS", False),
+        "gpu_ids": gpu_ids,
+        "whisperx_device_id": whisperx_device_id,
+        "parallelism": max(1, _parse_int_env("PAPER2VIDEO_TTS_PARALLELISM", DEFAULT_P2V_TTS_PARALLELISM)),
+    }
+
+
+def get_p2v_video_render_threads() -> int:
+    return max(1, _parse_int_env("PAPER2VIDEO_VIDEO_RENDER_THREADS", DEFAULT_P2V_VIDEO_RENDER_THREADS))
+
+
+def build_p2v_cursor_backend_config(
+    *,
+    chat_api_url: str = "",
+    api_key: str = "",
+    default_model: str = "",
+) -> Dict[str, Any]:
+    local_enabled = (os.getenv("PAPER2VIDEO_CURSOR_LOCAL_ENABLED", DEFAULT_P2V_CURSOR_LOCAL_ENABLED) or "").strip().lower()
+    local_model_path = _resolve_existing_path(os.getenv("PAPER2VIDEO_CURSOR_LOCAL_MODEL_PATH", "").strip())
+    configured_local_python = _resolve_python_executable(os.getenv("PAPER2VIDEO_CURSOR_LOCAL_PYTHON", ""))
+    current_python = sys.executable if _current_env_supports_local_cursor_worker() else ""
+    local_python = configured_local_python or current_python
+
+    if local_enabled not in {"0", "false", "off"} and local_model_path and local_python:
+        gpu_ids = discover_p2v_cursor_gpu_ids()
+        return {
+            "mode": "local",
+            "local_model_path": str(local_model_path),
+            "local_python": local_python,
+            "local_extra_pythonpath": (os.getenv("PAPER2VIDEO_CURSOR_LOCAL_EXTRA_PYTHONPATH", "") or "").strip(),
+            "local_timeout": _parse_int_env("PAPER2VIDEO_CURSOR_LOCAL_TIMEOUT", DEFAULT_P2V_CURSOR_LOCAL_TIMEOUT),
+            "gpu_ids": gpu_ids,
+            "gpu_id": gpu_ids[0] if gpu_ids else None,
+            "max_new_tokens": _parse_int_env(
+                "PAPER2VIDEO_CURSOR_LOCAL_MAX_NEW_TOKENS",
+                DEFAULT_P2V_CURSOR_LOCAL_MAX_NEW_TOKENS,
+            ),
+            "attn_implementation": (os.getenv("PAPER2VIDEO_CURSOR_LOCAL_ATTN_IMPL", "eager") or "").strip() or "eager",
+            "alloc_conf": (os.getenv("PAPER2VIDEO_CURSOR_LOCAL_ALLOC_CONF", DEFAULT_P2V_CURSOR_LOCAL_ALLOC_CONF) or "").strip(),
+        }
+
+    explicit_api_url = (os.getenv("PAPER2VIDEO_CURSOR_API_URL", "") or "").strip()
+    explicit_api_key = (os.getenv("PAPER2VIDEO_CURSOR_API_KEY", "") or "").strip()
+    explicit_model = (os.getenv("PAPER2VIDEO_CURSOR_VLM_MODEL", "") or "").strip()
+    resolved_api_url = explicit_api_url or (chat_api_url or "").strip() or (os.getenv("DF_API_URL", "") or "").strip()
+    resolved_api_key = explicit_api_key or (api_key or "").strip() or (os.getenv("DF_API_KEY", "") or "").strip()
+    resolved_model = (
+        explicit_model
+        or (os.getenv("PAPER2VIDEO_DEFAULT_MODEL", "") or "").strip()
+        or (default_model or "").strip()
+        or DEFAULT_P2V_CURSOR_VLM_MODEL
+    )
+
+    if resolved_api_url and resolved_api_key:
+        return {
+            "mode": "vlm",
+            "api_url": resolved_api_url,
+            "api_key": resolved_api_key,
+            "model": resolved_model,
+            "timeout": _parse_int_env("PAPER2VIDEO_CURSOR_TIMEOUT", DEFAULT_P2V_CURSOR_TIMEOUT),
+        }
+
+    return {
+        "mode": "center",
+        "reason": "missing PAPER2VIDEO_CURSOR/DF API config and no local cursor model available",
+    }
+
 # 根据语音识别结果（带时间戳），生成对应的视频字幕片段
 def generate_subtitle_clips(sentence_timesteps_file, video_w, video_h, font_size):
     from moviepy.editor import ImageClip
     clips = []
+    subtitle_font_path = resolve_p2v_subtitle_font_path()
     with open(sentence_timesteps_file, 'r', encoding='utf-8') as f:
         datas = json.load(f)
     for sentence_timestep in datas:
-        # fixme:这里的绝对路径是 支持英文的字体，如果是中文的，需要进行修改
-        img = create_subtitle_image(sentence_timestep["text"], font_size=font_size, font_path="/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc")
+        img = create_subtitle_image(
+            sentence_timestep["text"],
+            font_size=font_size,
+            font_path=subtitle_font_path,
+        )
         img_array = np.array(img)
         clip = (ImageClip(img_array, ismask=False)
                 .set_duration(sentence_timestep["end"] - sentence_timestep["start"])
@@ -145,8 +407,13 @@ def add_subtitles(video_path, output_path, sentence_timesteps_path, font_size):
 
     log.info("[Step 2] Rendering final video...")
     final = CompositeVideoClip([video] + subs)
-    # 使用cpu
-    final.write_videofile(output_path, codec="libx264", audio_codec="aac", threads=12, preset="veryfast")
+    final.write_videofile(
+        output_path,
+        codec="libx264",
+        audio_codec="aac",
+        threads=get_p2v_video_render_threads(),
+        preset="veryfast",
+    )
     # 使用GPU加速
     # final.write_videofile(output_path, codec="h264_nvenc", audio_codec="aac")
 
@@ -158,9 +425,10 @@ def render_cursor_on_video(
     cursor_size: int = 10,
     cursor_img_path: str = "cursor.png"):
 
+    from tempfile import TemporaryDirectory
+
     img = Image.open(cursor_img_path)
     img_resized = img.resize((cursor_size, cursor_size))
-    img_resized.save(cursor_img_path)
 
 
     def get_video_resolution(path):
@@ -243,18 +511,21 @@ def render_cursor_on_video(
 
     filter_complex = "; ".join(filter_lines)
 
-    cmd = [
-        "ffmpeg", "-y",
-        "-i", input_video,
-        "-i", cursor_img_path,
-        "-filter_complex", filter_complex,
-        "-map", "[vout]",
-        "-map", "0:a?",
-        "-c:v", "libx264",
-        "-c:a", "copy",
-        output_video
-    ]
-    subprocess.run(cmd, check=True)
+    with TemporaryDirectory(prefix="p2v_cursor_") as tmp_dir:
+        resized_cursor_path = Path(tmp_dir) / "cursor_resized.png"
+        img_resized.save(resized_cursor_path)
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", input_video,
+            "-i", str(resized_cursor_path),
+            "-filter_complex", filter_complex,
+            "-map", "[vout]",
+            "-map", "0:a?",
+            "-c:v", "libx264",
+            "-c:a", "copy",
+            output_video
+        ]
+        subprocess.run(cmd, check=True)
     log.info("Done. Output saved to: %s", output_video)
 
 
@@ -287,7 +558,7 @@ def render_video_with_cursor_from_json(
 '''========================== 解析生成 数字人 相关的函数  =================================='''
 def run_echomimic_inference(args):
     from ruamel.yaml import YAML
-    source_image, driving_audio, save_video_dir, config_path, script_path, talking_head_env, gpu_id = args
+    source_image, driving_audio, save_video_dir, config_path, script_path, working_dir, talking_head_env, gpu_id = args
     
     # 处理可能的 PYTHONSHASHSEED 问题
     env = os.environ.copy()
@@ -325,8 +596,7 @@ def run_echomimic_inference(args):
         "--save_path", save_path,
     ]
     log.info(f"Starting Task on GPU {gpu_id}: {audio_basename}")
-    # fixme: 硬编码了路径，后续可能需要修改
-    result = subprocess.run(cmd, cwd="/data/users/ligang/EchoMimic", env=env)
+    result = subprocess.run(cmd, cwd=working_dir, env=env)
 
     if os.path.exists(config_bak):
         os.remove(config_bak)
@@ -627,6 +897,44 @@ def _call_echomimic_api_single(
     return True
 
 
+def _resolve_p2v_talking_local_config(model_name: str) -> Dict[str, Any]:
+    normalized_model = (model_name or "").strip().lower()
+    if normalized_model == "hallo2":
+        prefix = "PAPER2VIDEO_HALLO2"
+    elif normalized_model == "echomimic":
+        prefix = "PAPER2VIDEO_ECHOMIMIC"
+    else:
+        raise ValueError(f"unsupported local talking model: {model_name}")
+
+    config_path = _resolve_existing_path(os.getenv(f"{prefix}_CONFIG_PATH", ""))
+    script_path = _resolve_existing_path(os.getenv(f"{prefix}_SCRIPT_PATH", ""))
+    workdir = _resolve_existing_path(os.getenv(f"{prefix}_WORKDIR", ""))
+    gpu_ids = _parse_gpu_ids(os.getenv("PAPER2VIDEO_TALKING_LOCAL_GPUS", ""))
+    if not gpu_ids:
+        gpu_ids = discover_p2v_cursor_gpu_ids()
+
+    missing = []
+    if not config_path:
+        missing.append(f"{prefix}_CONFIG_PATH")
+    if not script_path:
+        missing.append(f"{prefix}_SCRIPT_PATH")
+    if not workdir:
+        missing.append(f"{prefix}_WORKDIR")
+    if not gpu_ids:
+        missing.append("PAPER2VIDEO_TALKING_LOCAL_GPUS")
+    if missing:
+        raise ValueError(
+            f"local talking model {normalized_model} is not configured; missing {', '.join(missing)}"
+        )
+
+    return {
+        "config_path": str(config_path),
+        "script_path": str(script_path),
+        "workdir": str(workdir),
+        "gpu_ids": gpu_ids,
+    }
+
+
 def talking_gen_per_slide(model_name, input_list, project_root, save_dir, env_path, api_key: Optional[str] = None):
     import multiprocessing as mp
     save_dir = Path(save_dir)
@@ -637,7 +945,7 @@ def talking_gen_per_slide(model_name, input_list, project_root, save_dir, env_pa
         if not key:
             raise ValueError("LivePortrait 需要设置环境变量 LIVEPORTRAIT_KEY")
         from concurrent.futures import ThreadPoolExecutor
-        max_workers = min(4, len(input_list)) or 1
+        max_workers = min(_parse_int_env("PAPER2VIDEO_TALKING_PARALLELISM", 4), len(input_list)) or 1
         results = []
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = []
@@ -656,13 +964,21 @@ def talking_gen_per_slide(model_name, input_list, project_root, save_dir, env_pa
                     results.append(subprocess.CompletedProcess(args=[], returncode=1))
         return results
 
-    # 若配置了 EchoMimic API（如 Nginx 入口），则走 HTTP 请求，并行打 8 个实例，503 时重试排队
-    
-    # fixme: 如果不使用nginx，则这个为空串即可。现在这里硬编码一个本地地址，后续需要修改。
-    nginx_echomimic_api_url = "http://localhost:8200"
+    # 若配置了 EchoMimic API（如 Nginx 入口），则走 HTTP 请求。
+    nginx_echomimic_api_url = (
+        os.getenv("PAPER2VIDEO_ECHOMIMIC_API_URL", "")
+        or os.getenv("ECHOMIMIC_API_URL", "")
+        or ""
+    ).strip()
     if model_name == "echomimic" and nginx_echomimic_api_url:
-        timeout_sec = int(os.getenv("ECHOMIMIC_CLIENT_TIMEOUT", "900"))
-        max_workers = 8
+        timeout_sec = _parse_int_env(
+            "PAPER2VIDEO_ECHOMIMIC_TIMEOUT_SECONDS",
+            _parse_int_env("ECHOMIMIC_CLIENT_TIMEOUT", 900),
+        )
+        max_workers = min(
+            _parse_int_env("PAPER2VIDEO_ECHOMIMIC_API_PARALLELISM", 8),
+            len(input_list),
+        ) or 1
         from concurrent.futures import ThreadPoolExecutor
         tasks = [
             (str(Path(ref_img_path).resolve()), str(Path(audio_path).resolve()))
@@ -690,20 +1006,11 @@ def talking_gen_per_slide(model_name, input_list, project_root, save_dir, env_pa
                     results[idx] = subprocess.CompletedProcess(args=[], returncode=1)
         return results
 
-    # 原有逻辑：本地多进程子进程调用
-    gpu_list = [4, 5, 6, 4, 5, 6, 4, 5, 6]
+    # 本地 talking-head 仅在显式配置了脚本、工作目录、GPU 后启用。
+    local_config = _resolve_p2v_talking_local_config(model_name)
+    gpu_list = local_config["gpu_ids"]
     num_gpus = len(gpu_list)
     task_list = []
-    if model_name == "hallo2":
-        # fixme：这个文件路径被硬编码了
-        config_path = "/data/users/ligang/models/hallo2/configs/inference/long.yaml"
-        script_path = "/data/users/ligang/models/hallo2/scripts/inference_long.py"
-    elif model_name == "echomimic":
-        config_path = "/data/users/ligang/EchoMimic/configs/prompts/animation.yaml"
-        script_path = "/data/users/ligang/EchoMimic/infer_audio2vid.py"
-    else:
-        config_path = ""
-        script_path = ""
     for idx, (ref_img_path, audio_path) in enumerate(input_list):
         ref_img_path = Path(ref_img_path)
         audio_path = Path(audio_path)
@@ -712,8 +1019,9 @@ def talking_gen_per_slide(model_name, input_list, project_root, save_dir, env_pa
             str(ref_img_path),
             str(audio_path),
             str(save_dir),
-            str(config_path),
-            str(script_path),
+            local_config["config_path"],
+            local_config["script_path"],
+            local_config["workdir"],
             env_path,
             gpu_id,
         ])
@@ -721,8 +1029,6 @@ def talking_gen_per_slide(model_name, input_list, project_root, save_dir, env_pa
     results = []
     if num_gpus > 1:
         ctx = mp.get_context("spawn")
-        # fixme: 这个错误很致命！！！在这段代码之前，某处执行的代码错误的将“PYTHONHASHSEED”设置为了一个64位整数
-        # 而python只支持32位的整数，所以会导致使用ctx.Pool时发生错误，无法初始化一个python解释器
         os.environ["PYTHONHASHSEED"] = "0"
         with ctx.Pool(processes=max(num_gpus, len(task_list))) as pool:
             results = pool.map(run_echomimic_inference, task_list)
@@ -735,16 +1041,22 @@ def talking_gen_per_slide(model_name, input_list, project_root, save_dir, env_pa
 
 def get_audio_paths(slide_audio_dir: Optional[str | Path]):
     '''获取 slide_audio_dir 目录下的所有音频文件路径，并按数字顺序排序返回'''
+    if slide_audio_dir is None:
+        return []
     if isinstance(slide_audio_dir, str):
         slide_audio_dir = Path(slide_audio_dir)
+    if not slide_audio_dir.exists():
+        return []
     slide_audio_paths = [
         p for p in slide_audio_dir.iterdir()
-        if p.is_file() and re.search(r'\d+', p.name)
+        if p.is_file() and re.fullmatch(r'\d+\.wav', p.name)
     ]
 
     def get_sort_key(file_path: Path):
-        match = re.search(r'(\d+)', file_path.name)
-        return int(match.group()) if match else float('inf')
+        try:
+            return int(file_path.stem)
+        except ValueError:
+            return float('inf')
     
     slide_audio_paths.sort(key=get_sort_key)
     slide_audio_paths = [str(p) for p in slide_audio_paths]
@@ -812,22 +1124,92 @@ def _validate_talking_video_output(
 
 
 '''========================== 解析生成cursor位置信息相关的函数  =================================='''
-_GLOBAL_PIPE_BYTEDANCE_SEED = None
-def _infer_cursor(instruction, image_path):
-    global _GLOBAL_PIPE_BYTEDANCE_SEED
-    from transformers import pipeline
-    from ui_tars.action_parser import parse_action_to_structure_output, parsing_response_to_pyautogui_code
+_GLOBAL_LOCAL_CURSOR_MODEL = None
+_GLOBAL_LOCAL_CURSOR_PROCESSOR = None
+_GLOBAL_LOCAL_CURSOR_MODEL_PATH = ""
 
-    # fixme：修改一下这段代码，最好不要从hf上下载，而是在本地就下载好了，但是这个路径或许需要处理！！！
-    if _GLOBAL_PIPE_BYTEDANCE_SEED is None:
-        _GLOBAL_PIPE_BYTEDANCE_SEED = pipeline("image-text-to-text", model="/data/users/ligang/models/bytedance-seed")
-    prompt = "You are a GUI agent. You are given a task and your action history, with screenshots. You must to perform the next action to complete the task. \n\n## Output Format\n\nAction: ...\n\n\n## Action Space\nclick(point='<point>x1 y1</point>'')\n\n## User Instruction {}".format(instruction)
-    messages = [{"role": "user", "content": [{"type": "image", "url": image_path}, {"type": "text", "text": prompt}]},]
-    result = _GLOBAL_PIPE_BYTEDANCE_SEED(text=messages)[0]
-    response = result['generated_text'][1]["content"]
+
+def _infer_cursor_with_local_model(
+    instruction: str,
+    image_path: str,
+    *,
+    model_path: str,
+    gpu_id: Optional[int] = None,
+    max_new_tokens: int = DEFAULT_P2V_CURSOR_LOCAL_MAX_NEW_TOKENS,
+):
+    global _GLOBAL_LOCAL_CURSOR_MODEL
+    global _GLOBAL_LOCAL_CURSOR_PROCESSOR
+    global _GLOBAL_LOCAL_CURSOR_MODEL_PATH
+
+    if gpu_id is not None:
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+
+    from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
+    from ui_tars.action_parser import parse_action_to_structure_output, parsing_response_to_pyautogui_code
+    import torch
+
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    if _GLOBAL_LOCAL_CURSOR_MODEL is None or _GLOBAL_LOCAL_CURSOR_PROCESSOR is None or _GLOBAL_LOCAL_CURSOR_MODEL_PATH != model_path:
+        load_kwargs = {
+            "trust_remote_code": False,
+            "low_cpu_mem_usage": True,
+            "attn_implementation": os.getenv("PAPER2VIDEO_CURSOR_LOCAL_ATTN_IMPL", "eager"),
+        }
+        if torch.cuda.is_available():
+            load_kwargs["torch_dtype"] = torch.bfloat16
+            load_kwargs["device_map"] = "auto"
+        _GLOBAL_LOCAL_CURSOR_PROCESSOR = AutoProcessor.from_pretrained(
+            model_path,
+            trust_remote_code=False,
+        )
+        _GLOBAL_LOCAL_CURSOR_MODEL = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+            model_path,
+            **load_kwargs,
+        )
+        _GLOBAL_LOCAL_CURSOR_MODEL_PATH = model_path
+
+    prompt = (
+        "Output one GUI click action only.\n"
+        "Format: Action: click(point='<point>x y</point>')\n"
+        f"Target: {instruction}"
+    )
+    image = Image.open(image_path).convert("RGB")
+    messages = [{
+        "role": "user",
+        "content": [
+            {"type": "image"},
+            {"type": "text", "text": prompt},
+        ],
+    }]
+    text = _GLOBAL_LOCAL_CURSOR_PROCESSOR.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True,
+    )
+    inputs = _GLOBAL_LOCAL_CURSOR_PROCESSOR(
+        text=[text],
+        images=[image],
+        padding=True,
+        return_tensors="pt",
+    )
+    inputs = {
+        key: value.to(device) if hasattr(value, "to") else value
+        for key, value in inputs.items()
+    }
+    generated = _GLOBAL_LOCAL_CURSOR_MODEL.generate(
+        **inputs,
+        max_new_tokens=max_new_tokens,
+        do_sample=False,
+    )
+    input_token_len = inputs["input_ids"].shape[1]
+    response = _GLOBAL_LOCAL_CURSOR_PROCESSOR.batch_decode(
+        generated[:, input_token_len:],
+        skip_special_tokens=True,
+        clean_up_tokenization_spaces=False,
+    )[0]
     
     ori_image = cv2.imread(image_path)
-    #fixme: OpenCV 的 shape 返回的是 (height, width, channels)
+    # OpenCV shape 顺序是 (height, width, channels)。
     original_image_height, original_image_width = ori_image.shape[:2]
     parsed_dict = parse_action_to_structure_output(
         response,
@@ -847,21 +1229,271 @@ def _infer_cursor(instruction, image_path):
     if match:
         x = float(match.group(1))
         y = float(match.group(2))
+        if 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0:
+            x *= max(1, original_image_width - 1)
+            y *= max(1, original_image_height - 1)
     else:
-        log.info("%s", instruction)
+        log.warning("[p2v-cursor-local] parse failed, response=%s instruction=%s", response, instruction)
+        x = original_image_width / 2.0
+        y = original_image_height / 2.0
     return (x, y)
+
+
+def run_local_cursor_batch(task_list: List[Tuple[int, int, str, str, str]], backend_config: Dict[str, Any]) -> List[Dict[str, Any]]:
+    worker_script = PROJECT_ROOT / "script" / "paper2video_cursor_local_worker.py"
+    if not worker_script.is_file():
+        raise FileNotFoundError(f"paper2video local cursor worker not found: {worker_script}")
+
+    python_bin = _resolve_python_executable((backend_config or {}).get("local_python", ""))
+    if not python_bin:
+        raise FileNotFoundError("PAPER2VIDEO_CURSOR_LOCAL_PYTHON is not set to a valid interpreter")
+
+    payload = {
+        "model_path": (backend_config or {}).get("local_model_path", ""),
+        "gpu_id": (backend_config or {}).get("gpu_id"),
+        "max_new_tokens": int(
+            (backend_config or {}).get("max_new_tokens", DEFAULT_P2V_CURSOR_LOCAL_MAX_NEW_TOKENS)
+        ),
+        "attn_implementation": (backend_config or {}).get("attn_implementation", "eager"),
+        "alloc_conf": (backend_config or {}).get("alloc_conf", DEFAULT_P2V_CURSOR_LOCAL_ALLOC_CONF),
+        "tasks": [
+            {
+                "slide_idx": slide_idx,
+                "sentence_idx": sentence_idx,
+                "prompt": prompt,
+                "cursor_prompt": cursor_prompt,
+                "image_path": image_path,
+            }
+            for slide_idx, sentence_idx, prompt, cursor_prompt, image_path in task_list
+        ],
+    }
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as in_file:
+        json.dump(payload, in_file, ensure_ascii=False, indent=2)
+        input_json = in_file.name
+    out_fd, output_json = tempfile.mkstemp(suffix=".json")
+    os.close(out_fd)
+
+    env = os.environ.copy()
+    extra_pythonpath = (backend_config or {}).get("local_extra_pythonpath", "")
+    if extra_pythonpath:
+        env["PYTHONPATH"] = _prepend_pythonpath(extra_pythonpath, env.get("PYTHONPATH", ""))
+    alloc_conf = (backend_config or {}).get("alloc_conf", "")
+    if alloc_conf:
+        env["PYTORCH_CUDA_ALLOC_CONF"] = str(alloc_conf)
+    gpu_id = (backend_config or {}).get("gpu_id")
+    if gpu_id is not None:
+        env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+
+    try:
+        cmd = [
+            python_bin,
+            str(worker_script),
+            "--input-json",
+            input_json,
+            "--output-json",
+            output_json,
+        ]
+        log.info(
+            "[p2v-cursor-local] launching worker python=%s gpu=%s tasks=%s",
+            python_bin,
+            gpu_id,
+            len(task_list),
+        )
+        result = subprocess.run(
+            cmd,
+            cwd=str(PROJECT_ROOT),
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=int((backend_config or {}).get("local_timeout", DEFAULT_P2V_CURSOR_LOCAL_TIMEOUT)),
+        )
+        if result.stdout.strip():
+            log.info("[p2v-cursor-local] stdout: %s", result.stdout.strip())
+        if result.stderr.strip():
+            log.info("[p2v-cursor-local] stderr: %s", result.stderr.strip())
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"paper2video local cursor worker exited with code {result.returncode}: "
+                f"{(result.stderr or result.stdout).strip()}"
+            )
+        payload = json.loads(Path(output_json).read_text(encoding="utf-8"))
+        if not payload.get("success", False):
+            raise RuntimeError(payload.get("error") or "paper2video local cursor worker returned success=false")
+        results = payload.get("results")
+        if not isinstance(results, list):
+            raise RuntimeError("paper2video local cursor worker response missing results")
+        return results
+    finally:
+        Path(input_json).unlink(missing_ok=True)
+        Path(output_json).unlink(missing_ok=True)
+
+
+def _coerce_cursor_xy(raw_payload: Any, image_width: int, image_height: int) -> Optional[Tuple[int, int]]:
+    payload = raw_payload
+    if isinstance(payload, str):
+        payload = robust_parse_json(payload, merge_dicts=True, strip_double_braces=True)
+    if isinstance(payload, list):
+        payload = next((item for item in payload if isinstance(item, dict)), None)
+    if not isinstance(payload, dict):
+        return None
+
+    point = payload.get("point")
+    if isinstance(point, (list, tuple)) and len(point) >= 2:
+        try:
+            x = int(round(float(point[0])))
+            y = int(round(float(point[1])))
+            return (
+                max(0, min(image_width - 1, x)),
+                max(0, min(image_height - 1, y)),
+            )
+        except (TypeError, ValueError):
+            pass
+
+    bbox = payload.get("bbox")
+    if isinstance(bbox, (list, tuple)) and len(bbox) >= 4:
+        try:
+            x = int(round((float(bbox[0]) + float(bbox[2])) / 2.0))
+            y = int(round((float(bbox[1]) + float(bbox[3])) / 2.0))
+            return (
+                max(0, min(image_width - 1, x)),
+                max(0, min(image_height - 1, y)),
+            )
+        except (TypeError, ValueError):
+            pass
+
+    try:
+        x = int(round(float(payload.get("x"))))
+        y = int(round(float(payload.get("y"))))
+    except (TypeError, ValueError):
+        return None
+    return (
+        max(0, min(image_width - 1, x)),
+        max(0, min(image_height - 1, y)),
+    )
+
+
+async def _infer_cursor_with_vlm_async(
+    instruction: str,
+    image_path: str,
+    *,
+    api_url: str,
+    api_key: str,
+    model_name: str,
+    timeout: int,
+) -> Tuple[int, int]:
+    image = cv2.imread(image_path)
+    if image is None:
+        raise FileNotFoundError(f"cursor image not found or unreadable: {image_path}")
+
+    image_height, image_width = image.shape[:2]
+    center_x = image_width // 2
+    center_y = image_height // 2
+    prompt = (
+        "Locate the visual target described below on the slide image.\n"
+        f"Image size: width={image_width}, height={image_height}.\n"
+        f"Target description: {instruction}\n\n"
+        "Return JSON only with one of these shapes:\n"
+        "{\"x\": <int>, \"y\": <int>, \"found\": <true|false>}\n"
+        "or\n"
+        "{\"bbox\": [x1, y1, x2, y2], \"found\": <true|false>}\n\n"
+        "Rules:\n"
+        f"- Coordinates must use the original image pixel space: x in [0, {image_width - 1}], y in [0, {image_height - 1}].\n"
+        "- Choose the center of the most relevant visual region.\n"
+        f"- If the target is absent, ambiguous, or the instruction means no cursor, return {{\"x\": {center_x}, \"y\": {center_y}, \"found\": false}}.\n"
+        "- Do not output markdown or extra text."
+    )
+
+    response = await call_image_understanding_async(
+        model=model_name,
+        messages=[{"role": "user", "content": prompt}],
+        api_url=api_url,
+        api_key=api_key,
+        image_path=image_path,
+        max_tokens=512,
+        temperature=0.0,
+        timeout=timeout,
+    )
+    point = _coerce_cursor_xy(response, image_width, image_height)
+    if point is None:
+        raise ValueError(f"failed to parse cursor VLM response: {response}")
+    return point
+
+
+def _infer_cursor_with_vlm(
+    instruction: str,
+    image_path: str,
+    *,
+    api_url: str,
+    api_key: str,
+    model_name: str,
+    timeout: int,
+) -> Tuple[int, int]:
+    return asyncio.run(
+        _infer_cursor_with_vlm_async(
+            instruction,
+            image_path,
+            api_url=api_url,
+            api_key=api_key,
+            model_name=model_name,
+            timeout=timeout,
+        )
+    )
+
 
 def cursor_infer(args):
     '''根据说话的内容，得到cursor应该指向的位置'''
-    slide_idx, sentence_idx, prompt, cursor_prompt, image_path, gpu_id = args
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
-    import torch
-    
-    point= _infer_cursor(cursor_prompt, image_path)
-    torch.cuda.empty_cache()
+    slide_idx, sentence_idx, prompt, cursor_prompt, image_path, backend_config = args
+    cursor_prompt = (cursor_prompt or "").strip()
+    backend_mode = (backend_config or {}).get("mode", "center")
+    point = None
+    error_message = ""
+
+    try:
+        if cursor_prompt.lower() == "no":
+            point = None
+        elif backend_mode == "local":
+            point = _infer_cursor_with_local_model(
+                cursor_prompt,
+                image_path,
+                model_path=(backend_config or {}).get("local_model_path", ""),
+                gpu_id=(backend_config or {}).get("gpu_id"),
+                max_new_tokens=int(
+                    (backend_config or {}).get("max_new_tokens", DEFAULT_P2V_CURSOR_LOCAL_MAX_NEW_TOKENS)
+                ),
+            )
+        elif backend_mode == "vlm":
+            point = _infer_cursor_with_vlm(
+                cursor_prompt,
+                image_path,
+                api_url=(backend_config or {}).get("api_url", ""),
+                api_key=(backend_config or {}).get("api_key", ""),
+                model_name=(backend_config or {}).get("model", DEFAULT_P2V_CURSOR_VLM_MODEL),
+                timeout=int((backend_config or {}).get("timeout", DEFAULT_P2V_CURSOR_TIMEOUT)),
+            )
+    except Exception as exc:
+        error_message = str(exc)
+        log.warning(
+            "[p2v-cursor] backend=%s slide=%s sentence=%s failed: %s",
+            backend_mode,
+            slide_idx,
+            sentence_idx,
+            exc,
+        )
+
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
     result = {
         'slide': slide_idx, 'sentence': sentence_idx, 'speech_text': prompt, 
         'cursor_prompt': cursor_prompt, 'cursor': point,
+        'cursor_backend': backend_mode,
+        'cursor_error': error_message,
     }
     return result
 
@@ -896,7 +1528,6 @@ def parse_script(script_text):
         result.append(" ".join(lines))
     return result
 
-# fixme: 这里需要判断device，可能需要多加考虑
 def _transcribe_with_whisperx_impl(audio_path: str, lang: str = "en") -> str:
     """
     子进程内实际执行 whisperx 转写。假定 CUDA_VISIBLE_DEVICES 已由调用方在子进程 env 中设置。
@@ -904,8 +1535,9 @@ def _transcribe_with_whisperx_impl(audio_path: str, lang: str = "en") -> str:
     import torch
     import whisperx
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    model_name = (os.getenv("PAPER2VIDEO_WHISPERX_MODEL", "large-v2") or "").strip() or "large-v2"
     log.info(f"transcribe_with_whisperx 使用了 device: {device}")
-    model = whisperx.load_model("large-v2", device=device, compute_type="float16" if device == "cuda" else "int8")
+    model = whisperx.load_model(model_name, device=device, compute_type="float16" if device == "cuda" else "int8")
     result = model.transcribe(audio_path, language=lang)
     model_a, metadata = whisperx.load_align_model(language_code=lang, device=device)
     result_aligned = whisperx.align(result["segments"], model_a, metadata, audio_path, device)
@@ -925,15 +1557,17 @@ def transcribe_with_whisperx(audio_path, lang="en", device_id=None):
         return _transcribe_with_whisperx_impl(audio_path, lang)
 
     # 主进程已指定 GPU/CUDA，改 env 无效；在子进程中设置 CUDA_VISIBLE_DEVICES 后执行
-    import sys
-    import tempfile
     env = os.environ.copy()
     env["CUDA_VISIBLE_DEVICES"] = str(device_id)
+    extra_pythonpath = (os.getenv("PAPER2VIDEO_LOCAL_TTS_EXTRA_PYTHONPATH", "") or "").strip()
+    if extra_pythonpath:
+        env["PYTHONPATH"] = _prepend_pythonpath(extra_pythonpath, env.get("PYTHONPATH", ""))
+    python_bin = _resolve_python_executable(os.getenv("PAPER2VIDEO_LOCAL_TTS_PYTHON", "")) or sys.executable
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as f:
         out_path = f.name
     try:
         cmd = [
-            sys.executable,
+            python_bin,
             "-c",
             (
                 "import sys; "
@@ -960,11 +1594,14 @@ def _run_f5_in_subprocess(text_prompt: str, save_path: str, ref_audio_path: str,
     在未初始化 CUDA 的子进程中运行 F5-TTS，以便 CUDA_VISIBLE_DEVICES 生效。
     主进程可能已固定 GPU，直接改 os.environ 无效。
     """
-    import sys
     env = os.environ.copy()
     env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+    extra_pythonpath = (os.getenv("PAPER2VIDEO_LOCAL_TTS_EXTRA_PYTHONPATH", "") or "").strip()
+    if extra_pythonpath:
+        env["PYTHONPATH"] = _prepend_pythonpath(extra_pythonpath, env.get("PYTHONPATH", ""))
+    python_bin = _resolve_python_executable(os.getenv("PAPER2VIDEO_LOCAL_TTS_PYTHON", "")) or sys.executable
     cmd = [
-        sys.executable,
+        python_bin,
         "-c",
         (
             "import sys; "

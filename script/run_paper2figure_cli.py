@@ -20,12 +20,21 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from script.cli_env import load_project_env
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureState, Paper2FigureRequest
 from dataflow_agent.workflow import run_workflow
 from dataflow_agent.utils import get_project_root
 
+load_project_env()
+
 log = get_logger(__name__)
+
+
+def _state_get(state, key: str, default=None):
+    if isinstance(state, dict):
+        return state.get(key, default)
+    return getattr(state, key, default)
 
 
 # Workflow mapping for different graph types
@@ -210,6 +219,7 @@ async def run_paper2figure_workflow(args, input_content: str, input_type: str, o
         api_key=api_key,
         chat_api_key=api_key,
         model=args.model,
+        technical_model=args.model,
         gen_fig_model=args.gen_fig_model,
         language=args.language,
         style=args.style,
@@ -269,23 +279,23 @@ def print_results(final_state: Paper2FigureState, output_dir: Path, graph_type: 
     log.info("Output Directory: %s", output_dir)
 
     # Check for PPT file
-    ppt_path = getattr(final_state, "ppt_path", None)
+    ppt_path = _state_get(final_state, "ppt_path", None)
     if ppt_path and os.path.exists(ppt_path):
         log.info("PPT File: %s", ppt_path)
 
     # Check for SVG files (tech_route and exp_data)
     if graph_type in ["tech_route", "exp_data"]:
-        svg_file_path = getattr(final_state, "svg_file_path", None)
+        svg_file_path = _state_get(final_state, "svg_file_path", None)
         if svg_file_path and os.path.exists(svg_file_path):
             log.info("SVG File: %s", svg_file_path)
 
-        svg_full_img_path = getattr(final_state, "svg_full_img_path", None)
+        svg_full_img_path = _state_get(final_state, "svg_full_img_path", None)
         if svg_full_img_path and os.path.exists(svg_full_img_path):
             log.info("SVG Image: %s", svg_full_img_path)
 
     # Check for figure draft (model_arch)
     if graph_type == "model_arch":
-        fig_draft_path = getattr(final_state, "fig_draft_path", None)
+        fig_draft_path = _state_get(final_state, "fig_draft_path", None)
         if fig_draft_path and os.path.exists(fig_draft_path):
             log.info("Figure Draft: %s", fig_draft_path)
 

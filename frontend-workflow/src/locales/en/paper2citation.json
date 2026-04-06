@@ -62,6 +62,10 @@
       "title": "Citing Works",
       "subtitle": "Papers citing the current work."
     },
+    "citationContext": {
+      "summaryTitle": "How This Paper Cites the Target",
+      "referenceTitle": "Matched Reference Entry"
+    },
     "institutions": {
       "title": "Citing Institutions",
       "subtitle": "Organizations appearing in the citation network."
@@ -102,11 +106,15 @@
     "dblpCandidate": "DBLP candidate, detailed stats load after selection",
     "noPublications": "No publications returned.",
     "noCitingWorks": "No citing works returned.",
+    "noCitationContexts": "No explicit citation sentence or paragraph was found in the fetched HTML full text.",
     "emptyPaper": "Enter a DOI or paper URL to inspect the citation graph."
   },
   "actions": {
     "openHomepage": "Open homepage",
     "openPaper": "Open paper",
+    "extractContext": "Extract Citation Context",
+    "extractingContext": "Extracting",
+    "openContextSource": "Open text source",
     "prevPage": "Previous",
     "nextPage": "Next"
   },
@@ -132,7 +140,8 @@
     "paperQueryRequired": "Enter a DOI or paper URL first.",
     "searchFailed": "Failed to search authors.",
     "detailFailed": "Failed to load citation detail.",
-    "quotaUserExhausted": "Your remaining credits are exhausted.",
-    "quotaGuestExhausted": "Guest quota is exhausted. Please sign in."
+    "contextFailed": "Failed to extract citation context.",
+    "quotaUserExhausted": "Insufficient points. Please get a redeem code from the purchase page, then redeem it in Account.",
+    "quotaGuestExhausted": "Please sign in to continue."
   }
 }

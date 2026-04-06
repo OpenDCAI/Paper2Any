@@ -13,6 +13,95 @@ from dataflow_agent.utils import get_project_root
 log = get_logger(__name__)
 
 
+def get_outputs_root() -> Path:
+    return (get_project_root() / "outputs").resolve()
+
+
+def get_outputs_subdir(subdir: str | Path | None = None) -> Path:
+    outputs_root = get_outputs_root()
+    if subdir in (None, "", "."):
+        return outputs_root
+    return (outputs_root / Path(subdir)).resolve()
+
+
+def ensure_outputs_subpath(
+    path: str | Path,
+    *,
+    subdir: str | Path | None = None,
+    must_exist: bool = False,
+    allow_files: bool = True,
+    allow_dirs: bool = True,
+) -> Path:
+    candidate = Path(path).expanduser()
+    if not candidate.is_absolute():
+        candidate = (get_project_root() / candidate).resolve()
+    else:
+        candidate = candidate.resolve()
+
+    allowed_root = get_outputs_subdir(subdir)
+    try:
+        candidate.relative_to(allowed_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid output path") from exc
+
+    if must_exist and not candidate.exists():
+        raise HTTPException(status_code=404, detail="Output path does not exist")
+
+    if candidate.exists():
+        if candidate.is_file() and not allow_files:
+            raise HTTPException(status_code=400, detail="Expected directory path inside outputs")
+        if candidate.is_dir() and not allow_dirs:
+            raise HTTPException(status_code=400, detail="Expected file path inside outputs")
+
+    return candidate
+
+
+def resolve_outputs_path(
+    path_or_url: str | Path,
+    *,
+    subdir: str | Path | None = None,
+    must_exist: bool = False,
+    allow_files: bool = True,
+    allow_dirs: bool = True,
+) -> Path:
+    raw = str(path_or_url or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Output path is required")
+
+    if raw.startswith(("http://", "https://")) and "/outputs/" not in raw:
+        raise HTTPException(status_code=400, detail="Only /outputs resources are allowed")
+
+    normalized = _from_outputs_url(raw)
+    return ensure_outputs_subpath(
+        normalized,
+        subdir=subdir,
+        must_exist=must_exist,
+        allow_files=allow_files,
+        allow_dirs=allow_dirs,
+    )
+
+
+def _is_local_host(host: str | None) -> bool:
+    raw = (host or "").strip()
+    if not raw:
+        return True
+    hostname = raw.split(",", 1)[0].strip().split(":", 1)[0].strip("[]").lower()
+    return hostname in {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
+
+
+def _resolve_public_base_url(request: Request) -> str:
+    xf_proto = (request.headers.get("x-forwarded-proto") or "").split(",", 1)[0].strip()
+    xf_host = (request.headers.get("x-forwarded-host") or "").split(",", 1)[0].strip()
+    if xf_proto and xf_host and not _is_local_host(xf_host):
+        return f"{xf_proto}://{xf_host}"
+
+    host = (request.headers.get("host") or "").split(",", 1)[0].strip()
+    if host and not _is_local_host(host):
+        scheme = xf_proto or request.url.scheme
+        return f"{scheme}://{host}"
+
+    return ""
+
 
 def _to_outputs_url(abs_path: str, request: Request | None = None) -> str:
     """
@@ -20,26 +109,25 @@ def _to_outputs_url(abs_path: str, request: Request | None = None) -> str:
     默认认为所有输出文件都位于项目根目录下的 outputs/ 目录中。
     """
     project_root = get_project_root()
-    outputs_root = project_root / "outputs"
+    outputs_root = get_outputs_root()
 
     log.info(f"[DEBUG] project_root: {project_root}")
     log.info(f"[DEBUG] outputs_root: {outputs_root}")
     log.info(f"[DEBUG] abs_path: {abs_path}")
 
-    p = Path(abs_path)
-    # 如果是相对路径，先转为绝对路径（相对于项目根目录）
-    if not p.is_absolute():
-        p = (project_root / p).resolve()
+    try:
+        p = ensure_outputs_subpath(abs_path)
+    except HTTPException as e:
+        log.error(f"[ERROR] Cannot convert path outside outputs to URL: {abs_path} ({e.detail})")
+        return ""
 
     try:
         rel = p.relative_to(outputs_root)
 
-        # 构造 URL（优先使用反向代理透传的 Host/Proto，否则降级为相对路径）
+        # 构造 URL（优先使用公开可访问的 Host/Proto，否则降级为相对路径）
         if request is not None:
-            xf_proto = request.headers.get("x-forwarded-proto")
-            xf_host = request.headers.get("x-forwarded-host")
-            if xf_proto and xf_host:
-                base_url = f"{xf_proto}://{xf_host}"
+            base_url = _resolve_public_base_url(request)
+            if base_url:
                 url = f"{base_url}/outputs/{rel.as_posix()}"
             else:
                 # 没有透传头时，用相对路径避免 http/https 混合内容问题
@@ -81,11 +169,9 @@ def _from_outputs_url(url_or_path: str) -> str:
         return url_or_path
 
     try:
-        # 获取 /outputs/ 之后的部分
-        path_str = url_or_path
-        if url_or_path.startswith("http"):
-            parsed = urlparse(url_or_path)
-            path_str = parsed.path
+        # 统一去掉 query / fragment，兼容 /outputs/foo.png?t=123 这类前端缓存参数
+        parsed = urlparse(url_or_path)
+        path_str = parsed.path or url_or_path
 
         if "/outputs/" in path_str:
             idx = path_str.index("/outputs/")

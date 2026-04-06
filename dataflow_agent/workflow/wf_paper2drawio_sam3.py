@@ -56,6 +56,11 @@ from dataflow_agent.toolkits.image2drawio import (
     bbox_iou_px,
 )
 from dataflow_agent.utils_common import robust_parse_json
+from dataflow_agent.workflow.sam3_segment_hint import (
+    dedupe_prompts,
+    generate_sam3_segment_hints,
+    normalize_prompt,
+)
 
 log = get_logger(__name__)
 
@@ -65,10 +70,14 @@ SHAPE_PROMPT = [
     "rounded rectangle",
     "diamond",
     "ellipse",
+    "circle",
+    "triangle",
+    "hexagon",
 ]
 
 ARROW_PROMPT = [
     "arrow",
+    "line",
     "connector",
 ]
 
@@ -76,13 +85,42 @@ IMAGE_PROMPT = [
     "icon",
     "symbol",
     "pictogram",
+    "glyph",
+    "picture",
     "logo",
+    "chart",
+    "plot",
+    "graph",
+    "diagram",
+    # Scientific / schematic figures often contain semantic icons rather than
+    # UI-style pictograms, so keep a broader object vocabulary here.
+    "object",
+    "illustration",
+    "cell",
+    "molecule",
+    "complex",
+    "receptor",
+    "particle",
+    "node",
+    "blob",
 ]
 
 # 泛化补召回提示词：避免与具体业务词绑定（如 planner/critic/robot）
 IMAGE_PROMPT_RECALL = [
     "illustration",
+    "object",
+    "device",
+    "agent",
     "character",
+    "avatar",
+    "mascot",
+    "screenshot",
+    "cell",
+    "molecule",
+    "complex",
+    "receptor",
+    "node",
+    "blob",
 ]
 
 BACKGROUND_PROMPT = [
@@ -1081,12 +1119,8 @@ def _build_visual_fallback_elements(
     return elements, use_original_with_text
 
 
-def _normalize_prompt(prompt: str) -> str:
-    return (prompt or "").strip().lower()
-
-
 def _shape_type_from_prompt(prompt: str) -> str:
-    p = _normalize_prompt(prompt)
+    p = normalize_prompt(prompt)
     if p in {"rounded rectangle", "rounded_rectangle"}:
         return "rounded rectangle"
     if p in {"rectangle", "square", "panel", "background", "filled region", "title bar", "section_panel"}:
@@ -1104,7 +1138,11 @@ def _shape_type_from_prompt(prompt: str) -> str:
     return p or "rectangle"
 
 
-def _sam3_predict_groups(client: Any, image_path: str) -> List[Dict[str, Any]]:
+def _sam3_predict_groups(
+    client: Any,
+    image_path: str,
+    extra_image_prompts: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
     image_area: Optional[int] = None
     try:
         with Image.open(image_path) as img:
@@ -1112,14 +1150,18 @@ def _sam3_predict_groups(client: Any, image_path: str) -> List[Dict[str, Any]]:
     except Exception:
         image_area = None
 
+    merged_image_prompts = dedupe_prompts(IMAGE_PROMPT + (extra_image_prompts or []))
+    merged_recall_prompts = dedupe_prompts(IMAGE_PROMPT_RECALL + (extra_image_prompts or []))
+
     try:
         base_runs: List[Sam3PredictRun] = []
         for group, prompts in SAM3_GROUPS.items():
             cfg = SAM3_GROUP_CONFIG.get(group, {})
+            group_prompts = merged_image_prompts if group == "image" else prompts
             base_runs.append(
                 Sam3PredictRun(
                     group=group,
-                    prompts=prompts,
+                    prompts=group_prompts,
                     score_threshold=cfg.get("score_threshold"),
                     min_area=cfg.get("min_area"),
                 )
@@ -1156,7 +1198,7 @@ def _sam3_predict_groups(client: Any, image_path: str) -> List[Dict[str, Any]]:
                 core_image_hits += 1
 
         should_recall = core_image_hits <= SAM3_IMAGE_RECALL_TRIGGER_MAX_IMAGES
-        if should_recall and IMAGE_PROMPT_RECALL:
+        if should_recall and merged_recall_prompts:
             recall_min_area = SAM3_IMAGE_RECALL_MIN_AREA_BASE
             if image_area and image_area > 0:
                 recall_min_area = max(
@@ -1170,7 +1212,7 @@ def _sam3_predict_groups(client: Any, image_path: str) -> List[Dict[str, Any]]:
                 runs=[
                     Sam3PredictRun(
                         group="image",
-                        prompts=IMAGE_PROMPT_RECALL,
+                        prompts=merged_recall_prompts,
                         score_threshold=SAM3_IMAGE_RECALL_SCORE_THRESHOLD,
                         min_area=recall_min_area,
                     )
@@ -1500,6 +1542,33 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
         state.temp_data["text_blocks"] = text_blocks
         return state
 
+    async def _segment_hint_node(state: Paper2DrawioState) -> Paper2DrawioState:
+        img_path = state.temp_data.get("input_image_path")
+        state.temp_data["sam3_segment_hints"] = []
+        state.temp_data["sam3_segment_hints_raw"] = {}
+        if not img_path or not os.path.exists(img_path):
+            return state
+
+        text_blocks = state.temp_data.get("text_blocks", []) or []
+        try:
+            hints, raw_result, _, _ = await generate_sam3_segment_hints(
+                state=state,
+                image_path=img_path,
+                text_blocks=text_blocks,
+                env_prefix="PAPER2DRAWIO_SEGMENT_HINT",
+                base_image_prompts=IMAGE_PROMPT,
+                base_recall_prompts=IMAGE_PROMPT_RECALL,
+                extra_blocked_prompts=SHAPE_PROMPT + ARROW_PROMPT + BACKGROUND_PROMPT,
+                log_prefix="[paper2drawio_sam3][segment_hint]",
+            )
+        except Exception as e:
+            log.warning(f"[paper2drawio_sam3][segment_hint] VLM credentials unavailable: {e}")
+            return state
+
+        state.temp_data["sam3_segment_hints"] = hints
+        state.temp_data["sam3_segment_hints_raw"] = raw_result
+        return state
+
     async def _sam3_node(state: Paper2DrawioState) -> Paper2DrawioState:
         img_path = state.temp_data.get("input_image_path")
         if not img_path:
@@ -1509,14 +1578,16 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
             log.error("[paper2drawio_sam3] SAM3 endpoints not configured")
             state.temp_data["sam3_results"] = []
             return state
-        results = _sam3_predict_groups(client, img_path)
+        extra_image_prompts = state.temp_data.get("sam3_segment_hints", []) or []
+        results = _sam3_predict_groups(client, img_path, extra_image_prompts=extra_image_prompts)
         group_counts: Dict[str, int] = {}
         for item in results:
             group = str(item.get("group") or "unknown")
             group_counts[group] = group_counts.get(group, 0) + 1
         log.info(
             f"[paper2drawio_sam3] sam3_results={len(results)} "
-            f"groups={json.dumps(group_counts, ensure_ascii=False, sort_keys=True)} image={img_path}"
+            f"groups={json.dumps(group_counts, ensure_ascii=False, sort_keys=True)} "
+            f"extra_image_prompts={json.dumps(extra_image_prompts, ensure_ascii=False)} image={img_path}"
         )
         state.temp_data["sam3_results"] = results
         try:
@@ -1526,6 +1597,7 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
                 json.dump(
                     {
                         "input_image_path": img_path,
+                        "sam3_segment_hints": extra_image_prompts,
                         "sam3_results": results,
                     },
                     f,
@@ -1639,6 +1711,7 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
         "_start_": _init_node,
         "input": _input_node,
         "text_ocr": _text_node,
+        "segment_hint": _segment_hint_node,
         "sam3": _sam3_node,
         "build_elements": _build_elements_node,
         "render_xml": _render_xml_node,
@@ -1647,7 +1720,8 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
 
     edges = [
         ("input", "text_ocr"),
-        ("text_ocr", "sam3"),
+        ("text_ocr", "segment_hint"),
+        ("segment_hint", "sam3"),
         ("sam3", "build_elements"),
         ("build_elements", "render_xml"),
         ("render_xml", "_end_"),

@@ -1,0 +1,96 @@
+{
+  "hero": {
+    "badge": "Mind Map Studio",
+    "title": "独立思维导图工作台",
+    "description": "从论文、PDF、PPT、文档或正文直接提炼树状结构，生成专用思维导图节点树，并在页面内继续编辑、重排和保存。"
+  },
+  "pricing": {
+    "title": "计费说明",
+    "description": "思维导图按最终结果树的节点数与深度结算，复杂结构会消耗更多点数。",
+    "tierSummary": "节点分档：1-8 / 9-16 / 17-32 / 33-64 / 65+",
+    "depthSummary": "深度附加：超过 4 层后，每多 1 层 +1 点，最多 +2 点。",
+    "preview": "当前输入预估约 {{points}} 点，生成后会按实际树规模结算。",
+    "previewNote": "生成前仅作预估，最终以生成结果树为准。",
+    "actual": "本次导图共 {{nodes}} 个节点、{{depth}} 层，实际扣费 {{points}} 点。",
+    "ruleSummary": "规则：按结果树节点数分档 + 深度附加费。"
+  },
+  "input": {
+    "title": "输入素材",
+    "subtitle": "支持上传多个文档，或直接粘贴正文 / 笔记。",
+    "filesTab": "上传文件",
+    "textTab": "粘贴正文",
+    "dropzone": "点击选择文件，或把 PDF / DOCX / PPTX / TXT 拖到这里",
+    "picked": "已选择 {{count}} 个文件",
+    "clear": "清空文件",
+    "textPlaceholder": "粘贴论文摘要、章节纲要、会议笔记或任意你希望整理成思维导图的正文内容…"
+  },
+  "settings": {
+    "title": "生成参数",
+    "model": "文本模型",
+    "style": "导图风格",
+    "depth": "最大深度",
+    "language": "输出语言",
+    "apiUrl": "API URL",
+    "apiKey": "API Key",
+    "styleDefault": "默认放射结构",
+    "styleFlowchart": "流程式层级",
+    "styleTree": "树形展开"
+  },
+  "actions": {
+    "generate": "生成思维导图",
+    "generating": "正在生成思维导图…",
+    "save": "保存导图",
+    "saving": "保存中…",
+    "openFile": "打开源文件",
+    "copyOutline": "复制纲要",
+    "downloadJson": "下载 JSON",
+    "downloadSvg": "下载 SVG",
+    "downloadPng": "下载 PNG",
+    "exportingSvg": "导出 SVG…",
+    "exportingPng": "导出 PNG…",
+    "fitView": "适配视图",
+    "addChild": "新增子节点",
+    "addSibling": "新增同级节点"
+  },
+  "editor": {
+    "title": "导图编辑台",
+    "subtitle": "中央是专用树图画布，采用固定心智图布局；右侧编辑节点内容与分支结构。",
+    "techRoute": "Tree Layout",
+    "treeJson": "JSON Mind Map",
+    "costBadge": "当前预计 {{points}} 积分",
+    "emptyTitle": "还没有导图结果",
+    "emptyDesc": "上传文档或粘贴正文后，点击生成思维导图。生成成功后可以继续改节点、增删分支，并保存树状结果。"
+  },
+  "details": {
+    "title": "节点细节",
+    "subtitle": "点击画布中的节点后，在这里编辑文字、摘要和分支。",
+    "selectedNode": "当前节点",
+    "label": "节点标题",
+    "summary": "节点摘要",
+    "empty": "先在中间画布里点一个节点，再编辑它的内容。",
+    "highlights": "重点摘要",
+    "highlightsEmpty": "本次生成没有返回额外重点摘要。",
+    "source": "结果文件",
+    "sourceEmpty": "生成后这里会显示保存文件地址。"
+  },
+  "stats": {
+    "nodes": "节点数",
+    "depth": "层级深度",
+    "branches": "一级分支"
+  },
+  "status": {
+    "generating": "正在生成思维导图，预计扣费 {{points}} 点…",
+    "generated": "思维导图已生成，可继续编辑和保存。",
+    "saved": "导图树结构已保存。",
+    "copied": "纲要已复制到剪贴板。",
+    "exportedSvg": "SVG 已下载。",
+    "exportedPng": "PNG 已下载。"
+  },
+  "errors": {
+    "missingInput": "请先上传文件，或输入要整理的正文内容。",
+    "missingApi": "当前部署要求填写 API URL 和 API Key。",
+    "quota": "当前积分不足，无法继续生成思维导图（预计需要 {{points}} 点）。",
+    "exportFailed": "思维导图导出失败，请稍后重试。",
+    "server": "思维导图生成失败，请稍后重试。"
+  }
+}

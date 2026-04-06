@@ -173,7 +173,7 @@
     "enterText": "Please enter long text content",
     "enterTopic": "Please enter Topic",
     "enterKey": "Please enter API Key",
-    "quotaFull": "Daily quota used up",
+    "quotaFull": "Insufficient points. Please get a redeem code and redeem it in Account first.",
     "serverBusy": "Server busy, please try again later",
     "noResultPath": "Missing result_path",
     "enterPrompt": "Please enter prompt for regeneration"

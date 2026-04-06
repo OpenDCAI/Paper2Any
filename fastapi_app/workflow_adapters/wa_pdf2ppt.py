@@ -21,6 +21,10 @@ from dataflow_agent.workflow import run_workflow
 import time
 
 from fastapi_app.schemas import Paper2PPTRequest, Paper2PPTResponse
+from fastapi_app.workflow_adapters.heavy_workflow_subprocess import (
+    run_heavy_workflow_in_subprocess,
+    should_use_heavy_workflow_subprocess,
+)
 
 log = get_logger(__name__)
 
@@ -38,7 +42,29 @@ def _ensure_result_path_for_pdf2ppt(email: str | None) -> Path:
     return base_dir
 
 
+async def _run_pdf2ppt_wf_via_subprocess(
+    req: Paper2PPTRequest,
+    result_path: Path | None = None,
+) -> Paper2PPTResponse:
+    out_data = await run_heavy_workflow_in_subprocess(
+        mode="pdf2ppt",
+        payload={
+            "request": req.model_dump(mode="json"),
+            "result_path": str(result_path) if result_path else "",
+        },
+        result_path=result_path,
+    )
+    return Paper2PPTResponse.model_validate(out_data.get("response") or {})
+
+
 async def run_pdf2ppt_wf_api(req: Paper2PPTRequest, result_path: Path | None = None) -> Paper2PPTResponse:
+    if should_use_heavy_workflow_subprocess(default=True):
+        log.info("[pdf2ppt] running workflow in subprocess for worker isolation")
+        return await _run_pdf2ppt_wf_via_subprocess(req, result_path=result_path)
+    return await run_pdf2ppt_wf_api_local(req, result_path=result_path)
+
+
+async def run_pdf2ppt_wf_api_local(req: Paper2PPTRequest, result_path: Path | None = None) -> Paper2PPTResponse:
     """
     对 pdf2ppt_with_sam workflow 的封装。
 
@@ -79,7 +105,10 @@ async def run_pdf2ppt_wf_api(req: Paper2PPTRequest, result_path: Path | None = N
     # 构造 state/request，传入前端配置的参数
     p2f_req = Paper2FigureRequest(
         chat_api_url=req.chat_api_url,
+        chat_api_key=req.chat_api_key,
         api_key=req.api_key,
+        image_api_url=req.image_api_url,
+        image_api_key=req.image_api_key,
         model=req.model,
         gen_fig_model=req.gen_fig_model,
         language=req.language,

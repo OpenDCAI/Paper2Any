@@ -11,7 +11,9 @@ interface CompleteStepProps {
   downloadUrl: string | null;
   pdfPreviewUrl: string | null;
   isGeneratingFinal: boolean;
+  taskMessage?: string;
   handleGenerateFinal: () => void;
+  handleDownloadPptx: () => void;
   handleDownloadPdf: () => void;
   handleReset: () => void;
   error: string | null;
@@ -22,6 +24,7 @@ interface CompleteStepProps {
     agent: number | null;
     dataflex: number | null;
   };
+  showFreeApiPromo: boolean;
 }
 
 const CompleteStep: React.FC<CompleteStepProps> = ({
@@ -30,35 +33,38 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
   downloadUrl,
   pdfPreviewUrl,
   isGeneratingFinal,
+  taskMessage,
   handleGenerateFinal,
+  handleDownloadPptx,
   handleDownloadPdf,
   handleReset,
   error,
   handleCopyShareText,
   copySuccess,
-  stars
+  stars,
+  showFreeApiPromo,
 }) => {
   const doneCount = generateResults.filter(r => r.status === 'done').length;
 
   return (
     <div className="max-w-2xl mx-auto text-center">
       <div className="mb-8">
-        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[linear-gradient(135deg,#8c1d40,#6c1634)] shadow-[0_18px_36px_rgba(140,29,64,0.24)]">
+        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4">
           <CheckCircle2 size={40} className="text-white" />
         </div>
-        <h2 className="paper2ppt-title mb-2 text-3xl font-bold">生成完成</h2>
-        <p className="paper2ppt-subtitle">共处理 {outlineData.length} 页，成功生成 {doneCount} 页</p>
+        <h2 className="text-2xl font-bold text-white mb-2">生成完成！</h2>
+        <p className="text-gray-400">共处理 {outlineData.length} 页，成功生成 {doneCount} 页</p>
       </div>
 
-      <div className="paper2ppt-panel mb-6 rounded-[28px] p-6">
-        <h3 className="mb-4 text-left text-lg font-semibold text-[#1d1c1a]">生成结果预览</h3>
+      <div className="glass rounded-xl border border-white/10 p-6 mb-6">
+        <h3 className="text-white font-semibold mb-4">生成结果预览</h3>
         <div className="grid grid-cols-4 gap-2">
           {generateResults.map((result, index) => (
-            <div key={result.slideId} className="paper2ppt-preview-frame aspect-[16/9] overflow-hidden rounded-xl">
+            <div key={result.slideId} className="aspect-[16/9] rounded-lg border border-white/20 overflow-hidden bg-white/5">
               {result.afterImage ? (
-                <img src={result.afterImage} alt={`Page ${index + 1}`} className="w-full h-full object-contain" />
+                <img src={result.afterImagePreview || result.afterImage} alt={`Page ${index + 1}`} className="w-full h-full object-contain" />
               ) : (
-                <div className="flex h-full w-full items-center justify-center text-xs text-[#675f58]">第 {index + 1} 页</div>
+                <div className="w-full h-full flex items-center justify-center text-gray-500 text-xs">第 {index + 1} 页</div>
               )}
             </div>
           ))}
@@ -66,27 +72,26 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
       </div>
 
       {!(downloadUrl || pdfPreviewUrl) ? (
-        <button onClick={handleGenerateFinal} disabled={isGeneratingFinal} className="paper2ppt-button-primary mx-auto flex items-center justify-center gap-2 rounded-xl px-8 py-3 font-semibold transition-all">
+        <button onClick={handleGenerateFinal} disabled={isGeneratingFinal} className="px-8 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold flex items-center justify-center gap-2 mx-auto transition-all">
           {isGeneratingFinal ? (<><Loader2 size={18} className="animate-spin" /> 正在生成最终文件...</>) : (<><Sparkles size={18} /> 生成最终文件</>)}
         </button>
       ) : (
         <div className="space-y-4">
           <div className="flex gap-4 justify-center">
-            {/* 已移除 PPTX 下载按钮 */}
+            {downloadUrl && (
+              <button onClick={handleDownloadPptx} className="px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold flex items-center gap-2 transition-all">
+                <Download size={18} /> 下载 PPTX
+              </button>
+            )}
             {pdfPreviewUrl && (
-              <button onClick={handleDownloadPdf} className="paper2ppt-button-primary flex items-center gap-2 rounded-xl px-6 py-3 font-semibold transition-all">
+              <button onClick={handleDownloadPdf} className="px-6 py-3 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold flex items-center gap-2 transition-all">
                 <Download size={18} /> 下载 PDF
               </button>
             )}
           </div>
-          
-          {/* 引导去 PDF2PPT */}
-          <div className="rounded-2xl border border-[rgba(110,76,55,0.14)] bg-white/70 p-3 text-center text-sm text-[#675f58]">
-            如果需要继续 PDF 转可编辑 PPTX，请前往 <a href="/pdf2ppt" className="paper2ppt-link font-medium">PDF2PPT 页面</a>
-          </div>
 
           <div>
-            <button onClick={handleReset} className="text-sm text-[#675f58] transition-colors hover:text-[#8c1d40]">
+            <button onClick={handleReset} className="text-sm text-gray-400 hover:text-white transition-colors">
               <RotateCcw size={14} className="inline mr-1" /> 处理新的论文
             </button>
           </div>
@@ -94,74 +99,97 @@ const CompleteStep: React.FC<CompleteStepProps> = ({
       )}
 
       {error && (
-        <div className="paper2ppt-status-error mt-4 flex items-center justify-center gap-2 px-4 py-3 text-sm">
+        <div className="mt-4 flex items-center gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-4 py-3 justify-center">
           <AlertCircle size={16} /> {error}
         </div>
       )}
 
-      <div className="mt-8 grid grid-cols-1 gap-4 text-left md:grid-cols-2">
-        <div className="paper2ppt-panel flex flex-col items-center rounded-[24px] p-5 text-center">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[rgba(140,29,64,0.08)] text-[#8c1d40]">
+      {isGeneratingFinal && taskMessage && (
+        <div className="mt-4 text-sm text-purple-200 bg-purple-500/10 border border-purple-500/30 rounded-lg px-4 py-3">
+          {taskMessage}
+        </div>
+      )}
+
+      {/* 分享与交流群区域 */}
+      <div className={`grid grid-cols-1 gap-4 mt-8 text-left ${showFreeApiPromo ? 'md:grid-cols-2' : ''}`}>
+        {showFreeApiPromo && (
+        <div className="glass rounded-xl border border-white/10 p-5 flex flex-col items-center text-center hover:bg-white/5 transition-colors">
+          <div className="w-12 h-12 rounded-full bg-yellow-500/20 text-yellow-300 flex items-center justify-center mb-3">
             <Star size={24} />
           </div>
-          <h4 className="mb-2 font-semibold text-[#1d1c1a]">项目资源</h4>
-          <p className="mb-4 text-xs leading-relaxed text-[#675f58]">
-            平台内网部署版本已取消登录限制与次数限制。<br />
-            如果需要了解项目背景或对外介绍，可直接查看或复制项目说明。
+          <h4 className="text-white font-semibold mb-2">获取免费 API Key</h4>
+          <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+            点击下方平台图标复制推广文案<br/>
+            分享至朋友圈/小红书/推特，截图联系微信群管理员领 Key！
           </p>
-
-          <div className="mb-5 flex w-full items-center justify-center gap-4">
-            <button onClick={handleCopyShareText} className="group flex flex-col items-center gap-1">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(140,29,64,0.18)] bg-[rgba(140,29,64,0.08)] text-[#8c1d40] transition-transform group-hover:scale-110">
+          
+          {/* 分享按钮组 */}
+          <div className="flex items-center justify-center gap-4 mb-5 w-full">
+            <button onClick={handleCopyShareText} className="flex flex-col items-center gap-1 group">
+              <div className="w-10 h-10 rounded-full bg-[#00C300]/20 text-[#00C300] flex items-center justify-center border border-[#00C300]/30 group-hover:scale-110 transition-transform">
                 <MessageSquare size={18} />
               </div>
-              <span className="text-[10px] text-[#675f58]">说明</span>
+              <span className="text-[10px] text-gray-400">微信</span>
             </button>
-            <button onClick={handleCopyShareText} className="group flex flex-col items-center gap-1">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(197,155,91,0.28)] bg-[rgba(197,155,91,0.18)] text-[#8c1d40] transition-transform group-hover:scale-110">
+            <button onClick={handleCopyShareText} className="flex flex-col items-center gap-1 group">
+              <div className="w-10 h-10 rounded-full bg-[#FF2442]/20 text-[#FF2442] flex items-center justify-center border border-[#FF2442]/30 group-hover:scale-110 transition-transform">
+                <span className="font-bold text-xs">小红书</span>
+              </div>
+              <span className="text-[10px] text-gray-400">小红书</span>
+            </button>
+            <button onClick={handleCopyShareText} className="flex flex-col items-center gap-1 group">
+              <div className="w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center border border-white/20 group-hover:scale-110 transition-transform">
+                <span className="font-bold text-lg">𝕏</span>
+              </div>
+              <span className="text-[10px] text-gray-400">Twitter</span>
+            </button>
+            <button onClick={handleCopyShareText} className="flex flex-col items-center gap-1 group">
+              <div className="w-10 h-10 rounded-full bg-purple-500/20 text-purple-300 flex items-center justify-center border border-purple-500/30 group-hover:scale-110 transition-transform">
                 <Copy size={18} />
               </div>
-              <span className="text-[10px] text-[#675f58]">复制</span>
+              <span className="text-[10px] text-gray-400">复制</span>
             </button>
           </div>
 
           {copySuccess && (
-            <div className="paper2ppt-status-success mb-4 px-3 py-1 text-xs animate-in fade-in zoom-in">
-              {copySuccess}
+            <div className="mb-4 px-3 py-1 bg-green-500/20 text-green-300 text-xs rounded-full animate-in fade-in zoom-in">
+              ✨ {copySuccess}
             </div>
           )}
 
           <div className="w-full space-y-2">
-             <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="block w-full rounded-2xl border border-[rgba(110,76,55,0.14)] bg-white/76 px-3 py-2 text-center text-xs text-[#8c1d40] transition-colors hover:bg-white">
-               查看 Paper2Any 项目主页
+             <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-purple-300 truncate transition-colors border border-white/5 text-center">
+               ✨如果本项目对你有帮助，可以点个star嘛～
              </a>
              <div className="flex gap-2">
-               <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 rounded-full bg-white px-2 py-1.5 text-[10px] font-semibold text-[#1d1c1a] shadow-[0_10px_22px_rgba(87,48,46,0.1)] transition-all hover:-translate-y-0.5">
+               <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
                  <Github size={10} />
                  <span>Agent</span>
-                 <span className="flex items-center gap-0.5 rounded-full bg-[rgba(140,29,64,0.08)] px-1 py-0.5 text-[9px] text-[#6c1634]"><Star size={7} fill="currentColor" /> {stars.agent || 'Star'}</span>
+                 <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.agent || 'Star'}</span>
                </a>
-               <a href="https://github.com/OpenDCAI/DataFlow" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 rounded-full bg-white px-2 py-1.5 text-[10px] font-semibold text-[#1d1c1a] shadow-[0_10px_22px_rgba(87,48,46,0.1)] transition-all hover:-translate-y-0.5">
+               <a href="https://github.com/OpenDCAI/DataFlow" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
                  <Github size={10} />
                  <span>Core</span>
-                 <span className="flex items-center gap-0.5 rounded-full bg-[rgba(140,29,64,0.08)] px-1 py-0.5 text-[9px] text-[#6c1634]"><Star size={7} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
+                 <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
                </a>
              </div>
           </div>
         </div>
+        )}
 
-        <div className="paper2ppt-panel flex flex-col items-center rounded-[24px] p-5 text-center">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[rgba(35,132,90,0.1)] text-[#21704c]">
+        {/* 交流群 */}
+        <div className="glass rounded-xl border border-white/10 p-5 flex flex-col items-center text-center hover:bg-white/5 transition-colors">
+          <div className="w-12 h-12 rounded-full bg-green-500/20 text-green-300 flex items-center justify-center mb-3">
             <MessageSquare size={24} />
           </div>
-          <h4 className="mb-2 font-semibold text-[#1d1c1a]">反馈与讨论</h4>
-          <p className="mb-4 text-xs text-[#675f58]">
+          <h4 className="text-white font-semibold mb-2">加入交流群</h4>
+          <p className="text-xs text-gray-400 mb-4">
             效果满意？遇到问题？<br/>欢迎扫码加入交流群反馈与讨论
           </p>
-          <div className="mb-2 h-32 w-32 rounded-xl bg-white p-1 shadow-[0_12px_24px_rgba(87,48,46,0.12)]">
+          <div className="w-32 h-32 bg-white p-1 rounded-lg mb-2">
             <img src="/wechat.png" alt="交流群二维码" className="w-full h-full object-contain" />
           </div>
-          <p className="text-[10px] text-[#675f58]">扫码加入微信交流群</p>
+          <p className="text-[10px] text-gray-500">扫码加入微信交流群</p>
         </div>
       </div>
     </div>

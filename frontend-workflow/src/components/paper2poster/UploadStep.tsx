@@ -1,6 +1,7 @@
 import React, { ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { API_URL_OPTIONS } from '../../config/api';
+import ManagedApiNotice from '../ManagedApiNotice';
 import {
   UploadCloud, Settings2, Loader2, AlertCircle, ArrowRight,
   FileText, Key, Globe, Cpu, Image as ImageIcon, Ruler
@@ -22,6 +23,7 @@ interface UploadStepProps {
   progress: number;
   progressStatus: string;
   error: string | null;
+  showApiConfig: boolean;
 
   llmApiUrl: string;
   setLlmApiUrl: (url: string) => void;
@@ -44,6 +46,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
   isUploading, isValidating,
   progress, progressStatus,
   error,
+  showApiConfig,
   llmApiUrl, setLlmApiUrl,
   apiKey, setApiKey,
   handleFileChange,
@@ -220,50 +223,55 @@ const UploadStep: React.FC<UploadStepProps> = ({
         </div>
       </div>
 
-      {/* API配置区域 */}
-      <div className="glass rounded-2xl p-8 mb-6 border border-white/10">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-transparent border border-green-500/40 flex items-center justify-center">
-            <Settings2 className="w-5 h-5 text-green-400" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-white">{t('upload.apiConfig', 'API配置')}</h2>
-            <p className="text-sm text-gray-400">{t('upload.apiConfigDesc', '配置LLM API')}</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-              <Globe className="w-4 h-4" />
-              {t('upload.apiUrl', 'API URL')}
-            </label>
-            <select
-              value={llmApiUrl}
-              onChange={(e) => setLlmApiUrl(e.target.value)}
-              className="w-full px-4 py-3 bg-black/40 border border-white/20 rounded-xl text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
-            >
-              {API_URL_OPTIONS.map((url: string) => (
-                <option key={url} value={url}>{url}</option>
-              ))}
-            </select>
+      {showApiConfig && (
+        <div className="glass rounded-2xl p-8 mb-6 border border-white/10">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-xl bg-transparent border border-green-500/40 flex items-center justify-center">
+              <Settings2 className="w-5 h-5 text-green-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white">{t('upload.apiConfig', 'API配置')}</h2>
+              <p className="text-sm text-gray-400">{t('upload.apiConfigDesc', '配置LLM API')}</p>
+            </div>
           </div>
 
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-              <Key className="w-4 h-4" />
-              {t('upload.apiKey', 'API Key')}
-            </label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={t('upload.apiKeyPlaceholder', '输入API Key')}
-              className="w-full px-4 py-3 bg-black/40 border border-white/20 rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
+                <Globe className="w-4 h-4" />
+                {t('upload.apiUrl', 'API URL')}
+              </label>
+              <select
+                value={llmApiUrl}
+                onChange={(e) => setLlmApiUrl(e.target.value)}
+                className="w-full px-4 py-3 bg-black/40 border border-white/20 rounded-xl text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+              >
+                {API_URL_OPTIONS.map((url: string) => (
+                  <option key={url} value={url}>{url}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
+                <Key className="w-4 h-4" />
+                {t('upload.apiKey', 'API Key')}
+              </label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={t('upload.apiKeyPlaceholder', '输入API Key')}
+                className="w-full px-4 py-3 bg-black/40 border border-white/20 rounded-xl text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+              />
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {!showApiConfig && (
+        <ManagedApiNotice className="mb-6" />
+      )}
 
       {/* 错误提示 */}
       {error && (

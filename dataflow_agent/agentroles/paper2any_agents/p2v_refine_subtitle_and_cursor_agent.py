@@ -24,14 +24,16 @@ import re
 log = get_logger(__name__)
 
 def parse_subtitle_and_cursor_result(result: Dict[str, Any]) -> Optional[str]:
-    """从 LLM 返回的 result 中解析出 subtitle_and_cursor 字符串。格式错误或 key 错误时返回 None。"""
+    """从 LLM 返回中提取 refine subtitle/cursor 文本，兼容历史 key。"""
+    accepted_keys = ("refine_subtitle_and_cursor", "subtitle_and_cursor")
     if not result:
         return None
-    value = result.get("refine_subtitle_and_cursor")
-    if isinstance(value, str):
-        return value
-    if value is not None:
-        return None
+    for key in accepted_keys:
+        value = result.get(key)
+        if isinstance(value, str):
+            value = value.strip()
+            if value:
+                return value
     raw = result.get("raw")
     if not isinstance(raw, str):
         return None
@@ -39,18 +41,23 @@ def parse_subtitle_and_cursor_result(result: Dict[str, Any]) -> Optional[str]:
     try:
         parsed = json.loads(raw_text)
         if isinstance(parsed, dict):
-            value = parsed.get("refine_subtitle_and_cursor")
-            if isinstance(value, str):
-                return value
+            for key in accepted_keys:
+                value = parsed.get(key)
+                if isinstance(value, str):
+                    value = value.strip()
+                    if value:
+                        return value
     except json.JSONDecodeError:
         pass
     match = re.search(
-        r'"refine_subtitle_and_cursor"\s*:\s*"(.*?)"\s*}',
+        r'"(?:refine_subtitle_and_cursor|subtitle_and_cursor)"\s*:\s*"(.*?)"\s*}',
         raw_text,
         re.DOTALL,
     )
     if match:
-        return match.group(1)
+        value = match.group(1).strip()
+        if value:
+            return value
     return None
 
 
@@ -107,13 +114,13 @@ class P2vRefineSubtitleAndCursor(BaseAgent):
         result: Dict[str, Any],
         pre_tool_results: Dict[str, Any],
     ):
-        """解析 LLM 返回的 subtitle_and_cursor，追加到 state；格式错误时不 append，由上层重试。"""
+        """解析 LLM 返回的 refine_subtitle_and_cursor，追加到 state；格式错误时不 append，由上层重试。"""
         subtitle_and_cursor_info = parse_subtitle_and_cursor_result(result)
         if subtitle_and_cursor_info is not None:
             log.info("获取了单张 slide 的 Refine Subtitle and Cursor 信息: %s", subtitle_and_cursor_info[:80] if len(subtitle_and_cursor_info) > 80 else subtitle_and_cursor_info)
             state.subtitle_and_cursor.append(subtitle_and_cursor_info)
         else:
-            log.warning("LLM 返回格式不符合 {\"subtitle_and_cursor\": \"...\"}，未写入 state，上层可重试")
+            log.warning("LLM 返回格式不符合 {\"refine_subtitle_and_cursor\": \"...\"}，未写入 state，上层可重试")
         super().update_state_result(state, result, pre_tool_results)
 
 

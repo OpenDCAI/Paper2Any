@@ -7,7 +7,7 @@ import {
   MessageSquare, Eye, RefreshCw, FileText, Image as ImageIcon, Copy, Info
 } from 'lucide-react';
 import { uploadAndSaveFile } from '../services/fileService';
-import { API_KEY, API_URL_OPTIONS, DEFAULT_LLM_API_URL, getPurchaseUrl } from '../config/api';
+import { API_URL_OPTIONS, DEFAULT_LLM_API_URL, getPurchaseUrl } from '../config/api';
 import {
   DEFAULT_PPT2POLISH_GEN_FIG_MODEL,
   DEFAULT_PPT2POLISH_MODEL,
@@ -19,8 +19,20 @@ import { checkQuota, recordUsage } from '../services/quotaService';
 import { verifyLlmConnection } from '../services/llmService';
 import { useAuthStore } from '../stores/authStore';
 import { getApiSettings, saveApiSettings } from '../services/apiSettingsService';
+import { backendFetch } from '../services/backendClient';
 import QRCodeTooltip from './QRCodeTooltip';
+import ManagedApiNotice from './ManagedApiNotice';
+import { useRuntimeBilling } from '../hooks/useRuntimeBilling';
 import VersionHistory from './paper2ppt/VersionHistory';
+import {
+  buildInsufficientPointsMessage,
+  buildQuotaExhaustedMessage,
+  getManagedValidationText,
+  isInsufficientPointsError,
+  resolvePointsPurchaseUrl,
+} from '../utils/pointsMessaging';
+
+const MANAGED_CREDENTIAL_SCOPE = 'ppt2polish';
 
 // ============== 类型定义 ==============
 type Step = 'upload' | 'beautify' | 'complete';
@@ -43,6 +55,7 @@ interface SlideOutline {
   layout_description: string;  // 布局描述
   key_points: string[];        // 要点数组
   asset_ref: string | null;    // 资源引用（图片路径或 null）
+  asset_ref_preview_path?: string;
 }
 
 // 版本历史类型定义
@@ -57,12 +70,30 @@ interface ImageVersion {
 interface BeautifyResult {
   slideId: string;
   beforeImage: string;
+  beforeImagePreview?: string;
   afterImage: string;
-  status: 'pending' | 'processing' | 'done';
+  afterImagePreview?: string;
+  status: 'pending' | 'processing' | 'done' | 'failed';
+  errorMessage?: string;
   userPrompt?: string;
   versionHistory: ImageVersion[];
   currentVersionIndex: number;
 }
+
+interface FailedPageInfo {
+  page_idx?: number;
+  reason?: string;
+  error?: string;
+  mode?: string;
+}
+
+const getFailedPageNumbers = (results: BeautifyResult[]): number[] =>
+  results
+    .map((result, index) => (result.status === 'failed' || !result.afterImage ? index + 1 : null))
+    .filter((value): value is number => value !== null);
+
+const getPreviewPath = (item: any, key: string) =>
+  String(item?.[`${key}_preview_path`] || item?.[`${key}PreviewPath`] || '').trim();
 
 // ============== 假数据模拟 ==============
 // 模拟后端返回的数据（转换为前端格式）
@@ -160,6 +191,10 @@ const STORAGE_KEY = 'pptpolish-storage';
 const Ppt2PolishPage = () => {
   const { t, i18n } = useTranslation(['pptPolish', 'common']);
   const { user, refreshQuota } = useAuthStore();
+  const { userApiConfigRequired, runtimeConfig } = useRuntimeBilling();
+  const purchaseUrl = runtimeConfig.billing_mode === 'free'
+    ? resolvePointsPurchaseUrl(runtimeConfig)
+    : '';
   // 步骤状态
   const [currentStep, setCurrentStep] = useState<Step>('upload');
   
@@ -227,6 +262,80 @@ const Ppt2PolishPage = () => {
 
 转发本文案+截图，联系微信群管理员即可获取免费Key！🎁
 #AI工具 #PPT制作 #科研效率 #开源项目`;
+
+  const getQuotaContext = () => ({
+    userId: user?.id || null,
+    isAnonymous: user?.is_anonymous || false,
+  });
+
+  const ensureQuotaForAction = async (required: number, action: string) => {
+    const { userId, isAnonymous } = getQuotaContext();
+    const quota = await checkQuota(userId, isAnonymous);
+    if (quota.remaining < required) {
+      setError(buildInsufficientPointsMessage(required, quota.remaining, action, purchaseUrl));
+      return false;
+    }
+    return true;
+  };
+
+  const consumeQuotaForAction = async (workflowType: string, amount: number, warningMessage: string) => {
+    const { userId, isAnonymous } = getQuotaContext();
+    const ok = await recordUsage(userId, workflowType, { amount, isAnonymous });
+    refreshQuota();
+    if (!ok) {
+      setError((prev) => prev || warningMessage);
+    }
+    return ok;
+  };
+
+  const extractErrorMessage = async (res: Response, fallback: string) => {
+    if (res.status === 403) {
+      return '邀请码不正确或已失效';
+    }
+    if (res.status === 429) {
+      return '请求过于频繁，请稍后再试';
+    }
+    try {
+      const errBody = await res.json();
+      if (typeof errBody?.detail === 'string' && errBody.detail.trim()) {
+        return errBody.detail;
+      }
+      if (typeof errBody?.error === 'string' && errBody.error.trim()) {
+        return errBody.error;
+      }
+      if (typeof errBody?.message === 'string' && errBody.message.trim()) {
+        return errBody.message;
+      }
+    } catch {
+      // ignore parse error
+    }
+    return fallback;
+  };
+
+  const renderErrorAlert = (className: string = 'mt-4') => {
+    if (!error) {
+      return null;
+    }
+
+    return (
+      <div className={`${className} flex items-start gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-4 py-3`}>
+        <AlertCircle size={16} className="mt-0.5 shrink-0" />
+        <div className="flex-1">
+          <p>{error}</p>
+          {purchaseUrl && isInsufficientPointsError(error) && (
+            <a
+              href={purchaseUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex items-center gap-1 rounded-md border border-red-300/30 px-2.5 py-1 text-xs font-medium text-red-100 transition-colors hover:border-red-200/60 hover:text-white"
+            >
+              前往购买页获取兑换码
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const modelOptions = withModelOptions(PPT2POLISH_MODELS, model);
   const genFigModelOptions = withModelOptions(PPT2POLISH_GEN_FIG_MODELS, genFigModel);
@@ -311,11 +420,11 @@ const Ppt2PolishPage = () => {
           document.body.removeChild(textArea);
         }
       }
-      setCopySuccess('项目说明已复制');
+      setCopySuccess('文案已复制！快去分享吧');
       setTimeout(() => setCopySuccess(''), 2000);
     } catch (err) {
       console.error('复制失败', err);
-      setCopySuccess('复制失败，请手动重试');
+      setCopySuccess('复制失败，请手动复制');
     }
   };
 
@@ -372,7 +481,7 @@ const Ppt2PolishPage = () => {
     } catch (e) {
       console.error('Failed to restore pptpolish config', e);
     }
-  }, [user?.id]);
+  }, [user?.id, userApiConfigRequired]);
 
   // 将配置写入 localStorage
   useEffect(() => {
@@ -482,7 +591,7 @@ const Ppt2PolishPage = () => {
       return;
     }
     
-    if (!llmApiUrl.trim() || !apiKey.trim()) {
+    if (userApiConfigRequired && (!llmApiUrl.trim() || !apiKey.trim())) {
       setError(t('errors.config'));
       return;
     }
@@ -500,7 +609,7 @@ const Ppt2PolishPage = () => {
     // Check quota before proceeding
     const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
     if (quota.remaining <= 0) {
-      setError(t('errors.quota'));
+      setError(buildQuotaExhaustedMessage(purchaseUrl));
       return;
     }
 
@@ -545,8 +654,11 @@ const Ppt2PolishPage = () => {
     try {
       // 调用 /paper2ppt/pagecontent_json 接口
       const formData = new FormData();
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
+      formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+      }
       formData.append('model', model);
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
@@ -571,27 +683,15 @@ const Ppt2PolishPage = () => {
       
       console.log('Sending request to /api/v1/paper2ppt/page-content'); // 调试信息
       
-      const res = await fetch('/api/v1/paper2ppt/page-content', {
+      const res = await backendFetch('/api/v1/paper2ppt/page-content', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
 
       console.log('Response status:', res.status, res.statusText); // 调试信息
       
       if (!res.ok) {
-        let msg = t('errors.serverBusy');
-        if (res.status === 403) {
-          msg = '邀请码不正确或已失效';
-        } else if (res.status === 429) {
-          msg = '请求过于频繁，请稍后再试';
-        } else {
-          try {
-            const errBody = await res.json();
-            if (errBody?.error) msg = errBody.error;
-          } catch { /* ignore parse error */ }
-        }
-        throw new Error(msg);
+        throw new Error(await extractErrorMessage(res, t('errors.serverBusy')));
       }
 
       const data = await res.json();
@@ -627,15 +727,16 @@ const Ppt2PolishPage = () => {
             url.includes(item.ppt_img_path.split('/').pop() || '')
           );
           
-          return {
-            id: String(index + 1),
-            pageNum: index + 1,
-            title: `第 ${index + 1} 页`,
-            layout_description: '待编辑：请填写此页的布局描述',
-            key_points: ['待编辑：请添加要点'],
-            asset_ref: imgUrl || item.ppt_img_path || null,
-          };
-        }
+        return {
+          id: String(index + 1),
+          pageNum: index + 1,
+          title: `第 ${index + 1} 页`,
+          layout_description: '待编辑：请填写此页的布局描述',
+          key_points: ['待编辑：请添加要点'],
+          asset_ref: imgUrl || item.ppt_img_path || null,
+          asset_ref_preview_path: getPreviewPath(item, 'ppt_img_path') || getPreviewPath(item, 'asset_ref') || imgUrl || item.ppt_img_path || '',
+        };
+      }
         
         // 标准格式（pdf/text 类型）
         return {
@@ -645,6 +746,7 @@ const Ppt2PolishPage = () => {
           layout_description: item.layout_description || '',
           key_points: item.key_points || [],
           asset_ref: item.asset_ref || item.ppt_img_path || null,
+          asset_ref_preview_path: getPreviewPath(item, 'asset_ref') || getPreviewPath(item, 'ppt_img_path') || item.asset_ref || item.ppt_img_path || '',
         };
       });
       
@@ -653,6 +755,11 @@ const Ppt2PolishPage = () => {
       if (convertedSlides.length === 0) {
         throw new Error('转换后的数据为空');
       }
+      if (!(await ensureQuotaForAction(convertedSlides.length, `批量美化 ${convertedSlides.length} 页 PPT`))) {
+        clearInterval(progressInterval);
+        setProgress(0);
+        return;
+      }
       
       setOutlineData(convertedSlides);
       
@@ -660,7 +767,9 @@ const Ppt2PolishPage = () => {
       const results: BeautifyResult[] = convertedSlides.map((slide, index) => ({
         slideId: slide.id,
         beforeImage: slide.asset_ref || '',
+        beforeImagePreview: slide.asset_ref_preview_path || slide.asset_ref || '',
         afterImage: '',
+        afterImagePreview: '',
         status: 'pending',
         versionHistory: [],
         currentVersionIndex: 0,
@@ -693,11 +802,7 @@ const Ppt2PolishPage = () => {
           generateInitialPPT(convertedSlides, results, currentResultPath)
             .then((updatedResults) => {
               console.log('批量美化完成');
-              const finalResults = updatedResults.map(res => ({
-                ...res,
-                status: 'done' as const
-              }));
-              setBeautifyResults(finalResults);
+              setBeautifyResults(updatedResults);
             })
             .catch((err) => {
               console.error("Batch generation failed:", err);
@@ -787,11 +892,17 @@ const Ppt2PolishPage = () => {
   };
 
   const handleConfirmOutline = async () => {
+    const requiredPoints = Math.max(1, outlineData.length);
+    if (!(await ensureQuotaForAction(requiredPoints, `批量美化 ${requiredPoints} 页 PPT`))) {
+      return;
+    }
     // 初始化结果状态，使用 Slide 数据中的 asset_ref 作为 beforeImage
     const results: BeautifyResult[] = outlineData.map((slide) => ({
       slideId: slide.id,
       beforeImage: slide.asset_ref || '',  // 确保使用真实的图片路径
+      beforeImagePreview: slide.asset_ref_preview_path || slide.asset_ref || '',
       afterImage: '', // 初始为空，等待批量生成
+      afterImagePreview: '',
       status: 'pending',
       versionHistory: [],
       currentVersionIndex: 0,
@@ -806,12 +917,7 @@ const Ppt2PolishPage = () => {
       // 传入 outlineData，因为 generateInitialPPT 内部需要用它来构建 pagecontent
       const updatedResults = await generateInitialPPT(outlineData, results);
       
-      // 更新结果状态，将状态标记为 done
-      const finalResults = updatedResults.map(res => ({
-        ...res,
-        status: 'done' as const // 显式类型断言
-      }));
-      setBeautifyResults(finalResults);
+      setBeautifyResults(updatedResults);
     } catch (error) {
       console.error("Batch generation failed:", error);
       // 错误已在 generateInitialPPT 中通过 setError 处理，这里只需确保 loading 状态结束
@@ -841,8 +947,11 @@ const Ppt2PolishPage = () => {
       
       const formData = new FormData();
       formData.append('img_gen_model_name', genFigModel);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
+      formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+      }
       formData.append('model', model);
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
@@ -864,25 +973,18 @@ const Ppt2PolishPage = () => {
         // ... 其他参数
       });
 
-      const res = await fetch('/api/v1/paper2ppt/generate', {
+      const res = await backendFetch('/api/v1/paper2ppt/generate', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
+        headers: {
+          'X-Workflow-Amount': String(Math.max(1, slides.length)),
+        },
         body: formData,
       });
 
       console.log('Response status:', res.status, res.statusText);
       
       if (!res.ok) {
-        let msg = '服务器繁忙，请稍后再试';
-        if (res.status === 429) {
-          msg = '请求过于频繁，请稍后再试';
-        } else {
-          try {
-            const errBody = await res.json();
-            if (errBody?.error) msg = errBody.error;
-          } catch { /* ignore parse error */ }
-        }
-        throw new Error(msg);
+        throw new Error(await extractErrorMessage(res, '服务器繁忙，请稍后再试'));
       }
 
       const data = await res.json();
@@ -891,18 +993,39 @@ const Ppt2PolishPage = () => {
       if (!data.success) {
         throw new Error(data.error || '服务器繁忙，请稍后再试');
       }
+
+      const responsePagecontent = Array.isArray(data.pagecontent) ? data.pagecontent : [];
+      const failedPages = Array.isArray(data.failed_pages) ? data.failed_pages as FailedPageInfo[] : [];
+      const failedReasonByIndex = new Map<number, string>();
+      failedPages.forEach((item) => {
+        const pageIdx = Number(item?.page_idx);
+        if (!Number.isInteger(pageIdx) || pageIdx < 0) {
+          return;
+        }
+        const reason = String(item?.reason || item?.error || item?.mode || '该页生成失败，请重试').trim();
+        failedReasonByIndex.set(pageIdx, reason || '该页生成失败，请重试');
+      });
       
       // 更新美化结果，使用生成的 ppt_pages/page_*.png 作为 afterImage
       let updatedResults = initialResults;
       if (data.all_output_files) {
         updatedResults = initialResults.map((result, index) => {
+          const pageMeta = responsePagecontent[index] && typeof responsePagecontent[index] === 'object'
+            ? responsePagecontent[index]
+            : null;
           const pageImageUrl = data.all_output_files.find((url: string) => 
             url.includes(`page_${String(index).padStart(3, '0')}.png`)
-          );
+          ) || (typeof pageMeta?.generated_img_path === 'string' ? pageMeta.generated_img_path : '');
+          const pageFailureReason = failedReasonByIndex.get(index)
+            || String(pageMeta?.error || pageMeta?.mode || '').trim()
+            || '该页生成失败，请点击“重新生成”重试';
           return {
             ...result,
             // beforeImage 保持原始 PPT 截图
             afterImage: pageImageUrl || '',
+            afterImagePreview: getPreviewPath(pageMeta, 'generated_img_path') || pageImageUrl || '',
+            status: pageImageUrl ? 'done' : 'failed',
+            errorMessage: pageImageUrl ? undefined : pageFailureReason,
           };
         });
         setBeautifyResults(updatedResults);
@@ -928,6 +1051,18 @@ const Ppt2PolishPage = () => {
           }
         });
       }
+
+      const failedPageNumbers = getFailedPageNumbers(updatedResults);
+      if (failedPageNumbers.length > 0) {
+        setError(`批量美化已完成，但第 ${failedPageNumbers.join('、')} 页生成失败，请点“重新生成”重试。`);
+      } else {
+        setError(null);
+      }
+      await consumeQuotaForAction(
+        'ppt2polish',
+        Math.max(1, slides.length),
+        `PPT 批量美化已完成，但 ${Math.max(1, slides.length)} 点扣费记录失败，请刷新余额确认。`,
+      );
       
       // 返回更新后的结果，供调用方使用
       return updatedResults;
@@ -945,7 +1080,7 @@ const Ppt2PolishPage = () => {
     index: number, 
     resultPathParam?: string,
     outlineDataParam?: SlideOutline[]
-  ) => {
+  ): Promise<boolean> => {
     // 优先使用传入的参数，其次使用 state
     const currentPath = resultPathParam || resultPath;
     const currentOutlineData = outlineDataParam || outlineData;
@@ -958,7 +1093,7 @@ const Ppt2PolishPage = () => {
     if (!currentPath) {
       setError('缺少 result_path，请重新上传文件');
       console.error('currentPath 为空');
-      return;
+      return false;
     }
     
     // 如果 results 为 null，从 state 中读取
@@ -968,13 +1103,13 @@ const Ppt2PolishPage = () => {
     if (currentResults.length === 0) {
       setError('没有可美化的页面');
       console.error('currentResults 为空');
-      return;
+      return false;
     }
     
     if (currentOutlineData.length === 0) {
       setError('没有 outline 数据');
       console.error('currentOutlineData 为空');
-      return;
+      return false;
     }
     
     setIsBeautifying(true);
@@ -986,8 +1121,11 @@ const Ppt2PolishPage = () => {
       // 调用 /paper2ppt/ppt_json 接口进行编辑
       const formData = new FormData();
       formData.append('img_gen_model_name', genFigModel);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
+      formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+      }
       formData.append('model', model);
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
@@ -1013,23 +1151,16 @@ const Ppt2PolishPage = () => {
       console.log('pagecontent to send:', pagecontent);
       formData.append('pagecontent', JSON.stringify(pagecontent));
 
-      const res = await fetch('/api/v1/paper2ppt/generate', {
+      const res = await backendFetch('/api/v1/paper2ppt/generate', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
+        headers: {
+          'X-Workflow-Amount': '1',
+        },
         body: formData,
       });
       
       if (!res.ok) {
-        let msg = '服务器繁忙，请稍后再试';
-        if (res.status === 429) {
-          msg = '请求过于频繁，请稍后再试';
-        } else {
-          try {
-            const errBody = await res.json();
-            if (errBody?.error) msg = errBody.error;
-          } catch { /* ignore parse error */ }
-        }
-        throw new Error(msg);
+        throw new Error(await extractErrorMessage(res, '服务器繁忙，请稍后再试'));
       }
 
       const data = await res.json();
@@ -1039,6 +1170,17 @@ const Ppt2PolishPage = () => {
       if (!data.success) {
         throw new Error(data.error || '服务器繁忙，请稍后再试');
       }
+
+      const responsePagecontent = Array.isArray(data.pagecontent) ? data.pagecontent : [];
+      const currentPageMeta = responsePagecontent.find((item: any, itemIndex: number) => {
+        const pageIdx = Number(item?.page_idx);
+        if (Number.isInteger(pageIdx)) {
+          return pageIdx === index;
+        }
+        return itemIndex === index;
+      });
+      const failedPages = Array.isArray(data.failed_pages) ? data.failed_pages as FailedPageInfo[] : [];
+      const currentFailedPage = failedPages.find((item) => Number(item?.page_idx) === index);
       
       // 从 all_output_files 中找到对应的页面图片
       // 优先匹配美化后的图 (ppt_pages/page_xxx.png)，其次才是原图 (ppt_images/slide_xxx.png)
@@ -1048,7 +1190,8 @@ const Ppt2PolishPage = () => {
       console.log('查找原图模式:', slidePattern);
       
       // 先找美化后的图
-      let pageImageUrl = data.all_output_files?.find((url: string) => url.includes(pagePattern));
+      let pageImageUrl = data.all_output_files?.find((url: string) => url.includes(pagePattern))
+        || (typeof currentPageMeta?.generated_img_path === 'string' ? currentPageMeta.generated_img_path : '');
       console.log('美化后图片 URL:', pageImageUrl);
       
       // 如果没有美化后的图，再找原图作为 fallback
@@ -1063,24 +1206,52 @@ const Ppt2PolishPage = () => {
       }
       
       console.log('最终使用的图片 URL:', pageImageUrl);
+
+      if (!pageImageUrl) {
+        const failureReason = String(
+          currentFailedPage?.reason
+          || currentFailedPage?.error
+          || currentFailedPage?.mode
+          || currentPageMeta?.error
+          || currentPageMeta?.mode
+          || '该页生成失败，请稍后重试'
+        ).trim();
+        updatedResults[index] = {
+          ...updatedResults[index],
+          status: updatedResults[index].afterImage ? 'done' : 'failed',
+          errorMessage: failureReason || '该页生成失败，请稍后重试',
+        };
+        setBeautifyResults(updatedResults);
+        setError(`第 ${index + 1} 页生成失败：${failureReason || '请稍后重试'}`);
+        return false;
+      }
       
       updatedResults[index] = {
         ...updatedResults[index],
         status: 'done',
         afterImage: pageImageUrl || updatedResults[index].afterImage,
+        afterImagePreview: getPreviewPath(currentPageMeta, 'generated_img_path') || pageImageUrl || updatedResults[index].afterImagePreview,
+        errorMessage: undefined,
         userPrompt: slidePrompt || undefined,
       };
-    setBeautifyResults(updatedResults);
+      setBeautifyResults(updatedResults);
+      setError(null);
 
-    // 获取更新的版本历史
-    await fetchVersionHistory(index);
+      // 获取更新的版本历史
+      await fetchVersionHistory(index);
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
-      updatedResults[index] = { ...updatedResults[index], status: 'pending' };
-    setBeautifyResults(updatedResults);
+      updatedResults[index] = {
+        ...updatedResults[index],
+        status: updatedResults[index].afterImage ? 'done' : 'failed',
+        errorMessage: message,
+      };
+      setBeautifyResults(updatedResults);
+      return false;
     } finally {
-    setIsBeautifying(false);
+      setIsBeautifying(false);
     }
   };
 
@@ -1091,12 +1262,20 @@ const Ppt2PolishPage = () => {
       setSlidePrompt('');
       // 移除自动美化逻辑，因为现在是预先批量生成好了
     } else {
+      const failedPageNumbers = getFailedPageNumbers(beautifyResults);
+      if (failedPageNumbers.length > 0) {
+        setError(`第 ${failedPageNumbers.join('、')} 页仍未生成成功，请先重试这些页面再导出。`);
+        return;
+      }
       setCurrentStep('complete');
     }
   };
 
 
   const handleRegenerateSlide = async () => {
+    if (!(await ensureQuotaForAction(1, `重新美化第 ${currentSlideIndex + 1} 页 PPT`))) {
+      return;
+    }
     const updatedResults = [...beautifyResults];
     updatedResults[currentSlideIndex] = {
       ...updatedResults[currentSlideIndex],
@@ -1104,7 +1283,14 @@ const Ppt2PolishPage = () => {
       status: 'pending'
     };
     setBeautifyResults(updatedResults);
-    await startBeautifyCurrentSlide(updatedResults, currentSlideIndex);
+    const success = await startBeautifyCurrentSlide(updatedResults, currentSlideIndex);
+    if (success) {
+      await consumeQuotaForAction(
+        'ppt2polish',
+        1,
+        `PPT 单页美化已完成，但第 ${currentSlideIndex + 1} 页的 1 点扣费记录失败，请刷新余额确认。`,
+      );
+    }
   };
 
   // ============== 版本历史管理 ==============
@@ -1113,10 +1299,7 @@ const Ppt2PolishPage = () => {
 
     try {
       const encodedPath = btoa(resultPath);
-      const res = await fetch(
-        `/api/v1/paper2ppt/version-history/${encodedPath}/${pageIndex}`,
-        { headers: { 'X-API-Key': API_KEY } }
-      );
+      const res = await backendFetch(`/api/v1/paper2ppt/version-history/${encodedPath}/${pageIndex}`);
 
       if (!res.ok) return;
 
@@ -1157,9 +1340,8 @@ const Ppt2PolishPage = () => {
       formData.append('page_id', String(currentSlideIndex));
       formData.append('target_version', String(versionNumber));
 
-      const res = await fetch('/api/v1/paper2ppt/revert-version', {
+      const res = await backendFetch('/api/v1/paper2ppt/revert-version', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
 
@@ -1172,6 +1354,7 @@ const Ppt2PolishPage = () => {
         updatedResults[currentSlideIndex] = {
           ...updatedResults[currentSlideIndex],
           afterImage: data.currentImageUrl + '?t=' + Date.now(),
+          afterImagePreview: data.currentImageUrl + '?t=' + Date.now(),
           currentVersionIndex: versionNumber - 1,
         };
         setBeautifyResults(updatedResults);
@@ -1198,8 +1381,11 @@ const Ppt2PolishPage = () => {
       // 调用 /paper2ppt/ppt_json 接口生成最终 PPT
       const formData = new FormData();
       formData.append('img_gen_model_name', genFigModel);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
+      formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+      }
       formData.append('model', model);
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
@@ -1222,9 +1408,8 @@ const Ppt2PolishPage = () => {
       }));
       formData.append('pagecontent', JSON.stringify(pagecontent));
 
-      const res = await fetch('/api/v1/paper2ppt/generate', {
+      const res = await backendFetch('/api/v1/paper2ppt/generate', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
       
@@ -1263,10 +1448,6 @@ const Ppt2PolishPage = () => {
       if (!pptxUrl && !pdfUrl) {
         throw new Error('未找到生成的文件');
       }
-
-      // Record usage
-      await recordUsage(user?.id || null, 'ppt2polish', { isAnonymous: user?.is_anonymous || false });
-      refreshQuota();
 
       // Upload generated file to Supabase Storage (either PPTX or PDF)
       // Prefer PPTX, fallback to PDF
@@ -1349,20 +1530,20 @@ const Ppt2PolishPage = () => {
           <div key={step.key} className="flex items-center">
             <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
               index === currentIndex 
-                ? 'bg-gradient-to-r from-primary-600 to-amber-500 text-white shadow-lg' 
+                ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white shadow-lg' 
                 : index < currentIndex 
-                  ? 'bg-primary-500/18 text-[#ffd7c0] border border-primary-400/35'
-                  : 'bg-white/6 text-[#b99189] border border-white/10'
+                  ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40'
+                  : 'bg-white/5 text-gray-500 border border-white/10'
             }`}>
               <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                index < currentIndex ? 'bg-amber-400 text-[#4e1d2c]' : ''
+                index < currentIndex ? 'bg-teal-400 text-white' : ''
               }`}>
                 {index < currentIndex ? <Check size={14} /> : step.num}
               </span>
               <span className="hidden sm:inline">{step.label}</span>
             </div>
             {index < steps.length - 1 && (
-            <ArrowRight size={16} className={`mx-2 ${index < currentIndex ? 'text-amber-300' : 'text-[#a4857c]'}`} />
+              <ArrowRight size={16} className={`mx-2 ${index < currentIndex ? 'text-teal-400' : 'text-gray-600'}`} />
             )}
           </div>
         ))}
@@ -1374,43 +1555,43 @@ const Ppt2PolishPage = () => {
   const renderUploadStep = () => (
     <div className="max-w-6xl mx-auto">
       <div className="mb-10 text-center">
-        <p className="text-xs uppercase tracking-[0.2em] text-amber-300 mb-3 font-semibold">
+        <p className="text-xs uppercase tracking-[0.2em] text-teal-300 mb-3 font-semibold">
           {t('subtitle')}
         </p>
         <h1 className="text-4xl md:text-5xl font-bold mb-4">
-          <span className="bg-gradient-to-r from-primary-400 via-primary-500 to-amber-400 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400 bg-clip-text text-transparent">
             {t('title')}
           </span>
         </h1>
-        <p className="text-base text-[#ead4cd] max-w-2xl mx-auto leading-relaxed">
+        <p className="text-base text-gray-300 max-w-2xl mx-auto leading-relaxed">
           {t('desc')}
           <br />
-          <span className="text-amber-300">{t('descHighlight')}</span>
+          <span className="text-teal-400">{t('descHighlight')}</span>
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="glass rounded-xl border border-white/10 p-6 flex flex-col h-full">
           <h3 className="text-white font-semibold flex items-center gap-2 mb-4">
-            <FileText size={18} className="text-amber-300" />
+            <FileText size={18} className="text-teal-400" />
             {t('upload.title')}
           </h3>
           <div
             className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center gap-4 transition-all flex-1 ${
-              isDragOver ? 'border-primary-400 bg-primary-500/10' : 'border-white/20 hover:border-primary-300'
+              isDragOver ? 'border-teal-500 bg-teal-500/10' : 'border-white/20 hover:border-teal-400'
             }`}
             onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
             onDragLeave={(e) => { e.preventDefault(); setIsDragOver(false); }}
             onDrop={handleDrop}
           >
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-500/20 to-amber-500/20 flex items-center justify-center">
-              <UploadCloud size={32} className="text-amber-300" />
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500/20 to-teal-500/20 flex items-center justify-center">
+              <UploadCloud size={32} className="text-teal-400" />
             </div>
             <div>
               <p className="text-white font-medium mb-1">{t('upload.dragText')}</p>
-              <p className="text-sm text-[#d8b7b0]">{t('upload.supportText')}</p>
+              <p className="text-sm text-gray-400">{t('upload.supportText')}</p>
             </div>
-            <label className="group relative px-6 py-2.5 rounded-full bg-gradient-to-r from-primary-600 to-amber-500 text-white text-sm font-medium cursor-pointer hover:from-primary-700 hover:to-amber-600 transition-all">
+            <label className="group relative px-6 py-2.5 rounded-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white text-sm font-medium cursor-pointer hover:from-cyan-700 hover:to-teal-700 transition-all">
               <Presentation size={16} className="inline mr-2" />
               {t('upload.button')}
               <input type="file" accept=".ppt,.pptx,.pdf" className="hidden" onChange={handleFileChange} />
@@ -1421,8 +1602,8 @@ const Ppt2PolishPage = () => {
             </label>
             {selectedFile && (
               <div className="px-4 py-2 bg-teal-500/20 border border-teal-500/40 rounded-lg">
-                <p className="text-sm text-amber-200">{t('upload.fileInfo', { name: selectedFile.name })}</p>
-                <p className="text-xs text-[#d8b7b0] mt-1">{t('upload.modeInfo')}</p>
+                <p className="text-sm text-teal-300">{t('upload.fileInfo', { name: selectedFile.name })}</p>
+                <p className="text-xs text-gray-400 mt-1">{t('upload.modeInfo')}</p>
               </div>
             )}
           </div>
@@ -1430,7 +1611,7 @@ const Ppt2PolishPage = () => {
 
         <div className="glass rounded-xl border border-white/10 p-6 space-y-5">
           <h3 className="text-white font-semibold flex items-center gap-2">
-            <Settings2 size={18} className="text-amber-300" />
+            <Settings2 size={18} className="text-teal-400" />
             {t('upload.config.title')}
           </h3>
           
@@ -1445,47 +1626,53 @@ const Ppt2PolishPage = () => {
             />
           </div> */}
           
-          <div>
-            <label className="block text-sm text-gray-300 mb-2">{t('upload.config.apiUrl')}</label>
-            <div className="flex items-center gap-2">
-                        <select 
-                          value={llmApiUrl} 
-                          onChange={e => {
-                            const val = e.target.value;
-                            setLlmApiUrl(val);
-                            if (val.includes('123.129.219.111')) {
-                              setGenFigModel('gemini-3-pro-image-preview');
-                            }
-                          }}
-                          className="flex-1 rounded-lg border border-white/20 bg-black/25 px-4 py-2.5 text-sm text-[#fff5f0] outline-none focus:ring-2 focus:ring-primary-500/30"
-                        >
-                          {API_URL_OPTIONS.map((url: string) => (
-                            <option key={url} value={url}>{url}</option>
-                          ))}
-                        </select>
-              <QRCodeTooltip>
-                <a
-                  href={getPurchaseUrl(llmApiUrl)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="whitespace-nowrap text-[10px] text-amber-300 hover:text-amber-200 hover:underline px-1"
-                >
-                  {t('upload.config.buyLink')}
-                </a>
-              </QRCodeTooltip>
-            </div>
-          </div>
-          
-          <div>
-            <label className="block text-sm text-gray-300 mb-2">{t('upload.config.apiKey')}</label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={t('upload.config.apiKeyPlaceholder')}
-              className="w-full rounded-lg border border-white/20 bg-black/25 px-4 py-2.5 text-sm text-[#fff5f0] outline-none focus:ring-2 focus:ring-primary-500/30 placeholder:text-[#b99189]"
-            />
-          </div>
+          {userApiConfigRequired ? (
+            <>
+              <div>
+                <label className="block text-sm text-gray-300 mb-2">{t('upload.config.apiUrl')}</label>
+                <div className="flex items-center gap-2">
+                            <select 
+                              value={llmApiUrl} 
+                              onChange={e => {
+                                const val = e.target.value;
+                                setLlmApiUrl(val);
+                                if (val.includes('123.129.219.111')) {
+                                  setGenFigModel('gemini-3-pro-image-preview');
+                                }
+                              }}
+                              className="flex-1 rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
+                            >
+                              {API_URL_OPTIONS.map((url: string) => (
+                                <option key={url} value={url}>{url}</option>
+                              ))}
+                            </select>
+                  <QRCodeTooltip>
+                    <a
+                      href={getPurchaseUrl(llmApiUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="whitespace-nowrap text-[10px] text-teal-300 hover:text-teal-200 hover:underline px-1"
+                    >
+                      {t('upload.config.buyLink')}
+                    </a>
+                  </QRCodeTooltip>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm text-gray-300 mb-2">{t('upload.config.apiKey')}</label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder={t('upload.config.apiKeyPlaceholder')}
+                  className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500"
+                />
+              </div>
+            </>
+          ) : (
+            <ManagedApiNotice />
+          )}
           
           <div>
             <label className="block text-sm text-gray-300 mb-2">{t('upload.config.model')}</label>
@@ -1493,7 +1680,7 @@ const Ppt2PolishPage = () => {
               <select
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                className="w-full rounded-lg border border-white/20 bg-black/25 px-4 py-2.5 text-sm text-[#fff5f0] outline-none focus:ring-2 focus:ring-primary-500/30"
+                className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
               >
                 {modelOptions.map((option) => (
                   <option key={option} value={option}>{option}</option>
@@ -1505,7 +1692,7 @@ const Ppt2PolishPage = () => {
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
                   placeholder="自定义模型"
-                  className="w-full rounded-lg border border-white/20 bg-black/25 px-4 py-2.5 text-sm text-[#fff5f0] outline-none focus:ring-2 focus:ring-primary-500/30"
+                  className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
                 />
                 <div className="pointer-events-none absolute left-full top-1/2 z-20 ml-2 w-56 -translate-y-1/2 rounded-md border border-white/10 bg-black/80 px-2 py-1.5 text-[10px] text-gray-100 opacity-0 shadow-lg transition group-hover:opacity-100">
                   {t('upload.config.customModelTip')}
@@ -1520,7 +1707,7 @@ const Ppt2PolishPage = () => {
               value={genFigModel}
               onChange={(e) => setGenFigModel(e.target.value)}
               disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
-              className="w-full rounded-lg border border-white/20 bg-black/25 px-4 py-2.5 text-sm text-[#fff5f0] outline-none focus:ring-2 focus:ring-primary-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {genFigModelOptions.map((option) => (
                 <option key={option} value={option}>{option}</option>
@@ -1536,7 +1723,7 @@ const Ppt2PolishPage = () => {
             <select
               value={language}
               onChange={(e) => setLanguage(e.target.value as 'zh' | 'en')}
-              className="w-full rounded-lg border border-white/20 bg-black/25 px-4 py-2.5 text-sm text-[#fff5f0] outline-none focus:ring-2 focus:ring-primary-500/30"
+              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
             >
               <option value="zh">中文 (zh)</option>
               <option value="en">英文 (en)</option>
@@ -1548,7 +1735,7 @@ const Ppt2PolishPage = () => {
             <select
               value={renderResolution}
               onChange={(e) => setRenderResolution(e.target.value as typeof renderResolution)}
-              className="w-full rounded-lg border border-white/20 bg-black/25 px-4 py-2.5 text-sm text-[#fff5f0] outline-none focus:ring-2 focus:ring-primary-500/30"
+              className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
             >
               <option value="auto">{t('upload.config.renderOptions.auto')}</option>
               <option value="1080p">{t('upload.config.renderOptions.1080p')}</option>
@@ -1561,10 +1748,10 @@ const Ppt2PolishPage = () => {
           <div className="border-t border-white/10 pt-4">
             <h4 className="text-sm text-gray-300 mb-3 font-medium">{t('upload.config.styleTitle')}</h4>
           <div className="flex gap-2">
-            <button onClick={() => setStyleMode('preset')} className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${styleMode === 'preset' ? 'bg-gradient-to-r from-primary-600 to-amber-500 text-white' : 'bg-white/5 text-[#d8b7b0] border border-white/10 hover:bg-white/10'}`}>
+            <button onClick={() => setStyleMode('preset')} className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${styleMode === 'preset' ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white' : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'}`}>
               <Sparkles size={16} /> {t('upload.config.styleMode.preset')}
             </button>
-            <button onClick={() => setStyleMode('reference')} className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${styleMode === 'reference' ? 'bg-gradient-to-r from-primary-600 to-amber-500 text-white' : 'bg-white/5 text-[#d8b7b0] border border-white/10 hover:bg-white/10'}`}>
+            <button onClick={() => setStyleMode('reference')} className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${styleMode === 'reference' ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white' : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'}`}>
               <ImageIcon size={16} /> {t('upload.config.styleMode.reference')}
             </button>
           </div>
@@ -1572,7 +1759,7 @@ const Ppt2PolishPage = () => {
             <>
               <div>
                 <label className="block text-sm text-gray-300 mb-2">{t('upload.config.stylePreset')}</label>
-                <select value={stylePreset} onChange={(e) => setStylePreset(e.target.value as typeof stylePreset)} className="w-full rounded-lg border border-white/20 bg-black/25 px-4 py-2.5 text-sm text-[#fff5f0] outline-none focus:ring-2 focus:ring-primary-500/30">
+                <select value={stylePreset} onChange={(e) => setStylePreset(e.target.value as typeof stylePreset)} className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500">
                   <option value="modern">{t('upload.config.presets.modern')}</option>
                   <option value="business">{t('upload.config.presets.business')}</option>
                   <option value="academic">{t('upload.config.presets.academic')}</option>
@@ -1581,7 +1768,7 @@ const Ppt2PolishPage = () => {
               </div>
               <div>
                 <label className="block text-sm text-gray-300 mb-2">{t('upload.config.promptLabel')}</label>
-                <textarea value={globalPrompt} onChange={(e) => setGlobalPrompt(e.target.value)} placeholder={t('upload.config.promptPlaceholder')}  rows={3} className="w-full rounded-lg border border-white/20 bg-black/25 px-4 py-2.5 text-sm text-[#fff5f0] outline-none focus:ring-2 focus:ring-primary-500/30 placeholder:text-[#b99189] resize-none" />
+                <textarea value={globalPrompt} onChange={(e) => setGlobalPrompt(e.target.value)} placeholder={t('upload.config.promptPlaceholder')}  rows={3} className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-gray-500 resize-none" />
               </div>
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -1597,13 +1784,13 @@ const Ppt2PolishPage = () => {
                         setStyleMode('preset');
                         setGlobalPrompt(card.text);
                       }}
-                      className="group text-left rounded-2xl border border-white/15 bg-white/5 px-4 py-3 shadow-[0_10px_30px_rgba(56,16,28,0.28)] backdrop-blur transition-all hover:-translate-y-0.5 hover:border-primary-300/60 hover:bg-white/10"
+                      className="group text-left rounded-2xl border border-white/15 bg-white/5 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur transition-all hover:-translate-y-0.5 hover:border-teal-400/60 hover:bg-white/10"
                     >
                       <div className="text-sm font-semibold text-white mb-1">{card.title}</div>
                       <div className="text-[11px] leading-relaxed text-gray-300 whitespace-pre-line line-clamp-4">
                         {card.text}
                       </div>
-                      <div className="mt-2 text-[10px] text-amber-300 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="mt-2 text-[10px] text-teal-300 opacity-0 transition-opacity group-hover:opacity-100">
                         {t('upload.config.promptCardsUse')}
                       </div>
                     </button>
@@ -1620,12 +1807,12 @@ const Ppt2PolishPage = () => {
                   <div className="relative">
                     <img src={referenceImagePreview} alt="参考风格" className="w-full h-40 object-cover rounded-lg border border-white/20" />
                     <button onClick={handleRemoveReferenceImage} className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-red-500 transition-colors"><X size={14} /></button>
-                    <p className="text-xs text-amber-300 mt-2">✓ {t('upload.config.referenceUploaded')}</p>
+                    <p className="text-xs text-teal-300 mt-2">✓ {t('upload.config.referenceUploaded')}</p>
                   </div>
                 ) : (
-                  <label className="border-2 border-dashed border-white/20 rounded-lg p-6 flex flex-col items-center justify-center text-center gap-2 cursor-pointer hover:border-primary-300 transition-all">
+                  <label className="border-2 border-dashed border-white/20 rounded-lg p-6 flex flex-col items-center justify-center text-center gap-2 cursor-pointer hover:border-teal-400 transition-all">
                     <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center"><ImageIcon size={24} className="text-gray-400" /></div>
-                    <p className="text-sm text-[#d8b7b0]">{t('upload.config.referenceUpload')}</p>
+                    <p className="text-sm text-gray-400">{t('upload.config.referenceUpload')}</p>
                     <input type="file" accept="image/*" className="hidden" onChange={handleReferenceImageChange} />
                   </label>
                 )}
@@ -1633,24 +1820,24 @@ const Ppt2PolishPage = () => {
             </>
           )}
             </div>
-          <button onClick={handleUploadAndParse} disabled={!selectedFile || isUploading} className="w-full py-3 rounded-lg bg-gradient-to-r from-primary-600 to-amber-500 hover:from-primary-700 hover:to-amber-600 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold flex items-center justify-center gap-2 transition-all">
+          <button onClick={handleUploadAndParse} disabled={!selectedFile || isUploading} className="w-full py-3 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold flex items-center justify-center gap-2 transition-all">
             {isUploading ? <><Loader2 size={18} className="animate-spin" /> {t('upload.config.parsing')}</> : <><ArrowRight size={18} /> {t('upload.config.start')}</>}
           </button>
 
-          <div className="flex items-start gap-2 text-xs text-[#b99189] mt-3 px-1">
-            <Info size={14} className="mt-0.5 text-[#d8b7b0] flex-shrink-0" />
+          <div className="flex items-start gap-2 text-xs text-gray-500 mt-3 px-1">
+            <Info size={14} className="mt-0.5 text-gray-400 flex-shrink-0" />
             <p>{t('upload.config.tip')}</p>
           </div>
 
           {isUploading && (
             <div className="mt-4 animate-in fade-in slide-in-from-top-2">
-              <div className="flex justify-between text-xs text-[#d8b7b0] mb-1">
+              <div className="flex justify-between text-xs text-gray-400 mb-1">
                 <span>{progressStatus}</span>
                 <span>{Math.round(progress)}%</span>
               </div>
               <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-gradient-to-r from-primary-600 to-amber-500 transition-all duration-300 ease-out"
+                  className="h-full bg-gradient-to-r from-cyan-500 to-teal-500 transition-all duration-300 ease-out"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -1662,11 +1849,11 @@ const Ppt2PolishPage = () => {
       {isValidating && (
         <div className="mt-4 flex items-center gap-2 text-sm text-cyan-300 bg-cyan-500/10 border border-cyan-500/40 rounded-lg px-4 py-3 animate-pulse">
             <Loader2 size={16} className="animate-spin" />
-            <p>{t('errors.validating')}</p>
+            <p>{getManagedValidationText(userApiConfigRequired)}</p>
         </div>
       )}
 
-      {error && <div className="mt-4 flex items-center gap-2 text-sm text-red-300 bg-red-500/10 border border-red-500/40 rounded-lg px-4 py-3"><AlertCircle size={16} /> {error}</div>}
+      {renderErrorAlert()}
 
       {/* 示例区 */}
       {/* 示例区 */}
@@ -1676,11 +1863,11 @@ const Ppt2PolishPage = () => {
               href="https://wcny4qa9krto.feishu.cn/wiki/VXKiwYndwiWAVmkFU6kcqsTenWh"
               target="_blank"
               rel="noopener noreferrer"
-              className="group relative inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/40 border border-white/10 text-xs font-medium text-white overflow-hidden transition-all hover:border-white/30 hover:shadow-[0_0_15px_rgba(143,49,71,0.4)]"
+              className="group relative inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/50 border border-white/10 text-xs font-medium text-white overflow-hidden transition-all hover:border-white/30 hover:shadow-[0_0_15px_rgba(45,212,191,0.5)]"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-primary-500/20 via-primary-400/20 to-amber-400/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <Sparkles size={12} className="text-amber-300 animate-pulse" />
-              <span className="bg-gradient-to-r from-primary-200 via-primary-100 to-amber-200 bg-clip-text text-transparent group-hover:from-white group-hover:via-[#ffe6d9] group-hover:to-[#ffe8c8]">
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-teal-500/20 to-emerald-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <Sparkles size={12} className="text-teal-300 animate-pulse" />
+              <span className="bg-gradient-to-r from-cyan-300 via-teal-300 to-emerald-300 bg-clip-text text-transparent group-hover:from-cyan-200 group-hover:via-teal-200 group-hover:to-emerald-200">
                 常见问题与更多案例
               </span>
             </a>
@@ -1689,20 +1876,20 @@ const Ppt2PolishPage = () => {
         {/* 第一组：PPT 增色美化 */}
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <div className="w-1 h-8 bg-gradient-to-b from-primary-400 to-amber-500 rounded-full"></div>
+            <div className="w-1 h-8 bg-gradient-to-b from-cyan-400 to-teal-500 rounded-full"></div>
             <div>
               <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                <Sparkles size={18} className="text-amber-300" />
+                <Sparkles size={18} className="text-cyan-400" />
                 {t('demo.group1.title')}
               </h3>
-              <p className="text-sm text-[#d8b7b0]">
+              <p className="text-sm text-gray-400">
                 {t('demo.group1.desc')}
               </p>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Demo 1 */}
-            <div className="glass rounded-xl border border-white/10 p-4 hover:border-primary-400/30 transition-all">
+            <div className="glass rounded-xl border border-white/10 p-4 hover:border-cyan-500/30 transition-all">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs text-gray-500 mb-2 text-center">{t('demo.group1.original')}</p>
@@ -1711,15 +1898,15 @@ const Ppt2PolishPage = () => {
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs text-amber-300 mb-2 text-center">{t('demo.group1.result')}</p>
-                  <div className="rounded-lg overflow-hidden border border-primary-400/30 aspect-[16/9] bg-gradient-to-br from-primary-500/5 to-amber-500/5">
+                  <p className="text-xs text-cyan-400 mb-2 text-center">{t('demo.group1.result')}</p>
+                  <div className="rounded-lg overflow-hidden border border-cyan-500/30 aspect-[16/9] bg-gradient-to-br from-cyan-500/5 to-teal-500/5">
                     <img src="/ppt2polish/paper2ppt_polish_1.png" alt="美化后PPT示例1" className="w-full h-full object-contain" />
                   </div>
                 </div>
               </div>
             </div>
             {/* Demo 2 */}
-            <div className="glass rounded-xl border border-white/10 p-4 hover:border-primary-400/30 transition-all">
+            <div className="glass rounded-xl border border-white/10 p-4 hover:border-cyan-500/30 transition-all">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs text-gray-500 mb-2 text-center">{t('demo.group1.original')}</p>
@@ -1728,8 +1915,8 @@ const Ppt2PolishPage = () => {
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs text-amber-300 mb-2 text-center">{t('demo.group1.result')}</p>
-                  <div className="rounded-lg overflow-hidden border border-primary-400/30 aspect-[16/9] bg-gradient-to-br from-primary-500/5 to-amber-500/5">
+                  <p className="text-xs text-cyan-400 mb-2 text-center">{t('demo.group1.result')}</p>
+                  <div className="rounded-lg overflow-hidden border border-cyan-500/30 aspect-[16/9] bg-gradient-to-br from-cyan-500/5 to-teal-500/5">
                     <img src="/ppt2polish/paper2ppt_polish_2.png" alt="美化后PPT示例2" className="w-full h-full object-contain" />
                   </div>
                 </div>
@@ -1741,20 +1928,20 @@ const Ppt2PolishPage = () => {
         {/* 第二组：PPT 润色拓展 */}
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <div className="w-1 h-8 bg-gradient-to-b from-primary-500 to-amber-500 rounded-full"></div>
+            <div className="w-1 h-8 bg-gradient-to-b from-purple-400 to-pink-500 rounded-full"></div>
             <div>
               <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                <Edit3 size={18} className="text-primary-300" />
+                <Edit3 size={18} className="text-purple-400" />
                 {t('demo.group2.title')}
               </h3>
-              <p className="text-sm text-[#d8b7b0]">
+              <p className="text-sm text-gray-400">
                 {t('demo.group2.desc')}
               </p>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Demo 3 */}
-            <div className="glass rounded-xl border border-white/10 p-4 hover:border-primary-400/30 transition-all">
+            <div className="glass rounded-xl border border-white/10 p-4 hover:border-purple-500/30 transition-all">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs text-gray-500 mb-2 text-center">{t('demo.group2.original')}</p>
@@ -1763,15 +1950,15 @@ const Ppt2PolishPage = () => {
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs text-amber-300 mb-2 text-center">{t('demo.group2.result')}</p>
-                  <div className="rounded-lg overflow-hidden border border-primary-400/30 aspect-[16/9] bg-gradient-to-br from-primary-500/5 to-amber-500/5">
+                  <p className="text-xs text-purple-400 mb-2 text-center">{t('demo.group2.result')}</p>
+                  <div className="rounded-lg overflow-hidden border border-purple-500/30 aspect-[16/9] bg-gradient-to-br from-purple-500/5 to-pink-500/5">
                     <img src="/ppt2polish/polish_3.png" alt="美化后PPT示例3" className="w-full h-full object-contain" />
                   </div>
                 </div>
               </div>
             </div>
             {/* Demo 4 */}
-            <div className="glass rounded-xl border border-white/10 p-4 hover:border-primary-400/30 transition-all">
+            <div className="glass rounded-xl border border-white/10 p-4 hover:border-purple-500/30 transition-all">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs text-gray-500 mb-2 text-center">{t('demo.group2.original')}</p>
@@ -1780,8 +1967,8 @@ const Ppt2PolishPage = () => {
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs text-amber-300 mb-2 text-center">{t('demo.group2.result')}</p>
-                  <div className="rounded-lg overflow-hidden border border-primary-400/30 aspect-[16/9] bg-gradient-to-br from-primary-500/5 to-amber-500/5">
+                  <p className="text-xs text-purple-400 mb-2 text-center">{t('demo.group2.result')}</p>
+                  <div className="rounded-lg overflow-hidden border border-purple-500/30 aspect-[16/9] bg-gradient-to-br from-purple-500/5 to-pink-500/5">
                     <img src="/ppt2polish/polish_4.png" alt="美化后PPT示例4" className="w-full h-full object-contain" />
                   </div>
                 </div>
@@ -1798,40 +1985,40 @@ const Ppt2PolishPage = () => {
     <div className="max-w-5xl mx-auto">
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold text-white mb-2">{t('outline.title')}</h2>
-        <p className="text-[#d8b7b0]">{t('outline.subtitle')}</p>
+        <p className="text-gray-400">{t('outline.subtitle')}</p>
       </div>
       <div className="glass rounded-xl border border-white/10 p-6 mb-6">
         <div className="space-y-3">
           {outlineData.map((slide, index) => (
-            <div key={slide.id} className={`flex items-start gap-4 p-4 rounded-lg border transition-all ${editingId === slide.id ? 'bg-primary-500/10 border-primary-400/35' : 'bg-white/5 border-white/10 hover:border-white/20'}`}>
+            <div key={slide.id} className={`flex items-start gap-4 p-4 rounded-lg border transition-all ${editingId === slide.id ? 'bg-teal-500/10 border-teal-500/40' : 'bg-white/5 border-white/10 hover:border-white/20'}`}>
               <div className="flex items-center gap-2 pt-1">
                 <GripVertical size={16} className="text-gray-500 cursor-grab" />
-                <span className="w-8 h-8 rounded-full bg-primary-500/20 text-amber-200 text-sm font-medium flex items-center justify-center">{slide.pageNum}</span>
+                <span className="w-8 h-8 rounded-full bg-teal-500/20 text-teal-300 text-sm font-medium flex items-center justify-center">{slide.pageNum}</span>
               </div>
               <div className="flex-1">
                 {editingId === slide.id ? (
                   <div className="space-y-3">
-                    <input type="text" value={editContent.title} onChange={(e) => setEditContent(prev => ({ ...prev, title: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-black/25 border border-white/20 text-white text-sm outline-none focus:ring-2 focus:ring-primary-500/30" placeholder={t('outline.edit.titlePlaceholder')} />
-                    <textarea value={editContent.layout_description} onChange={(e) => setEditContent(prev => ({ ...prev, layout_description: e.target.value }))} rows={2} className="w-full px-3 py-2 rounded-lg bg-black/25 border border-white/20 text-white text-sm outline-none focus:ring-2 focus:ring-primary-500/30 resize-none" placeholder={t('outline.edit.layoutPlaceholder')} />
+                    <input type="text" value={editContent.title} onChange={(e) => setEditContent(prev => ({ ...prev, title: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/20 text-white text-sm outline-none focus:ring-2 focus:ring-teal-500" placeholder={t('outline.edit.titlePlaceholder')} />
+                    <textarea value={editContent.layout_description} onChange={(e) => setEditContent(prev => ({ ...prev, layout_description: e.target.value }))} rows={2} className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/20 text-white text-sm outline-none focus:ring-2 focus:ring-teal-500 resize-none" placeholder={t('outline.edit.layoutPlaceholder')} />
                     <div className="space-y-2">
                       {editContent.key_points.map((point, idx) => (
                         <div key={idx} className="flex gap-2">
-                          <input type="text" value={point} onChange={(e) => handleKeyPointChange(idx, e.target.value)} className="flex-1 px-3 py-2 rounded-lg bg-black/25 border border-white/20 text-white text-sm outline-none focus:ring-2 focus:ring-primary-500/30" placeholder={`${t('outline.edit.pointPlaceholder')} ${idx + 1}`} />
+                          <input type="text" value={point} onChange={(e) => handleKeyPointChange(idx, e.target.value)} className="flex-1 px-3 py-2 rounded-lg bg-black/40 border border-white/20 text-white text-sm outline-none focus:ring-2 focus:ring-teal-500" placeholder={`${t('outline.edit.pointPlaceholder')} ${idx + 1}`} />
                           <button onClick={() => handleRemoveKeyPoint(idx)} className="p-2 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400"><Trash2 size={14} /></button>
                         </div>
                       ))}
-                      <button onClick={handleAddKeyPoint} className="px-3 py-1.5 rounded-lg bg-white/5 border border-dashed border-white/20 text-[#d8b7b0] hover:text-amber-300 hover:border-primary-300 text-sm w-full">{t('outline.edit.addPoint')}</button>
+                      <button onClick={handleAddKeyPoint} className="px-3 py-1.5 rounded-lg bg-white/5 border border-dashed border-white/20 text-gray-400 hover:text-teal-400 hover:border-teal-400 text-sm w-full">{t('outline.edit.addPoint')}</button>
                     </div>
                     <div className="flex gap-2 pt-2">
-                      <button onClick={handleEditSave} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-primary-600 to-amber-500 text-white text-sm flex items-center gap-1"><Check size={14} /> {t('outline.edit.save')}</button>
+                      <button onClick={handleEditSave} className="px-3 py-1.5 rounded-lg bg-teal-500 text-white text-sm flex items-center gap-1"><Check size={14} /> {t('outline.edit.save')}</button>
                       <button onClick={handleEditCancel} className="px-3 py-1.5 rounded-lg bg-white/10 text-gray-300 text-sm">{t('outline.edit.cancel')}</button>
                     </div>
                   </div>
                 ) : (
                   <>
                     <div className="mb-2"><h4 className="text-white font-medium">{slide.title}</h4></div>
-                    <p className="text-xs text-amber-200/70 mb-2 italic">📐 {slide.layout_description}</p>
-                    <ul className="space-y-1">{slide.key_points.map((point, idx) => (<li key={idx} className="text-sm text-[#d8b7b0] flex items-start gap-2"><span className="text-amber-300 mt-0.5">•</span><span>{point}</span></li>))}</ul>
+                    <p className="text-xs text-cyan-400/70 mb-2 italic">📐 {slide.layout_description}</p>
+                    <ul className="space-y-1">{slide.key_points.map((point, idx) => (<li key={idx} className="text-sm text-gray-400 flex items-start gap-2"><span className="text-teal-400 mt-0.5">•</span><span>{point}</span></li>))}</ul>
                   </>
                 )}
               </div>
@@ -1839,7 +2026,7 @@ const Ppt2PolishPage = () => {
                 <div className="flex items-center gap-1">
                   <button onClick={() => handleMoveSlide(index, 'up')} disabled={index === 0} className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white disabled:opacity-30"><ChevronUp size={16} /></button>
                   <button onClick={() => handleMoveSlide(index, 'down')} disabled={index === outlineData.length - 1} className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white disabled:opacity-30"><ChevronDown size={16} /></button>
-                  <button onClick={() => handleEditStart(slide)} className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-amber-300"><Edit3 size={16} /></button>
+                  <button onClick={() => handleEditStart(slide)} className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-teal-400"><Edit3 size={16} /></button>
                   <button onClick={() => handleDeleteSlide(slide.id)} className="p-2 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400"><Trash2 size={16} /></button>
                 </div>
               )}
@@ -1848,8 +2035,8 @@ const Ppt2PolishPage = () => {
         </div>
       </div>
       <div className="flex justify-between">
-        <button onClick={() => setCurrentStep('upload')} className="px-6 py-2.5 rounded-lg border border-white/20 text-[#e6c8c0] hover:bg-white/10 flex items-center gap-2 transition-all"><ArrowLeft size={18} /> {t('outline.back')}</button>
-        <button onClick={handleConfirmOutline} className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-primary-600 to-amber-500 hover:from-primary-700 hover:to-amber-600 text-white font-semibold flex items-center gap-2 transition-all">{t('outline.confirm')} <ArrowRight size={18} /></button>
+        <button onClick={() => setCurrentStep('upload')} className="px-6 py-2.5 rounded-lg border border-white/20 text-gray-300 hover:bg-white/10 flex items-center gap-2 transition-all"><ArrowLeft size={18} /> {t('outline.back')}</button>
+        <button onClick={handleConfirmOutline} className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white font-semibold flex items-center gap-2 transition-all">{t('outline.confirm')} <ArrowRight size={18} /></button>
       </div>
     </div>
   );
@@ -1868,9 +2055,9 @@ const Ppt2PolishPage = () => {
             <p className="text-gray-400">{t('beautify.initDesc')}</p>
           </div>
           <div className="glass rounded-xl border border-white/10 p-12 flex flex-col items-center justify-center">
-            <Loader2 size={48} className="text-amber-300 animate-spin mb-4" />
-            <p className="text-amber-200 text-lg font-medium mb-2">{t('beautify.loadingTitle')}</p>
-            <p className="text-[#d8b7b0] text-sm">{t('beautify.loadingDesc')}</p>
+            <Loader2 size={48} className="text-teal-400 animate-spin mb-4" />
+            <p className="text-teal-300 text-lg font-medium mb-2">{t('beautify.loadingTitle')}</p>
+            <p className="text-gray-400 text-sm">{t('beautify.loadingDesc')}</p>
           </div>
         </div>
       );
@@ -1880,21 +2067,22 @@ const Ppt2PolishPage = () => {
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-6">
           <h2 className="text-2xl font-bold text-white mb-2">{t('beautify.title')}</h2>
-          <p className="text-[#d8b7b0]">{t('beautify.pageInfo', { current: currentSlideIndex + 1, total: outlineData.length, title: currentSlide?.title })}</p>
-          <p className="text-xs text-[#b99189] mt-1">{t('beautify.modeInfo')}</p>
+          <p className="text-gray-400">{t('beautify.pageInfo', { current: currentSlideIndex + 1, total: outlineData.length, title: currentSlide?.title })}</p>
+          <p className="text-xs text-gray-500 mt-1">{t('beautify.modeInfo')}</p>
         </div>
+        {renderErrorAlert('mb-6')}
         <div className="mb-6">
-          <div className="flex gap-1">{beautifyResults.map((result, index) => (<div key={result.slideId} className={`flex-1 h-2 rounded-full transition-all ${result.status === 'done' ? 'bg-amber-300' : result.status === 'processing' ? 'bg-gradient-to-r from-primary-400 to-amber-400 animate-pulse' : index === currentSlideIndex ? 'bg-primary-400/50' : 'bg-white/10'}`} />))}</div>
+          <div className="flex gap-1">{beautifyResults.map((result, index) => (<div key={result.slideId} className={`flex-1 h-2 rounded-full transition-all ${result.status === 'done' ? 'bg-teal-400' : result.status === 'failed' ? 'bg-red-400' : result.status === 'processing' ? 'bg-gradient-to-r from-cyan-400 to-teal-400 animate-pulse' : index === currentSlideIndex ? 'bg-teal-400/50' : 'bg-white/10'}`} />))}</div>
         </div>
         <div className="glass rounded-xl border border-white/10 p-6 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h4 className="text-sm text-[#d8b7b0] mb-3 flex items-center gap-2"><Eye size={14} /> {t('beautify.original')}</h4>
-              <div className="rounded-lg overflow-hidden border border-white/10 aspect-[16/9] bg-white/5 flex items-center justify-center">{currentResult?.beforeImage ? <img src={currentResult.beforeImage} alt="Before" className="max-w-full max-h-full object-contain" /> : <Loader2 size={24} className="text-[#b99189] animate-spin" />}</div>
+              <h4 className="text-sm text-gray-400 mb-3 flex items-center gap-2"><Eye size={14} /> {t('beautify.original')}</h4>
+              <div className="rounded-lg overflow-hidden border border-white/10 aspect-[16/9] bg-white/5 flex items-center justify-center">{currentResult?.beforeImage ? <img src={currentResult.beforeImagePreview || currentResult.beforeImage} alt="Before" className="max-w-full max-h-full object-contain" /> : <Loader2 size={24} className="text-gray-500 animate-spin" />}</div>
             </div>
             <div>
-              <h4 className="text-sm text-[#d8b7b0] mb-3 flex items-center gap-2"><Sparkles size={14} className="text-amber-300" /> {t('beautify.result')}</h4>
-              <div className="rounded-lg overflow-hidden border border-primary-400/30 aspect-[16/9] bg-gradient-to-br from-primary-500/10 to-amber-500/10 flex items-center justify-center">{isBeautifying ? <div className="text-center"><Loader2 size={32} className="text-amber-300 animate-spin mx-auto mb-2" /><p className="text-sm text-amber-200">{t('beautify.processing')}</p></div> : currentResult?.afterImage ? <img src={currentResult.afterImage} alt="After" className="max-w-full max-h-full object-contain" /> : <span className="text-[#b99189]">{t('beautify.waiting')}</span>}</div>
+              <h4 className="text-sm text-gray-400 mb-3 flex items-center gap-2"><Sparkles size={14} className="text-teal-400" /> {t('beautify.result')}</h4>
+              <div className="rounded-lg overflow-hidden border border-teal-500/30 aspect-[16/9] bg-gradient-to-br from-cyan-500/10 to-teal-500/10 flex items-center justify-center">{isBeautifying ? <div className="text-center"><Loader2 size={32} className="text-teal-400 animate-spin mx-auto mb-2" /><p className="text-sm text-teal-300">{t('beautify.processing')}</p></div> : currentResult?.afterImage ? <img src={currentResult.afterImagePreview || currentResult.afterImage} alt="After" className="max-w-full max-h-full object-contain" /> : currentResult?.status === 'failed' ? <div className="text-center px-6"><AlertCircle size={28} className="text-red-300 mx-auto mb-2" /><p className="text-sm text-red-200 mb-1">该页生成失败</p><p className="text-xs text-red-200/80">{currentResult.errorMessage || '请点击“重新生成”重试'}</p></div> : <span className="text-gray-500">{t('beautify.waiting')}</span>}</div>
             </div>
           </div>
         </div>
@@ -1910,10 +2098,10 @@ const Ppt2PolishPage = () => {
         )}
 
         <div className="glass rounded-xl border border-white/10 p-4 mb-6">
-          <div className="flex items-center gap-3"><MessageSquare size={18} className="text-amber-300" /><input type="text" value={slidePrompt} onChange={(e) => setSlidePrompt(e.target.value)} placeholder={t('beautify.regeneratePlaceholder')} className="flex-1 bg-transparent border-none outline-none text-white text-sm placeholder:text-[#b99189]" /><button onClick={handleRegenerateSlide} disabled={isBeautifying || !slidePrompt.trim()} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-[#e6c8c0] text-sm flex items-center gap-2 disabled:opacity-50 transition-all"><RefreshCw size={14} /> {t('beautify.regenerate')}</button></div>
+          <div className="flex items-center gap-3"><MessageSquare size={18} className="text-teal-400" /><input type="text" value={slidePrompt} onChange={(e) => setSlidePrompt(e.target.value)} placeholder={t('beautify.regeneratePlaceholder')} className="flex-1 bg-transparent border-none outline-none text-white text-sm placeholder:text-gray-500" /><button onClick={handleRegenerateSlide} disabled={isBeautifying || !slidePrompt.trim()} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 text-sm flex items-center gap-2 disabled:opacity-50 transition-all"><RefreshCw size={14} /> {t('beautify.regenerate')}</button></div>
         </div>
         <div className="flex justify-between">
-          <button onClick={() => setCurrentStep('upload')} className="px-6 py-2.5 rounded-lg border border-white/20 text-[#e6c8c0] hover:bg-white/10 flex items-center gap-2 transition-all"><ArrowLeft size={18} /> {t('beautify.back')}</button>
+          <button onClick={() => setCurrentStep('upload')} className="px-6 py-2.5 rounded-lg border border-white/20 text-gray-300 hover:bg-white/10 flex items-center gap-2 transition-all"><ArrowLeft size={18} /> {t('beautify.back')}</button>
           <div className="flex gap-3">
             <button 
               onClick={() => {
@@ -1923,11 +2111,11 @@ const Ppt2PolishPage = () => {
                 }
               }}
               disabled={currentSlideIndex === 0 || isBeautifying}
-              className="px-6 py-2.5 rounded-lg border border-white/20 text-[#e6c8c0] hover:bg-white/10 flex items-center gap-2 transition-all disabled:opacity-30"
+              className="px-6 py-2.5 rounded-lg border border-white/20 text-gray-300 hover:bg-white/10 flex items-center gap-2 transition-all disabled:opacity-30"
             >
               <ArrowLeft size={18} /> {t('beautify.prev')}
             </button>
-            <button onClick={handleConfirmSlide} disabled={isBeautifying || !currentResult?.afterImage} className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-primary-600 to-amber-500 hover:from-primary-700 hover:to-amber-600 text-white font-semibold flex items-center gap-2 transition-all disabled:opacity-50"><CheckCircle2 size={18} /> {t('beautify.next')}</button>
+            <button onClick={handleConfirmSlide} disabled={isBeautifying} className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white font-semibold flex items-center gap-2 transition-all disabled:opacity-50"><CheckCircle2 size={18} /> {t('beautify.next')}</button>
           </div>
         </div>
       </div>
@@ -1937,10 +2125,10 @@ const Ppt2PolishPage = () => {
   // ============== Step 4: 完成下载界面 ==============
   const renderCompleteStep = () => (
     <div className="max-w-2xl mx-auto text-center">
-      <div className="mb-8"><div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary-600 to-amber-500 flex items-center justify-center mx-auto mb-4"><CheckCircle2 size={40} className="text-white" /></div><h2 className="text-2xl font-bold text-white mb-2">{t('complete.title')}</h2></div>
+      <div className="mb-8"><div className="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500 to-teal-500 flex items-center justify-center mx-auto mb-4"><CheckCircle2 size={40} className="text-white" /></div><h2 className="text-2xl font-bold text-white mb-2">{t('complete.title')}</h2></div>
       <div className="glass rounded-xl border border-white/10 p-6 mb-6">
         <h3 className="text-white font-semibold mb-4">{t('complete.overview')}</h3>
-        <div className="grid grid-cols-4 gap-2">{beautifyResults.map((result, index) => (<div key={result.slideId} className="p-3 rounded-lg border bg-primary-500/16 border-primary-400/30"><p className="text-sm text-white">{t('complete.page', { index: index + 1 })}</p><p className="text-xs text-amber-200">{t('complete.status')}</p></div>))}</div>
+        <div className="grid grid-cols-4 gap-2">{beautifyResults.map((result, index) => (<div key={result.slideId} className="p-3 rounded-lg border bg-teal-500/20 border-teal-500/40"><p className="text-sm text-white">{t('complete.page', { index: index + 1 })}</p><p className="text-xs text-teal-300">{t('complete.status')}</p></div>))}</div>
       </div>
       {!(downloadUrl || pdfDownloadUrl) ? (
         <button onClick={handleGenerateFinal} disabled={isGeneratingFinal} className="px-8 py-3 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white font-semibold flex items-center justify-center gap-2 mx-auto transition-all">
@@ -1949,17 +2137,16 @@ const Ppt2PolishPage = () => {
       ) : (
         <div className="space-y-4">
           <div className="flex gap-4 justify-center">
-            {/* 已移除 PPTX 下载按钮 */}
+            {downloadUrl && (
+              <button onClick={handleDownload} className="px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white font-semibold flex items-center gap-2 transition-all">
+                <Download size={18} /> {t('complete.downloadPptx')}
+              </button>
+            )}
             {pdfDownloadUrl && (
               <a href={pdfDownloadUrl} target="_blank" rel="noopener noreferrer" className="px-6 py-3 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold flex items-center gap-2 transition-all">
                 <Download size={18} /> {t('complete.downloadPdf')}
               </a>
             )}
-          </div>
-
-          {/* 引导去 PDF2PPT */}
-          <div className="text-center text-sm text-gray-400 bg-white/5 border border-white/10 rounded-lg p-3">
-            {t('complete.pdf2pptLink')} <a href="/pdf2ppt" className="text-teal-400 hover:text-teal-300 hover:underline font-medium transition-colors">{t('complete.pdf2pptText')}</a>
           </div>
 
           <div>
@@ -1969,13 +2156,13 @@ const Ppt2PolishPage = () => {
           </div>
 
           {/* 分享与交流群区域 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8 text-left">
-            {/* 获取免费 Key */}
+          <div className={`grid grid-cols-1 gap-4 mt-8 text-left ${userApiConfigRequired ? 'md:grid-cols-2' : ''}`}>
+            {userApiConfigRequired && (
             <div className="glass rounded-xl border border-white/10 p-5 flex flex-col items-center text-center hover:bg-white/5 transition-colors">
               <div className="w-12 h-12 rounded-full bg-yellow-500/20 text-yellow-300 flex items-center justify-center mb-3">
                 <Star size={24} />
               </div>
-              <h4 className="text-white font-semibold mb-2">项目资源</h4>
+              <h4 className="text-white font-semibold mb-2">获取免费 API Key</h4>
               <p className="text-xs text-gray-400 mb-4 leading-relaxed">
                 点击下方平台图标复制推广文案<br/>
                 分享至朋友圈/小红书/推特，截图联系微信群管理员领 Key！
@@ -2015,25 +2202,26 @@ const Ppt2PolishPage = () => {
                 </div>
               )}
 
-            <div className="w-full space-y-2">
-               <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-teal-300 truncate transition-colors border border-white/5 text-center">
-                 ✨如果本项目对你有帮助，可以点个star嘛～
-               </a>
-               <div className="flex gap-2">
-                 <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
-                   <Github size={10} />
-                   <span>Agent</span>
-                   <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.agent || 'Star'}</span>
+              <div className="w-full space-y-2">
+                 <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="block w-full py-1.5 px-3 rounded bg-white/5 hover:bg-white/10 text-xs text-teal-300 truncate transition-colors border border-white/5 text-center">
+                   ✨如果本项目对你有帮助，可以点个star嘛～
                  </a>
-                 <a href="https://github.com/OpenDCAI/DataFlow" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
-                   <Github size={10} />
-                   <span>Core</span>
-                   <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
-                 </a>
-               </div>
-            </div>
+                 <div className="flex gap-2">
+                   <a href="https://github.com/OpenDCAI/Paper2Any" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
+                     <Github size={10} />
+                     <span>Agent</span>
+                     <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.agent || 'Star'}</span>
+                   </a>
+                   <a href="https://github.com/OpenDCAI/DataFlow" target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-white/95 hover:bg-white text-gray-900 rounded-full text-[10px] font-semibold transition-all hover:scale-105 shadow-lg">
+                     <Github size={10} />
+                     <span>Core</span>
+                     <span className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded-full text-[9px] flex items-center gap-0.5"><Star size={7} fill="currentColor" /> {stars.dataflow || 'Star'}</span>
+                   </a>
+                 </div>
+              </div>
               <p className="text-[10px] text-gray-500">点亮 Star ⭐ 支持开源开发</p>
             </div>
+            )}
 
             {/* 交流群 */}
             <div className="glass rounded-xl border border-white/10 p-5 flex flex-col items-center text-center hover:bg-white/5 transition-colors">
@@ -2056,9 +2244,9 @@ const Ppt2PolishPage = () => {
   );
 
   return (
-    <div className="portalize-page flex h-screen w-full flex-col overflow-hidden">
+    <div className="w-full h-screen flex flex-col bg-[#050512] overflow-hidden">
       {showBanner && (
-        <div className="portalized-banner w-full bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 relative overflow-hidden flex-shrink-0">
+        <div className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 relative overflow-hidden flex-shrink-0">
           <div className="absolute inset-0 bg-black opacity-20"></div>
           <div className="absolute inset-0 animate-pulse">
             <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white to-transparent opacity-10 animate-shimmer"></div>
@@ -2138,6 +2326,7 @@ const Ppt2PolishPage = () => {
         .animate-shimmer {
           animation: shimmer 3s infinite;
         }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); }
         .demo-input-placeholder {
           min-height: 80px;
         }

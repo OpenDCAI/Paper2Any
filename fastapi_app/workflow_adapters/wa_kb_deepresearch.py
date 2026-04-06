@@ -7,6 +7,8 @@ from typing import Any, Dict
 from dataflow_agent.workflow import run_workflow
 from dataflow_agent.state import KBDeepResearchState, KBDeepResearchRequest
 from dataflow_agent.utils import get_project_root
+from fastapi_app.config.settings import settings
+from fastapi_app.services.managed_api_service import is_free_billing_mode, resolve_llm_credentials
 from fastapi_app.utils import _to_outputs_url
 from fastapi_app.schemas import DeepResearchRequest, DeepResearchResponse
 
@@ -21,6 +23,16 @@ def _ensure_result_path(email: str | None) -> Path:
 
 
 async def run_kb_deepresearch_wf_api(req: DeepResearchRequest) -> DeepResearchResponse:
+    resolved_api_url, resolved_api_key = resolve_llm_credentials(
+        req.api_url,
+        req.api_key,
+        scope="kb_deepresearch",
+    )
+    resolved_search_api_key = req.search_api_key
+    resolved_google_cse_id = req.google_cse_id
+    if is_free_billing_mode():
+        resolved_search_api_key = resolved_search_api_key or settings.DEFAULT_SEARCH_API_KEY
+        resolved_google_cse_id = resolved_google_cse_id or settings.DEFAULT_GOOGLE_CSE_ID
     if req.notebook_id and req.email:
         from fastapi_app.routers.kb import _generated_dir
         result_root = _generated_dir(req.email, req.notebook_id, "deepresearch", req.user_id or "default")
@@ -32,10 +44,10 @@ async def run_kb_deepresearch_wf_api(req: DeepResearchRequest) -> DeepResearchRe
         topic=req.topic or "",
         file_paths=req.file_paths or [],
         search_provider=req.search_provider,
-        search_api_key=req.search_api_key,
+        search_api_key=resolved_search_api_key,
         search_engine=req.search_engine,
         search_num=req.search_num,
-        google_cse_id=req.google_cse_id,
+        google_cse_id=resolved_google_cse_id,
         brave_summarizer=req.brave_summarizer,
         search_depth=req.search_depth,
         max_queries=req.max_queries,
@@ -45,9 +57,9 @@ async def run_kb_deepresearch_wf_api(req: DeepResearchRequest) -> DeepResearchRe
         enable_agentic=req.enable_agentic,
         email=req.email or "",
         user_id=req.user_id or "",
-        chat_api_url=req.api_url,
-        api_key=req.api_key,
-        chat_api_key=req.api_key,
+        chat_api_url=resolved_api_url,
+        api_key=resolved_api_key,
+        chat_api_key=resolved_api_key,
         model=req.model,
         language=req.language,
     )

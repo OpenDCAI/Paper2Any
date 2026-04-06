@@ -6,6 +6,7 @@ Router package for FastAPI backend.
 """
 
 from . import (
+    account,
     paper2citation,
     paper2video,
     paper2any,
@@ -16,11 +17,13 @@ from . import (
     kb_embedding,
     files,
     image2drawio,
+    mindmap,
     paper2drawio,
     paper2rebuttal,
 )
 
 __all__ = [
+    "account",
     "paper2citation",
     "paper2video",
     "paper2any",
@@ -31,6 +34,7 @@ __all__ = [
     "kb_embedding",
     "files",
     "image2drawio",
+    "mindmap",
     "paper2drawio",
     "paper2rebuttal",
 ]

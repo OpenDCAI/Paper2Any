@@ -62,6 +62,10 @@
       "title": "引用论文列表",
       "subtitle": "引用当前论文的工作。"
     },
+    "citationContext": {
+      "summaryTitle": "引用方式总结",
+      "referenceTitle": "匹配到的参考文献"
+    },
     "institutions": {
       "title": "引用机构",
       "subtitle": "引用网络中出现的机构。"
@@ -102,11 +106,15 @@
     "dblpCandidate": "DBLP 候选，详细统计需点击后加载",
     "noPublications": "暂无论文列表。",
     "noCitingWorks": "暂无引用论文列表。",
+    "noCitationContexts": "未在当前抓取到的 HTML 正文里定位到明确的引用句或段落。",
     "emptyPaper": "请输入 DOI 或论文链接以查看引用网络。"
   },
   "actions": {
     "openHomepage": "打开主页",
     "openPaper": "打开论文",
+    "extractContext": "提取引用上下文",
+    "extractingContext": "提取中",
+    "openContextSource": "打开正文来源",
     "prevPage": "上一页",
     "nextPage": "下一页"
   },
@@ -132,7 +140,8 @@
     "paperQueryRequired": "请先输入 DOI 或论文链接。",
     "searchFailed": "作者搜索失败。",
     "detailFailed": "引用详情加载失败。",
-    "quotaUserExhausted": "当前剩余额度已用完。",
-    "quotaGuestExhausted": "游客额度已用完，请先登录。"
+    "contextFailed": "引用上下文提取失败。",
+    "quotaUserExhausted": "点数不足，请先前往购买页获取兑换码，再到账户页兑换加点。",
+    "quotaGuestExhausted": "请先登录后继续使用。"
   }
 }

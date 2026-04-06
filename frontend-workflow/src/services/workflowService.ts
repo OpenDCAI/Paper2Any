@@ -10,9 +10,10 @@
  *   }
  */
 
-import { API_KEY } from '../config/api';
 import { checkQuota, recordUsage, QuotaInfo } from './quotaService';
 import { uploadAndSaveFile } from './fileService';
+import { backendFetch } from './backendClient';
+import { buildQuotaExhaustedMessage } from '../utils/pointsMessaging';
 
 export interface WorkflowResult {
   success: boolean;
@@ -23,20 +24,19 @@ export interface WorkflowResult {
 }
 
 /**
- * Get the current user ID and anonymous status from Supabase session.
+ * Get the current user ID from Supabase session.
  */
-async function getCurrentUserInfo(): Promise<{ userId: string | null; isAnonymous: boolean }> {
+async function getCurrentUserInfo(): Promise<{ userId: string | null }> {
   try {
     const { supabase, isSupabaseConfigured } = await import('../lib/supabase');
-    if (!isSupabaseConfigured()) return { userId: null, isAnonymous: true };
+    if (!isSupabaseConfigured()) return { userId: null };
 
     const { data: { user } } = await supabase.auth.getUser();
     return {
       userId: user?.id || null,
-      isAnonymous: user?.is_anonymous || false
     };
   } catch {
-    return { userId: null, isAnonymous: true };
+    return { userId: null };
   }
 }
 
@@ -64,25 +64,23 @@ export async function callWorkflow(
     expectBlob?: boolean;
   } = {}
 ): Promise<WorkflowResult> {
-  const { userId, isAnonymous } = await getCurrentUserInfo();
+  const { userId } = await getCurrentUserInfo();
 
   // 1. Check quota
-  const quota = await checkQuota(userId, isAnonymous);
+  const quota = await checkQuota(userId);
   if (quota.remaining <= 0) {
     return {
       success: false,
       error: quota.isAuthenticated
-        ? '今日配额已用完（10次/天），请明天再试'
-        : '今日配额已用完（5次/天），登录后可获得更多配额',
+        ? buildQuotaExhaustedMessage()
+        : '请先登录后继续使用',
       quota,
     };
   }
 
   // 2. Call API with API key
   try {
-    const headers: HeadersInit = {
-      'X-API-Key': API_KEY,
-    };
+    const headers: HeadersInit = {};
 
     // Don't set Content-Type for FormData - browser will set it with boundary
     const isFormData = body instanceof FormData;
@@ -90,7 +88,7 @@ export async function callWorkflow(
       headers['Content-Type'] = 'application/json';
     }
 
-    const response = await fetch(url, {
+    const response = await backendFetch(url, {
       method: 'POST',
       headers,
       body: isFormData ? body : JSON.stringify(body),
@@ -112,7 +110,7 @@ export async function callWorkflow(
     }
 
     // 3. Record usage on success
-    await recordUsage(userId, workflowType, { isAnonymous });
+    await recordUsage(userId, workflowType);
 
     // 4. Upload file to Supabase Storage if blob response
     if (options.outputFileName && options.expectBlob) {

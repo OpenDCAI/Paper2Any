@@ -4,20 +4,20 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
-from fastapi_app.services.paper2poster_service import Paper2PosterService
-
 router = APIRouter()
 
 
 def get_service() -> Paper2PosterService:
+    from fastapi_app.services.paper2poster_service import Paper2PosterService
+
     return Paper2PosterService()
 
 
 @router.post("/paper2poster/generate")
 async def generate_paper2poster(
     paper_file: UploadFile = File(...),
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
     model: str = Form("gpt-4o-2024-08-06"),
     vision_model: str = Form("gpt-4o-2024-08-06"),
     poster_width: float = Form(54.0),

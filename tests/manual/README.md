@@ -9,5 +9,6 @@ These files are intentionally excluded from default `pytest` discovery via
 Run them explicitly when needed, for example:
 - `pytest tests/manual/workflows/test_pdf2ppt.py -s`
 - `python tests/manual/sam3/test_paper2drawio_sam3_back.py`  # visual drawio workflow
+- `python tests/manual/frontend_workflows/test_frontend_workflows.py --case all`  # live frontend-contract smoke tests
 
 Keep fast, deterministic unit tests in `tests/`.

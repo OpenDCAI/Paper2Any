@@ -11,7 +11,8 @@ import { MindMapFlowEditor } from './tools/MindMapFlowEditor';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import { X, Eye, Trash2, FileText, Image, Video, Link as LinkIcon, Headphones } from 'lucide-react';
-import { API_KEY } from '../../config/api';
+import { backendFetch } from '../../services/backendClient';
+import { getSecureAssetUrl, openSecureAsset } from '../../services/secureAssetService';
 import ReactMarkdown from 'react-markdown';
 
 const KnowledgeBase = () => {
@@ -40,6 +41,9 @@ const KnowledgeBase = () => {
   const [markdownContent, setMarkdownContent] = useState('');
   const [markdownLoading, setMarkdownLoading] = useState(false);
   const [markdownError, setMarkdownError] = useState<string | null>(null);
+  const [previewAccessUrl, setPreviewAccessUrl] = useState('');
+  const [previewAccessLoading, setPreviewAccessLoading] = useState(false);
+  const [previewAccessError, setPreviewAccessError] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem('kb_sidebar_collapsed') === '1';
@@ -101,6 +105,40 @@ const KnowledgeBase = () => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem('kb_sidebar_collapsed', sidebarCollapsed ? '1' : '0');
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    const previewUrl = previewFile?.url;
+    if (!previewUrl) {
+      setPreviewAccessUrl('');
+      setPreviewAccessLoading(false);
+      setPreviewAccessError(null);
+      return;
+    }
+
+    let canceled = false;
+    const resolvePreviewAccess = async () => {
+      try {
+        setPreviewAccessLoading(true);
+        setPreviewAccessError(null);
+        const accessUrl = await getSecureAssetUrl(previewUrl);
+        if (canceled) return;
+        setPreviewAccessUrl(accessUrl);
+      } catch (err: any) {
+        if (canceled) return;
+        setPreviewAccessUrl('');
+        setPreviewAccessError(err?.message || '无法获取文件访问链接。');
+      } finally {
+        if (!canceled) {
+          setPreviewAccessLoading(false);
+        }
+      }
+    };
+
+    resolvePreviewAccess();
+    return () => {
+      canceled = true;
+    };
+  }, [previewFile?.id, previewFile?.url]);
 
   const fetchLibraryFiles = async () => {
     try {
@@ -194,9 +232,25 @@ const KnowledgeBase = () => {
     return name.endsWith('.md') || url.includes('.md');
   };
 
-  const getStreamUrl = (url?: string) => {
-    if (!url) return '';
-    return `/api/v1/files/stream?url=${encodeURIComponent(url)}`;
+  const fetchProtectedText = async (pathOrUrl: string) => {
+    const accessUrl = await getSecureAssetUrl(pathOrUrl);
+    const res = await fetch(accessUrl);
+    if (!res.ok) {
+      throw new Error(`读取失败: ${res.status}`);
+    }
+    return res.text();
+  };
+
+  const handleOpenPreviewFile = async () => {
+    if (!previewFile?.url) {
+      return;
+    }
+    try {
+      await openSecureAsset(previewFile.url);
+    } catch (err) {
+      console.error('Failed to open preview file:', err);
+      alert('打开文件失败');
+    }
   };
 
   // Handlers
@@ -257,11 +311,10 @@ const KnowledgeBase = () => {
       setMindmapStatus(null);
       setMindmapError(null);
 
-      const res = await fetch('/api/v1/kb/save-mindmap', {
+      const res = await backendFetch('/api/v1/kb/save-mindmap', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': API_KEY
         },
         body: JSON.stringify({
           file_url: fileUrl,
@@ -310,25 +363,17 @@ const KnowledgeBase = () => {
     const currentUrl = previewFile.url;
     let canceled = false;
     const loadMindmap = async () => {
-      const tryFetch = async (url: string) => {
-        const res = await fetch(getStreamUrl(url));
-        if (!res.ok) {
-          throw new Error(`读取失败: ${res.status}`);
-        }
-        return res.text();
-      };
-
       try {
         setMindmapLoading(true);
         setMindmapError(null);
         setMindmapStatus(null);
-        let text = await tryFetch(currentUrl);
+        let text = await fetchProtectedText(currentUrl);
         const isHtml = text.trim().toLowerCase().startsWith('<!doctype html') || text.trim().toLowerCase().startsWith('<html');
         if (isHtml) {
           const baseUrl = currentUrl.replace(/\/$/, '');
           if (!baseUrl.toLowerCase().endsWith('.mmd') && !baseUrl.toLowerCase().endsWith('.mermaid')) {
             const fallbackUrl = `${baseUrl}/mindmap.mmd`;
-            text = await tryFetch(fallbackUrl);
+            text = await fetchProtectedText(fallbackUrl);
             if (!canceled) {
               setPreviewFile(prev => prev ? { ...prev, url: fallbackUrl } : prev);
             }
@@ -361,7 +406,8 @@ const KnowledgeBase = () => {
       return;
     }
 
-    if (!previewFile.url) {
+    const previewUrl = previewFile.url;
+    if (!previewUrl) {
       setMarkdownError('无法获取文件路径。');
       return;
     }
@@ -371,11 +417,7 @@ const KnowledgeBase = () => {
       try {
         setMarkdownLoading(true);
         setMarkdownError(null);
-        const res = await fetch(getStreamUrl(previewFile.url));
-        if (!res.ok) {
-          throw new Error(`读取失败: ${res.status}`);
-        }
-        const text = await res.text();
+        const text = await fetchProtectedText(previewUrl);
         if (canceled) return;
         setMarkdownContent(text);
       } catch (err: any) {
@@ -522,7 +564,13 @@ const KnowledgeBase = () => {
               <div className="flex flex-col items-center text-center mb-8">
                 {previewFile.type === 'image' && previewFile.url ? (
                   <div className="w-full aspect-video rounded-xl overflow-hidden bg-black/40 border border-white/10 mb-4 group relative">
-                    <img src={getStreamUrl(previewFile.url)} alt={previewFile.name} className="w-full h-full object-contain" />
+                    {previewAccessUrl ? (
+                      <img src={previewAccessUrl} alt={previewFile.name} className="w-full h-full object-contain" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-sm text-gray-500">
+                        {previewAccessError || (previewAccessLoading ? '正在加载文件...' : '无法加载文件')}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="w-24 h-24 bg-white/5 rounded-2xl flex items-center justify-center mb-4">
@@ -553,9 +601,13 @@ const KnowledgeBase = () => {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">存储路径</span>
-                      <a href={previewFile.url ? getStreamUrl(previewFile.url) : undefined} target="_blank" className="text-purple-400 hover:text-purple-300 truncate max-w-[200px] hover:underline" rel="noreferrer">
+                      <button
+                        onClick={handleOpenPreviewFile}
+                        disabled={!previewFile.url || previewAccessLoading}
+                        className="text-purple-400 hover:text-purple-300 truncate max-w-[200px] hover:underline disabled:text-gray-500 disabled:no-underline"
+                      >
                         查看源文件
-                      </a>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -567,19 +619,27 @@ const KnowledgeBase = () => {
                       图片预览
                     </h4>
                     <div className="bg-white/5 rounded-xl overflow-hidden border border-white/10">
-                      <img
-                        src={getStreamUrl(previewFile.url)}
-                        alt={previewFile.name}
-                        className="w-full h-auto object-contain max-h-[500px]"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          const parent = target.parentElement;
-                          if (parent) {
-                            parent.innerHTML = '<div class="p-8 text-center"><p class="text-sm text-red-400">图片加载失败</p></div>';
-                          }
-                        }}
-                      />
+                      {previewAccessUrl ? (
+                        <img
+                          src={previewAccessUrl}
+                          alt={previewFile.name}
+                          className="w-full h-auto object-contain max-h-[500px]"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent) {
+                              parent.innerHTML = '<div class="p-8 text-center"><p class="text-sm text-red-400">图片加载失败</p></div>';
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="p-8 text-center">
+                          <p className={`text-sm ${previewAccessError ? 'text-red-400' : 'text-gray-500'}`}>
+                            {previewAccessError || (previewAccessLoading ? '正在加载图片...' : '图片加载失败')}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -591,13 +651,19 @@ const KnowledgeBase = () => {
                       播放预览
                     </h4>
                     <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                      <audio
-                        className="w-full"
-                        controls
-                        autoPlay
-                        preload="metadata"
-                        src={getStreamUrl(previewFile.url)}
-                      />
+                      {previewAccessUrl ? (
+                        <audio
+                          className="w-full"
+                          controls
+                          autoPlay
+                          preload="metadata"
+                          src={previewAccessUrl}
+                        />
+                      ) : (
+                        <div className={`text-sm ${previewAccessError ? 'text-red-400' : 'text-gray-500'}`}>
+                          {previewAccessError || (previewAccessLoading ? '正在加载音频...' : '音频加载失败')}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -699,11 +765,19 @@ const KnowledgeBase = () => {
                           </div>
                         ) : previewFile.name.toLowerCase().endsWith('.pdf') && previewFile.url ? (
                           <div className="bg-white/5 rounded-xl overflow-hidden border border-white/10">
-                            <iframe
-                              src={getStreamUrl(previewFile.url)}
-                              className="w-full h-[600px]"
-                              title="PDF Preview"
-                            />
+                            {previewAccessUrl ? (
+                              <iframe
+                                src={previewAccessUrl}
+                                className="w-full h-[600px]"
+                                title="PDF Preview"
+                              />
+                            ) : (
+                              <div className="p-8 text-center">
+                                <p className={`text-sm ${previewAccessError ? 'text-red-400' : 'text-gray-500'}`}>
+                                  {previewAccessError || (previewAccessLoading ? '正在加载 PDF...' : 'PDF 加载失败')}
+                                </p>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="bg-white/5 rounded-xl p-8 text-center border border-dashed border-white/10">
@@ -727,14 +801,22 @@ const KnowledgeBase = () => {
                       视频预览
                     </h4>
                     <div className="bg-white/5 rounded-xl overflow-hidden border border-white/10">
-                      <video
-                        className="w-full"
-                        controls
-                        preload="metadata"
-                        src={getStreamUrl(previewFile.url)}
-                      >
-                        您的浏览器不支持视频播放
-                      </video>
+                      {previewAccessUrl ? (
+                        <video
+                          className="w-full"
+                          controls
+                          preload="metadata"
+                          src={previewAccessUrl}
+                        >
+                          您的浏览器不支持视频播放
+                        </video>
+                      ) : (
+                        <div className="p-8 text-center">
+                          <p className={`text-sm ${previewAccessError ? 'text-red-400' : 'text-gray-500'}`}>
+                            {previewAccessError || (previewAccessLoading ? '正在加载视频...' : '视频加载失败')}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -742,15 +824,14 @@ const KnowledgeBase = () => {
             </div>
 
             <div className="pt-6 mt-6 border-t border-white/10 flex gap-3">
-              <a 
-                href={previewFile.url ? getStreamUrl(previewFile.url) : undefined} 
-                target="_blank" 
-                rel="noreferrer"
+              <button
+                onClick={handleOpenPreviewFile}
+                disabled={!previewFile.url || previewAccessLoading}
                 className="flex-1 py-3 bg-white text-black hover:bg-gray-200 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-white/10"
               >
                 <Eye size={18} />
-                打开文件
-              </a>
+                {previewAccessLoading ? '加载中...' : '打开文件'}
+              </button>
               {previewSource === 'library' && (
                 <button 
                   onClick={() => handleDeleteFile(previewFile)}

@@ -1,5 +1,7 @@
+import { useEffect, useState, type MouseEvent } from 'react';
 import { KnowledgeFile, ToolType } from './types';
-import { FileText, Download, ExternalLink, Clock, Headphones } from 'lucide-react';
+import { FileText, Download, ExternalLink, Clock, Headphones, Loader2 } from 'lucide-react';
+import { downloadSecureAsset, getSecureAssetUrl } from '../../services/secureAssetService';
 
 interface OutputViewProps {
   files: KnowledgeFile[];
@@ -8,7 +10,54 @@ interface OutputViewProps {
 }
 
 export const OutputView = ({ files, onGoToTool, onPreview }: OutputViewProps) => {
-  const getStreamUrl = (url: string) => `/api/v1/files/stream?url=${encodeURIComponent(url)}`;
+  const [accessUrls, setAccessUrls] = useState<Record<string, string>>({});
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveAccessUrls = async () => {
+      const nextEntries = await Promise.all(
+        files.map(async (file) => {
+          if (!file.url) {
+            return [file.id, ''] as const;
+          }
+          try {
+            return [file.id, await getSecureAssetUrl(file.url)] as const;
+          } catch (err) {
+            console.warn('[OutputView] Failed to resolve secure asset URL:', err);
+            return [file.id, ''] as const;
+          }
+        }),
+      );
+
+      if (!cancelled) {
+        setAccessUrls(Object.fromEntries(nextEntries));
+      }
+    };
+
+    resolveAccessUrls();
+    return () => {
+      cancelled = true;
+    };
+  }, [files]);
+
+  const handleDownload = async (event: MouseEvent, file: KnowledgeFile) => {
+    event.stopPropagation();
+    if (!file.url) {
+      return;
+    }
+
+    setDownloadingId(file.id);
+    try {
+      await downloadSecureAsset(file.url, file.name || 'download');
+    } catch (err) {
+      console.error('[OutputView] Failed to download file:', err);
+      alert('下载失败');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const getFileIcon = (type: string) => {
     switch (type) {
@@ -48,6 +97,7 @@ export const OutputView = ({ files, onGoToTool, onPreview }: OutputViewProps) =>
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {files.map(file => {
         const color = getFileColor(file.type);
+        const accessUrl = accessUrls[file.id] || '';
         return (
           <div
             key={file.id}
@@ -68,12 +118,19 @@ export const OutputView = ({ files, onGoToTool, onPreview }: OutputViewProps) =>
 
             {file.type === 'audio' && file.url && (
               <div className="mb-4" onClick={(e) => e.stopPropagation()}>
-                <audio
-                  className="w-full"
-                  controls
-                  preload="metadata"
-                  src={getStreamUrl(file.url)}
-                />
+                {accessUrl ? (
+                  <audio
+                    className="w-full"
+                    controls
+                    preload="metadata"
+                    src={accessUrl}
+                  />
+                ) : (
+                  <div className="text-xs text-gray-500 flex items-center gap-2">
+                    <Loader2 size={12} className="animate-spin" />
+                    正在加载音频...
+                  </div>
+                )}
               </div>
             )}
 
@@ -83,15 +140,18 @@ export const OutputView = ({ files, onGoToTool, onPreview }: OutputViewProps) =>
                 <span>{file.uploadTime}</span>
               </div>
               <div className="flex gap-2">
-                <a
-                  href={file.url ? getStreamUrl(file.url) : undefined}
-                  download={file.name || 'download'}
-                  onClick={(e) => e.stopPropagation()}
+                <button
+                  onClick={(e) => handleDownload(e, file)}
+                  disabled={!file.url || downloadingId === file.id}
                   className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                   title="Download"
                 >
-                  <Download size={16} />
-                </a>
+                  {downloadingId === file.id ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Download size={16} />
+                  )}
+                </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();

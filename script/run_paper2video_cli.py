@@ -16,6 +16,7 @@ Usage:
 import argparse
 import asyncio
 import os
+import shutil
 import sys
 import time
 from dataclasses import asdict
@@ -25,10 +26,13 @@ from typing import Any, List
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from script.cli_env import load_project_env
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2VideoRequest, Paper2VideoState
 from dataflow_agent.workflow import run_workflow
 from dataflow_agent.utils import get_project_root
+
+load_project_env()
 
 log = get_logger(__name__)
 
@@ -184,8 +188,23 @@ def create_output_dir(args) -> Path:
     return output_dir
 
 
+def stage_input_pdf(paper_pdf_path: str, output_dir: Path) -> str:
+    """
+    Stage the input PDF under the workflow output dir so paper2video does not
+    create sibling temp folders next to the original source file.
+    """
+    src = Path(paper_pdf_path).resolve()
+    staged_dir = output_dir / "inputs"
+    staged_dir.mkdir(parents=True, exist_ok=True)
+    staged_pdf = staged_dir / src.name
+    if staged_pdf != src:
+        shutil.copy2(src, staged_pdf)
+    return str(staged_pdf)
+
+
 async def run_paper2video_workflow(args, paper_pdf_path: str, output_dir: Path):
     """Execute Paper2Video workflow (2-step: generate subtitle, then generate video)."""
+    staged_pdf_path = stage_input_pdf(paper_pdf_path, output_dir)
 
     api_url = args.api_url or os.getenv("DF_API_URL", "https://api.openai.com/v1")
     api_key = args.api_key or os.getenv("DF_API_KEY", "")
@@ -200,7 +219,7 @@ async def run_paper2video_workflow(args, paper_pdf_path: str, output_dir: Path):
         model=args.model,
         tts_model=args.tts_model,
         language=args.language,
-        paper_pdf_path=paper_pdf_path,
+        paper_pdf_path=staged_pdf_path,
         ref_img_path=args.ref_img or "",
         ref_audio_path=args.ref_audio or "",
         ref_text=args.ref_text or "",
@@ -217,6 +236,7 @@ async def run_paper2video_workflow(args, paper_pdf_path: str, output_dir: Path):
     log.info("Paper2Video Workflow Starting (2-Step Process)")
     log.info("%s", "=" * 60)
     log.info("Input PDF: %s", paper_pdf_path)
+    log.info("Staged PDF: %s", staged_pdf_path)
     log.info("Output Directory: %s", output_dir)
     log.info("Language: %s", args.language)
     log.info("TTS Model: %s", args.tts_model)

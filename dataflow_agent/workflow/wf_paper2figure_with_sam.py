@@ -29,6 +29,10 @@ from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
 from dataflow_agent.logger import get_logger
 
 from dataflow_agent.toolkits.multimodaltool.req_img import generate_or_edit_and_save_image_async
+from dataflow_agent.utils.request_credentials import (
+    get_request_image_api_key,
+    get_request_image_api_url,
+)
 from dataflow_agent.toolkits.multimodaltool.bg_tool import local_tool_for_bg_remove, local_tool_for_raster_to_svg, free_bg_rm_model
 from dataflow_agent.toolkits.multimodaltool.sam_tool import segment_layout_boxes, segment_layout_boxes_server, free_sam_model
 from dataflow_agent.toolkits.multimodaltool.mineru_tool import (
@@ -188,13 +192,15 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
         # 1) 生成带内容的图，直接存到 result_root
         fig_name = f"fig_{int(time.time())}.png"
         save_path = str((result_root / fig_name).resolve())
+        image_api_url = get_request_image_api_url(state.request)
+        image_api_key = get_request_image_api_key(state.request)
 
         await generate_or_edit_and_save_image_async(
             prompt=final_prompt,
             save_path=save_path,
             aspect_ratio=state.aspect_ratio,
-            api_url=state.request.chat_api_url,
-            api_key=state.request.chat_api_key or os.getenv("DF_API_KEY") ,
+            api_url=image_api_url,
+            api_key=image_api_key,
             model=state.request.gen_fig_model,
             image_path=image_path,
             use_edit=True if image_path else False
@@ -216,8 +222,8 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
             prompt=TEMPLATE_EDIT_PROMPT,
             save_path=layout_save_path,
             aspect_ratio=state.aspect_ratio,
-            api_url=state.request.chat_api_url,
-            api_key=state.request.chat_api_key or os.getenv("DF_API_KEY") ,
+            api_url=image_api_url,
+            api_key=image_api_key,
             model=state.request.gen_fig_model,
             image_path=save_path,
             use_edit=True,
@@ -251,8 +257,8 @@ def create_p2fig_graph() -> GenericGraphBuilder:  # noqa: N802
                         "3.Change the background color to white.",
                     save_path=layout_save_path,
                     aspect_ratio=state.aspect_ratio,
-                    api_url=state.request.chat_api_url,
-                    api_key=state.request.chat_api_key or os.getenv("DF_API_KEY") ,
+                    api_url=get_request_image_api_url(state.request),
+                    api_key=get_request_image_api_key(state.request),
                     model=state.request.gen_fig_model,
                     image_path=f"{get_project_root()}/{state.fig_draft_path}",
                     use_edit=True,

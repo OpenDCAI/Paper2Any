@@ -78,6 +78,7 @@ class StoryBoardCurator:
         
         log_agent_info(self.name, "generating spatial content plan")
         agent = LangGraphAgent("expert spatial poster designer", config)
+        available_visual_ids = self._collect_available_visual_ids(images, tables)
         
         template_data = {
             "structured_sections": json.dumps(structured_sections, indent=2),
@@ -99,6 +100,7 @@ class StoryBoardCurator:
                 response = agent.step(prompt)
                 
                 story_board = extract_json(response.content)
+                story_board = self._sanitize_story_board_visuals(story_board, available_visual_ids)
                 
                 if self._validate_story_board(story_board, classified_visuals, visual_context):
                     log_agent_success(self.name, f"successfully created story board on attempt {attempt + 1}")
@@ -112,6 +114,41 @@ class StoryBoardCurator:
                     raise ValueError("failed to create story board after multiple attempts")
 
         raise ValueError("failed to create story board")
+
+    def _collect_available_visual_ids(self, images: Dict[str, Any], tables: Dict[str, Any]) -> set[str]:
+        return {
+            *(f"figure_{fig_id}" for fig_id in images.keys()),
+            *(f"table_{table_id}" for table_id in tables.keys()),
+        }
+
+    def _sanitize_story_board_visuals(self, story_board: Dict[str, Any], available_visual_ids: set[str]) -> Dict[str, Any]:
+        sections = story_board.get("spatial_content_plan", {}).get("sections", [])
+        if not isinstance(sections, list):
+            return story_board
+
+        removed_visuals = 0
+        for section in sections:
+            visual_assets = section.get("visual_assets")
+            if not isinstance(visual_assets, list):
+                section["visual_assets"] = []
+                continue
+
+            valid_visual_assets = []
+            for visual in visual_assets:
+                visual_id = visual.get("visual_id") if isinstance(visual, dict) else None
+                if visual_id in available_visual_ids:
+                    valid_visual_assets.append(visual)
+                else:
+                    removed_visuals += 1
+            section["visual_assets"] = valid_visual_assets
+
+        if removed_visuals:
+            log_agent_warning(
+                self.name,
+                f"removed {removed_visuals} non-existent visual assets from storyboard",
+            )
+
+        return story_board
 
     def _validate_story_board(self, story_board: Dict, classified_visuals: Dict = None, visual_context: Dict = None) -> bool:
         """validate story board structure and constraints"""
@@ -201,6 +238,7 @@ class StoryBoardCurator:
         # validate height exclusion compliance if visual_context provided
         if visual_context:
             visual_heights = visual_context.get("visual_assets_heights", {})
+            valid_visual_ids = set(visual_heights.keys())
             oversized_visuals = []
             
             # check all visual assets in the story board
@@ -208,6 +246,9 @@ class StoryBoardCurator:
                 visual_assets = section.get("visual_assets", [])
                 for visual in visual_assets:
                     visual_id = visual.get("visual_id")
+                    if visual_id not in valid_visual_ids:
+                        log_agent_warning(self.name, f"validation error: visual asset '{visual_id}' does not exist")
+                        return False
                     if visual_id in visual_heights:
                         height_info = visual_heights[visual_id]
                         # extract percentage value from string like "91%"

@@ -1,11 +1,13 @@
 import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { API_KEY } from '../../config/api';
 import { checkQuota, recordUsage } from '../../services/quotaService';
 import { verifyLlmConnection } from '../../services/llmService';
 import { useAuthStore } from '../../stores/authStore';
 import { getApiSettings, saveApiSettings } from '../../services/apiSettingsService';
 import { uploadAndSaveFile } from '../../services/fileService';
+import { backendFetch } from '../../services/backendClient';
+import { useRuntimeBilling } from '../../hooks/useRuntimeBilling';
+import { buildQuotaExhaustedMessage, resolvePointsPurchaseUrl } from '../../utils/pointsMessaging';
 
 import { Step, PosterConfig, GenerateResult } from './types';
 import { MAX_FILE_SIZE, STORAGE_KEY, DEFAULT_CONFIG } from './constants';
@@ -18,6 +20,10 @@ import CompleteStep from './CompleteStep';
 
 const Paper2PosterPage = () => {
   const { user, refreshQuota } = useAuthStore();
+  const { userApiConfigRequired, runtimeConfig } = useRuntimeBilling();
+  const purchaseUrl = runtimeConfig.billing_mode === 'free'
+    ? resolvePointsPurchaseUrl(runtimeConfig)
+    : '';
 
   // Step 状态
   const [currentStep, setCurrentStep] = useState<Step>('upload');
@@ -140,7 +146,7 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
     } catch (e) {
       console.error('Failed to restore paper2poster config', e);
     }
-  }, [user?.id]);
+  }, [user?.id, userApiConfigRequired]);
 
   // 将配置写入 localStorage
   useEffect(() => {
@@ -212,7 +218,7 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
       setError('请先选择 PDF 文件');
       return;
     }
-    if (!apiKey.trim()) {
+    if (userApiConfigRequired && !apiKey.trim()) {
       setError('请输入 API Key');
       return;
     }
@@ -220,9 +226,7 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
     // Check quota
     const quota = await checkQuota(user?.id || null, user?.is_anonymous || false);
     if (quota.remaining <= 0) {
-      setError(quota.isAuthenticated
-        ? '今日配额已用完（10次/天），请明天再试'
-        : '今日配额已用完（5次/天），登录后可获得更多配额');
+      setError(quota.isAuthenticated ? buildQuotaExhaustedMessage(purchaseUrl) : '请先登录后继续使用');
       return;
     }
 
@@ -269,8 +273,11 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
     try {
       const formData = new FormData();
       formData.append('paper_file', selectedFile);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
+      formData.append('email', user?.id || user?.email || '');
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+      }
       formData.append('model', config.text_model);
       formData.append('vision_model', config.vision_model);
       formData.append('poster_width', config.poster_width.toString());
@@ -283,9 +290,8 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
         formData.append('aff_logo_file', affLogoFile);
       }
 
-      const res = await fetch('/api/v1/paper2poster/generate', {
+      const res = await backendFetch('/api/v1/paper2poster/generate', {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
         body: formData,
       });
 
@@ -381,6 +387,7 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
               progress={progress}
               progressStatus={progressStatus}
               error={error}
+              showApiConfig={userApiConfigRequired}
               llmApiUrl={llmApiUrl}
               setLlmApiUrl={setLlmApiUrl}
               apiKey={apiKey}

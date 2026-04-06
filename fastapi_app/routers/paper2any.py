@@ -4,7 +4,6 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, UploadFile, Request, Body
 from fastapi.responses import FileResponse
 from fastapi_app.schemas import Paper2FigureResponse, VerifyLlmRequest, VerifyLlmResponse
-from fastapi_app.services.paper2any_service import Paper2AnyService
 from dataflow_agent.logger import get_logger
 
 log = get_logger(__name__)
@@ -13,6 +12,8 @@ router = APIRouter()
 
 
 def get_service() -> Paper2AnyService:
+    from fastapi_app.services.paper2any_service import Paper2AnyService
+
     return Paper2AnyService()
 
 
@@ -42,8 +43,8 @@ async def list_paper2figure_history_files(
 @router.post("/paper2figure/generate")
 async def generate_paper2figure(
     img_gen_model_name: str = Form(...),
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
     input_type: str = Form(...),
     email: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
@@ -84,8 +85,8 @@ async def generate_paper2figure(
 async def generate_paper2figure_json(
     request: Request,
     img_gen_model_name: str = Form(...),
-    chat_api_url: str = Form(...),
-    api_key: str = Form(...),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
     input_type: str = Form(...),  # 'file' | 'text' | 'image'
     email: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),

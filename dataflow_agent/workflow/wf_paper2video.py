@@ -11,6 +11,9 @@ paper2video workflow
 
 from __future__ import annotations
 import json
+import os
+import re
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import Field
 from pydantic import BaseModel
 from dataflow_agent.state import Paper2VideoRequest, Paper2VideoState
@@ -29,6 +32,10 @@ from dataflow_agent.toolkits.p2vtool.p2v_tool import (
     merge_wav_files, get_mp4_duration_ffprobe,
     speech_task_wrapper_with_cloud_tts,
     speech_task_wrapper_with_f5,
+    build_p2v_cursor_backend_config,
+    build_p2v_local_tts_config,
+    resolve_p2v_cursor_image_path,
+    run_local_cursor_batch,
 )
 
 from dataflow_agent.graphbuilder.graph_builder import GenericGraphBuilder
@@ -40,6 +47,118 @@ log = get_logger(__name__)
 
 # 当 LLM 返回格式不符合 {"subtitle_and_cursor": "..."} 时的最大重试次数
 MAX_SUBTITLE_RETRIES = 3
+
+
+def _normalize_slide_text(raw_text: str) -> str:
+    if not isinstance(raw_text, str):
+        return ""
+
+    text = raw_text.strip()
+    if not text:
+        return ""
+
+    if text.startswith("```"):
+        text = re.sub(r"^```[a-zA-Z0-9_-]*\n?", "", text)
+        text = re.sub(r"\n?```$", "", text)
+
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            for key in ("text", "content", "result", "output", "subtitle_and_cursor"):
+                value = parsed.get(key)
+                if isinstance(value, str) and value.strip():
+                    text = value.strip()
+                    break
+    except Exception:
+        pass
+
+    text = text.replace("\\n", "\n")
+    normalized_lines = []
+    seen = set()
+    for raw_line in text.splitlines():
+        line = re.sub(r"\s+", " ", raw_line).strip()
+        line = re.sub(r"^[\-\*\u2022\d\.\)\(]+\s*", "", line)
+        if not line:
+            continue
+        dedupe_key = line.lower()
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        normalized_lines.append(line)
+    return " ".join(normalized_lines).strip()
+
+
+def _clip_slide_script(raw_text: str, language: str) -> str:
+    text = _normalize_slide_text(raw_text)
+    if not text:
+        return ""
+
+    if language == "zh":
+        segments = [
+            segment.strip(" ，,.;；")
+            for segment in re.split(r"[。！？；;\n]+", text)
+            if segment.strip(" ，,.;；")
+        ]
+        chosen = []
+        total_len = 0
+        for segment in segments:
+            if chosen and total_len + len(segment) > 80:
+                break
+            chosen.append(segment)
+            total_len += len(segment)
+            if len(chosen) >= 3:
+                break
+        result = "。".join(chosen).strip()
+        if result and result[-1] not in "。！？":
+            result += "。"
+        return result
+
+    words = text.split()
+    if not words:
+        return ""
+    result = " ".join(words[:45]).strip()
+    if result and result[-1] not in ".!?":
+        result += "."
+    return result
+
+
+def _default_slide_script(language: str, page_num: int) -> str:
+    if language == "zh":
+        return f"这一页展示了第 {page_num} 页的核心内容，请根据页面中的图文信息进一步编辑讲稿。"
+    return f"This slide presents the key content of slide {page_num}. Please refine the script based on the visible figures and text."
+
+
+async def _build_fallback_slide_script(image_path: str, language: str, page_num: int) -> str:
+    try:
+        from dataflow_agent.toolkits.multimodaltool.ocr_config import get_ocr_api_credentials
+        from dataflow_agent.toolkits.multimodaltool.req_ocr import call_ocr_async
+        from fastapi_app.config.settings import settings
+
+        ocr_api_url, ocr_api_key = get_ocr_api_credentials()
+        ocr_model = getattr(settings, "MODEL_QWEN_VL_OCR", "qwen-vl-ocr-2025-11-20")
+        raw_ocr_text = await call_ocr_async(
+            model=ocr_model,
+            messages=[{
+                "role": "user",
+                "content": "Extract all visible slide text in reading order. Return plain text only.",
+            }],
+            api_url=ocr_api_url,
+            api_key=ocr_api_key,
+            image_path=image_path,
+            max_tokens=2048,
+            temperature=0.01,
+            timeout=60,
+        )
+        fallback_script = _clip_slide_script(raw_ocr_text, language)
+        if fallback_script:
+            log.warning("第 %s 张 slide 使用 OCR fallback 生成字幕", page_num)
+            return fallback_script
+    except Exception as exc:
+        log.warning("第 %s 张 slide OCR fallback 失败: %s", page_num, exc)
+
+    fallback_script = _default_slide_script(language, page_num)
+    log.warning("第 %s 张 slide 使用默认占位字幕", page_num)
+    return fallback_script
 
 @register("paper2video")
 def create_paper2video_graph() -> GenericGraphBuilder:
@@ -62,8 +181,7 @@ def create_paper2video_graph() -> GenericGraphBuilder:
             return ""
         paper_pdf_dir = paper_pdf_path.with_suffix('').parent
         if not paper_pdf_path.with_suffix('').exists():
-            #fixme: 这里需要修改为部署机器上的mineru
-            # run_mineru_pdf_extract(str(paper_pdf_path), str(paper_pdf_dir), "modelscope")
+            # 部署模式下不在 workflow 内部拉起本地 MinerU；上游需提前准备好解析结果目录。
             pass
         paper_base_path = paper_pdf_path.with_suffix('').expanduser().resolve()
         paper_output_dir = paper_base_path
@@ -316,8 +434,13 @@ def create_paper2video_graph() -> GenericGraphBuilder:
                     break
                 log.warning("第 %s 张 slide 返回格式不符合 {\"subtitle_and_cursor\": \"...\"}，第 %s 次重试", img_idx + 1, attempt + 1)
             else:
-                state.subtitle_and_cursor.append("")
-                log.warning("第 %s 张 slide 重试 %s 次后仍格式错误，使用占位内容", img_idx + 1, MAX_SUBTITLE_RETRIES)
+                fallback_script = await _build_fallback_slide_script(
+                    img_path,
+                    state.request.language,
+                    img_idx + 1,
+                )
+                state.subtitle_and_cursor.append(fallback_script)
+                log.warning("第 %s 张 slide 重试 %s 次后仍失败，使用 fallback 内容", img_idx + 1, MAX_SUBTITLE_RETRIES)
         subtitle_and_cursor_info = "\n###\n".join(state.subtitle_and_cursor)
         log.info(f"获取了完整的 Subtitle and Cursor 信息：\n {subtitle_and_cursor_info}")
         
@@ -371,7 +494,7 @@ def create_paper2video_graph() -> GenericGraphBuilder:
                 state = await agent.execute(state=state)
                 if len(state.subtitle_and_cursor) > prev_len:
                     break
-                log.warning("第 %s 张 slide refine 返回格式不符合 {\"subtitle_and_cursor\": \"...\"}，第 %s 次重试", i + 1, attempt + 1)
+                log.warning("第 %s 张 slide refine 返回格式不符合 {\"refine_subtitle_and_cursor\": \"...\"}，第 %s 次重试", i + 1, attempt + 1)
             else:
                 # 重试耗尽则用原句 + "| no" 占位，保证后续流程不中断
                 state.subtitle_and_cursor.append((sentences[i] or "").strip() + " | no")
@@ -409,6 +532,10 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         # 云语音：仅用 tts_voice_name 作为 CosyVoice 的 voice 参数，不涉及参考音频文件。
         # 本地语音（F5-TTS）：ref_audio_path 来自 sys_audio 目录或用户上传，作为参考语音。
         use_specific_sound = ref_audio_path is not None and (ref_audio_path or "").strip() != ""
+        local_tts_config = build_p2v_local_tts_config()
+        use_local_tts = use_specific_sound and bool(local_tts_config.get("enabled"))
+        if use_specific_sound and not use_local_tts:
+            log.info("检测到 ref_audio_path，但 PAPER2VIDEO_ENABLE_LOCAL_TTS=false，继续使用云 TTS")
         ref_text = state.request.ref_text
         script_pages = state.script_pages
         sentences = [script_page["script_text"] for script_page in script_pages]
@@ -427,13 +554,18 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         results = []
         organized_results = {}
 
-        if use_specific_sound:
-            # 方案一：F5-TTS 按句，多进程 + 多 GPU
+        if use_local_tts:
+            # 本地 F5-TTS 仅在显式打开 PAPER2VIDEO_ENABLE_LOCAL_TTS 时启用。
+            gpu_list = local_tts_config.get("gpu_ids") or []
+            if not gpu_list:
+                raise RuntimeError("PAPER2VIDEO_ENABLE_LOCAL_TTS=true but no PAPER2VIDEO_LOCAL_TTS_GPU_IDS available")
             if not (ref_text and ref_text.strip()):
-                # fixme: 这里需要修改，硬编码了 4 卡
-                ref_text = transcribe_with_whisperx(ref_audio_path, lang=speech_language, device_id=4)
+                ref_text = transcribe_with_whisperx(
+                    ref_audio_path,
+                    lang=speech_language,
+                    device_id=local_tts_config.get("whisperx_device_id"),
+                )
             log.info(f"此时的ref_text 为 {ref_text}")
-            gpu_list = [4,5,6]  # 按需修改可用 GPU ID
             num_gpus = len(gpu_list)
             for slide_idx in range(len(parsed_subtitle_w_cursor)):
                 speech_with_cursor = parsed_subtitle_w_cursor[slide_idx]
@@ -447,7 +579,7 @@ def create_paper2video_graph() -> GenericGraphBuilder:
             log.info(f"开始并行生成语音（F5-TTS 按句），任务总数: {len(all_tasks)}")
             import multiprocessing as mp
             ctx = mp.get_context("spawn")
-            with ctx.Pool(processes=len(all_tasks)) as pool:
+            with ctx.Pool(processes=max(1, min(len(all_tasks), len(gpu_list)))) as pool:
                 results = list(pool.map(speech_task_wrapper_with_f5, all_tasks))
         else:
             # 方案二：云 TTS（CosyVoice）按句，音色仅用 tts_voice_name（如 longanhuan），不传参考音频。
@@ -462,7 +594,7 @@ def create_paper2video_graph() -> GenericGraphBuilder:
                     ))
             log.info(f"开始并行生成单句语音（云 TTS 按句，voice_name={tts_voice_name or 'default'}），任务总数: {len(all_tasks)}")
             # 降低 CosyVoice 并发，避免 Throttling.RateQuota（请求过于频繁）
-            max_workers = min(3, len(all_tasks)) if all_tasks else 1
+            max_workers = min(int(local_tts_config.get("parallelism", 3)), len(all_tasks)) if all_tasks else 1
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 results = list(executor.map(speech_task_wrapper_with_cloud_tts, all_tasks))
 
@@ -531,7 +663,10 @@ def create_paper2video_graph() -> GenericGraphBuilder:
             talking_inference_input,
             paper_output_dir,
             talking_video_save_dir,
-            "/root/miniconda3/envs/echomimic/bin/python",
+            os.getenv(
+                "PAPER2VIDEO_TALKING_LOCAL_PYTHON",
+                os.getenv("ECHOMIMIC_PYTHON", os.getenv("PAPER2ANY_PYTHON", "python3")),
+            ),
             api_key=None,
         )
         log.info(f"talking-video 的信息已经写入了{talking_video_save_dir}目录中")
@@ -544,7 +679,6 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         同时由于talking head中会导致最后时间 长于 语音文件的时间，而cursor是根据每个句子的持续时间算的
         所以，这里选择微调每个句子的持续时间，从而确保per slide的最终时间是一致的
         '''
-        import multiprocessing
         import cv2
         log.info(f"开始执行 p2v_generate_cursor node节点")
         # 先完成pre-tool的工作
@@ -568,39 +702,62 @@ def create_paper2video_graph() -> GenericGraphBuilder:
 
         task_list = []
         cursor_result = []
-        # fixme: 这里后续需要修改，生成cursor相关的代码貌似只需要1张卡就可以，时间较短
-        gpu_list = [5,6]
-        num_gpus = len(gpu_list)
+        cursor_backend = build_p2v_cursor_backend_config(
+            chat_api_url=(state.request.chat_api_url or "").strip(),
+            api_key=((state.request.api_key or state.request.chat_api_key or "")).strip(),
+            default_model=(state.request.model or os.getenv("PAPER2VIDEO_DEFAULT_MODEL", "")).strip(),
+        )
+        log.info("[p2v-cursor] selected backend=%s", json.dumps(cursor_backend, ensure_ascii=False))
 
         for slide_idx in range(len(parsed_subtitle_w_cursor)):
             slide_image_path = slide_image_path_list[slide_idx]
             speech_with_cursor = parsed_subtitle_w_cursor[slide_idx]
             for sentence_idx, (prompt, cursor_prompt) in enumerate(speech_with_cursor):
                 task_list.append((slide_idx, sentence_idx, prompt, cursor_prompt, slide_image_path))
-            
-        if num_gpus == 0:
-            log.error("没有可用的GPU")
-            return state
-        if num_gpus == 1:
-            # 串行执行
-            ctx = multiprocessing.get_context("spawn")
-            with ctx.Pool(processes=num_gpus) as pool:
-                gpu_id = gpu_list[0]
-                cursor_result = pool.map(cursor_infer, [t + (gpu_id,) for t in task_list]) 
+
+        if cursor_backend.get("mode") == "local":
+            try:
+                cursor_result = run_local_cursor_batch(task_list, cursor_backend)
+            except Exception as exc:
+                log.exception("[p2v-cursor] local worker failed, fallback to center: %s", exc)
+                cursor_result = [
+                    {
+                        "slide": slide_idx,
+                        "sentence": sentence_idx,
+                        "speech_text": prompt,
+                        "cursor_prompt": cursor_prompt,
+                        "cursor": None,
+                        "cursor_backend": "local",
+                        "cursor_error": str(exc),
+                    }
+                    for slide_idx, sentence_idx, prompt, cursor_prompt, _ in task_list
+                ]
+        elif cursor_backend.get("mode") == "vlm":
+            vlm_parallelism = max(
+                1,
+                min(
+                    len(task_list) or 1,
+                    int(os.getenv("PAPER2VIDEO_CURSOR_VLM_PARALLELISM", "4")),
+                ),
+            )
+            with ThreadPoolExecutor(max_workers=vlm_parallelism) as executor:
+                cursor_result = list(executor.map(cursor_infer, [task + (cursor_backend,) for task in task_list]))
         else:
-            parallel_tasks = []
-            for i, task in enumerate(task_list):
-                gpu_id = gpu_list[i % num_gpus]
-                parallel_tasks.append(task + (gpu_id,))
-            
-            ctx = multiprocessing.get_context("spawn")
-            with ctx.Pool(processes=num_gpus) as pool:
-                cursor_result = pool.map(cursor_infer, parallel_tasks)
+            cursor_result = [cursor_infer(task + (cursor_backend,)) for task in task_list]
+
         cursor_result.sort(key=lambda x: (x['slide'], x['sentence']))
 
         slide_h, slide_w= cv2.imread(slide_image_path_list[0]).shape[:2]
         for index in range(len(cursor_result)):
-            if cursor_result[index]["cursor_prompt"] == "no":
+            point = cursor_result[index].get("cursor")
+            if cursor_result[index]["cursor_prompt"] == "no" or not isinstance(point, (list, tuple)) or len(point) < 2:
+                cursor_result[index]["cursor"] = (slide_w//2, slide_h//2)
+                continue
+            try:
+                x = max(0, min(slide_w - 1, int(round(float(point[0])))))
+                y = max(0, min(slide_h - 1, int(round(float(point[1])))))
+                cursor_result[index]["cursor"] = (x, y)
+            except (TypeError, ValueError):
                 cursor_result[index]["cursor"] = (slide_w//2, slide_h//2)
         
         slide_sentence_timesteps_w_cursor = []
@@ -679,6 +836,14 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         import subprocess
         
         log.info(f"开始执行 p2v_merge_all node节点")
+
+        def raise_subprocess_error(step: str, exc: subprocess.CalledProcessError) -> None:
+            stderr = (exc.stderr or "").strip()
+            stdout = (exc.stdout or "").strip()
+            detail = stderr or stdout or str(exc)
+            if len(detail) > 2000:
+                detail = detail[-2000:]
+            raise RuntimeError(f"{step} failed: {detail}") from exc
         
         paper_pdf_path = Path(state.request.get("paper_pdf_path", ""))
         paper_base_path = paper_pdf_path.with_suffix('').expanduser().resolve()
@@ -688,7 +853,7 @@ def create_paper2video_graph() -> GenericGraphBuilder:
         ref_img = (state.request.ref_img_path or "").strip()
         speech_save_dir = Path(state.speech_save_dir)
         cursor_save_path = state.cursor_save_path
-        cursor_img_path = state.request.cursor_path
+        cursor_img_path = resolve_p2v_cursor_image_path(state.request.cursor_path)
 
         tmp_merage_dir = paper_output_dir / "merge"
         tmp_merage_1 = paper_output_dir / "1_merge.mp4"
@@ -721,27 +886,48 @@ def create_paper2video_graph() -> GenericGraphBuilder:
                     "-c:v", "libx264", "-c:a", "aac", "-preset", "ultrafast", "-crf", "23",
                     "-shortest", str(output_path),
                 ]
-                subprocess.run(cmd, check=True, capture_output=True, text=True)
+                try:
+                    subprocess.run(cmd, check=True, capture_output=True, text=True)
+                except subprocess.CalledProcessError as exc:
+                    raise_subprocess_error(f"paper2video merge page {i + 1}", exc)
                 list_lines.append(f"file '{output_path.resolve()}'")
             list_file = tmp_merage_dir / "list.txt"
             list_file.write_text("\n".join(list_lines), encoding="utf-8")
             if list_lines:
-                subprocess.run(
-                    ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(list_file), "-c", "copy", str(tmp_merage_1)],
-                    check=True, capture_output=True, text=True,
-                )
+                try:
+                    subprocess.run(
+                        ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(list_file), "-c", "copy", str(tmp_merage_1)],
+                        check=True, capture_output=True, text=True,
+                    )
+                except subprocess.CalledProcessError as exc:
+                    log.warning("paper2video concat slides copy failed, retrying with re-encode")
+                    try:
+                        subprocess.run(
+                            [
+                                "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(list_file),
+                                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+                                "-c:a", "aac", str(tmp_merage_1),
+                            ],
+                            check=True, capture_output=True, text=True,
+                        )
+                    except subprocess.CalledProcessError as retry_exc:
+                        raise_subprocess_error("paper2video concat slides", retry_exc)
                 log.info(f"已使用语音合并至 {tmp_merage_1}")
             else:
                 raise RuntimeError("无有效 slide/语音片段可供合并")
         else:
             # 有数字人：沿用 1_merge.bash，用 talking_video 合并
+            merge_script_path = (Path(__file__).resolve().parents[1] / "toolkits" / "p2vtool" / "1_merge.bash").resolve()
             merage_cmd = [
-                "/data/users/ligang/Paper2Any/dataflow_agent/toolkits/p2vtool/1_merge.bash",
+                str(merge_script_path),
                 str(slide_img_dir), talking_save_dir, str(tmp_merage_dir),
                 str(width), str(height), str(num_slide), str(tmp_merage_1),
                 ref_img.split("/")[-1].replace(".png", ""),
             ]
-            subprocess.run(merage_cmd, text=True, check=True)
+            try:
+                subprocess.run(merage_cmd, text=True, check=True, capture_output=True)
+            except subprocess.CalledProcessError as exc:
+                raise_subprocess_error("paper2video merge script", exc)
         # render cursor
         cursor_size = size//6
         tmp_merage_2 = paper_output_dir /  "2_merge.mp4"

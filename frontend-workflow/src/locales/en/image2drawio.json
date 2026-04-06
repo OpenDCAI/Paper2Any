@@ -42,7 +42,7 @@
     "imgOnly": "Only JPG / PNG images are supported",
     "sizeLimit": "Image size must be under 15MB",
     "apiFail": "Conversion failed, please try again",
-    "quotaFull": "Quota exceeded, please try later"
+    "quotaFull": "Insufficient points. Please get a redeem code and redeem it in Account first."
   },
   "cases": {
     "title": "Cases",

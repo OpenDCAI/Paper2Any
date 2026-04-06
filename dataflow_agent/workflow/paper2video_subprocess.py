@@ -8,6 +8,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
+import sys
 import tempfile
 from dataclasses import asdict
 from pathlib import Path
@@ -71,7 +73,7 @@ def _p2v_build_worker_input(state, mode: str) -> dict:
 async def run_paper2video_via_subprocess(name: str, state) -> dict:
     """
     在 p2v 子进程中执行 paper2video 工作流，子进程的 stdout/stderr 统一转发到主应用日志。
-    环境变量：PAPER2VIDEO_PYTHON 为 p2v 的 Python 可执行路径（默认 python）。
+    环境变量：PAPER2VIDEO_PYTHON 可指定 worker 的 Python；未配置时优先复用当前解释器。
     """
     log = get_logger(__name__)
     worker_script = _project_root / "script" / "paper2video_worker.py"
@@ -83,10 +85,35 @@ async def run_paper2video_via_subprocess(name: str, state) -> dict:
     mode = "generate_subtitle" if script_stage else "generate_video"
     in_dict = _p2v_build_worker_input(state, mode)
 
-    # python_bin = os.getenv("PAPER2VIDEO_PYTHON", "python")
+    configured_python = (os.getenv("PAPER2VIDEO_PYTHON", "") or "").strip()
+    python_candidates = []
+    if configured_python:
+        python_candidates.append(configured_python)
+    python_candidates.extend([
+        sys.executable,
+        "python3",
+        "python",
+    ])
 
-    # fixme: 这里使用的是p2v环境，硬编码了一个绝对路径，后续可能需要修改
-    python_bin = "/root/miniconda3/envs/p2v/bin/python"
+    python_bin = ""
+    for candidate in python_candidates:
+        if not candidate:
+            continue
+        if os.path.isabs(candidate):
+            if os.path.exists(candidate):
+                python_bin = candidate
+                break
+            continue
+        resolved = shutil.which(candidate)
+        if resolved:
+            python_bin = resolved
+            break
+
+    if not python_bin:
+        raise FileNotFoundError(
+            "No usable Python found for paper2video worker. "
+            "Set PAPER2VIDEO_PYTHON to a valid interpreter path."
+        )
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f_in:
         json.dump(in_dict, f_in, ensure_ascii=False, indent=2)
@@ -96,7 +123,7 @@ async def run_paper2video_via_subprocess(name: str, state) -> dict:
 
     try:
         cmd = [python_bin, str(worker_script), "--mode", mode, "--input-json", in_path, "--output-json", out_path]
-        log.info("[paper2video] running in p2v subprocess: %s", " ".join(cmd))
+        log.info("[paper2video] running worker with python=%s: %s", python_bin, " ".join(cmd))
 
         # limit 调大，避免 worker 输出超长单行（如 MoviePy/FFmpeg 进度）时触发 asyncio 的 "Separator is not found, and chunk exceed the limit"
         proc = await asyncio.create_subprocess_exec(

@@ -12,6 +12,10 @@ from dataflow_agent.toolkits.multimodaltool.ocr_config import get_ocr_api_creden
 from dataflow_agent.toolkits.multimodaltool.req_understanding import call_image_understanding_async
 from dataflow_agent.toolkits.multimodaltool.req_videos import call_video_understanding_async
 from dataflow_agent.toolkits.multimodaltool.req_img import generate_or_edit_and_save_image_async
+from dataflow_agent.utils.request_credentials import (
+    get_request_image_api_key,
+    get_request_image_api_url,
+)
 
 log = get_logger(__name__)
 
@@ -141,8 +145,8 @@ class VisionLLMCaller(BaseLLMCaller):
         b64 = await generate_or_edit_and_save_image_async(
             prompt=prompt,
             save_path=save_path,
-            api_url=self.state.request.chat_api_url,
-            api_key=self.state.request.api_key,
+            api_url=get_request_image_api_url(self.state.request),
+            api_key=get_request_image_api_key(self.state.request),
             model=self.model_name,
             image_path=image_path,
             use_edit=(self.mode == "edit"),
