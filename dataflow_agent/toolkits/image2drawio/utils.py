@@ -143,7 +143,7 @@ def sample_fill_stroke(image_bgr: np.ndarray, mask: np.ndarray) -> Tuple[str, st
         elif stroke_lum < 30 and fill_lum > 80:
             # Stroke looks black but fill is colored → no real border,
             # use slightly darkened fill
-            stroke = tuple(max(0, c * 0.7) for c in fill)
+            stroke = tuple(min(255, max(0, c * 0.7)) for c in fill)
         else:
             stroke = stroke_median
     else:
@@ -154,9 +154,9 @@ def sample_fill_stroke(image_bgr: np.ndarray, mask: np.ndarray) -> Tuple[str, st
 
 def extract_text_color(image_bgr: np.ndarray, bbox_px: List[int]) -> str:
     x1, y1, x2, y2 = bbox_px
-    x1 = max(0, min(image_bgr.shape[1] - 1, int(x1)))
+    x1 = max(0, min(image_bgr.shape[1], int(x1)))
     x2 = max(0, min(image_bgr.shape[1], int(x2)))
-    y1 = max(0, min(image_bgr.shape[0] - 1, int(y1)))
+    y1 = max(0, min(image_bgr.shape[0], int(y1)))
     y2 = max(0, min(image_bgr.shape[0], int(y2)))
     if x2 <= x1 or y2 <= y1:
         return "#000000"

@@ -34,8 +34,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
-from PIL import Image
-
 from dataflow_agent.logger import get_logger
 
 log = get_logger(__name__)
@@ -56,17 +54,6 @@ def _bbox_iou(a: List[int], b: List[int]) -> float:
     area_b = _bbox_area(b)
     union = area_a + area_b - inter
     return inter / union if union > 0 else 0.0
-
-
-def _bbox_intersection_ratio(candidate: List[int], target: List[int]) -> float:
-    """candidate 被 target 覆盖的比例 (intersection / candidate_area)."""
-    xa = max(candidate[0], target[0])
-    ya = max(candidate[1], target[1])
-    xb = min(candidate[2], target[2])
-    yb = min(candidate[3], target[3])
-    inter = max(0, xb - xa) * max(0, yb - ya)
-    c_area = _bbox_area(candidate)
-    return inter / c_area if c_area > 0 else 0.0
 
 
 # ======================== configuration ========================
@@ -107,14 +94,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "text_pad_px": 15,              # 文字 bbox 外扩像素，弥补 OCR 框偏小（原8太小）
     "text_overlap_skip": 0.35,      # 候选区域被文字覆盖 ≥ 35% 则跳过（原0.5太高，文字区域容易漏过）
 }
-
-# element types that need base64 to count as "covered"
-_IMAGE_CONTENT_TYPES = {
-    "icon", "symbol", "pictogram", "logo",
-    "picture", "photo", "chart", "diagram",
-    "illustration", "character", "image",
-}
-
 
 # ======================== public API ========================
 
@@ -230,7 +209,7 @@ def _create_content_mask(img: np.ndarray, cfg: dict) -> np.ndarray:
         mask_gray = cv2.morphologyEx(mask_gray, cv2.MORPH_OPEN, np.ones((ks, ks), np.uint8))
 
     # remove tiny connected components
-    min_cc = cfg.get("min_content_area", 30)
+    min_cc = cfg.get("min_content_area", 20)
     if min_cc > 0:
         n_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask_gray, connectivity=8)
         clean = np.zeros_like(mask_gray)
