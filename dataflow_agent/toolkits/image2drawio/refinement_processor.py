@@ -45,6 +45,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "skip_mostly_white": True,      # skip regions that are almost all white
     "white_threshold": 0.95,        # ratio of white pixels to skip
     "white_pixel_value": 245,       # grayscale > this = "white"
+    "skip_mostly_text": True,       # skip regions that are mostly thin text strokes
+    "text_stroke_threshold": 0.55,  # ratio: if >55% of dark pixels are thin strokes → text（原0.80太严格）
 }
 
 
@@ -91,6 +93,13 @@ def refine(
     min_ratio = cfg["min_region_ratio"]
     margin = cfg["expand_margin"]
 
+    # Collect existing element bboxes for overlap checking
+    existing_bboxes: List[List[int]] = []
+    for el in existing_elements:
+        bbox = el.get("bbox_px")
+        if bbox and len(bbox) == 4:
+            existing_bboxes.append([int(v) for v in bbox])
+
     new_elements: List[Dict[str, Any]] = []
     skipped = 0
 
@@ -114,7 +123,7 @@ def refine(
             skipped += 1
             continue
 
-        x1, y1, x2, y2 = bbox
+        x1, y1, x2, y2 = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
         area = (x2 - x1) * (y2 - y1)
 
         # size filter
@@ -129,6 +138,35 @@ def refine(
             cfg["white_pixel_value"], cfg["white_threshold"]
         ):
             log.debug(f"[Refinement] Region {i} mostly white, skip")
+            skipped += 1
+            continue
+
+        # overlap filter: skip if region is significantly covered by existing elements
+        if existing_bboxes:
+            rw, rh = x2 - x1, y2 - y1
+            if rw > 0 and rh > 0:
+                overlap_mask = np.zeros((rh, rw), dtype=np.uint8)
+                for eb in existing_bboxes:
+                    lx1 = max(0, eb[0] - x1)
+                    ly1 = max(0, eb[1] - y1)
+                    lx2 = min(rw, eb[2] - x1)
+                    ly2 = min(rh, eb[3] - y1)
+                    if lx2 > lx1 and ly2 > ly1:
+                        overlap_mask[ly1:ly2, lx1:lx2] = 255
+                overlap_ratio = float(np.count_nonzero(overlap_mask)) / (rw * rh)
+                if overlap_ratio > 0.40:
+                    log.debug(f"[Refinement] Region {i} overlaps {overlap_ratio:.0%} with existing elements, skip")
+                    skipped += 1
+                    continue
+
+        # text-stroke filter: skip if region is mostly thin text strokes
+        # Exception: banner channel regions are OCR-missed titles that MUST be kept
+        is_banner = region.get("channel") == "banner"
+        if not is_banner and cfg.get("skip_mostly_text", True) and _is_mostly_text(
+            cv2_image, [x1, y1, x2, y2],
+            cfg.get("text_stroke_threshold", 0.70)
+        ):
+            log.debug(f"[Refinement] Region {i} mostly text strokes, skip")
             skipped += 1
             continue
 
@@ -194,6 +232,71 @@ def _is_mostly_white(
     white_count = int(np.count_nonzero(gray > white_value))
     total = gray.size
     return (white_count / total) > threshold if total > 0 else True
+
+
+def _is_mostly_text(
+    cv2_image: np.ndarray,
+    bbox: List[int],
+    threshold: float = 0.70,
+) -> bool:
+    """Check if a region is mostly text strokes (dark-on-light OR light-on-dark).
+
+    Detects both:
+      - Dark text on light background (standard documents)
+      - Light/white text on dark background (dark-theme panels, banners)
+
+    Heuristic: text = strokes of foreground color on uniform background.
+    Uses adaptive kernel sizing based on region height to handle both
+    small body text (thin strokes) and large bold titles (thick strokes).
+    After morphological opening, text strokes disappear but filled shapes remain.
+    """
+    x1, y1, x2, y2 = bbox
+    h, w = cv2_image.shape[:2]
+    x1, y1 = max(0, x1), max(0, y1)
+    x2, y2 = min(w, x2), min(h, y2)
+    if x2 <= x1 or y2 <= y1:
+        return False
+
+    roi = cv2_image[y1:y2, x1:x2]
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+    total = gray.size
+    if total < 100:
+        return False
+
+    roi_h = y2 - y1
+
+    # Determine polarity: is it dark-on-light or light-on-dark?
+    light_ratio = float(np.count_nonzero(gray > 200)) / total
+    dark_ratio = float(np.count_nonzero(gray < 60)) / total
+
+    if light_ratio >= 0.55:
+        # Case 1: light background, dark text strokes
+        fg_mask = (gray < 180).astype(np.uint8) * 255
+    elif dark_ratio >= 0.55:
+        # Case 2: dark background, light text strokes
+        fg_mask = (gray > 80).astype(np.uint8) * 255
+    else:
+        # Mixed / mid-tone → probably not a text region
+        return False
+
+    fg_count = int(np.count_nonzero(fg_mask))
+    if fg_count < 10:
+        return False  # almost no foreground
+
+    # Adaptive kernel: larger regions may have thicker text (bold titles, headers)
+    # Use ~15% of region height as kernel size, clamped to [3, 11]
+    ks = max(3, min(11, int(roi_h * 0.15)))
+    if ks % 2 == 0:
+        ks += 1  # must be odd
+
+    kernel = np.ones((ks, ks), np.uint8)
+    opened = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel)
+    thick_count = int(np.count_nonzero(opened))
+
+    # thin_ratio = fraction of foreground pixels that are thin (removed by opening)
+    thin_ratio = 1.0 - (thick_count / fg_count) if fg_count > 0 else 0.0
+
+    return thin_ratio >= threshold
 
 
 def _save_visualization(

@@ -58,6 +58,17 @@ def _bbox_iou(a: List[int], b: List[int]) -> float:
     return inter / union if union > 0 else 0.0
 
 
+def _bbox_intersection_ratio(candidate: List[int], target: List[int]) -> float:
+    """candidate 被 target 覆盖的比例 (intersection / candidate_area)."""
+    xa = max(candidate[0], target[0])
+    ya = max(candidate[1], target[1])
+    xb = min(candidate[2], target[2])
+    yb = min(candidate[3], target[3])
+    inter = max(0, xb - xa) * max(0, yb - ya)
+    c_area = _bbox_area(candidate)
+    return inter / c_area if c_area > 0 else 0.0
+
+
 # ======================== configuration ========================
 
 DEFAULT_CONFIG: Dict[str, Any] = {
@@ -84,13 +95,17 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 
     # NMS / dedup
     "nms_iou": 0.25,                # 更严格的NMS（原0.3）
-    "existing_iou": 0.45,           # 更积极地保留候选（原0.5）
+    "existing_iou": 0.30,           # 更积极过滤：与已有元素 IoU>30% 即跳过（原0.45）
     "max_covered_ratio": 0.65,      # 降低已覆盖容忍度（原0.7）
     "min_missing_ratio": 0.03,      # 更敏感的漏检内容检测（原0.05）
 
     # merge
     "merge_distance_ratio": 0.08,   # 更保守的合并距离（原0.10）
     "small_region_threshold": 0.025, # 更小的小区域阈值（原0.03）
+
+    # text protection
+    "text_pad_px": 15,              # 文字 bbox 外扩像素，弥补 OCR 框偏小（原8太小）
+    "text_overlap_skip": 0.35,      # 候选区域被文字覆盖 ≥ 35% 则跳过（原0.5太高，文字区域容易漏过）
 }
 
 # element types that need base64 to count as "covered"
@@ -135,28 +150,31 @@ def evaluate(
 
     # 2. covered mask (elements that produced actual output)
     covered_mask, existing_bboxes = _create_covered_mask(
-        elements, text_blocks or [], h, w
+        elements, text_blocks or [], h, w, cfg
     )
 
-    # 3. pixel coverage
+    # 3. build text-only mask (with padding) for text-overlap filtering
+    text_bboxes = _collect_text_bboxes(text_blocks or [], h, w, cfg)
+
+    # 4. pixel coverage
     covered_content = int(np.count_nonzero(cv2.bitwise_and(content_mask, covered_mask)))
     pixel_coverage = (covered_content / total_content * 100) if total_content > 0 else 100.0
 
-    # 4. uncovered content
+    # 5. uncovered content
     uncovered = cv2.bitwise_and(content_mask, cv2.bitwise_not(covered_mask))
 
-    # 5. detect bad regions (three channels)
+    # 6. detect bad regions (three channels)
     bad_regions = _detect_bad_regions(
         cv2_image, content_mask, covered_mask, uncovered,
-        existing_bboxes, elements, img_area, cfg,
+        existing_bboxes, text_bboxes, elements, img_area, cfg,
     )
 
-    # 6. score = 100 − bad-region area ratio (de-duplicated)
+    # 7. score = 100 − bad-region area ratio (de-duplicated)
     bad_mask = np.zeros((h, w), dtype=np.uint8)
     for r in bad_regions:
         x1, y1, x2, y2 = r["bbox"]
         bad_mask[max(0, y1):min(h, y2), max(0, x1):min(w, x2)] = 255
-    bad_ratio = np.count_nonzero(bad_mask) / img_area * 100 if img_area > 0 else 0
+    bad_ratio = float(np.count_nonzero(bad_mask) / img_area * 100) if img_area > 0 else 0.0
     score = max(0.0, 100.0 - bad_ratio)
 
     needs_refinement = len(bad_regions) > 0
@@ -178,7 +196,7 @@ def evaluate(
         f"bad_regions={len(bad_regions)}, bad_ratio={bad_ratio:.1f}%"
     )
 
-    # 7. optional visualisation / JSON dump
+    # 8. optional visualisation / JSON dump
     if output_dir:
         _save_debug(cv2_image, covered_mask, uncovered, bad_regions,
                     metrics, needs_refinement, score, output_dir)
@@ -230,6 +248,7 @@ def _create_covered_mask(
     elements: List[Dict],
     text_blocks: List[Dict],
     h: int, w: int,
+    cfg: dict,
 ) -> Tuple[np.ndarray, List[List[int]]]:
     """
     Build a mask of regions that already have real output.
@@ -237,7 +256,7 @@ def _create_covered_mask(
     Rules:
       - shape with fill/stroke → covered (矢量已还原)
       - image with existing image_path → covered
-      - text block with geometry → covered
+      - text block with geometry → covered (带 padding 扩展)
     """
     mask = np.zeros((h, w), dtype=np.uint8)
     bboxes: List[List[int]] = []
@@ -261,19 +280,40 @@ def _create_covered_mask(
             mask[y1:y2, x1:x2] = 255
             bboxes.append([x1, y1, x2, y2])
 
+    # 文字 bbox 带 padding 写入 covered mask
+    pad = cfg.get("text_pad_px", 8)
     for blk in text_blocks:
         geo = blk.get("geometry", {})
         x = int(float(geo.get("x", 0)))
         y = int(float(geo.get("y", 0)))
         bw = int(float(geo.get("width", 0)))
         bh = int(float(geo.get("height", 0)))
-        x1, y1 = max(0, x), max(0, y)
-        x2, y2 = min(w, x + bw), min(h, y + bh)
+        x1, y1 = max(0, x - pad), max(0, y - pad)
+        x2, y2 = min(w, x + bw + pad), min(h, y + bh + pad)
         if x2 > x1 and y2 > y1:
             mask[y1:y2, x1:x2] = 255
             bboxes.append([x1, y1, x2, y2])
 
     return mask, bboxes
+
+
+def _collect_text_bboxes(
+    text_blocks: List[Dict], h: int, w: int, cfg: dict,
+) -> List[List[int]]:
+    """Collect padded text bboxes for text-overlap filtering."""
+    pad = cfg.get("text_pad_px", 8)
+    bboxes: List[List[int]] = []
+    for blk in text_blocks:
+        geo = blk.get("geometry", {})
+        x = int(float(geo.get("x", 0)))
+        y = int(float(geo.get("y", 0)))
+        bw = int(float(geo.get("width", 0)))
+        bh = int(float(geo.get("height", 0)))
+        x1, y1 = max(0, x - pad), max(0, y - pad)
+        x2, y2 = min(w, x + bw + pad), min(h, y + bh + pad)
+        if x2 > x1 and y2 > y1:
+            bboxes.append([x1, y1, x2, y2])
+    return bboxes
 
 
 # ======================== bad-region detection ========================
@@ -284,6 +324,7 @@ def _detect_bad_regions(
     covered_mask: np.ndarray,
     uncovered: np.ndarray,
     existing_bboxes: List[List[int]],
+    text_bboxes: List[List[int]],
     elements: List[Dict],
     img_area: int,
     cfg: dict,
@@ -310,19 +351,34 @@ def _detect_bad_regions(
     for box in _detect_complex(cv2_image, elements, covered_mask, img_area):
         candidates.append((box, "complex"))
 
+    # banner channel — 横幅/标题栏: 宽度 ≥ 图片宽度 40%, 宽高比 > 10
+    # 普通通道会因 max_aspect 过滤掉这类区域, 但横跨画面的标题栏应该保留
+    for box in _channel_cc(uncovered, img_area,
+                           cfg.get("banner_min_ratio", 0.003),
+                           cfg.get("banner_max_ratio", 0.15),
+                           cfg.get("banner_min_fill", 0.08),
+                           max_aspect=100.0):  # 放宽宽高比
+        bw = box[2] - box[0]
+        bh = box[3] - box[1]
+        # 必须宽度 ≥ 图片宽度的 40%（排除普通窄条噪音）
+        if bw >= w * 0.4 and bh >= 10:
+            candidates.append((box, "banner"))
+
     log.info(
         f"[MetricEvaluator] candidates: "
         f"fine={sum(1 for _, c in candidates if c == 'fine')}, "
         f"coarse={sum(1 for _, c in candidates if c == 'coarse')}, "
-        f"complex={sum(1 for _, c in candidates if c == 'complex')}"
+        f"complex={sum(1 for _, c in candidates if c == 'complex')}, "
+        f"banner={sum(1 for _, c in candidates if c == 'banner')}"
     )
 
     # small-box-first NMS
     candidates = _nms_small_first(candidates, cfg["nms_iou"])
 
-    # filter vs existing elements + coverage check
+    # filter vs existing elements + text overlap + coverage check
     regions = _filter_candidates(
-        candidates, covered_mask, existing_bboxes, uncovered, img_area, cfg,
+        candidates, covered_mask, existing_bboxes, text_bboxes,
+        uncovered, img_area, cfg,
     )
 
     # merge nearby small regions
@@ -355,7 +411,7 @@ def _channel_cc(
             continue
         if cc_area / ba < min_fill:
             continue
-        boxes.append([x, y, x + rw, y + rh])
+        boxes.append([int(x), int(y), int(x + rw), int(y + rh)])
     return boxes
 
 
@@ -365,7 +421,12 @@ def _detect_complex(
     covered_mask: np.ndarray,
     img_area: int,
 ) -> List[List[int]]:
-    """Detect high-complexity regions not covered by any element."""
+    """Detect high-complexity regions not covered by any element.
+
+    NOTE: text regions have already been painted into covered_mask
+    (with padding), so they are excluded from `uncovered_hi` via the
+    bitwise_and(hi, ~covered_mask) step.
+    """
     h, w = cv2_image.shape[:2]
     gray = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2GRAY).astype(np.float32)
 
@@ -403,7 +464,7 @@ def _detect_complex(
             continue
         if max(rw, rh) / max(1, min(rw, rh)) > 8:
             continue
-        boxes.append([x, y, x + rw, y + rh])
+        boxes.append([int(x), int(y), int(x + rw), int(y + rh)])
     return boxes
 
 
@@ -430,10 +491,39 @@ def _nms_small_first(
     return keep
 
 
+def _text_overlap_ratio(candidate: List[int], text_bboxes: List[List[int]]) -> float:
+    """计算 candidate 区域被文字 bbox 覆盖的面积占比.
+
+    将所有与 candidate 相交的文字区域的交集面积累加（使用 mask 去重），
+    然后除以 candidate 面积。
+    """
+    c_area = _bbox_area(candidate)
+    if c_area <= 0 or not text_bboxes:
+        return 0.0
+
+    cx1, cy1, cx2, cy2 = candidate
+    cw, ch = cx2 - cx1, cy2 - cy1
+
+    # 用小 mask 精确计算覆盖面积（避免多个文字 bbox 重叠导致重复计算）
+    tmask = np.zeros((ch, cw), dtype=np.uint8)
+    for tb in text_bboxes:
+        # 相交区域（相对于 candidate 的局部坐标）
+        lx1 = max(0, tb[0] - cx1)
+        ly1 = max(0, tb[1] - cy1)
+        lx2 = min(cw, tb[2] - cx1)
+        ly2 = min(ch, tb[3] - cy1)
+        if lx2 > lx1 and ly2 > ly1:
+            tmask[ly1:ly2, lx1:lx2] = 255
+
+    covered = int(np.count_nonzero(tmask))
+    return covered / c_area
+
+
 def _filter_candidates(
     candidates: List[Tuple[List[int], str]],
     covered_mask: np.ndarray,
     existing_bboxes: List[List[int]],
+    text_bboxes: List[List[int]],
     uncovered: np.ndarray,
     img_area: int,
     cfg: dict,
@@ -441,16 +531,39 @@ def _filter_candidates(
     iou_thresh = cfg["existing_iou"]
     max_covered = cfg["max_covered_ratio"]
     min_missing = cfg["min_missing_ratio"]
+    text_skip = cfg.get("text_overlap_skip", 0.5)
 
     regions: List[Dict[str, Any]] = []
     for box, channel in candidates:
-        x1, y1, x2, y2 = box
-        area = _bbox_area(box)
+        x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
+        area = int(_bbox_area(box))
         is_complex = channel == "complex"
 
         # skip if high IoU with an existing element
         eff_iou = 0.8 if is_complex else iou_thresh
         if any(_bbox_iou(box, eb) > eff_iou for eb in existing_bboxes):
+            continue
+
+        # skip if candidate is mostly covered by union of existing element bboxes
+        # (handles cases where no single element has high IoU but collectively they cover it)
+        if not is_complex and existing_bboxes:
+            cw, ch = x2 - x1, y2 - y1
+            if cw > 0 and ch > 0:
+                union_mask = np.zeros((ch, cw), dtype=np.uint8)
+                for eb in existing_bboxes:
+                    lx1 = max(0, eb[0] - x1)
+                    ly1 = max(0, eb[1] - y1)
+                    lx2 = min(cw, eb[2] - x1)
+                    ly2 = min(ch, eb[3] - y1)
+                    if lx2 > lx1 and ly2 > ly1:
+                        union_mask[ly1:ly2, lx1:lx2] = 255
+                union_covered = float(np.count_nonzero(union_mask)) / (cw * ch)
+                if union_covered > 0.50:
+                    continue
+
+        # ★ skip if candidate is predominantly text
+        # 如果候选区域被文字 bbox 覆盖的面积 ≥ text_overlap_skip，则认为是文字区域，跳过
+        if text_bboxes and _text_overlap_ratio([x1, y1, x2, y2], text_bboxes) >= text_skip:
             continue
 
         # skip if mostly already covered (except complex)
@@ -530,9 +643,9 @@ def _merge_nearby(
             merged.append(small[indices[0]])
         else:
             bxs = [small[i]["bbox"] for i in indices]
-            mb = [min(b[0] for b in bxs), min(b[1] for b in bxs),
-                  max(b[2] for b in bxs), max(b[3] for b in bxs)]
-            ma = _bbox_area(mb)
+            mb = [int(min(b[0] for b in bxs)), int(min(b[1] for b in bxs)),
+                  int(max(b[2] for b in bxs)), int(max(b[3] for b in bxs))]
+            ma = int(_bbox_area(mb))
             merged.append({
                 "bbox": mb,
                 "area": ma,
@@ -579,6 +692,10 @@ def _save_debug(
             return float(o)
         if isinstance(o, np.ndarray):
             return o.tolist()
+        if isinstance(o, list):
+            return [_native(x) for x in o]
+        if isinstance(o, dict):
+            return {k: _native(v) for k, v in o.items()}
         return o
 
     with open(str(Path(output_dir) / "metric_eval.json"), "w", encoding="utf-8") as f:

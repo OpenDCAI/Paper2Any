@@ -85,7 +85,6 @@ ARROW_PROMPT = [
     "arrow",
     "line",
     "connector",
-    "line",
 ]
 
 # 图片类：覆盖各类非矢量化内容
@@ -1160,6 +1159,173 @@ def _shape_type_from_prompt(prompt: str) -> str:
     return p or "rectangle"
 
 
+# ==================== CV BACKGROUND PANEL DETECTION ====================
+# 当 SAM3 没有检测到任何 background 组时，使用 CV 方法补充检测大面积
+# 色块面板（典型的海报/PPT 中的深色或浅色背景面板）。
+
+# 面板检测的最小/最大面积比例
+_BG_MIN_AREA_RATIO = 0.02   # ≥ 2% 画面面积
+_BG_MAX_AREA_RATIO = 0.85   # ≤ 85%
+_BG_MAX_ASPECT = 12.0       # 最大宽高比
+_BG_MAX_PANELS = 12         # 最多检测 12 个面板
+_BG_IOU_DEDUP = 0.3         # 面板间 IoU 去重阈值
+_BG_EXISTING_IOU = 0.6      # 与已有元素 IoU 去重阈值
+_BG_MIN_CONTAINED = 2       # 面板内部至少包含 N 个已有元素才算"容器"
+_BG_SMALL_PANEL_RATIO = 0.08  # 面积 < 8% 的面板必须满足容器条件
+
+
+def _detect_background_panels_cv(
+    image_bgr: np.ndarray,
+    existing_elements: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """
+    用 CV 方法检测大面积矩形面板作为背景元素。
+
+    策略: Canny 边缘 → 轮廓 → 筛选大矩形 → NMS 去重 → 颜色采样
+    适用于海报/PPT 中有明确矩形分区的图片。
+    """
+    h, w = image_bgr.shape[:2]
+    img_area = h * w
+    panels: List[Dict[str, Any]] = []
+
+    # 收集已有元素的 bbox
+    existing_bboxes = []
+    for el in existing_elements:
+        bbox = el.get("bbox_px")
+        if bbox and len(bbox) == 4:
+            existing_bboxes.append(bbox)
+
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+
+    # 边缘检测 + 膨胀连接
+    edges = cv2.Canny(gray, 20, 60)
+    edges = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=2)
+
+    contours, _ = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    # 找大矩形轮廓
+    candidates: List[Tuple[List[int], float]] = []  # (bbox, rect_fill)
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area < img_area * _BG_MIN_AREA_RATIO:
+            continue
+        peri = cv2.arcLength(cnt, True)
+        approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
+        if len(approx) < 4 or len(approx) > 8:
+            continue
+        x, y, rw, rh = cv2.boundingRect(cnt)
+        ba = rw * rh
+        rect_fill = area / ba if ba > 0 else 0
+        if rect_fill < 0.5:  # 至少 50% 填充 → 近似矩形
+            continue
+        ratio = ba / img_area
+        if ratio > _BG_MAX_AREA_RATIO:
+            continue
+        aspect = max(rw, rh) / max(1, min(rw, rh))
+        if aspect > _BG_MAX_ASPECT:
+            continue
+        candidates.append(([int(x), int(y), int(x + rw), int(y + rh)], rect_fill))
+
+    if not candidates:
+        return []
+
+    # NMS: 按面积从大到小，去掉高 IoU 重叠的 (内外轮廓去重)
+    candidates.sort(key=lambda c: _bbox_area(c[0]), reverse=True)
+    kept: List[List[int]] = []
+    for bbox, _ in candidates:
+        skip = False
+        for kb in kept:
+            if bbox_iou_px(bbox, kb) > _BG_IOU_DEDUP:
+                skip = True
+                break
+        if not skip:
+            kept.append(bbox)
+        if len(kept) >= _BG_MAX_PANELS:
+            break
+
+    # 过滤掉与已有元素高度重叠的
+    final: List[List[int]] = []
+    for bbox in kept:
+        skip = False
+        for eb in existing_bboxes:
+            if bbox_iou_px(bbox, eb) > _BG_EXISTING_IOU:
+                skip = True
+                break
+        if not skip:
+            final.append(bbox)
+
+    # 构建 shape 元素 — 从边框附近采样颜色
+    # 对于较小的面板 (< 8%), 要求内部包含至少 N 个已有元素才算"容器"
+    # 大面板 (≥ 8%) 通常就是布局面板，可以直接保留
+    for idx, bbox in enumerate(final):
+        x1, y1, x2, y2 = bbox
+        panel_ratio = _bbox_area(bbox) / img_area
+
+        # 小面板容器验证: 计算内部包含多少个已有元素
+        if panel_ratio < _BG_SMALL_PANEL_RATIO:
+            contained = 0
+            for eb in existing_bboxes:
+                # 元素中心在面板内部 → 算被包含
+                ecx = (eb[0] + eb[2]) / 2
+                ecy = (eb[1] + eb[3]) / 2
+                if x1 <= ecx <= x2 and y1 <= ecy <= y2:
+                    contained += 1
+            if contained < _BG_MIN_CONTAINED:
+                log.debug(
+                    f"[paper2drawio_sam3] CV panel [{x1},{y1},{x2},{y2}] "
+                    f"ratio={panel_ratio*100:.1f}% skipped: only {contained} "
+                    f"contained elements (need ≥{_BG_MIN_CONTAINED})"
+                )
+                continue
+        x1, y1, x2, y2 = bbox
+        roi = image_bgr[y1:y2, x1:x2]
+        if roi.size == 0:
+            continue
+        rh_roi, rw_roi = roi.shape[:2]
+        border_w = max(3, min(rw_roi, rh_roi) // 20)
+
+        # 边框区域像素
+        border_pixels = np.concatenate([
+            roi[:border_w, :].reshape(-1, 3),       # top
+            roi[-border_w:, :].reshape(-1, 3),       # bottom
+            roi[:, :border_w].reshape(-1, 3),        # left
+            roi[:, -border_w:].reshape(-1, 3),       # right
+        ], axis=0)
+
+        fill_bgr = np.median(border_pixels, axis=0).astype(int)
+        fill_hex = "#{:02x}{:02x}{:02x}".format(
+            int(fill_bgr[2]), int(fill_bgr[1]), int(fill_bgr[0])
+        )
+        # 边框色: 稍微深一点
+        darker = np.clip(fill_bgr * 0.7, 0, 255).astype(int)
+        stroke_hex = "#{:02x}{:02x}{:02x}".format(
+            int(darker[2]), int(darker[1]), int(darker[0])
+        )
+
+        panels.append({
+            "id": f"bg{idx}",
+            "kind": "shape",
+            "shape_type": "rectangle",
+            "bbox_px": bbox,
+            "fill": fill_hex,
+            "stroke": stroke_hex,
+            "text": "",
+            "text_color": None,
+            "font_size": None,
+            "area": _bbox_area(bbox),
+            "group": "background",
+            "prompt": "cv_panel",
+        })
+
+    if panels:
+        log.info(
+            f"[paper2drawio_sam3] CV background panels: "
+            f"{len(panels)} detected, areas={[round(p['area']/img_area*100,1) for p in panels]}%"
+        )
+
+    return panels
+
+
 def _sam3_predict_groups(
     client: Any,
     image_path: str,
@@ -1194,6 +1360,14 @@ def _sam3_predict_groups(
             image_path=image_path,
             runs=base_runs,
         )
+
+        # Diagnostic: log per-group counts before dedup
+        _pre_dedup: Dict[str, int] = {}
+        for item in all_results:
+            g = str(item.get("group", "unknown"))
+            _pre_dedup[g] = _pre_dedup.get(g, 0) + 1
+        log.info(f"[paper2drawio_sam3] SAM3 raw results (before dedup): {json.dumps(_pre_dedup)}")
+
         all_results = dedup_sam3_results_across_groups(
             all_results,
             group_config=SAM3_GROUP_CONFIG,
@@ -1456,6 +1630,15 @@ def _build_elements_from_sam3(
 
     shapes.sort(key=lambda s: s.get("area", 0), reverse=True)
     images.sort(key=lambda s: s.get("area", 0), reverse=True)
+
+    # ---- CV fallback: detect background panels not found by SAM3 ----
+    bg_count = sum(1 for s in shapes if s.get("group") == "background")
+    if bg_count == 0:
+        cv_bg = _detect_background_panels_cv(image_bgr, shapes + images)
+        if cv_bg:
+            log.info(f"[paper2drawio_sam3] CV background detection: added {len(cv_bg)} panels")
+            shapes = cv_bg + shapes  # backgrounds go first (rendered at back)
+
     total = len(shapes) + len(images)
     if total > MAX_DRAWIO_ELEMENTS:
         keep = max(0, MAX_DRAWIO_ELEMENTS - len(shapes))
@@ -1521,14 +1704,14 @@ def create_paper2drawio_sam3_graph() -> GenericGraphBuilder:
                 temp_state.request.chat_api_key = api_key
 
             try:
-                vlm_timeout = int(os.getenv("VLM_OCR_TIMEOUT", "120"))
+                vlm_timeout = int(os.getenv("VLM_OCR_TIMEOUT", "180"))
             except ValueError:
-                vlm_timeout = 120
+                vlm_timeout = 180
+
             agent = create_vlm_agent(
                 name="ImageTextBBoxAgent",
                 model_name="qwen-vl-ocr-2025-11-20",
                 chat_api_url=chat_api_url,
-                max_tokens=4096,
                 vlm_mode="ocr",
                 max_tokens=8192,
                 additional_params={"input_image": img_path, "timeout": vlm_timeout},
