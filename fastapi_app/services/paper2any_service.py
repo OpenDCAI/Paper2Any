@@ -17,6 +17,7 @@ from fastapi_app.interprocess_lock import AsyncInterProcessSemaphore
 from fastapi_app.services.managed_api_service import (
     resolve_image_generation_credentials,
     resolve_llm_credentials,
+    resolve_model_name,
 )
 from dataflow_agent.utils import get_project_root
 from dataflow_agent.logger import get_logger
@@ -261,11 +262,29 @@ class Paper2AnyService:
         # paper2figure 前端历史上把 tech_route 的文本模型塞在 img_gen_model_name 里。
         # 这里按 graph_type 分流，避免技术路线图仍被固定到 gpt-4o。
         selected_text_model = (
-            _normalize_tech_route_text_model(img_gen_model_name)
+            resolve_model_name(
+                _normalize_tech_route_text_model(img_gen_model_name),
+                managed_default=settings.PAPER2FIGURE_TECHNICAL_MODEL,
+                fallback_default=settings.PAPER2FIGURE_TEXT_MODEL,
+            )
             if graph_type == "tech_route"
-            else settings.PAPER2FIGURE_TEXT_MODEL
+            else resolve_model_name(
+                settings.PAPER2FIGURE_TEXT_MODEL,
+                managed_default=settings.PAPER2FIGURE_TEXT_MODEL,
+            )
         )
-        selected_image_model = settings.PAPER2FIGURE_IMAGE_MODEL if graph_type == "tech_route" else img_gen_model_name
+        selected_image_model = (
+            resolve_model_name(
+                settings.PAPER2FIGURE_IMAGE_MODEL,
+                managed_default=settings.PAPER2FIGURE_IMAGE_MODEL,
+            )
+            if graph_type == "tech_route"
+            else resolve_model_name(
+                img_gen_model_name,
+                managed_default=settings.PAPER2FIGURE_IMAGE_MODEL,
+                fallback_default=settings.PAPER2FIGURE_DEFAULT_IMAGE_MODEL,
+            )
+        )
 
         # 4. 构造 Request
         p2f_req = Paper2FigureRequest(
@@ -382,11 +401,29 @@ class Paper2AnyService:
         # paper2figure 前端历史上把 tech_route 的文本模型塞在 img_gen_model_name 里。
         # 这里按 graph_type 分流，避免技术路线图仍被固定到 gpt-4o。
         selected_text_model = (
-            _normalize_tech_route_text_model(img_gen_model_name)
+            resolve_model_name(
+                _normalize_tech_route_text_model(img_gen_model_name),
+                managed_default=settings.PAPER2FIGURE_TECHNICAL_MODEL,
+                fallback_default=settings.PAPER2FIGURE_TEXT_MODEL,
+            )
             if graph_type == "tech_route"
-            else settings.PAPER2FIGURE_TEXT_MODEL
+            else resolve_model_name(
+                settings.PAPER2FIGURE_TEXT_MODEL,
+                managed_default=settings.PAPER2FIGURE_TEXT_MODEL,
+            )
         )
-        selected_image_model = settings.PAPER2FIGURE_IMAGE_MODEL if graph_type == "tech_route" else img_gen_model_name
+        selected_image_model = (
+            resolve_model_name(
+                settings.PAPER2FIGURE_IMAGE_MODEL,
+                managed_default=settings.PAPER2FIGURE_IMAGE_MODEL,
+            )
+            if graph_type == "tech_route"
+            else resolve_model_name(
+                img_gen_model_name,
+                managed_default=settings.PAPER2FIGURE_IMAGE_MODEL,
+                fallback_default=settings.PAPER2FIGURE_DEFAULT_IMAGE_MODEL,
+            )
+        )
 
         # 4. 构造 Request
         p2f_req = Paper2FigureRequest(

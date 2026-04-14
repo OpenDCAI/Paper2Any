@@ -26,7 +26,10 @@ conda create -n paper2any python=3.11 -y
 conda activate paper2any
 
 pip install --upgrade pip
-pip install -r requirements-paper.txt || pip install -r requirements-paper-backup.txt
+pip install -r requirements-paper.txt
+
+# NVIDIA GPU 机器再额外安装
+pip install -r requirements-cu12.txt
 ```
 
 ### 前端
@@ -40,8 +43,7 @@ cd ..
 ### 最小启动方式
 
 ```bash
-bash deploy/start.sh
-bash deploy/start_frontend.sh
+bash deploy/start_nv.sh
 ```
 
 如果你的改动依赖本地模型服务，再继续使用：

@@ -1,3 +1,9 @@
+# Cross-platform Python runtime dependencies.
+# Paper-specific extras live in requirements-paper.txt.
+# NVIDIA CUDA 12 runtime extras live in requirements-cu12.txt.
+# OS-level packages such as ffmpeg / libreoffice / inkscape are not pip packages;
+# see requirements-system-ubuntu.txt and DEPLOY.md.
+
 open-dataflow==1.0.6
 
 numpy==1.26.4

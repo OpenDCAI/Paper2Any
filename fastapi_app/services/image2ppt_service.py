@@ -5,11 +5,13 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import File, UploadFile, HTTPException
+from fastapi_app.config import settings
 from fastapi_app.schemas import Paper2PPTRequest
 from fastapi_app.interprocess_lock import AsyncInterProcessSemaphore
 from fastapi_app.services.managed_api_service import (
     resolve_image_generation_credentials,
     resolve_llm_credentials,
+    resolve_model_name,
 )
 from fastapi_app.workflow_adapters.wa_pdf2ppt import run_pdf2ppt_wf_api
 from dataflow_agent.utils import get_project_root
@@ -63,6 +65,14 @@ class Image2PPTService:
             chat_api_url,
             api_key,
             scope="image2ppt",
+        )
+        model = resolve_model_name(
+            model,
+            managed_default=settings.IMAGE2PPT_DEFAULT_MODEL,
+        )
+        gen_fig_model = resolve_model_name(
+            gen_fig_model,
+            managed_default=settings.IMAGE2PPT_DEFAULT_IMAGE_MODEL,
         )
         # 0.5 如果启用 AI 增强，必须校验 API 配置
         if use_ai_edit:

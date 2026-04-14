@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import copy
 import json
 import os
+import re
 import time
-import copy
 from pathlib import Path
 from typing import List, Dict, Any
 
@@ -24,6 +25,23 @@ from dataflow_agent.utils_markdown_sections import (
 from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract_http
 
 log = get_logger(__name__)
+
+
+def _resolve_outline_model(state: Paper2FigureState) -> str | None:
+    request = getattr(state, "request", None)
+    request_model = str(getattr(request, "model", "") or "").strip()
+    if request_model:
+        return request_model
+
+    explicit_outline_model = str(getattr(request, "outline_model", "") or "").strip()
+    if explicit_outline_model:
+        return explicit_outline_model
+
+    configured_outline_model = os.getenv("PAPER2PPT_OUTLINE_MODEL", "").strip()
+    if configured_outline_model:
+        return configured_outline_model
+
+    return None
 
 """
 Workflow: paper2page_content_for_long_paper
@@ -91,6 +109,186 @@ def _calculate_target_chars(target_pages: int, text: str = "") -> int:
     target = target_pages * chars_per_page
     # log.info(f"[long_paper] 目标计算: {target_pages}页, 英文={is_en}, 阈值={target} chars")
     return target
+
+
+def _extract_plain_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (int, float, bool)):
+        return str(value)
+    if isinstance(value, dict):
+        preferred_keys = (
+            "text",
+            "value",
+            "content",
+            "summary",
+            "title",
+            "label",
+            "body",
+            "description",
+            "reason",
+            "point",
+            "raw",
+        )
+        for key in preferred_keys:
+            extracted = _extract_plain_text(value.get(key))
+            if extracted:
+                return extracted
+        for item in value.values():
+            extracted = _extract_plain_text(item)
+            if extracted:
+                return extracted
+        return ""
+    if isinstance(value, (list, tuple, set)):
+        parts = [_extract_plain_text(item) for item in value]
+        return "\n\n".join(part for part in parts if part)
+    return str(value).strip()
+
+
+def _normalize_outline_points(value: Any, *, limit: int = 5) -> List[str]:
+    if isinstance(value, list):
+        items = [_extract_plain_text(item) for item in value]
+    else:
+        items = [_extract_plain_text(value)]
+    cleaned = [item for item in items if item]
+    return cleaned[:limit]
+
+
+def _clip_outline_point(text: str, *, limit: int = 220) -> str:
+    text = re.sub(r"\s+", " ", str(text or "")).strip()
+    if len(text) <= limit:
+        return text
+    clipped = text[:limit].rsplit(" ", 1)[0].strip()
+    return (clipped or text[:limit]).rstrip(",;:.- ") + "..."
+
+
+def _normalize_outline_page_item(raw: Any) -> Dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+
+    title = _extract_plain_text(raw.get("title"))
+    layout_description = _extract_plain_text(raw.get("layout_description"))
+    key_points = _normalize_outline_points(raw.get("key_points"), limit=6)
+    asset_ref_text = _extract_plain_text(raw.get("asset_ref"))
+
+    # ReAct 失败或空对象时，不要把错误占位直接透传给前端。
+    if raw.get("error") and not title and not key_points:
+        return None
+    if not title and not layout_description and not key_points and not asset_ref_text:
+        return None
+
+    normalized = dict(raw)
+    normalized["title"] = title
+    normalized["layout_description"] = layout_description
+    normalized["key_points"] = key_points
+    normalized["asset_ref"] = asset_ref_text or None
+    return normalized
+
+
+def _normalize_outline_pages(items: List[Any]) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    for raw in items:
+        item = _normalize_outline_page_item(raw)
+        if item is not None:
+            normalized.append(item)
+    return normalized
+
+
+def _split_batch_text_into_units(content: str) -> List[str]:
+    content = _extract_plain_text(content)
+    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", content or "") if part.strip()]
+    if paragraphs:
+        return paragraphs
+
+    lines = [line.strip() for line in (content or "").splitlines() if line.strip()]
+    if lines:
+        return lines
+
+    collapsed = re.sub(r"\s+", " ", str(content or "")).strip()
+    if not collapsed:
+        return []
+
+    sentence_parts = [
+        part.strip()
+        for part in re.split(r"(?<=[。！？!?\.])\s+", collapsed)
+        if part.strip()
+    ]
+    if len(sentence_parts) > 1:
+        return sentence_parts
+
+    chunk_size = 220
+    return [collapsed[i:i + chunk_size].strip() for i in range(0, len(collapsed), chunk_size) if collapsed[i:i + chunk_size].strip()]
+
+
+def _build_fallback_pages_for_batch(
+    *,
+    batch: Dict[str, Any],
+    existing_pages: List[Dict[str, Any]],
+    page_budget: int,
+    language: str,
+) -> List[Dict[str, Any]]:
+    if page_budget <= 0:
+        return []
+
+    batch_titles = [str(title).strip() for title in (batch.get("section_titles") or []) if str(title).strip()]
+    units = _split_batch_text_into_units(str(batch.get("content") or ""))
+    if not units:
+        units = ["Content summary pending refinement."]
+
+    missing = max(0, page_budget - len(existing_pages))
+    if missing <= 0:
+        return []
+
+    fallback_pages: List[Dict[str, Any]] = []
+    unit_count = len(units)
+    chunk_size = max(1, (unit_count + missing - 1) // missing)
+    use_chinese = str(language or "").strip().lower().startswith("zh")
+    default_heading_prefix = "章节" if use_chinese else "Section"
+    closing_title = "感谢聆听" if use_chinese else "Thank You"
+    closing_points = ["感谢聆听", "欢迎交流与提问"] if use_chinese else ["Thank you for your attention.", "Questions & Discussion"]
+    fallback_layout = (
+        "结构化学术内容页，包含一个简洁摘要和若干支持要点，延续前后页叙事。"
+        if use_chinese else
+        "Structured academic content slide with one concise summary paragraph and supporting bullet points. Preserve narrative continuity with neighboring slides."
+    )
+
+    for fallback_idx in range(missing):
+        if fallback_idx == missing - 1 and batch.get("is_last"):
+            fallback_pages.append({
+                "title": closing_title,
+                "layout_description": (
+                    "结束页，包含简短致谢与答疑提示。"
+                    if use_chinese else
+                    "Closing page with a concise thank-you message and optional Q&A prompt."
+                ),
+                "key_points": closing_points,
+                "asset_ref": None,
+            })
+            continue
+
+        start = fallback_idx * chunk_size
+        end = min(unit_count, start + chunk_size)
+        excerpt_units = units[start:end] or units[-1:]
+        excerpt = " ".join(excerpt_units)
+        heading = batch_titles[min(fallback_idx, len(batch_titles) - 1)] if batch_titles else f"{default_heading_prefix} {fallback_idx + 1}"
+        points = [
+            _clip_outline_point(text.strip())
+            for text in excerpt_units[:4]
+            if text.strip()
+        ]
+        if not points:
+            points = [_clip_outline_point(excerpt[:220].strip())] if excerpt.strip() else ["Expand this section in the editor."]
+
+        fallback_pages.append({
+            "title": heading if fallback_idx == 0 else f"{heading} ({fallback_idx + 1})",
+            "layout_description": fallback_layout,
+            "key_points": points[:5],
+            "asset_ref": None,
+        })
+
+    return fallback_pages
 
 
 # ============================================================
@@ -251,7 +449,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         TEXT 循环扩写：扩写到足够长度
         """
         target_pages = getattr(state, "target_pages", 60)
-        current_text = state.text_content or ""
+        current_text = _extract_plain_text(state.text_content)
         
         # 动态计算目标
         target_chars = _calculate_target_chars(target_pages, current_text)
@@ -266,6 +464,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         
         agent = create_simple_agent(
             name = "content_expander",
+            model_name=_resolve_outline_model(state),
             temperature=0.7,
             parser_type="text",
         )
@@ -276,9 +475,11 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
             
             state = await agent.execute(state=state)
             
-            # 增加类型检查，防止 agent 返回 dict 导致后续切片报错
-            # 用户要求：直接把字典当字符串
-            current_text = str(state.text_content) if state.text_content else ""
+            expanded_text = _extract_plain_text(state.text_content)
+            if expanded_text:
+                current_text = expanded_text
+            else:
+                log.warning("[long_paper] 扩写结果为空，保留上一轮文本内容")
             
             # 重新计算目标（以防语言变化）
             target_chars = _calculate_target_chars(target_pages, current_text)
@@ -299,12 +500,13 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         target_pages = getattr(state, "target_pages", 60)
         max_rounds = state.max_rounds
         
-        current_text = state.text_content or ""
+        current_text = _extract_plain_text(state.text_content)
         target_chars = target_pages * 800 
         
         log.info(f"[long_paper] 从 TOPIC 生成长文，当前: {len(current_text)} 字符")        
         agent = create_simple_agent(
             name="topic_writer",
+            model_name=_resolve_outline_model(state),
             parser_type="text",
         )
         for round_num in range(max_rounds):
@@ -313,7 +515,11 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
 
             state = await agent.execute(state=state)
             
-            current_text = str(state.text_content) if state.text_content else ""
+            generated_text = _extract_plain_text(state.text_content)
+            if generated_text:
+                current_text = generated_text
+            else:
+                log.warning("[long_paper] topic_writer 返回空内容，保留上一轮文本")
             
             # 动态更新目标
             target_chars = _calculate_target_chars(target_pages, current_text)
@@ -330,6 +536,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         """
         agent = create_react_agent(
             name="outline_refine_agent",
+            model_name=_resolve_outline_model(state),
             parser_type="json",
             max_retries=5
         )
@@ -345,7 +552,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
             log.info(f"[long_paper] 使用 PDF markdown: {len(state.long_text)} 字符")
         elif state.text_content:
             # TEXT/TOPIC 路径使用 text_content
-            state.long_text = state.text_content
+            state.long_text = _extract_plain_text(state.text_content)
             log.info(f"[long_paper] 使用 text_content: {len(state.long_text)} 字符")
         else:
             state.long_text = ""
@@ -372,6 +579,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         log.info(f"[long_paper] 内容不足({len(long_text)} < {target_chars} chars)，开始补充扩写")
         
         agent = create_content_expander(
+            model_name=_resolve_outline_model(state),
             temperature=0.7,
             parser_type="text",
         )
@@ -385,9 +593,11 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
             
             state = await agent.execute(state=state)
             
-            # 增加类型检查
-            # 用户要求：直接把字典当字符串
-            current_text = str(state.text_content) if state.text_content else ""
+            expanded_text = _extract_plain_text(state.text_content)
+            if expanded_text:
+                current_text = expanded_text
+            else:
+                log.warning("[long_paper] 补充扩写结果为空，继续使用已有正文")
             
             # 重新计算目标
             target_chars = _calculate_target_chars(target_pages, current_text)
@@ -434,6 +644,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         # 调用 long_paper_outline_agent
         agent = create_react_agent(
             name = "long_paper_outline_agent",
+            model_name=_resolve_outline_model(state),
             temperature=0.1,
             max_retries=5,
             parser_type="json",
@@ -445,6 +656,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         pages = result_state.pagecontent or []
         if not isinstance(pages, list):
             pages = [pages]
+        pages = _normalize_outline_pages(pages)
         
         log.info(f"[long_paper] 批次 {batch_idx + 1}/{total_batches} 生成了 {len(pages)} 页")
         return pages
@@ -514,23 +726,46 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         results = await asyncio.gather(*tasks)
         log.info(f"[long_paper] 并行执行完成，收到 {len(results)} 个结果")
         
+        normalized_batches: List[tuple[List[Dict[str, Any]], Dict[str, Any]]] = []
+        for chunk_pages, batch in zip(results, batch_info):
+            page_budget = int(batch.get("pages_to_generate", 1) or 1)
+            selected = list(_normalize_outline_pages(chunk_pages)[:page_budget])
+            normalized_batches.append((selected, batch))
+
+        if normalized_batches and all(len(selected) == 0 for selected, _ in normalized_batches):
+            log.error("[long_paper] 所有批次均未生成有效 outline，拒绝使用全量 fallback 伪造大纲")
+            state.pagecontent = []
+            setattr(state, "outline_generation_error", "long_paper_outline_agent returned no valid pages for every batch")
+            return state
+
         # 5. 按顺序处理结果
         all_pages = []
-        for chunk_pages, batch in zip(results, batch_info):
+        for selected, batch in normalized_batches:
             batch_idx = int(batch.get("batch_index", 0))
             page_budget = int(batch.get("pages_to_generate", 1) or 1)
-            selected = list(chunk_pages[:page_budget])
-            if len(chunk_pages) > page_budget:
+            raw_count = len(selected)
+            if raw_count > page_budget:
                 log.warning(
-                    f"[long_paper] 批次 {batch_idx + 1}: 生成 {len(chunk_pages)} 页，"
+                    f"[long_paper] 批次 {batch_idx + 1}: 生成 {raw_count} 页，"
                     f"按预算保留 {page_budget} 页"
                 )
-            elif len(chunk_pages) < page_budget:
+            elif raw_count < page_budget:
                 log.warning(
-                    f"[long_paper] 批次 {batch_idx + 1}: 生成页数不足 {len(chunk_pages)}/{page_budget}"
+                    f"[long_paper] 批次 {batch_idx + 1}: 生成页数不足 {raw_count}/{page_budget}"
                 )
+                fallback_pages = _build_fallback_pages_for_batch(
+                    batch=batch,
+                    existing_pages=selected,
+                    page_budget=page_budget,
+                    language=getattr(getattr(state, "request", None), "language", "en"),
+                )
+                if fallback_pages:
+                    log.warning(
+                        f"[long_paper] 批次 {batch_idx + 1}: 使用 {len(fallback_pages)} 页 fallback 补齐到 {page_budget} 页"
+                    )
+                    selected.extend(fallback_pages)
             else:
-                log.info(f"[long_paper] 批次 {batch_idx + 1}: 生成 {len(chunk_pages)} 页，符合预算")
+                log.info(f"[long_paper] 批次 {batch_idx + 1}: 生成 {raw_count} 页，符合预算")
             all_pages.extend(selected)
 
         if len(all_pages) != target_pages:

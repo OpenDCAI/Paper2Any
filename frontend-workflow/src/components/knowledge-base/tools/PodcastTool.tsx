@@ -5,6 +5,7 @@ import { KnowledgeFile } from '../types';
 import { getApiSettings } from '../../../services/apiSettingsService';
 import { backendFetch } from '../../../services/backendClient';
 import { useAuthStore } from '../../../stores/authStore';
+import { useRuntimeBilling } from '../../../hooks/useRuntimeBilling';
 
 const COSYVOICE_TTS_MODELS = ['cosyvoice-v3-flash', 'cosyvoice-v3-plus', 'cosyvoice-v2'];
 const COSYVOICE_VOICE_LABEL = '默认';
@@ -75,6 +76,7 @@ interface PodcastToolProps {
 
 export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: PodcastToolProps) => {
   const { user } = useAuthStore();
+  const { userApiConfigRequired } = useRuntimeBilling();
   const [podcastGenerating, setPodcastGenerating] = useState(false);
   const [podcastParams, setPodcastParams] = useState({
     api_key: '',
@@ -126,7 +128,7 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
       return;
     }
 
-    if (!podcastParams.api_key) {
+    if (userApiConfigRequired && !podcastParams.api_key) {
       alert('请输入 API Key');
       return;
     }
@@ -151,15 +153,19 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
           file_paths: filePaths,
           user_id: user.id,
           email: user.email,
-          api_url: podcastParams.api_url,
-          api_key: podcastParams.api_key,
-          model: podcastParams.model,
-          tts_model: podcastParams.tts_model,
           voice_name: podcastParams.voice_name,
           voice_name_b: podcastParams.voice_name_b,
           podcast_mode: podcastParams.podcast_mode,
           podcast_length: podcastParams.podcast_length,
-          language: podcastParams.language
+          language: podcastParams.language,
+          ...(userApiConfigRequired
+            ? {
+                api_url: podcastParams.api_url,
+                api_key: podcastParams.api_key,
+                model: podcastParams.model,
+                tts_model: podcastParams.tts_model,
+              }
+            : {})
         })
       });
 
@@ -223,29 +229,37 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
 
         {/* Configuration */}
         <div className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300">API Key</label>
-            <input
-              type="password"
-              value={podcastParams.api_key}
-              onChange={e => setPodcastParams({...podcastParams, api_key: e.target.value})}
-              placeholder="sk-..."
-              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-green-500 font-mono"
-            />
-          </div>
+          {userApiConfigRequired ? (
+            <>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">API Key</label>
+                <input
+                  type="password"
+                  value={podcastParams.api_key}
+                  onChange={e => setPodcastParams({...podcastParams, api_key: e.target.value})}
+                  placeholder="sk-..."
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-green-500 font-mono"
+                />
+              </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300">API URL</label>
-            <select
-              value={podcastParams.api_url}
-              onChange={e => setPodcastParams({...podcastParams, api_url: e.target.value})}
-              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-green-500"
-            >
-              {API_URL_OPTIONS.map((url: string) => (
-                <option key={url} value={url}>{url}</option>
-              ))}
-            </select>
-          </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">API URL</label>
+                <select
+                  value={podcastParams.api_url}
+                  onChange={e => setPodcastParams({...podcastParams, api_url: e.target.value})}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-green-500"
+                >
+                  {API_URL_OPTIONS.map((url: string) => (
+                    <option key={url} value={url}>{url}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-lg border border-green-500/20 bg-green-500/5 px-3 py-2 text-xs text-green-200/80">
+              Free 模式下由后端统一选择播客脚本模型、TTS 模型和接口配置。
+            </div>
+          )}
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-300">LLM Model</label>
@@ -253,7 +267,8 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
               <select
                 value={podcastParams.model}
                 onChange={e => setPodcastParams({...podcastParams, model: e.target.value})}
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-green-500"
+                disabled={!userApiConfigRequired}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-green-500 disabled:opacity-50"
               >
                 <option value="gpt-5.1">gpt-5.1</option>
                 <option value="gpt-5.2">gpt-5.2</option>
@@ -264,7 +279,8 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
                 value={podcastParams.model}
                 onChange={e => setPodcastParams({...podcastParams, model: e.target.value})}
                 placeholder="自定义模型"
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-green-500"
+                disabled={!userApiConfigRequired}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-green-500 disabled:opacity-50"
               />
             </div>
           </div>
@@ -285,7 +301,8 @@ export const PodcastTool = ({ files = [], selectedIds, onGenerateSuccess }: Podc
                   voice_name_b: normalizeVoice(prev.voice_name_b, nextOptions)
                 }));
               }}
-              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-green-500"
+              disabled={!userApiConfigRequired}
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-green-500 disabled:opacity-50"
             >
               {COSYVOICE_TTS_MODELS.map(m => (
                 <option key={m} value={m}>{m}</option>

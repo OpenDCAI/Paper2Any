@@ -289,8 +289,8 @@ const Paper2RebuttalPage = () => {
       if (userApiConfigRequired) {
         formData.append('chat_api_url', llmApiUrl.trim());
         formData.append('api_key', apiKey);
+        formData.append('model', model);
       }
-      formData.append('model', model);
 
       // Start the analysis (non-blocking)
       const response = await backendFetch('/api/v1/paper2rebuttal/start', {
@@ -553,8 +553,8 @@ const Paper2RebuttalPage = () => {
       if (userApiConfigRequired) {
         formData.append('chat_api_url', llmApiUrl.trim());
         formData.append('api_key', apiKey);
+        formData.append('model', model);
       }
-      formData.append('model', model);
 
       const response = await backendFetch('/api/v1/paper2rebuttal/revise', {
         method: 'POST',
@@ -658,8 +658,8 @@ const Paper2RebuttalPage = () => {
       if (userApiConfigRequired) {
         formData.append('chat_api_url', llmApiUrl.trim());
         formData.append('api_key', apiKey);
+        formData.append('model', model);
       }
-      formData.append('model', model);
       if (user?.email || user?.id) {
         formData.append('email', user?.email || user?.id || '');
       }
@@ -898,7 +898,8 @@ const Paper2RebuttalPage = () => {
                     <select
                       value={model}
                       onChange={(e) => setModel(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#0A84FF]/60 focus:bg-black/30 transition"
+                      disabled={!userApiConfigRequired}
+                      className="w-full px-3 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#0A84FF]/60 focus:bg-black/30 transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {modelOptions.map((option) => (
                         <option key={option} value={option} className="bg-slate-900">
@@ -907,6 +908,9 @@ const Paper2RebuttalPage = () => {
                       ))}
                     </select>
                   </div>
+                  {!userApiConfigRequired && (
+                    <p className="md:col-span-2 text-[11px] leading-5 text-emerald-100/70">Free 模式下由后端统一选择 Rebuttal 分析模型。</p>
+                  )}
                   {userApiConfigRequired && (
                     <div>
                       <label className="block text-xs text-gray-400 mb-1">{t('paper2rebuttal:upload.apiKey')}</label>

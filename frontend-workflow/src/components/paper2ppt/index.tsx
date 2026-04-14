@@ -9,6 +9,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { getApiSettings, saveApiSettings } from '../../services/apiSettingsService';
 import { backendFetch } from '../../services/backendClient';
 import { useRuntimeBilling } from '../../hooks/useRuntimeBilling';
+import { appendManagedApiConfig, appendManagedModel } from '../../utils/runtimeBillingForm';
 import {
   buildInsufficientPointsMessage,
   buildQuotaExhaustedMessage,
@@ -37,13 +38,8 @@ import GenerateStep from './GenerateStep';
 import CompleteStep from './CompleteStep';
 import FrontendGenerateStep from './FrontendGenerateStep';
 import FrontendCompleteStep from './FrontendCompleteStep';
-import FrontendSlidePreview from './FrontendSlidePreview';
-import {
-  buildFrontendCodeRepairPrompt,
-  captureSlideToPngBlob,
-  inspectSlideLayout,
-  validateFrontendSlideCode,
-} from './frontendSlideUtils';
+import { validateStructuredSlide, buildStructuredSlideRepairPrompt } from './structuredSlideModel';
+import { exportStructuredSlidesToPptx } from './exportStructuredSlides';
 
 const MANAGED_CREDENTIAL_SCOPE = 'paper2ppt';
 
@@ -122,7 +118,6 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   const [genFigModel, setGenFigModel] = useState(DEFAULT_PAPER2PPT_GEN_FIG_MODEL);
   const [language, setLanguage] = useState<'zh' | 'en'>('en');
   const [resultPath, setResultPath] = useState<string | null>(null);
-  const frontendCaptureRefs = useRef<Array<HTMLDivElement | null>>([]);
   const uploadSubmitGuardRef = useRef(false);
   const uploadSubmitGuardTimerRef = useRef<number | null>(null);
   const [isUploadSubmitLocked, setIsUploadSubmitLocked] = useState(false);
@@ -205,6 +200,34 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       }
     }
     return null;
+  };
+
+  const extractOutlineText = (value: unknown): string => {
+    if (typeof value === 'string') return value.trim();
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (Array.isArray(value)) {
+      return value.map((item) => extractOutlineText(item)).filter(Boolean).join(' ');
+    }
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      for (const key of ['text', 'value', 'content', 'summary', 'title', 'label', 'body', 'description', 'reason', 'point']) {
+        const text = extractOutlineText(record[key]);
+        if (text) return text;
+      }
+      for (const item of Object.values(record)) {
+        const text = extractOutlineText(item);
+        if (text) return text;
+      }
+    }
+    return '';
+  };
+
+  const normalizeOutlinePoints = (value: unknown): string[] => {
+    const items = Array.isArray(value) ? value : [value];
+    return items
+      .map((item) => extractOutlineText(item))
+      .map((item) => item.replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
   };
 
   const extractErrorMessage = async (res: Response, fallback: string) => {
@@ -419,10 +442,11 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   };
 
   const submitPaper2PptTask = async (
+    endpoint: string,
     formData: FormData,
     workflowAmount?: number,
   ): Promise<Paper2PPTTaskResponse> => {
-    const res = await backendFetch('/api/v1/paper2ppt/generate-task', {
+    const res = await backendFetch(endpoint, {
       method: 'POST',
       headers: workflowAmount && workflowAmount > 0
         ? { 'X-Workflow-Amount': String(workflowAmount) }
@@ -495,13 +519,77 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   const getPreviewPath = (item: any, key: string) =>
     String(item?.[`${key}_preview_path`] || item?.[`${key}PreviewPath`] || '').trim();
 
+  const normalizeLayoutData = (layoutData: any) => {
+    if (!layoutData || typeof layoutData !== 'object') {
+      return { type: 'bullets', titleKey: 'title' };
+    }
+    return {
+      ...layoutData,
+      eyebrowKey: layoutData.eyebrow_key || layoutData.eyebrowKey,
+      titleKey: layoutData.title_key || layoutData.titleKey,
+      footerKey: layoutData.footer_key || layoutData.footerKey,
+      summaryKey: layoutData.summary_key || layoutData.summaryKey,
+      subtitleKey: layoutData.subtitle_key || layoutData.subtitleKey,
+      presenterKey: layoutData.presenter_key || layoutData.presenterKey,
+      quoteKey: layoutData.quote_key || layoutData.quoteKey,
+      bulletsKey: layoutData.bullets_key || layoutData.bulletsKey,
+      takeawayKey: layoutData.takeaway_key || layoutData.takeawayKey,
+      leftHeadingKey: layoutData.left_heading_key || layoutData.leftHeadingKey,
+      leftBodyKey: layoutData.left_body_key || layoutData.leftBodyKey,
+      leftPointsKey: layoutData.left_points_key || layoutData.leftPointsKey,
+      rightHeadingKey: layoutData.right_heading_key || layoutData.rightHeadingKey,
+      rightBodyKey: layoutData.right_body_key || layoutData.rightBodyKey,
+      rightPointsKey: layoutData.right_points_key || layoutData.rightPointsKey,
+      visualKey: layoutData.visual_key || layoutData.visualKey,
+      visualCaptionKey: layoutData.visual_caption_key || layoutData.visualCaptionKey,
+      leftTitleKey: layoutData.left_title_key || layoutData.leftTitleKey,
+      rightTitleKey: layoutData.right_title_key || layoutData.rightTitleKey,
+      cards: Array.isArray(layoutData.cards)
+        ? layoutData.cards.map((card: any) => ({
+            titleKey: card.title_key || card.titleKey,
+            bodyKey: card.body_key || card.bodyKey,
+          }))
+        : [],
+      timeline: Array.isArray(layoutData.timeline)
+        ? layoutData.timeline.map((item: any) => ({
+            labelKey: item.label_key || item.labelKey,
+            bodyKey: item.body_key || item.bodyKey,
+          }))
+        : [],
+    };
+  };
+
+  const normalizeThemeLock = (themeLock: any) => ({
+    mustKeep: Array.isArray(themeLock?.must_keep || themeLock?.mustKeep)
+      ? (themeLock.must_keep || themeLock.mustKeep).map((item: unknown) => String(item || '')).filter(Boolean)
+      : [],
+    preferredLayoutPatterns: Array.isArray(themeLock?.preferred_layout_patterns || themeLock?.preferredLayoutPatterns)
+      ? (themeLock.preferred_layout_patterns || themeLock.preferredLayoutPatterns)
+          .map((item: unknown) => String(item || ''))
+          .filter(Boolean)
+      : [],
+    componentSignature: String(themeLock?.component_signature || themeLock?.componentSignature || ''),
+    avoid: Array.isArray(themeLock?.avoid)
+      ? themeLock.avoid.map((item: unknown) => String(item || '')).filter(Boolean)
+      : [],
+  });
+
+  const normalizeTypography = (typography: any) => ({
+    titleFontStack: String(typography?.title_font_stack || typography?.titleFontStack || ''),
+    bodyFontStack: String(typography?.body_font_stack || typography?.bodyFontStack || ''),
+    eyebrowSize: Number(typography?.eyebrow_size || typography?.eyebrowSize || 18),
+    titleSize: Number(typography?.title_size || typography?.titleSize || 56),
+    summarySize: Number(typography?.summary_size || typography?.summarySize || 26),
+    bodySize: Number(typography?.body_size || typography?.bodySize || 24),
+  });
+
   const normalizeFrontendSlides = (slides: any[]): FrontendSlide[] =>
     slides.map((slide: any, index: number) => ({
       slideId: String(slide.slide_id || slide.slideId || index + 1),
       pageNum: Number(slide.page_num || slide.pageNum || index + 1),
       title: slide.title || `第 ${index + 1} 页`,
-      htmlTemplate: slide.html_template || slide.htmlTemplate || '',
-      cssCode: slide.css_code || slide.cssCode || '',
+      layoutType: slide.layout_type || slide.layoutType || 'bullets',
+      layoutData: normalizeLayoutData(slide.layout_data || slide.layoutData || {}),
       editableFields: Array.isArray(slide.editable_fields || slide.editableFields)
         ? (slide.editable_fields || slide.editableFields).map((field: any) => ({
             key: String(field.key || ''),
@@ -543,24 +631,24 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     if (!theme || typeof theme !== 'object') {
       return null;
     }
-    const themeLock = typeof theme.theme_lock === 'object' && theme.theme_lock ? theme.theme_lock : {};
+    const themeLock = theme.theme_lock || theme.themeLock || {};
     return {
       themeName: String(theme.theme_name || theme.themeName || 'locked_deck_theme'),
       visualMood: String(theme.visual_mood || theme.visualMood || ''),
+      styleFamily: String(theme.style_family || theme.styleFamily || 'modern') as FrontendDeckTheme['styleFamily'],
       footerText: String(theme.footer_text || theme.footerText || ''),
       sectionLabelTemplate: String(theme.section_label_template || theme.sectionLabelTemplate || ''),
-      themeLock: {
-        mustKeep: Array.isArray(themeLock.must_keep)
-          ? themeLock.must_keep.map((item: unknown) => String(item || '')).filter(Boolean)
-          : [],
-        preferredLayoutPatterns: Array.isArray(themeLock.preferred_layout_patterns)
-          ? themeLock.preferred_layout_patterns.map((item: unknown) => String(item || '')).filter(Boolean)
-          : [],
-        componentSignature: String(themeLock.component_signature || ''),
-        avoid: Array.isArray(themeLock.avoid)
-          ? themeLock.avoid.map((item: unknown) => String(item || '')).filter(Boolean)
-          : [],
+      palette: {
+        bg: String(theme.palette?.bg || '#0b1020'),
+        panel: String(theme.palette?.panel || 'rgba(15, 23, 42, 0.92)'),
+        primary: String(theme.palette?.primary || '#7dd3fc'),
+        secondary: String(theme.palette?.secondary || '#38bdf8'),
+        accent: String(theme.palette?.accent || '#f59e0b'),
+        text: String(theme.palette?.text || '#e2e8f0'),
+        muted: String(theme.palette?.muted || '#94a3b8'),
       },
+      typography: normalizeTypography(theme.typography || {}),
+      themeLock: normalizeThemeLock(themeLock),
     };
   };
 
@@ -568,8 +656,8 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     slide_id: slide.slideId,
     page_num: slide.pageNum,
     title: slide.title,
-    html_template: slide.htmlTemplate,
-    css_code: slide.cssCode,
+    layout_type: slide.layoutType,
+    layout_data: slide.layoutData,
     editable_fields: slide.editableFields.map((field) => ({
       key: field.key,
       label: field.label,
@@ -651,18 +739,6 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
   const getFrontendGenerationCostPerPage = () => (frontendIncludeImages ? 2 : 1);
 
-  const waitForFrontendCaptureNodes = async (count: number, timeoutMs: number = 6000) => {
-    const startedAt = Date.now();
-    while (Date.now() - startedAt < timeoutMs) {
-      const ready = Array.from({ length: count }).every((_, index) => Boolean(frontendCaptureRefs.current[index]));
-      if (ready) {
-        return true;
-      }
-      await sleep(80);
-    }
-    return false;
-  };
-
   const requestFrontendSlideGeneration = async ({
     slideIndex,
     prompt,
@@ -676,16 +752,15 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   }) => {
     const formData = new FormData();
     formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-    formData.append('chat_api_url', llmApiUrl.trim());
-    formData.append('api_key', apiKey.trim());
-    formData.append('model', model);
+    appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
+    appendManagedModel(formData, userApiConfigRequired, 'model', model);
     formData.append('language', language);
     formData.append('style', getEffectiveStylePrompt('frontend'));
     formData.append('email', user?.id || user?.email || '');
     formData.append('result_path', resultPathValue);
     formData.append('include_images', String(frontendIncludeImages));
     formData.append('image_style', frontendImageStyle);
-    formData.append('image_model', genFigModel);
+    appendManagedModel(formData, userApiConfigRequired, 'image_model', genFigModel);
     formData.append('page_id', String(slideIndex));
     formData.append('edit_prompt', prompt.trim());
     formData.append('current_slide', JSON.stringify(serializeFrontendSlide(slideSnapshot)));
@@ -711,47 +786,6 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     };
   };
 
-  const requestFrontendSlideReview = async ({
-    slide,
-    resultPathValue,
-    layoutIssues,
-    screenshot,
-  }: {
-    slide: FrontendSlide;
-    resultPathValue: string;
-    layoutIssues: string[];
-    screenshot: Blob;
-  }) => {
-    const formData = new FormData();
-    formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-    formData.append('chat_api_url', llmApiUrl.trim());
-    formData.append('api_key', apiKey.trim());
-    formData.append('language', language);
-    formData.append('result_path', resultPathValue);
-    formData.append('slide', JSON.stringify(serializeFrontendSlide(slide)));
-    if (layoutIssues.length > 0) {
-      formData.append('layout_issues', JSON.stringify(layoutIssues));
-    }
-    const reviewMimeType = screenshot.type || 'image/jpeg';
-    const reviewExt = reviewMimeType === 'image/png' ? 'png' : 'jpg';
-    formData.append(
-      'screenshot',
-      new File([screenshot], `review_page_${String(slide.pageNum - 1).padStart(3, '0')}.${reviewExt}`, {
-        type: reviewMimeType,
-      }),
-    );
-
-    const res = await backendFetch('/api/v1/paper2ppt/frontend/review', {
-      method: 'POST',
-      headers: { 'X-Workflow-Amount': '1' },
-      body: formData,
-    });
-    if (!res.ok) {
-      throw new Error(await extractErrorMessage(res, '前端页面视觉检查失败'));
-    }
-    return res.json();
-  };
-
   const runWithConcurrency = async <T,>(
     items: T[],
     limit: number,
@@ -773,74 +807,36 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     slideSnapshot: FrontendSlide,
     resultPathValue: string,
   ) => {
-    const node = frontendCaptureRefs.current[slideIndex];
-    if (!node) {
-      updateFrontendSlideReview(slideIndex, {
-        status: 'needs_repair',
-        summary: '首轮自动检查跳过：预览节点尚未就绪。',
-        issues: [],
-      });
-      return false;
-    }
-
     updateFrontendSlideReview(slideIndex, {
       status: 'repairing',
-      summary: '正在做首轮视觉检查...',
+      summary: '正在做结构检查...',
       issues: [],
     });
 
     try {
-      await sleep(40);
-      const localLayoutCheck = inspectSlideLayout(node, 1600, 900);
-      const blob = await captureSlideToPngBlob(node, 1280, 720, {
-        mimeType: 'image/jpeg',
-        quality: 0.82,
-      });
-      const data = await requestFrontendSlideReview({
-        slide: slideSnapshot,
-        resultPathValue,
-        layoutIssues: localLayoutCheck.issues,
-        screenshot: blob,
-      });
-
-      const reviewIssues = Array.isArray(data.issues)
-        ? data.issues.map((item: unknown) => String(item || '').trim()).filter(Boolean)
-        : [];
-      const reviewSummary = typeof data.summary === 'string' && data.summary.trim()
-        ? data.summary.trim()
-        : (data.passed ? '首轮检查通过。' : '检测到需要修复的版式问题。');
-
-      if (data.passed) {
+      const validation = validateStructuredSlide(slideSnapshot);
+      if (validation.ok) {
         updateFrontendSlideReview(slideIndex, {
           status: 'passed',
-          summary: reviewSummary,
-          issues: reviewIssues,
+          summary: '结构检查通过。',
+          issues: [],
         });
         return true;
       }
 
-      const repairPrompt = typeof data.repair_prompt === 'string' ? data.repair_prompt.trim() : '';
-      if (!repairPrompt) {
-        updateFrontendSlideReview(slideIndex, {
-          status: 'needs_repair',
-          summary: reviewSummary || '首轮检查发现问题，但没有收到修复指令。',
-          issues: reviewIssues,
-        });
-        return false;
-      }
-
       updateFrontendSlideReview(slideIndex, {
         status: 'repairing',
-        summary: '首轮检查发现版式问题，正在自动修正...',
-        issues: reviewIssues,
+        summary: '结构检查发现问题，正在自动修正...',
+        issues: validation.issues,
       });
 
       const { updatedSlide, nextTheme } = await requestFrontendSlideGeneration({
         slideIndex,
-        prompt: repairPrompt,
+        prompt: buildStructuredSlideRepairPrompt(slideSnapshot, validation),
         resultPathValue,
         slideSnapshot,
       });
+      const repairedValidation = validateStructuredSlide(updatedSlide);
 
       setFrontendSlides((prev) =>
         prev.map((slide, index) =>
@@ -848,9 +844,11 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
             ? {
                 ...updatedSlide,
                 review: {
-                  status: 'passed',
-                  summary: '首轮视觉检查已自动修正当前页。',
-                  issues: [],
+                  status: repairedValidation.ok ? 'passed' : 'needs_repair',
+                  summary: repairedValidation.ok
+                    ? '结构检查已自动修正当前页。'
+                    : '自动修正后仍有结构问题，请继续精简内容。',
+                  issues: repairedValidation.issues,
                 },
               }
             : slide,
@@ -860,9 +858,9 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       if (nextTheme) {
         setFrontendDeckTheme(nextTheme);
       }
-      return true;
+      return repairedValidation.ok;
     } catch (err) {
-      const message = err instanceof Error ? err.message : '首轮自动视觉检查失败';
+      const message = err instanceof Error ? err.message : '首轮自动结构检查失败';
       updateFrontendSlideReview(slideIndex, {
         status: 'needs_repair',
         summary: `首轮自动检查失败：${message}`,
@@ -880,25 +878,19 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       return;
     }
 
-    setGenerateTaskMessage('首轮生成完成，正在并行做视觉检查与自动调整...');
-    await sleep(180);
-    const ready = await waitForFrontendCaptureNodes(slides.length);
-    if (!ready) {
-      setError('前端页面已生成，但自动视觉检查未能拿到全部预览节点，请手动逐页检查。');
-      return;
-    }
+    setGenerateTaskMessage('首轮生成完成，正在并行做结构检查与自动调整...');
 
     const reviewResults: boolean[] = new Array(slides.length).fill(false);
     let completed = 0;
     await runWithConcurrency(slides, 2, async (slide, index) => {
       reviewResults[index] = await autoReviewAndRepairFrontendSlide(index, slide, resultPathValue);
       completed += 1;
-      setGenerateTaskMessage(`首轮视觉检查进行中（${completed}/${slides.length}）...`);
+      setGenerateTaskMessage(`首轮结构检查进行中（${completed}/${slides.length}）...`);
     });
 
     const failedCount = reviewResults.filter((item) => !item).length;
     if (failedCount > 0) {
-      setError(`首轮自动视觉检查已完成，但仍有 ${failedCount} 页需要你手动复查。`);
+      setError(`首轮自动结构检查已完成，但仍有 ${failedCount} 页需要你手动复查。`);
     } else {
       setError(null);
     }
@@ -923,6 +915,14 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       await uploadAndSaveFile(fileBlob, fileName, 'paper2ppt');
     } catch (e) {
       console.error('[Paper2PptPage] Failed to upload file:', e);
+    }
+  };
+
+  const uploadGeneratedResultBlob = async (blob: Blob, fileName: string) => {
+    try {
+      await uploadAndSaveFile(blob, fileName, 'paper2ppt');
+    } catch (e) {
+      console.error('[Paper2PptPage] Failed to upload generated blob:', e);
     }
   };
 
@@ -1035,8 +1035,12 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       try {
         setIsValidating(true);
         setError(null);
-        await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || 'deepseek-v3.2');
+        if (userApiConfigRequired) {
+          await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || 'deepseek-v3.2');
+        }
+        setIsValidating(false);
       } catch (err) {
+        setIsValidating(false);
         const message = err instanceof Error ? err.message : 'API 验证失败';
         setError(message);
         return;
@@ -1047,12 +1051,16 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       setGenerateResults([]);
       setFrontendSlides([]);
       setFrontendDeckTheme(null);
-      frontendCaptureRefs.current = [];
       setDownloadUrl(null);
       setPdfPreviewUrl(null);
       setResultPath(null);
       setProgress(0);
       setProgressStatus('正在初始化...');
+
+      if (uploadMode === 'text' && pageCount > 20 && textContent.trim().length < 200) {
+        setError(`当前为文本模式，输入内容仅 ${textContent.trim().length} 个字符，不足以稳定生成 ${pageCount} 页大纲。请补充更完整的正文，或改用 Topic 模式。`);
+        return;
+      }
 
       const requestStartedAt = Date.now();
       progressInterval = window.setInterval(() => {
@@ -1095,14 +1103,11 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       
       formData.append('email', user?.id || user?.email || '');
       formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-      if (userApiConfigRequired) {
-        formData.append('chat_api_url', llmApiUrl.trim());
-        formData.append('api_key', apiKey.trim());
-      }
-      formData.append('model', model);
+      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
+      appendManagedModel(formData, userApiConfigRequired, 'model', model);
       formData.append('language', language);
       formData.append('style', getEffectiveStylePrompt());
-      formData.append('gen_fig_model', genFigModel);
+      appendManagedModel(formData, userApiConfigRequired, 'gen_fig_model', genFigModel);
       formData.append('page_count', String(pageCount));
       formData.append('use_long_paper', String(useLongPaper));
 
@@ -1144,10 +1149,10 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       const convertedSlides: SlideOutline[] = data.pagecontent.map((item: any, index: number) => ({
         id: String(index + 1),
         pageNum: index + 1,
-        title: item.title || `第 ${index + 1} 页`,
-        layout_description: item.layout_description || '',
-        key_points: item.key_points || [],
-        asset_ref: item.asset_ref || null,
+        title: extractOutlineText(item.title) || `第 ${index + 1} 页`,
+        layout_description: extractOutlineText(item.layout_description) || '',
+        key_points: normalizeOutlinePoints(item.key_points),
+        asset_ref: extractOutlineText(item.asset_ref) || null,
       }));
       
       window.clearInterval(progressInterval);
@@ -1294,9 +1299,8 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       formData.append('outline_feedback', outlineFeedback.trim());
       formData.append('pagecontent', JSON.stringify(pagecontent));
       formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
-      formData.append('model', model);
+      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
+      appendManagedModel(formData, userApiConfigRequired, 'model', model);
       formData.append('language', language);
       formData.append('email', user?.email || '');
       formData.append('result_path', resultPath);
@@ -1331,10 +1335,10 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       const refinedSlides: SlideOutline[] = data.pagecontent.map((item: any, index: number) => ({
         id: String(index + 1),
         pageNum: index + 1,
-        title: item.title || `第 ${index + 1} 页`,
-        layout_description: item.layout_description || '',
-        key_points: item.key_points || [],
-        asset_ref: item.asset_ref || null,
+        title: extractOutlineText(item.title) || `第 ${index + 1} 页`,
+        layout_description: extractOutlineText(item.layout_description) || '',
+        key_points: normalizeOutlinePoints(item.key_points),
+        asset_ref: extractOutlineText(item.asset_ref) || null,
       }));
 
       setOutlineData(refinedSlides);
@@ -1526,45 +1530,37 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     }
   };
 
-  const applyFrontendCodeEdit = (slideIndex: number, htmlTemplate: string, cssCode: string) => {
-    const currentSlide = frontendSlides[slideIndex];
-    if (!currentSlide) {
-      setError('当前前端页面不存在');
-      return false;
-    }
-
-    const validation = validateFrontendSlideCode(currentSlide, htmlTemplate, cssCode);
-    if (!validation.ok) {
-      setError(validation.issues.join(' '));
-      return false;
-    }
-
-    setError(
-      validation.warnings.length > 0
-        ? `代码已应用，但请留意：${validation.warnings.join(' ')}`
-        : null,
-    );
-    setFrontendSlides((prev) =>
-      prev.map((slide, index) =>
-        index === slideIndex
-          ? {
-              ...slide,
-              htmlTemplate: validation.sanitizedHtml,
-              cssCode: validation.sanitizedCss,
-              generationNote: validation.warnings.length > 0
-                ? `本地代码已应用。${validation.warnings.join(' ')}`
-                : '本地代码已应用。',
-              review: {
-                status: 'idle',
-                summary: '',
-                issues: [],
-              },
-            }
-          : slide,
-      ),
-    );
-    return true;
-  };
+  const buildPendingFrontendSlide = (slide: SlideOutline, index: number): FrontendSlide => ({
+    slideId: slide.id,
+    pageNum: index + 1,
+    title: slide.title,
+    layoutType: 'bullets',
+    layoutData: {
+      type: 'bullets',
+      eyebrowKey: 'eyebrow',
+      titleKey: 'title',
+      summaryKey: 'summary',
+      bulletsKey: 'bullets',
+      takeawayKey: 'takeaway',
+      footerKey: 'footer',
+    },
+    editableFields: [
+      { key: 'eyebrow', label: 'Eyebrow', type: 'text', value: `Slide ${String(index + 1).padStart(2, '0')}`, items: [] },
+      { key: 'title', label: 'Title', type: 'text', value: slide.title, items: [] },
+      { key: 'summary', label: 'Summary', type: 'textarea', value: slide.layout_description || '', items: [] },
+      { key: 'bullets', label: 'Bullets', type: 'list', value: '', items: slide.key_points.length > 0 ? [...slide.key_points] : [''] },
+      { key: 'takeaway', label: 'Takeaway', type: 'textarea', value: slide.key_points[0] || '', items: [] },
+      { key: 'footer', label: 'Footer', type: 'text', value: frontendDeckTheme?.footerText || 'Paper2Any Structured PPT', items: [] },
+    ],
+    visualAssets: [],
+    status: 'processing',
+    generationNote: '',
+    review: {
+      status: 'idle',
+      summary: '',
+      issues: [],
+    },
+  });
 
   const handleConfirmFrontendOutline = async () => {
     const unchangedIndices = getUnchangedPageIndices(outlineData, confirmedOutlineSnapshot);
@@ -1586,7 +1582,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     if (skipSlides.length > 0) {
       setGenerateTaskMessage(`复用 ${skipSlides.length} 页未修改内容，重新生成 ${pagesToGenerate} 页可编辑版页面...`);
     } else {
-      setGenerateTaskMessage(frontendIncludeImages ? '正在生成可编辑版页面代码与配图...' : '正在生成可编辑版页面代码...');
+      setGenerateTaskMessage(frontendIncludeImages ? '正在生成结构化 slide 与配图...' : '正在生成结构化 slide...');
     }
     setError(null);
 
@@ -1595,39 +1591,22 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       if (skipSet.has(index) && index < frontendSlides.length && frontendSlides[index].status === 'done') {
         return { ...frontendSlides[index] };
       }
-      return {
-        slideId: slide.id,
-        pageNum: index + 1,
-        title: slide.title,
-        htmlTemplate: '',
-        cssCode: '',
-        editableFields: [],
-        visualAssets: [],
-        status: 'processing',
-        generationNote: '',
-        review: {
-          status: 'idle',
-          summary: '',
-          issues: [],
-        },
-      };
+      return buildPendingFrontendSlide(slide, index);
     });
-    frontendCaptureRefs.current = [];
     setFrontendSlides(pendingSlides);
 
     try {
       const formData = new FormData();
       formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
-      formData.append('model', model);
+      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
+      appendManagedModel(formData, userApiConfigRequired, 'model', model);
       formData.append('language', language);
       formData.append('style', getEffectiveStylePrompt('frontend'));
       formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath || '');
       formData.append('include_images', String(frontendIncludeImages));
       formData.append('image_style', frontendImageStyle);
-      formData.append('image_model', genFigModel);
+      appendManagedModel(formData, userApiConfigRequired, 'image_model', genFigModel);
       formData.append('pagecontent', buildFrontendPagecontentPayload());
       if (skipSlides.length > 0) {
         formData.append('skip_slides', JSON.stringify(skipSlides));
@@ -1741,11 +1720,10 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       
       try {
         const formData = new FormData();
-        formData.append('img_gen_model_name', genFigModel);
+        appendManagedModel(formData, userApiConfigRequired, 'img_gen_model_name', genFigModel);
         formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-        formData.append('chat_api_url', llmApiUrl.trim());
-        formData.append('api_key', apiKey.trim());
-        formData.append('model', model);
+        appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
+        appendManagedModel(formData, userApiConfigRequired, 'model', model);
         formData.append('language', language);
         formData.append('style', getEffectiveStylePrompt());
         formData.append('aspect_ratio', '16:9');
@@ -1770,7 +1748,11 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
         }));
         formData.append('pagecontent', JSON.stringify(pagecontent));
 
-        const task = await submitPaper2PptTask(formData, requiredPoints > 0 ? requiredPoints : undefined);
+        const task = await submitPaper2PptTask(
+          '/api/v1/paper2ppt/slides/generate-task',
+          formData,
+          requiredPoints > 0 ? requiredPoints : undefined,
+        );
         if (skipPages.length > 0) {
           setGenerateTaskMessage(`复用 ${skipPages.length} 页，正在生成 ${pagesToGenerate} 页...`);
         } else {
@@ -2092,64 +2074,6 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     });
   };
 
-  const handleDebugFrontendCodeEdit = async (htmlTemplate: string, cssCode: string) => {
-    const targetIndex = currentSlideIndex;
-    const currentSlide = frontendSlides[targetIndex];
-    if (!currentSlide) {
-      setError('当前前端页面不存在');
-      return;
-    }
-
-    setError(null);
-    const validation = validateFrontendSlideCode(currentSlide, htmlTemplate, cssCode);
-    const draftSlide: FrontendSlide = {
-      ...currentSlide,
-      htmlTemplate: validation.sanitizedHtml,
-      cssCode: validation.sanitizedCss,
-    };
-
-    updateFrontendSlideReview(targetIndex, {
-      status: 'repairing',
-      summary: '正在检查并修正当前代码...',
-      issues: [...validation.issues, ...validation.warnings],
-    });
-
-    if (validation.ok) {
-      const applied = applyFrontendCodeEdit(targetIndex, htmlTemplate, cssCode);
-      if (applied) {
-        updateFrontendSlideReview(targetIndex, {
-          status: 'passed',
-          summary: '当前代码已通过本地校验并成功应用。',
-          issues: validation.warnings,
-        });
-      }
-      return;
-    }
-
-    const repaired = await regenerateFrontendSlideWithPrompt({
-      slideIndex: targetIndex,
-      prompt: buildFrontendCodeRepairPrompt(draftSlide, validation),
-      quotaAction: 'AI 调试当前前端代码',
-      quotaWarningMessage: 'AI 已调试当前代码，但 1 点扣费记录失败，请刷新余额确认。',
-      progressMessage: '本地校验发现代码问题，正在调用 AI 修正...',
-      slideOverride: draftSlide,
-    });
-
-    if (repaired) {
-      updateFrontendSlideReview(targetIndex, {
-        status: 'passed',
-        summary: 'AI 已根据代码问题完成修正。',
-        issues: [],
-      });
-    } else {
-      updateFrontendSlideReview(targetIndex, {
-        status: 'needs_repair',
-        summary: 'AI 调试未成功，请继续修改代码或重新生成当前页。',
-        issues: validation.issues,
-      });
-    }
-  };
-
   const handleReviewFrontendSlide = async () => {
     if (!resultPath) {
       setError('缺少 result_path，请重新上传文件');
@@ -2158,91 +2082,65 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
     const targetIndex = currentSlideIndex;
     const currentSlide = frontendSlides[targetIndex];
-    const node = frontendCaptureRefs.current[targetIndex];
 
     if (!currentSlide) {
       setError('当前前端页面不存在');
       return;
     }
-    if (!node) {
-      setError('当前页面尚未渲染完成，请稍后重试');
-      return;
-    }
 
-    setGenerateTaskMessage('当前页正在进行视觉检查，请稍候，检查完成后“确认并继续”会自动恢复可点击状态。');
+    setGenerateTaskMessage('当前页正在进行结构检查，请稍候，检查完成后“确认并继续”会自动恢复可点击状态。');
     setIsReviewingFrontendSlide(true);
     setError(null);
     updateFrontendSlideReview(targetIndex, {
       status: 'repairing',
-      summary: '正在检查当前页面的视觉版式...',
+      summary: '正在检查当前页面的结构约束...',
       issues: [],
     });
 
     try {
-      await sleep(40);
-      const localLayoutCheck = inspectSlideLayout(node, 1600, 900);
-      const blob = await captureSlideToPngBlob(node, 1600, 900);
-      const data = await requestFrontendSlideReview({
-        slide: currentSlide,
-        resultPathValue: resultPath,
-        layoutIssues: localLayoutCheck.issues,
-        screenshot: blob,
-      });
-      const reviewIssues = Array.isArray(data.issues)
-        ? data.issues.map((item: unknown) => String(item || '').trim()).filter(Boolean)
-        : [];
-      const reviewSummary = typeof data.summary === 'string' && data.summary.trim()
-        ? data.summary.trim()
-        : (data.passed ? '未发现明显视觉问题。' : '检测到需要修复的版式问题。');
-
-      if (data.passed) {
+      const validation = validateStructuredSlide(currentSlide);
+      if (validation.ok) {
         updateFrontendSlideReview(targetIndex, {
           status: 'passed',
-          summary: reviewSummary,
-          issues: reviewIssues,
+          summary: '当前页结构检查通过。',
+          issues: [],
         });
         return;
       }
 
       updateFrontendSlideReview(targetIndex, {
         status: 'needs_repair',
-        summary: reviewSummary,
-        issues: reviewIssues,
+        summary: '检测到需要修复的结构问题。',
+        issues: validation.issues,
       });
-
-      const repairPrompt = typeof data.repair_prompt === 'string' ? data.repair_prompt.trim() : '';
-      if (!repairPrompt) {
-        setError('视觉检查发现问题，但未返回可执行的修复指令');
-        return;
-      }
 
       const repaired = await regenerateFrontendSlideWithPrompt({
         slideIndex: targetIndex,
-        prompt: repairPrompt,
-        quotaAction: '视觉检查后修复当前前端页面',
-        quotaWarningMessage: '视觉检查已触发自动修复，但 1 点扣费记录失败，请刷新余额确认。',
-        progressMessage: '视觉检查发现问题，正在自动修复当前页面...',
+        prompt: buildStructuredSlideRepairPrompt(currentSlide, validation),
+        quotaAction: '结构检查后修复当前前端页面',
+        quotaWarningMessage: '结构检查已触发自动修复，但 1 点扣费记录失败，请刷新余额确认。',
+        progressMessage: '结构检查发现问题，正在自动修复当前页面...',
       });
 
       if (repaired) {
         updateFrontendSlideReview(targetIndex, {
           status: 'passed',
-          summary: '视觉检查已完成，并根据问题自动修复当前页面。',
+          summary: '结构检查已完成，并根据问题自动修复当前页面。',
           issues: [],
         });
       } else {
         updateFrontendSlideReview(targetIndex, {
           status: 'needs_repair',
-          summary: '视觉检查发现问题，但自动修复失败，请根据提示词继续调整。',
-          issues: reviewIssues,
+          summary: '结构检查发现问题，但自动修复失败，请根据提示词继续调整。',
+          issues: validation.issues,
         });
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : '前端页面视觉检查失败';
+      const message = err instanceof Error ? err.message : '前端页面结构检查失败';
       setError(message);
       updateFrontendSlideReview(targetIndex, {
         status: 'needs_repair',
-        summary: '视觉检查失败，请稍后重试。',
+        summary: '结构检查失败，请稍后重试。',
         issues: [],
       });
     } finally {
@@ -2273,18 +2171,15 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
     try {
       const formData = new FormData();
-      formData.append('img_gen_model_name', genFigModel);
+      appendManagedModel(formData, userApiConfigRequired, 'img_gen_model_name', genFigModel);
       formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
-      formData.append('model', model);
+      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
+      appendManagedModel(formData, userApiConfigRequired, 'model', model);
       formData.append('language', language);
       formData.append('style', getEffectiveStylePrompt());
       formData.append('aspect_ratio', '16:9');
       formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath);
-      formData.append('get_down', 'true');
-      formData.append('page_id', String(currentSlideIndex));
       formData.append('regenerate_from_outline', 'true');
 
       if (styleMode === 'reference' && referenceImage) {
@@ -2294,7 +2189,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
       formData.append('pagecontent', JSON.stringify(buildPagecontentForGeneration()));
 
-      const res = await backendFetch('/api/v1/paper2ppt/generate', {
+      const res = await backendFetch(`/api/v1/paper2ppt/slides/${currentSlideIndex}/edit`, {
         method: 'POST',
         headers: { 'X-Workflow-Amount': '1' },
         body: formData,
@@ -2395,18 +2290,15 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     
     try {
       const formData = new FormData();
-      formData.append('img_gen_model_name', genFigModel);
+      appendManagedModel(formData, userApiConfigRequired, 'img_gen_model_name', genFigModel);
       formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
-      formData.append('model', model);
+      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
+      appendManagedModel(formData, userApiConfigRequired, 'model', model);
       formData.append('language', language);
       formData.append('style', getEffectiveStylePrompt());
       formData.append('aspect_ratio', '16:9');
       formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath);
-      formData.append('get_down', 'true');
-      formData.append('page_id', String(currentSlideIndex));
       formData.append('edit_prompt', slidePrompt);
 
       // 如果用户选的是参考图模式，附加参考图，保留用户显式输入的风格提示词
@@ -2417,7 +2309,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
       formData.append('pagecontent', JSON.stringify(buildPagecontentForGeneration()));
 
-      const res = await backendFetch('/api/v1/paper2ppt/generate', {
+      const res = await backendFetch(`/api/v1/paper2ppt/slides/${currentSlideIndex}/edit`, {
         method: 'POST',
         body: formData,
       });
@@ -2493,84 +2385,43 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
   // ============== Step 4: 完成处理 ==============
   const handleGenerateFrontendFinal = async () => {
-    if (!resultPath) {
-      setError('缺少 result_path');
-      return;
-    }
     if (frontendSlides.length === 0) {
       setError('当前没有可导出的前端页面');
       return;
     }
 
     setIsGeneratingFinal(true);
-    setFinalTaskMessage('正在准备前端页面截图...');
+    setFinalTaskMessage('正在生成真可编辑 PPTX...');
     setError(null);
 
     try {
-      const screenshotFiles: File[] = [];
-      for (let index = 0; index < frontendSlides.length; index += 1) {
-        const node = frontendCaptureRefs.current[index];
-        if (!node) {
-          throw new Error(`第 ${index + 1} 页尚未渲染完成，请稍后重试`);
-        }
-        setFinalTaskMessage(`正在渲染第 ${index + 1}/${frontendSlides.length} 页截图...`);
-        await sleep(40);
-        const blob = await captureSlideToPngBlob(node, 1600, 900, {
-          useOriginalAssets: true,
-        });
-        if (!blob) {
-          throw new Error(`第 ${index + 1} 页截图失败`);
-        }
-        screenshotFiles.push(
-          new File([blob], `page_${String(index).padStart(3, '0')}.png`, {
-            type: 'image/png',
-          }),
-        );
+      const invalidSlides = frontendSlides
+        .map((slide, index) => ({ index, validation: validateStructuredSlide(slide) }))
+        .filter((item) => !item.validation.ok);
+      if (invalidSlides.length > 0) {
+        const first = invalidSlides[0];
+        throw new Error(`第 ${first.index + 1} 页仍不满足结构导出要求：${first.validation.issues.join('；')}`);
       }
 
-      const formData = new FormData();
-      formData.append('result_path', resultPath);
-      formData.append(
-        'slides',
-        JSON.stringify(frontendSlides.map((slide) => serializeFrontendSlide(slide))),
-      );
-      screenshotFiles.forEach((file) => {
-        formData.append('screenshots', file);
+      const fileName = resultPath
+        ? `${resultPath.split('/').pop() || 'paper2ppt'}_structured_editable.pptx`
+        : 'paper2ppt_structured_editable.pptx';
+      const exported = await exportStructuredSlidesToPptx({
+        slides: frontendSlides,
+        deckTheme: frontendDeckTheme,
+        fileName,
       });
-
-      setFinalTaskMessage('正在打包 PPTX / PDF...');
-      const res = await backendFetch('/api/v1/paper2ppt/frontend/export', {
-        method: 'POST',
-        body: formData,
-      });
-      if (!res.ok) {
-        throw new Error(await extractErrorMessage(res, '可编辑版 PPT 导出失败'));
+      if (!('blob' in exported) || !exported.blob) {
+        throw new Error('前端导出未返回浏览器 Blob');
       }
-
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || '可编辑版 PPT 导出失败');
+      const { blob } = exported;
+      if (downloadUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(downloadUrl);
       }
-
-      if (data.ppt_pptx_path) {
-        setDownloadUrl(data.ppt_pptx_path);
-      }
-      if (data.ppt_pdf_path) {
-        setPdfPreviewUrl(data.ppt_pdf_path);
-      }
-
-      const outputFilePath =
-        data.ppt_pptx_path ||
-        data.ppt_pdf_path ||
-        data.all_output_files?.find((url: string) => url.endsWith('.pptx') || url.endsWith('.pdf'));
-      if (!outputFilePath) {
-        throw new Error('导出失败：未找到最终文件');
-      }
-
-      await uploadGeneratedResultFile(
-        outputFilePath,
-        outputFilePath.endsWith('.pdf') ? 'paper2ppt_frontend.pdf' : 'paper2ppt_frontend.pptx',
-      );
+      const objectUrl = URL.createObjectURL(blob);
+      setDownloadUrl(objectUrl);
+      setPdfPreviewUrl(null);
+      await uploadGeneratedResultBlob(blob, fileName);
     } catch (err) {
       const message = err instanceof Error ? err.message : '可编辑版 PPT 导出失败';
       setError(message);
@@ -2596,19 +2447,15 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     
     try {
       const formData = new FormData();
-      formData.append('img_gen_model_name', genFigModel);
+      appendManagedModel(formData, userApiConfigRequired, 'img_gen_model_name', genFigModel);
       formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-      formData.append('chat_api_url', llmApiUrl.trim());
-      formData.append('api_key', apiKey.trim());
-      formData.append('model', model);
+      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
+      appendManagedModel(formData, userApiConfigRequired, 'model', model);
       formData.append('language', language);
       formData.append('style', getEffectiveStylePrompt());
       formData.append('aspect_ratio', '16:9');
       formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath);
-      formData.append('get_down', 'false');
-      formData.append('all_edited_down', 'true');
-
       // 如果用户选的是参考图模式，附加参考图，保留用户显式输入的风格提示词
       if (styleMode === 'reference' && referenceImage) {
         formData.append('reference_img', referenceImage);
@@ -2623,7 +2470,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       }));
       formData.append('pagecontent', JSON.stringify(pagecontent));
 
-      const task = await submitPaper2PptTask(formData);
+      const task = await submitPaper2PptTask('/api/v1/paper2ppt/finalize-task', formData);
       setFinalTaskMessage(task.message || '最终导出任务已提交');
 
       const data = await pollPaper2PptTask(task.task_id, (status) => {
@@ -2703,19 +2550,12 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     }
 
     try {
-      const res = await fetch(downloadUrl);
-      if (!res.ok) {
-        throw new Error('下载失败');
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
+      a.href = downloadUrl;
       a.download = 'paper2ppt_editable.pptx';
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
     } catch (err) {
       const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
@@ -2739,7 +2579,9 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setGenerateTaskMessage('');
     setFinalTaskMessage('');
     setIsReviewingFrontendSlide(false);
-    frontendCaptureRefs.current = [];
+    if (downloadUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(downloadUrl);
+    }
   };
 
   return (
@@ -2830,10 +2672,6 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
                 setSlidePrompt={setSlidePrompt}
                 handleRegenerateSlide={handleRegenerateSlide}
                 handleReviewSlide={handleReviewFrontendSlide}
-                applyCodeEdit={(htmlTemplate, cssCode) =>
-                  applyFrontendCodeEdit(currentSlideIndex, htmlTemplate, cssCode)
-                }
-                handleDebugCodeEdit={handleDebugFrontendCodeEdit}
                 handleConfirmSlide={handleConfirmSlide}
                 setCurrentStep={setCurrentStep}
                 error={error}
@@ -2870,6 +2708,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
             pptMode === 'frontend' ? (
               <FrontendCompleteStep
                 slides={frontendSlides}
+                deckTheme={frontendDeckTheme}
                 downloadUrl={downloadUrl}
                 pdfPreviewUrl={pdfPreviewUrl}
                 isGeneratingFinal={isGeneratingFinal}
@@ -2902,31 +2741,6 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
           )}
         </div>
       </div>
-
-      {pptMode === 'frontend' && frontendSlides.length > 0 && (
-        <div
-          aria-hidden="true"
-          style={{
-            position: 'fixed',
-            left: '-20000px',
-            top: 0,
-            width: '1600px',
-            pointerEvents: 'none',
-          }}
-        >
-          {frontendSlides.map((slide, index) => (
-            <FrontendSlidePreview
-              key={`${slide.slideId}-capture`}
-              slide={slide}
-              mode="capture"
-              className="mb-4"
-              captureRef={(node) => {
-                frontendCaptureRefs.current[index] = node;
-              }}
-            />
-          ))}
-        </div>
-      )}
 
       <style>{`
         @keyframes shimmer {

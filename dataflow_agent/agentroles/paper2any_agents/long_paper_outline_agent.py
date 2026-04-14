@@ -37,7 +37,7 @@ class LongPaperOutlineAgent(BaseAgent):
 
     @property
     def system_prompt_template_name(self) -> str:
-        return "system_prompt_for_outline_agent"
+        return "system_prompt_for_long_paper_outline_agent"
 
     @property
     def task_prompt_template_name(self) -> str:
@@ -87,9 +87,16 @@ class LongPaperOutlineAgent(BaseAgent):
         注意：在 Workflow 的 generate_outline_for_batch 中，
         会从返回的 State 中读取 pagecontent。
         """
-        # 结果预期是一个 List[Dict] (页面列表)
+        if not isinstance(result, list):
+            log.warning("[long_paper_outline_agent] Invalid result, discard invalid payload and mark pagecontent empty.")
+            state.pagecontent = []
+            setattr(state, "outline_generation_error", "long_paper_outline_agent did not return a valid JSON array")
+            super().update_state_result(state, [], pre_tool_results)
+            return
+
         state.pagecontent = result
-        log.info(f"[long_paper_outline_agent] 生成了 {len(result) if isinstance(result, list) else 0} 页内容")
+        setattr(state, "outline_generation_error", "")
+        log.info(f"[long_paper_outline_agent] 生成了 {len(result)} 页内容")
         super().update_state_result(state, result, pre_tool_results)
 
 

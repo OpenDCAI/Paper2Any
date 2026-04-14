@@ -12,7 +12,7 @@ class LongPaperOutlineAgent:
     """
     
     # 系统提示词：与普通 outline_agent 共享或专用
-    system_prompt_for_outline_agent = """
+    system_prompt_for_long_paper_outline_agent = """
 你是一位拥有丰富学术汇报经验的PPT设计专家及大纲生成助手。你的核心任务是将一篇学术论文（或长文档的一部分）转化为一份逻辑清晰、视觉布局合理的PPT演示大纲。
 
 请遵循以下严格规则：
@@ -20,6 +20,8 @@ class LongPaperOutlineAgent:
 2. **视觉导向**：在规划每一页PPT时，不仅要生成文字内容，必须明确指出该页是否需要展示特定的插图（Images）或表格（Tables）。
 3. **布局建议**：为每一页提供具体的布局指导（例如：左文右图、上标题下表格、两栏对比等）。
 4. **格式严格**：输出必须且只能是标准的 JSON 格式数组。严禁包含 markdown 标记（如 ```json）、前言、后语或任何非 JSON 字符。
+5. **语言绝对一致**：如果 `language=en`，则 `title`、`layout_description`、`key_points` 中禁止出现中文；如果 `language=zh`，则这些字段必须全部使用中文。严禁中英混用。
+6. **key_points 只能是字符串数组**：`key_points` 中每个元素必须是纯字符串，绝对不能输出对象、嵌套数组或带 `text/value/content` 字段的结构。
 """
 
     # 1. 首页 Prompt (Is First Batch)
@@ -38,6 +40,9 @@ class LongPaperOutlineAgent:
 2. 后续页面开始进入正文介绍（如背景、引言、核心问题等）。
 3.输出内容的语言为 **{language}**。
 4. 不需要致谢页（除非文本很短，这是唯一一批）。
+5. **必须严格返回恰好 {pages_to_generate} 个 JSON 数组元素，不能少也不能多。**
+6. `key_points` 必须是 `List<String>`，每个元素都是一句简洁要点，不允许对象。
+7. 如果 `{language}` 为 `en`，输出中不得包含中文字符。
 
 **输出格式要求（JSON Array）：**
 请返回一个 JSON 数组，数组中每个对象代表一页PPT，结构如下：
@@ -78,6 +83,9 @@ class LongPaperOutlineAgent:
 2. 承接上一批次的内容，继续展开当前的章节。
 3. 如果文本包含新的章节标题，请作为新的一页或新章节的开始。
 4. 输出内容的语言为 **{language}**。
+5. **必须严格返回恰好 {pages_to_generate} 个 JSON 数组元素，不能少也不能多。**
+6. `key_points` 必须是 `List<String>`，每个元素都是一句简洁要点，不允许对象。
+7. 如果 `{language}` 为 `en`，输出中不得包含中文字符。
 
 **输出格式要求（JSON Array）：**
 JSON 数组，每个对象代表一页PPT。
@@ -115,6 +123,9 @@ JSON 数组，每个对象代表一页PPT。
 1. 生成剩余的正文内容（结论、未来展望等）。
 2. **最后一页必须是致谢（Thank You）**：简短的结束语。
 3.输出内容的语言为 **{language}**。
+4. **必须严格返回恰好 {pages_to_generate} 个 JSON 数组元素，不能少也不能多。**
+5. `key_points` 必须是 `List<String>`，每个元素都是一句简洁要点，不允许对象。
+6. 如果 `{language}` 为 `en`，输出中不得包含中文字符。
 
 **输出格式要求（JSON Array）：**
 JSON 数组，每个对象代表一页PPT。
@@ -152,6 +163,7 @@ class ContentExpander:
     system_prompt_for_content_expander = """
 你是一个专业的学术写作助手和内容扩写专家。你的任务是将输入的简短文本或草稿，扩写成篇幅更长、细节更丰富、逻辑更严密的文章或报告。
 你的扩写应保持专业性，增加必要的背景介绍、详细的解释、具体的例子或论证，以满足生成长篇 PPT 的内容需求。
+请严格遵守目标输出语言要求：如果 `language=en`，整个输出必须完全使用英文；如果 `language=zh`，整个输出必须完全使用中文。严禁中英混写。
 """
 
     task_prompt_for_content_expander = """
@@ -165,8 +177,9 @@ class ContentExpander:
 1. **大幅增加篇幅**：在保持原意的前提下，通过增加细节、举例、背景分析、优缺点对比等方式，显著增加字数。
 2. **结构完整**：如果输入是片段，请将其补全为完整的章节；如果输入是提纲，请将其展开为全文。
 3. **保持连贯**：确保扩写后的内容逻辑通顺，段落过渡自然。
-4. **输出限制**：直接输出扩写后的完整文本，不要包含任何类似于“好的，这是扩写后的内容”的废话。不要使用 Markdown 代码块包裹。
-5. 如果需要表格，必须输出md表格内容，Table_1, xxx
+4. **输出语言**：本轮扩写后的全文必须严格使用 **{language}**。如果 `{language}` 为 `en`，输出中不得包含中文字符；如果 `{language}` 为 `zh`，输出必须全部使用中文。
+5. **输出限制**：直接输出扩写后的完整文本，不要包含任何类似于“好的，这是扩写后的内容”的废话。不要使用 Markdown 代码块包裹。
+6. 如果需要表格，必须输出md表格内容，Table_1, xxx
 请开始扩写：
 
 """

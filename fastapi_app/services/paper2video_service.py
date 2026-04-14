@@ -22,8 +22,9 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, Request, UploadFile
 
+from fastapi_app.config import settings
 from fastapi_app.schemas import GenerateSubtitleResponse, GenerateVideoResponse
-from fastapi_app.services.managed_api_service import resolve_llm_credentials
+from fastapi_app.services.managed_api_service import resolve_llm_credentials, resolve_model_name
 from fastapi_app.utils import _to_outputs_url, get_outputs_root, resolve_outputs_path
 from fastapi_app.workflow_adapters.wa_paper2video import (
     run_paper2video_generate_subtitle_wf_api,
@@ -141,6 +142,16 @@ class Paper2VideoService:
             api_key,
             scope="paper2video",
         )
+        model = resolve_model_name(
+            model,
+            managed_default=settings.PAPER2VIDEO_DEFAULT_MODEL,
+            fallback_default="gpt-4o",
+        )
+        tts_model = resolve_model_name(
+            tts_model,
+            managed_default=settings.PAPER2VIDEO_TTS_MODEL,
+            fallback_default="cosyvoice-v3-flash",
+        )
 
         run_dir = self._create_timestamp_run_dir(email)
         input_dir = run_dir / "input"
@@ -175,6 +186,11 @@ class Paper2VideoService:
         else:
             pdf_path = input_path
         log.info("[Paper2VideoService] using PDF for workflow: %s", pdf_path)
+        talking_model = resolve_model_name(
+            talking_model,
+            managed_default=settings.PAPER2VIDEO_TALKING_MODEL,
+            fallback_default="liveportrait",
+        ) or "liveportrait"
         talking_model = self._normalize_talking_model(talking_model)
 
         # 可选：数字人头像（上传文件优先；否则使用系统预设 avatar_preset）

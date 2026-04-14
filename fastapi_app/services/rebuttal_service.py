@@ -19,7 +19,8 @@ from dataflow_agent.toolkits.rebuttal import (
     _fix_json_escapes,
 )
 from dataflow_agent.logger import get_logger
-from fastapi_app.services.managed_api_service import resolve_llm_credentials
+from fastapi_app.config import settings
+from fastapi_app.services.managed_api_service import resolve_llm_credentials, resolve_model_name
 
 
 _CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -54,6 +55,11 @@ def init_llm_client(api_key: str, chat_api_url: str = None, provider: str = None
     """
     global llm_client
     chat_api_url, api_key = resolve_llm_credentials(chat_api_url, api_key, scope="paper2rebuttal")
+    model = resolve_model_name(
+        model,
+        managed_default=settings.PAPER2REBUTTAL_DEFAULT_MODEL,
+        fallback_default="gpt-4o",
+    )
     if not chat_api_url:
         raise ValueError("chat_api_url is required; URL and API key are passed from frontend.")
 

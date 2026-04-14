@@ -4,6 +4,7 @@ import { backendFetch } from './backendClient';
 export interface RuntimeConfig {
   billing_mode: 'paid' | 'free';
   user_api_config_required: boolean;
+  model_selection_locked: boolean;
   managed_api_enabled: boolean;
   managed_api_url: string;
   server_side_billing_enforced: boolean;
@@ -23,6 +24,7 @@ const STORAGE_KEY = 'paper2any_runtime_config';
 const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
   billing_mode: 'paid',
   user_api_config_required: true,
+  model_selection_locked: false,
   managed_api_enabled: false,
   managed_api_url: DEFAULT_LLM_API_URL,
   server_side_billing_enforced: false,

@@ -220,7 +220,9 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
       try {
         setIsValidating(true);
         setError(null);
-        await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || 'deepseek-v3.2'); 
+        if (userApiConfigRequired) {
+          await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || 'deepseek-v3.2');
+        }
         setIsValidating(false);
       } catch (err) {
         setIsValidating(false);
@@ -264,11 +266,11 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
       
       if (useAiEdit) {
         formData.append('use_ai_edit', 'true');
-      if (userApiConfigRequired) {
-        formData.append('chat_api_url', llmApiUrl.trim());
-        formData.append('api_key', apiKey.trim());
-      }
-        formData.append('gen_fig_model', genFigModel);
+        if (userApiConfigRequired) {
+          formData.append('chat_api_url', llmApiUrl.trim());
+          formData.append('api_key', apiKey.trim());
+          formData.append('gen_fig_model', genFigModel);
+        }
       } else {
         formData.append('use_ai_edit', 'false');
       }
@@ -577,7 +579,8 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
                           <select 
                             value={genFigModel} 
                             onChange={e => setGenFigModel(e.target.value)}
-                            className="w-full appearance-none rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                            disabled={!userApiConfigRequired}
+                            className="w-full appearance-none rounded-lg border border-white/20 bg-black/40 px-3 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {genFigModelOptions.map((option) => (
                               <option key={option} value={option}>
@@ -597,7 +600,10 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
                 )}
 
                 {useAiEdit && !userApiConfigRequired && (
-                  <ManagedApiNotice className="mb-6" />
+                  <div className="mb-6 space-y-3">
+                    <ManagedApiNotice />
+                    <p className="text-[11px] leading-5 text-emerald-100/70">Free 模式下由后端统一选择 PDF 增强所需的图像模型。</p>
+                  </div>
                 )}
 
                 {/* 验证状态 */}

@@ -21,11 +21,17 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from script.cli_env import load_project_env
+from script.cli_env import (
+    find_output_artifacts,
+    load_project_env,
+    resolve_cli_image_credentials,
+    resolve_cli_text_credentials,
+)
 from dataflow_agent.logger import get_logger
-from dataflow_agent.state import Paper2FigureState, Paper2FigureRequest
-from dataflow_agent.workflow import run_workflow
 from dataflow_agent.utils import get_project_root
+from fastapi_app.config import settings
+from fastapi_app.schemas import Paper2PPTRequest, Paper2PPTResponse
+from fastapi_app.workflow_adapters.wa_paper2ppt import run_paper2ppt_wf_api
 
 load_project_env()
 
@@ -77,15 +83,25 @@ Environment Variables:
     )
 
     parser.add_argument(
+        "--image-api-url",
+        help="Image generation API URL (default: from env DF_IMAGE_API_URL)"
+    )
+
+    parser.add_argument(
+        "--image-api-key",
+        help="Image generation API key (default: from env DF_IMAGE_API_KEY)"
+    )
+
+    parser.add_argument(
         "--model",
-        default="gpt-4o",
-        help="Text model name (default: gpt-4o)"
+        default=settings.PAPER2PPT_CONTENT_MODEL,
+        help=f"Text model name (default: {settings.PAPER2PPT_CONTENT_MODEL})"
     )
 
     parser.add_argument(
         "--gen-fig-model",
-        default="gemini-2.5-flash-image-preview",
-        help="Image generation model (default: gemini-2.5-flash-image-preview)"
+        default=settings.PAPER2PPT_IMAGE_GEN_MODEL,
+        help=f"Image generation model (default: {settings.PAPER2PPT_IMAGE_GEN_MODEL})"
     )
 
     parser.add_argument(
@@ -102,6 +118,13 @@ Environment Variables:
     parser.add_argument(
         "--output-dir",
         help="Output directory (default: outputs/cli/ppt2polish/{timestamp})"
+    )
+
+    parser.add_argument(
+        "--language",
+        default="zh",
+        choices=["zh", "en"],
+        help="Output language (default: zh)"
     )
 
     return parser.parse_args()
@@ -219,12 +242,16 @@ def convert_pdf_to_images(pdf_path: Path, output_dir: Path) -> list[str]:
     return image_paths
 
 
-async def run_ppt2polish_workflow(args, image_paths: list[str], output_dir: Path):
-    """Execute PPT2Polish workflow using paper2ppt_parallel_consistent_style"""
+async def run_ppt2polish_workflow(args, image_paths: list[str], output_dir: Path) -> Paper2PPTResponse:
+    """Execute PPT2Polish workflow via the paper2ppt workflow adapter."""
 
-    # Get API configuration
-    api_url = args.api_url or os.getenv("DF_API_URL", "https://api.openai.com/v1")
-    api_key = args.api_key or os.getenv("DF_API_KEY", "")
+    api_url, api_key = resolve_cli_text_credentials(args.api_url, args.api_key)
+    image_api_url, image_api_key = resolve_cli_image_credentials(
+        args.image_api_url,
+        args.image_api_key,
+        fallback_url=api_url,
+        fallback_key=api_key,
+    )
 
     if not api_key:
         raise ValueError("API key is required. Provide via --api-key or DF_API_KEY environment variable.")
@@ -237,49 +264,71 @@ async def run_ppt2polish_workflow(args, image_paths: list[str], output_dir: Path
             raise FileNotFoundError(f"Reference image not found: {args.ref_img}")
         ref_img_path = str(ref_img_path.resolve())
 
-    # Build request
-    req = Paper2FigureRequest(
+    req = Paper2PPTRequest(
         chat_api_url=api_url,
         api_key=api_key,
         chat_api_key=api_key,
+        image_api_url=image_api_url,
+        image_api_key=image_api_key,
         model=args.model,
         gen_fig_model=args.gen_fig_model,
+        credential_scope="ppt2polish",
         style=args.style,
-        all_edited_down=True,  # Directly generate final result
-        ref_img=ref_img_path or "",  # Optional reference image for style consistency
+        ref_img=ref_img_path or "",
+        language=args.language,
+        page_count=len(image_paths),
+        input_type="FIGURE",
+        email="cli_ppt2polish@paper2any.local",
     )
 
-    # Build pagecontent as list of image paths
-    # Use dict format with ppt_img_path key for compatibility
     pagecontent = [{"ppt_img_path": img_path} for img_path in image_paths]
-
-    # Build state
-    state = Paper2FigureState(
-        request=req,
-        messages=[],
-        result_path=str(output_dir),
-        pagecontent=pagecontent,
-    )
 
     log.info("%s", "=" * 60)
     log.info("PPT2Polish Workflow Starting")
     log.info("%s", "=" * 60)
     log.info("Number of Slides: %s", len(image_paths))
     log.info("Output Directory: %s", output_dir)
-    log.info("Workflow: paper2ppt_parallel_consistent_style")
+    log.info("Workflow: paper2ppt via workflow adapter")
     log.info("Style: %s", args.style)
     if ref_img_path:
         log.info("Reference Image: %s", ref_img_path)
     log.info("%s", "=" * 60)
 
-    # Run workflow
-    workflow_name = "paper2ppt_parallel_consistent_style"
-    final_state = await run_workflow(workflow_name, state)
+    generate_resp = await run_paper2ppt_wf_api(
+        req=req,
+        pagecontent=pagecontent,
+        result_path=str(output_dir),
+        get_down=None,
+    )
+    if not generate_resp.success:
+        raise RuntimeError("PPT2Polish workflow failed")
 
-    return final_state
+    finalize_req = req.model_copy(update={"all_edited_down": True})
+    final_resp = await run_paper2ppt_wf_api(
+        req=finalize_req,
+        pagecontent=pagecontent,
+        result_path=generate_resp.result_path or str(output_dir),
+        get_down=None,
+    )
+    if not final_resp.success:
+        raise RuntimeError("PPT2Polish finalize stage failed")
+
+    artifact_root = Path(final_resp.result_path or generate_resp.result_path or output_dir)
+    artifact_candidates = []
+    for value in [final_resp.ppt_pptx_path, final_resp.ppt_pdf_path]:
+        if value:
+            p = Path(value)
+            if p.exists():
+                artifact_candidates.append(p.resolve())
+    artifact_candidates.extend(find_output_artifacts(artifact_root, ("*.pptx", "*.pdf")))
+    if not artifact_candidates:
+        raise RuntimeError(
+            f"PPT2Polish finished without final PPT/PDF artifacts under {artifact_root}"
+        )
+    return final_resp
 
 
-def print_results(final_state: Paper2FigureState, output_dir: Path):
+def print_results(final_state: Paper2PPTResponse, output_dir: Path):
     """Print workflow results"""
     log.info("%s", "=" * 60)
     log.info("PPT2Polish Workflow Completed Successfully")
@@ -287,9 +336,13 @@ def print_results(final_state: Paper2FigureState, output_dir: Path):
     log.info("Output Directory: %s", output_dir)
 
     # Check for PPT PDF file
-    ppt_pdf_path = _state_get(final_state, "ppt_pdf_path", None)
+    ppt_pdf_path = final_state.ppt_pdf_path
     if ppt_pdf_path and os.path.exists(ppt_pdf_path):
         log.info("Beautified PPT (PDF): %s", ppt_pdf_path)
+
+    ppt_pptx_path = final_state.ppt_pptx_path
+    if ppt_pptx_path and os.path.exists(ppt_pptx_path):
+        log.info("Beautified PPT (PPTX): %s", ppt_pptx_path)
 
     # Check for slide images directory
     ppt_pages_dir = output_dir / "ppt_pages"

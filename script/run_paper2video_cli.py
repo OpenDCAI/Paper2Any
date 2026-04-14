@@ -26,7 +26,7 @@ from typing import Any, List
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from script.cli_env import load_project_env
+from script.cli_env import find_output_artifacts, load_project_env
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2VideoRequest, Paper2VideoState
 from dataflow_agent.workflow import run_workflow
@@ -269,6 +269,9 @@ async def run_paper2video_workflow(args, paper_pdf_path: str, output_dir: Path):
     log.info("Workflow: paper2video (script_stage=False)")
 
     final_state = await run_workflow("paper2video", state2)
+    artifacts = find_output_artifacts(output_dir, ("*.mp4",))
+    if not artifacts:
+        raise RuntimeError(f"Paper2Video finished without MP4 artifacts under {output_dir}")
 
     log.info("Step 2 completed: Video generated")
 

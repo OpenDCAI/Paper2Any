@@ -230,17 +230,19 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
       return;
     }
 
-    try {
-      // Verify LLM Connection
-      setIsValidating(true);
-      setError(null);
-      await verifyLlmConnection(llmApiUrl, apiKey, 'gpt-4o');
-      setIsValidating(false);
-    } catch (err) {
-      setIsValidating(false);
-      const message = err instanceof Error ? err.message : 'API 验证失败';
-      setError(message);
-      return;
+    if (userApiConfigRequired) {
+      try {
+        // Verify LLM Connection
+        setIsValidating(true);
+        setError(null);
+        await verifyLlmConnection(llmApiUrl, apiKey, 'gpt-4o');
+        setIsValidating(false);
+      } catch (err) {
+        setIsValidating(false);
+        const message = err instanceof Error ? err.message : 'API 验证失败';
+        setError(message);
+        return;
+      }
     }
 
     setIsUploading(true);
@@ -277,9 +279,9 @@ DataFlow: https://github.com/OpenDCAI/DataFlow
       if (userApiConfigRequired) {
         formData.append('chat_api_url', llmApiUrl.trim());
         formData.append('api_key', apiKey.trim());
+        formData.append('model', config.text_model);
+        formData.append('vision_model', config.vision_model);
       }
-      formData.append('model', config.text_model);
-      formData.append('vision_model', config.vision_model);
       formData.append('poster_width', config.poster_width.toString());
       formData.append('poster_height', config.poster_height.toString());
 

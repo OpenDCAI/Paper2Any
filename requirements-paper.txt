@@ -1,31 +1,23 @@
 -r requirements-base.txt
 
-# paper 系（NLP / 文本 / LLM 实验）特有或易变更依赖，请在这里追加或覆盖版本
-# transformers==4.46.0
-# datasets==3.2.0
-# evaluate==0.4.3
-# vendi-score==0.0.3
-
-
+# Paper / figure / PDF workflow extras beyond the shared base runtime.
+# CUDA-specific GPU runtime packages are intentionally split into
+# requirements-cu12.txt.
+# Linux system packages are intentionally split into
+# requirements-system-ubuntu.txt and DEPLOY.md.
+#
 # system dependency:
-# tectonic (TeX engine) must be installed via conda-forge/apt/cargo
-
-#sudo apt-get update
-# sudo apt-get install -y inkscape
-# sudo apt-get install -y tectonic
+# tectonic (TeX engine) should be installed via conda-forge or another
+# OS/package-manager channel, not via pip.
 
 # Paper2Figure
 pdfplumber
-transformers==4.57.3
-# mineru[core]
 mineru-vl-utils
-python-pptx
 PyPDF2
-kornia 
+kornia
 timm
 lmdb>=1.4.1
 
-cairosvg
 vtracer
 ultralytics
 scikit-image
@@ -35,14 +27,10 @@ imgaug>=0.4.0
 pillow
 # pytesseract  # 已改用 PaddleOCR
 
-# Paddle OCR (CPU) — 懒加载，仅旧版 workflow 需要，Docker 构建可跳过
+# Paddle OCR (CPU) — 懒加载，仅旧版 workflow 需要，通常不必装进默认环境
 # paddlepaddle==3.2.0
 # paddleocr==2.9.1
 
-PyMuPDF
-img2pdf
-reportlab
 imgkit==1.2.3
 
 seaborn==0.13.2
-json_repair==0.54.2

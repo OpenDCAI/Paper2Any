@@ -18,6 +18,7 @@ import Banner from './Banner';
 import QRCodeTooltip from '../QRCodeTooltip';
 import ManagedApiNotice from '../ManagedApiNotice';
 import { useRuntimeBilling } from '../../hooks/useRuntimeBilling';
+import { appendManagedApiConfig, appendManagedModel } from '../../utils/runtimeBillingForm';
 
 const DRAWIO_ORIGINS = new Set(['https://embed.diagrams.net', 'https://app.diagrams.net']);
 const STORAGE_KEY = 'paper2drawio_settings';
@@ -297,17 +298,19 @@ export default function Paper2DrawioPage({
   const handleGenerate = useCallback(async () => {
     if (!textContent && !file) return;
 
-    // Step 0: Verify LLM Connection first
-    try {
-      setIsValidating(true);
-      setError(null);
-      await verifyLlmConnection(apiUrl, apiKey, model);
-      setIsValidating(false);
-    } catch (err) {
-      setIsValidating(false);
-      const errorMsg = err instanceof Error ? err.message : '验证 LLM 连接失败';
-      setError(errorMsg);
-      return;
+    if (userApiConfigRequired) {
+      // Step 0: Verify LLM Connection first
+      try {
+        setIsValidating(true);
+        setError(null);
+        await verifyLlmConnection(apiUrl, apiKey, model);
+        setIsValidating(false);
+      } catch (err) {
+        setIsValidating(false);
+        const errorMsg = err instanceof Error ? err.message : '验证 LLM 连接失败';
+        setError(errorMsg);
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -315,11 +318,8 @@ export default function Paper2DrawioPage({
     try {
       if (generationMode === 'paper2drawio') {
         const formData = new FormData();
-        formData.append('img_gen_model_name', p2dImageModel);
-        if (userApiConfigRequired) {
-          formData.append('chat_api_url', apiUrl);
-          formData.append('api_key', apiKey);
-        }
+        appendManagedModel(formData, userApiConfigRequired, 'img_gen_model_name', p2dImageModel);
+        appendManagedApiConfig(formData, userApiConfigRequired, apiUrl, apiKey);
         formData.append('input_type', uploadMode);
         formData.append('graph_type', 'model_arch');
         formData.append('style', p2dStyle);
@@ -368,12 +368,9 @@ export default function Paper2DrawioPage({
       }
 
       const formData = new FormData();
-      if (userApiConfigRequired) {
-        formData.append('chat_api_url', apiUrl);
-        formData.append('api_key', apiKey);
-      }
+      appendManagedApiConfig(formData, userApiConfigRequired, apiUrl, apiKey);
       const modelToSend = enableModelRace ? withModelOptions(PAPER2DRAWIO_MODELS, model).join(',') : model;
-      formData.append('model', modelToSend);
+      appendManagedModel(formData, userApiConfigRequired, 'model', modelToSend);
       formData.append('input_type', uploadMode === 'file' ? 'PDF' : 'TEXT');
       formData.append('diagram_type', diagramType);
       formData.append('diagram_style', diagramStyle);
@@ -927,7 +924,8 @@ export default function Paper2DrawioPage({
                 <select
                   value={model}
                   onChange={e => setModel(e.target.value)}
-                  className={inputClass}
+                  disabled={!userApiConfigRequired}
+                  className={`${inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   {modelOptions.map((option) => (
                     <option key={option} value={option} className="bg-slate-900">
@@ -935,7 +933,10 @@ export default function Paper2DrawioPage({
                     </option>
                   ))}
                 </select>
-                {modelOptions.length > 1 && (
+                {!userApiConfigRequired && (
+                  <p className="text-[11px] leading-5 text-emerald-100/70">Free 模式下由后端统一选择 DrawIO 生成模型。</p>
+                )}
+                {userApiConfigRequired && modelOptions.length > 1 && (
                   <label className="flex items-start gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
                     <input
                       type="checkbox"
@@ -1022,7 +1023,8 @@ export default function Paper2DrawioPage({
                   <select
                     value={p2dImageModel}
                     onChange={e => setP2dImageModel(e.target.value)}
-                    className={inputClass}
+                    disabled={!userApiConfigRequired}
+                    className={`${inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     {p2dImageModelOptions.map((option) => (
                       <option key={option} value={option} className="bg-slate-900">
@@ -1030,6 +1032,9 @@ export default function Paper2DrawioPage({
                       </option>
                     ))}
                   </select>
+                  {!userApiConfigRequired && (
+                    <p className="text-[11px] leading-5 text-emerald-100/70">Free 模式下由后端统一选择图表生成模型。</p>
+                  )}
                   <select
                     value={p2dLanguage}
                     onChange={e => setP2dLanguage(e.target.value as 'zh' | 'en')}

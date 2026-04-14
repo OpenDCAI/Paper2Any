@@ -65,12 +65,103 @@ export interface FrontendVisualAsset {
   style?: string;
 }
 
+export type StructuredSlideLayoutType =
+  | 'cover'
+  | 'section'
+  | 'bullets'
+  | 'two_column'
+  | 'cards_2x2'
+  | 'image_focus'
+  | 'comparison'
+  | 'timeline';
+
+interface BaseLayoutData {
+  eyebrowKey?: string;
+  titleKey: string;
+  footerKey?: string;
+  summaryKey?: string;
+}
+
+export interface CoverLayoutData extends BaseLayoutData {
+  type: 'cover';
+  subtitleKey: string;
+  presenterKey?: string;
+}
+
+export interface SectionLayoutData extends BaseLayoutData {
+  type: 'section';
+  quoteKey?: string;
+}
+
+export interface BulletsLayoutData extends BaseLayoutData {
+  type: 'bullets';
+  bulletsKey: string;
+  takeawayKey?: string;
+}
+
+export interface TwoColumnLayoutData extends BaseLayoutData {
+  type: 'two_column';
+  leftHeadingKey: string;
+  leftBodyKey: string;
+  leftPointsKey?: string;
+  rightHeadingKey: string;
+  rightBodyKey: string;
+  rightPointsKey?: string;
+}
+
+export interface CardRef {
+  titleKey: string;
+  bodyKey: string;
+}
+
+export interface Cards2x2LayoutData extends BaseLayoutData {
+  type: 'cards_2x2';
+  cards: CardRef[];
+}
+
+export interface ImageFocusLayoutData extends BaseLayoutData {
+  type: 'image_focus';
+  bulletsKey?: string;
+  visualKey: string;
+  visualCaptionKey?: string;
+}
+
+export interface ComparisonLayoutData extends BaseLayoutData {
+  type: 'comparison';
+  leftTitleKey: string;
+  leftPointsKey: string;
+  rightTitleKey: string;
+  rightPointsKey: string;
+}
+
+export interface TimelineItemRef {
+  labelKey: string;
+  bodyKey: string;
+}
+
+export interface TimelineLayoutData extends BaseLayoutData {
+  type: 'timeline';
+  timeline: TimelineItemRef[];
+}
+
+export type FrontendSlideLayoutData =
+  | CoverLayoutData
+  | SectionLayoutData
+  | BulletsLayoutData
+  | TwoColumnLayoutData
+  | Cards2x2LayoutData
+  | ImageFocusLayoutData
+  | ComparisonLayoutData
+  | TimelineLayoutData;
+
 export interface FrontendSlide {
   slideId: string;
   pageNum: number;
   title: string;
-  htmlTemplate: string;
-  cssCode: string;
+  layoutType: StructuredSlideLayoutType;
+  layoutData: FrontendSlideLayoutData;
+  htmlTemplate?: string;
+  cssCode?: string;
   editableFields: FrontendEditableField[];
   visualAssets: FrontendVisualAsset[];
   generationNote?: string;
@@ -85,11 +176,35 @@ export interface FrontendThemeLock {
   avoid: string[];
 }
 
+export interface FrontendDeckPalette {
+  bg: string;
+  panel: string;
+  primary: string;
+  secondary: string;
+  accent: string;
+  text: string;
+  muted: string;
+}
+
+export interface FrontendDeckTypography {
+  titleFontStack: string;
+  bodyFontStack: string;
+  eyebrowSize: number;
+  titleSize: number;
+  summarySize: number;
+  bodySize: number;
+}
+
+export type FrontendDeckStyleFamily = 'modern' | 'business' | 'academic' | 'creative';
+
 export interface FrontendDeckTheme {
   themeName: string;
   visualMood: string;
+  styleFamily: FrontendDeckStyleFamily;
   footerText: string;
   sectionLabelTemplate: string;
+  palette: FrontendDeckPalette;
+  typography: FrontendDeckTypography;
   themeLock: FrontendThemeLock;
 }
 

@@ -19,8 +19,10 @@ from PIL import Image
 from dataflow_agent.toolkits.multimodaltool.mineru_tool import (
     _extract_block_text,
     _normalize_mineru_blocks,
+    _should_use_remote_mineru,
     crop_mineru_blocks_with_meta,
     run_aio_batch_two_step_extract,
+    run_mineru_pdf_extract_http,
 )
 from src.config.poster_config import load_config
 from src.state.poster_state import PosterState
@@ -146,6 +148,25 @@ class Parser:
         pdf_path: str,
         content_dir: Path,
     ) -> Tuple[str, Dict[str, Any]]:
+        if _should_use_remote_mineru():
+            log_agent_info(self.name, "using remote MinerU API for poster text extraction")
+            markdown_text, auto_dir = asyncio.run(
+                run_mineru_pdf_extract_http(
+                    pdf_path=pdf_path,
+                    output_dir=str(content_dir),
+                    port=self.mineru_port,
+                    dpi=self.render_dpi,
+                )
+            )
+            text = self.clean_pattern.sub("", markdown_text).strip()
+            if not text:
+                raise ValueError("MinerU remote API returned no usable text")
+            log_agent_info(
+                self.name,
+                f"extracted {len(text)} chars via remote MinerU into {auto_dir}",
+            )
+            return text, {}
+
         pages_dir = content_dir / "mineru_pages"
         pages_dir.mkdir(parents=True, exist_ok=True)
 

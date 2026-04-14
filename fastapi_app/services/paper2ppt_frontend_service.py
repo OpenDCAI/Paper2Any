@@ -30,6 +30,7 @@ from fastapi_app.schemas import (
 from fastapi_app.services.managed_api_service import (
     resolve_image_generation_credentials,
     resolve_llm_credentials,
+    resolve_model_name,
 )
 from fastapi_app.utils import _from_outputs_url, _to_outputs_url, resolve_outputs_path
 
@@ -100,7 +101,11 @@ class Paper2PPTFrontendService:
             pagecontent=pagecontent,
             chat_api_url=resolved_chat_api_url,
             api_key=resolved_api_key,
-            model=req.model,
+            model=resolve_model_name(
+                req.model,
+                managed_default=settings.PAPER2PPT_CONTENT_MODEL,
+                fallback_default=settings.PAPER2PPT_DEFAULT_MODEL,
+            ),
             language=req.language,
             style=req.style,
         )
@@ -116,12 +121,20 @@ class Paper2PPTFrontendService:
                 slide_index=req.page_id,
                 chat_api_url=resolved_chat_api_url,
                 api_key=resolved_api_key,
-                model=req.model,
+                model=resolve_model_name(
+                    req.model,
+                    managed_default=settings.PAPER2PPT_CONTENT_MODEL,
+                    fallback_default=settings.PAPER2PPT_DEFAULT_MODEL,
+                ),
                 language=req.language,
                 style=req.style,
                 include_images=req.include_images,
                 image_style=req.image_style,
-                image_model=req.image_model,
+                image_model=resolve_model_name(
+                    req.image_model,
+                    managed_default=settings.PAPER2PPT_IMAGE_GEN_MODEL,
+                    fallback_default=settings.PAPER2PPT_DEFAULT_IMAGE_MODEL,
+                ),
                 image_api_url=resolved_image_api_url,
                 image_api_key=resolved_image_api_key,
                 edit_prompt=req.edit_prompt,
@@ -178,12 +191,20 @@ class Paper2PPTFrontendService:
                 slide_index=index,
                 chat_api_url=resolved_chat_api_url,
                 api_key=resolved_api_key,
-                model=req.model,
+                model=resolve_model_name(
+                    req.model,
+                    managed_default=settings.PAPER2PPT_CONTENT_MODEL,
+                    fallback_default=settings.PAPER2PPT_DEFAULT_MODEL,
+                ),
                 language=req.language,
                 style=req.style,
                 include_images=req.include_images,
                 image_style=req.image_style,
-                image_model=req.image_model,
+                image_model=resolve_model_name(
+                    req.image_model,
+                    managed_default=settings.PAPER2PPT_IMAGE_GEN_MODEL,
+                    fallback_default=settings.PAPER2PPT_DEFAULT_IMAGE_MODEL,
+                ),
                 image_api_url=resolved_image_api_url,
                 image_api_key=resolved_image_api_key,
                 edit_prompt=None,
@@ -846,16 +867,12 @@ class Paper2PPTFrontendService:
             "sci_fi": "restrained sci-fi research visual with clean lighting",
             "flat_infographic": "flat infographic-style illustration with simple shapes",
         }
-        key_points = [
-            str(item).strip()
-            for item in (outline_item.get("key_points") or [])
-            if str(item).strip()
-        ][:4]
+        key_points = self._normalize_outline_points(outline_item.get("key_points"), limit=4, item_limit=120)
         palette = theme.get("palette") or {}
         return (
             "Create one supporting image for an academic presentation slide. "
-            f"Page topic: {str(outline_item.get('title') or f'Slide {slide_index + 1}').strip()}. "
-            f"Layout intent: {str(outline_item.get('layout_description') or '').strip()}. "
+            f"Page topic: {self._clean_text_content(outline_item.get('title'), f'Slide {slide_index + 1}', 220)}. "
+            f"Layout intent: {self._clean_text_content(outline_item.get('layout_description'), '', 220)}. "
             f"Key points: {'; '.join(key_points) if key_points else 'keep it concise and presentation-friendly'}. "
             f"Visual style: {style_map.get(image_style, image_style or 'academic illustration')}. "
             f"Preferred palette anchors: background {palette.get('bg', '#0b1020')}, accent {palette.get('accent', '#f59e0b')}, text contrast {palette.get('text', '#e2e8f0')}. "
@@ -1145,6 +1162,7 @@ Schema:
 {
   "theme_name": "short id",
   "visual_mood": "one sentence",
+  "style_family": "modern | business | academic | creative",
   "palette": {
     "bg": "#0b1020",
     "panel": "rgba(15,23,42,0.92)",
@@ -1183,6 +1201,7 @@ Requirements:
 6. The theme_lock must be concrete enough to prevent per-slide drift during later regeneration.
 7. If style_prompt contains explicit color or material directions, translate them into the palette instead of ignoring them.
 8. Do not default to cyan/teal accents unless the style_prompt clearly asks for them.
+9. style_family must be one of modern, business, academic, creative and should match the tone implied by style_prompt.
 """.strip()
 
         user_payload = {
@@ -1218,39 +1237,51 @@ Requirements:
         visual_assets: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         system_prompt = """
-You are an expert academic slide frontend engineer.
-Generate a single 16:9 presentation slide as HTML/CSS for a browser-based PPT editor.
+You are an expert academic presentation designer.
+Generate one strictly structured 16:9 slide for a browser PPT editor and true editable PPT export.
 
 Hard requirements:
 1. Return JSON only. No markdown fences. No explanation.
 2. Output schema:
 {
   "title": "short string",
-  "html_template": "HTML string",
-  "css_code": "CSS string",
-  "editable_fields": [
-    {"key": "title", "label": "Title", "type": "text", "value": "..."},
-    {"key": "summary", "label": "Summary", "type": "textarea", "value": "..."},
-    {"key": "key_points", "label": "Key Points", "type": "list", "items": ["...", "..."]}
-  ],
+  "layout_type": "cover | section | bullets | two_column | cards_2x2 | image_focus | comparison | timeline",
+  "content": {
+    "...": "layout-specific content"
+  },
   "generation_note": "one short sentence"
 }
-3. Every visible text in html_template must come from placeholders only:
-   - text/textarea fields: {{field:key}}
-   - list fields: {{list:key}}
-   - controlled images, when required: {{image:key}}
-4. css_code must only target .slide-root and its descendants.
-5. Do not use external assets, remote fonts, raw image URLs, svg, canvas, script, iframe, video or img tags.
-6. The slide must fit inside a 1600x900 canvas with safe margins and no overflow.
-7. Use the supplied deck theme so every page looks like the same presentation family.
-8. Treat theme_lock as non-negotiable. Do not invent a new palette family, component language, or typography system.
-9. Keep titles within 2 lines, with title font 42-60px and body text 18-28px.
-10. Prefer grid/flex layouts over brittle absolute positioning.
-11. If visual_assets are supplied, reserve layout space and place them using {{image:key}} placeholders. Never write a raw <img> tag yourself.
-12. If visual_assets are empty, build a text-first slide using editable text blocks and CSS decoration only.
-13. The HTML must contain a single .slide-root root element.
-14. If reference deck slides are provided, preserve their shared component grammar, spacing rhythm, and card treatment.
-15. Never put {{field:...}}, {{list:...}}, or {{image:...}} placeholders inside HTML attributes like aria-label, title, alt, data-*, href, or style. Placeholders may only appear in element content.
+3. Never return HTML, CSS, SVG, coordinates, raw style code, or arbitrary DOM.
+4. Use only the allowed layout_type values.
+5. Keep the slide strictly editable:
+   - all visible text must live in `content`
+   - images must be referenced only through the provided visual_assets slots
+6. Use the supplied deck theme so every page looks like the same presentation family.
+7. Treat theme_lock as non-negotiable. Do not invent a new palette family, component language, or typography system.
+8. Keep titles within 2 lines, body content concise, and list lengths <= 6.
+9. Use `image_focus` only when the slide genuinely benefits from a dominant supporting visual. If no visual_assets are present, do not choose `image_focus`.
+10. `cards_2x2` must contain exactly 4 cards.
+11. `timeline` must contain 3 to 5 items.
+12. `comparison` must contain left and right sections with short bullet lists.
+13. Do not overuse one layout type across the deck. Reuse the shared theme, but vary page structure according to the content.
+
+Layout content schema:
+- cover:
+  eyebrow, title, subtitle, presenter, footer
+- section:
+  eyebrow, title, summary, quote, footer
+- bullets:
+  eyebrow, title, summary, bullets[], takeaway, footer
+- two_column:
+  eyebrow, title, summary, left_heading, left_body, left_points[], right_heading, right_body, right_points[], footer
+- cards_2x2:
+  eyebrow, title, summary, cards[{title, body} x4], footer
+- image_focus:
+  eyebrow, title, summary, bullets[], visual_caption, footer
+- comparison:
+  eyebrow, title, summary, left_title, left_points[], right_title, right_points[], footer
+- timeline:
+  eyebrow, title, summary, timeline[{label, body}], footer
 """.strip()
 
         outline_payload = {
@@ -1309,7 +1340,7 @@ Hard requirements:
             user_sections.append(f"Revision request: {edit_prompt}")
 
         user_sections.append(
-            "Ensure the editable_fields fully cover all meaningful visible text shown on the slide."
+            "Return a compact structured slide. Do not emit arbitrary layout code."
         )
 
         return [
@@ -1387,13 +1418,9 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                     "type": field_type,
                 }
                 if field_type == "list":
-                    entry["items"] = [
-                        str(item).strip()
-                        for item in (field.get("items") or [])
-                        if str(item).strip()
-                    ][:5]
+                    entry["items"] = self._normalize_outline_points(field.get("items"), limit=5, item_limit=140)
                 else:
-                    entry["value"] = str(field.get("value") or "").strip()[:280]
+                    entry["value"] = self._clean_text_content(field.get("value"), "", 280)
                 summarized_fields.append(entry)
 
         visual_assets = slide.get("visual_assets") or slide.get("visualAssets") or []
@@ -1434,63 +1461,305 @@ If there are any meaningful problems, set passed=false and provide a concrete re
             theme=theme,
             visual_assets=visual_assets,
         )
-        html_template = payload.get("html_template") or payload.get("html") or ""
-        css_code = payload.get("css_code") or payload.get("css") or ""
-        if not isinstance(html_template, str) or not isinstance(css_code, str):
+        layout_type = str(payload.get("layout_type") or payload.get("layoutType") or "").strip()
+        content = payload.get("content") or {}
+        if not isinstance(content, dict):
             return fallback_slide
-        if len(html_template) > 16000 or len(css_code) > 20000:
+        if layout_type not in {
+            "cover",
+            "section",
+            "bullets",
+            "two_column",
+            "cards_2x2",
+            "image_focus",
+            "comparison",
+            "timeline",
+        }:
             return fallback_slide
-        if _FORBIDDEN_HTML_RE.search(html_template) or _FORBIDDEN_CSS_RE.search(css_code):
+        if not visual_assets and layout_type == "image_focus":
             return fallback_slide
 
-        normalized_html = self._sanitize_html_template(html_template)
-        normalized_css = self._sanitize_css(css_code, theme=theme)
-        editable_fields = self._normalize_fields(
-            payload.get("editable_fields"),
-            outline_item=outline_item,
-            slide_index=slide_index,
-        )
-        if not editable_fields:
-            return fallback_slide
-
-        normalized_html, attribute_warnings = self._sanitize_attribute_placeholders(
-            normalized_html,
-            editable_fields,
-        )
-        if attribute_warnings:
-            log.warning(
-                "[Paper2PPTFrontendService] Sanitized attribute placeholders for page %s: %s",
-                slide_index + 1,
-                ", ".join(attribute_warnings),
+        try:
+            return self._build_structured_slide(
+                layout_type=layout_type,
+                content=content,
+                outline_item=outline_item,
+                slide_index=slide_index,
+                slide_count=slide_count,
+                theme=theme,
+                visual_assets=visual_assets,
+                generation_note=str(payload.get("generation_note") or "").strip(),
             )
-
-        field_keys = {field["key"] for field in editable_fields}
-        placeholders = set(_FIELD_PLACEHOLDER_RE.findall(normalized_html))
-        image_placeholders = set(_IMAGE_PLACEHOLDER_RE.findall(normalized_html))
-        asset_keys = {str(asset.get("key") or "").strip() for asset in visual_assets if str(asset.get("key") or "").strip()}
-        if not placeholders:
-            return fallback_slide
-        if not placeholders.issubset(field_keys):
-            return fallback_slide
-        if image_placeholders and not image_placeholders.issubset(asset_keys):
-            return fallback_slide
-        if visual_assets and not image_placeholders:
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "[Paper2PPTFrontendService] Failed to normalize structured slide payload for page %s: %s",
+                slide_index + 1,
+                exc,
+            )
             return fallback_slide
 
-        title_value = (
-            self._find_field_value(editable_fields, "title")
-            or outline_item.get("title")
-            or f"Slide {slide_index + 1}"
+    def _field_entry(
+        self,
+        *,
+        key: str,
+        label: str,
+        field_type: str,
+        value: str = "",
+        items: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        return {
+            "key": key,
+            "label": label,
+            "type": field_type,
+            "value": value,
+            "items": items or [],
+        }
+
+    def _clean_text_content(self, value: Any, default: str = "", limit: int = 280) -> str:
+        text = self._extract_outline_text(value)
+        text = re.sub(r"\s+", " ", text)
+        return (text or default)[:limit]
+
+    def _extract_outline_text(self, value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, (int, float, bool)):
+            return str(value).strip()
+        if isinstance(value, dict):
+            preferred_keys = (
+                "text",
+                "value",
+                "content",
+                "summary",
+                "title",
+                "label",
+                "body",
+                "description",
+                "reason",
+                "point",
+            )
+            for key in preferred_keys:
+                extracted = self._extract_outline_text(value.get(key))
+                if extracted:
+                    return extracted
+            parts = [self._extract_outline_text(item) for item in value.values()]
+            joined = " ".join(part for part in parts if part)
+            return joined.strip()
+        if isinstance(value, list):
+            parts = [self._extract_outline_text(item) for item in value]
+            joined = " ".join(part for part in parts if part)
+            return joined.strip()
+        return str(value).strip()
+
+    def _normalize_outline_points(
+        self,
+        value: Any,
+        *,
+        limit: int = 6,
+        item_limit: int = 120,
+    ) -> List[str]:
+        normalized: List[str] = []
+
+        def _append(item: Any) -> None:
+            text = self._clean_text_content(item, "", item_limit)
+            if text and text not in normalized:
+                normalized.append(text)
+
+        if isinstance(value, list):
+            for item in value:
+                if isinstance(item, list):
+                    for nested in item:
+                        _append(nested)
+                else:
+                    _append(item)
+        elif value is not None:
+            _append(value)
+        return normalized[:limit]
+
+    def _clean_list_content(
+        self,
+        value: Any,
+        *,
+        defaults: Optional[List[str]] = None,
+        limit: int = 6,
+        item_limit: int = 120,
+    ) -> List[str]:
+        cleaned: List[str] = []
+        if isinstance(value, list):
+            for item in value:
+                text = self._clean_text_content(item, "", item_limit)
+                if text:
+                    cleaned.append(text)
+        elif isinstance(value, str) and value.strip():
+            cleaned = [self._clean_text_content(value, "", item_limit)]
+        if cleaned:
+            return cleaned[:limit]
+        return (defaults or [])[:limit]
+
+    def _build_structured_slide(
+        self,
+        *,
+        layout_type: str,
+        content: Dict[str, Any],
+        outline_item: Dict[str, Any],
+        slide_index: int,
+        slide_count: int,
+        theme: Dict[str, Any],
+        visual_assets: List[Dict[str, Any]],
+        generation_note: str,
+    ) -> Dict[str, Any]:
+        fallback_title = str(outline_item.get("title") or f"Slide {slide_index + 1}").strip()
+        section_template = str(theme.get("section_label_template") or "Slide {page_num:02d}/{slide_count:02d}")
+        try:
+            default_eyebrow = section_template.format(page_num=slide_index + 1, slide_count=slide_count)
+        except Exception:  # noqa: BLE001
+            default_eyebrow = f"Slide {slide_index + 1:02d}/{slide_count:02d}"
+        key_points = self._normalize_outline_points(outline_item.get("key_points"), limit=6, item_limit=120)
+        default_summary = key_points[0] if key_points else self._clean_text_content(
+            outline_item.get("layout_description"),
+            "",
+            280,
+        )
+        default_footer = str(theme.get("footer_text") or "Paper2Any Structured PPT").strip()
+
+        editable_fields: List[Dict[str, Any]] = []
+        layout_data: Dict[str, Any] = {"type": layout_type}
+
+        def add_text(key: str, label: str, default: str, *, field_type: str = "text", limit: int = 280) -> str:
+            value = self._clean_text_content(content.get(key), default, limit)
+            editable_fields.append(
+                self._field_entry(
+                    key=key,
+                    label=label,
+                    field_type="textarea" if field_type == "textarea" else "text",
+                    value=value,
+                )
+            )
+            return key
+
+        def add_list(key: str, label: str, default_items: List[str], *, limit: int = 6, item_limit: int = 120) -> str:
+            items = self._clean_list_content(
+                content.get(key),
+                defaults=default_items,
+                limit=limit,
+                item_limit=item_limit,
+            )
+            editable_fields.append(
+                self._field_entry(
+                    key=key,
+                    label=label,
+                    field_type="list",
+                    items=items,
+                )
+            )
+            return key
+
+        layout_data["eyebrow_key"] = add_text("eyebrow", "Eyebrow", default_eyebrow)
+        layout_data["title_key"] = add_text("title", "Title", fallback_title, limit=120)
+        layout_data["footer_key"] = add_text("footer", "Footer", default_footer, limit=80)
+
+        if layout_type == "cover":
+            layout_data["subtitle_key"] = add_text("subtitle", "Subtitle", default_summary, field_type="textarea", limit=220)
+            layout_data["presenter_key"] = add_text("presenter", "Presenter", "Presenter / Team", limit=80)
+        elif layout_type == "section":
+            layout_data["summary_key"] = add_text("summary", "Summary", default_summary, field_type="textarea", limit=220)
+            layout_data["quote_key"] = add_text("quote", "Quote", key_points[1] if len(key_points) > 1 else default_summary, field_type="textarea", limit=200)
+        elif layout_type == "bullets":
+            layout_data["summary_key"] = add_text("summary", "Summary", default_summary, field_type="textarea", limit=220)
+            layout_data["bullets_key"] = add_list("bullets", "Bullets", key_points[:5] or ["Add key points"])
+            layout_data["takeaway_key"] = add_text("takeaway", "Takeaway", key_points[-1] if key_points else default_summary, field_type="textarea", limit=180)
+        elif layout_type == "two_column":
+            layout_data["summary_key"] = add_text("summary", "Summary", default_summary, field_type="textarea", limit=220)
+            layout_data["left_heading_key"] = add_text("left_heading", "Left Heading", "Core Idea", limit=80)
+            layout_data["left_body_key"] = add_text("left_body", "Left Body", key_points[0] if key_points else default_summary, field_type="textarea", limit=180)
+            layout_data["left_points_key"] = add_list("left_points", "Left Points", key_points[:3], limit=4)
+            layout_data["right_heading_key"] = add_text("right_heading", "Right Heading", "Implication", limit=80)
+            layout_data["right_body_key"] = add_text("right_body", "Right Body", key_points[1] if len(key_points) > 1 else default_summary, field_type="textarea", limit=180)
+            layout_data["right_points_key"] = add_list("right_points", "Right Points", key_points[2:5] or key_points[:2], limit=4)
+        elif layout_type == "cards_2x2":
+            layout_data["summary_key"] = add_text("summary", "Summary", default_summary, field_type="textarea", limit=200)
+            raw_cards = content.get("cards")
+            cards = raw_cards if isinstance(raw_cards, list) else []
+            card_refs: List[Dict[str, str]] = []
+            for index in range(4):
+                item = cards[index] if index < len(cards) and isinstance(cards[index], dict) else {}
+                title_key = f"card_{index + 1}_title"
+                body_key = f"card_{index + 1}_body"
+                editable_fields.append(self._field_entry(
+                    key=title_key,
+                    label=f"Card {index + 1} Title",
+                    field_type="text",
+                    value=self._clean_text_content(item.get("title"), f"Point {index + 1}", 80),
+                ))
+                editable_fields.append(self._field_entry(
+                    key=body_key,
+                    label=f"Card {index + 1} Body",
+                    field_type="textarea",
+                    value=self._clean_text_content(
+                        item.get("body"),
+                        key_points[index] if index < len(key_points) else default_summary,
+                        140,
+                    ),
+                ))
+                card_refs.append({"title_key": title_key, "body_key": body_key})
+            layout_data["cards"] = card_refs
+        elif layout_type == "image_focus":
+            layout_data["summary_key"] = add_text("summary", "Summary", default_summary, field_type="textarea", limit=180)
+            layout_data["bullets_key"] = add_list("bullets", "Bullets", key_points[:4], limit=4)
+            layout_data["visual_caption_key"] = add_text("visual_caption", "Visual Caption", "Supporting visual", limit=90)
+            layout_data["visual_key"] = str((visual_assets[0].get("key") if visual_assets else _DEFAULT_VISUAL_KEY) or _DEFAULT_VISUAL_KEY)
+        elif layout_type == "comparison":
+            layout_data["summary_key"] = add_text("summary", "Summary", default_summary, field_type="textarea", limit=180)
+            layout_data["left_title_key"] = add_text("left_title", "Left Title", "Track A", limit=80)
+            layout_data["left_points_key"] = add_list("left_points", "Left Points", key_points[:3], limit=4)
+            layout_data["right_title_key"] = add_text("right_title", "Right Title", "Track B", limit=80)
+            layout_data["right_points_key"] = add_list("right_points", "Right Points", key_points[3:6] or key_points[:3], limit=4)
+        elif layout_type == "timeline":
+            layout_data["summary_key"] = add_text("summary", "Summary", default_summary, field_type="textarea", limit=180)
+            raw_timeline = content.get("timeline")
+            timeline_items = raw_timeline if isinstance(raw_timeline, list) else []
+            timeline_refs: List[Dict[str, str]] = []
+            count = max(3, min(5, len(timeline_items) or 3))
+            for index in range(count):
+                item = timeline_items[index] if index < len(timeline_items) and isinstance(timeline_items[index], dict) else {}
+                label_key = f"timeline_{index + 1}_label"
+                body_key = f"timeline_{index + 1}_body"
+                editable_fields.append(self._field_entry(
+                    key=label_key,
+                    label=f"Timeline {index + 1} Label",
+                    field_type="text",
+                    value=self._clean_text_content(item.get("label"), f"Phase {index + 1}", 60),
+                ))
+                editable_fields.append(self._field_entry(
+                    key=body_key,
+                    label=f"Timeline {index + 1} Body",
+                    field_type="textarea",
+                    value=self._clean_text_content(
+                        item.get("body"),
+                        key_points[index] if index < len(key_points) else default_summary,
+                        120,
+                    ),
+                ))
+                timeline_refs.append({"label_key": label_key, "body_key": body_key})
+            layout_data["timeline"] = timeline_refs
+        else:
+            raise ValueError(f"unsupported layout_type: {layout_type}")
+
+        title_value = next(
+            (field.get("value") for field in editable_fields if field.get("key") == "title"),
+            fallback_title,
         )
         return {
-            "slide_id": str(payload.get("slide_id") or slide_index + 1),
+            "slide_id": str(slide_index + 1),
             "page_num": slide_index + 1,
-            "title": str(payload.get("title") or title_value),
-            "html_template": normalized_html,
-            "css_code": normalized_css,
+            "title": str(title_value or fallback_title),
+            "layout_type": layout_type,
+            "layout_data": layout_data,
             "editable_fields": editable_fields,
             "visual_assets": visual_assets,
-            "generation_note": str(payload.get("generation_note") or ""),
+            "generation_note": generation_note or "Structured slide generated",
             "status": "done",
         }
 
@@ -1501,11 +1770,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
         slide: Dict[str, Any],
         local_layout_issues: List[str],
     ) -> Dict[str, Any]:
-        issues = [
-            str(item).strip()
-            for item in (payload.get("issues") or [])
-            if str(item).strip()
-        ]
+        issues = self._normalize_outline_points(payload.get("issues"), limit=12, item_limit=220)
         combined_issues: List[str] = []
         for issue in [*local_layout_issues, *issues]:
             if issue and issue not in combined_issues:
@@ -1542,11 +1807,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
     ) -> List[Dict[str, Any]]:
         normalized: List[Dict[str, Any]] = []
         seen_keys: set[str] = set()
-        outline_points = [
-            str(item).strip()
-            for item in (outline_item.get("key_points") or [])
-            if str(item).strip()
-        ]
+        outline_points = self._normalize_outline_points(outline_item.get("key_points"), limit=6, item_limit=120)
 
         if isinstance(raw_fields, list):
             for raw_field in raw_fields:
@@ -1560,11 +1821,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                     field_type = "text"
                 label = str(raw_field.get("label") or key.replace("_", " ").title())
                 if field_type == "list":
-                    items = [
-                        str(item).strip()
-                        for item in (raw_field.get("items") or [])
-                        if str(item).strip()
-                    ]
+                    items = self._normalize_outline_points(raw_field.get("items"), limit=8, item_limit=140)
                     if not items:
                         items = outline_points[:4]
                     normalized.append(
@@ -1577,7 +1834,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                         }
                     )
                 else:
-                    value = str(raw_field.get("value") or "").strip()
+                    value = self._clean_text_content(raw_field.get("value"), "", 280)
                     normalized.append(
                         {
                             "key": key,
@@ -1595,7 +1852,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                     "key": "title",
                     "label": "Title",
                     "type": "text",
-                    "value": str(outline_item.get("title") or f"Slide {slide_index + 1}"),
+                    "value": self._clean_text_content(outline_item.get("title"), f"Slide {slide_index + 1}", 220),
                     "items": [],
                 }
             )
@@ -1605,9 +1862,11 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                     "key": "summary",
                     "label": "Summary",
                     "type": "textarea",
-                    "value": str(
-                        (outline_points[0] if outline_points else outline_item.get("layout_description") or "")
-                    ).strip(),
+                    "value": self._clean_text_content(
+                        outline_points[0] if outline_points else outline_item.get("layout_description"),
+                        "",
+                        280,
+                    ),
                     "items": [],
                 }
             )
@@ -1624,6 +1883,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
         return normalized
 
     def _build_fallback_theme(self, *, language: str, style: str) -> Dict[str, Any]:
+        style_family = self._infer_style_family(style)
         footer_text = "Paper2Any Frontend PPT"
         section_label_template = (
             "第 {page_num:02d}/{slide_count:02d} 页"
@@ -1637,9 +1897,11 @@ If there are any meaningful problems, set passed=false and provide a concrete re
             )
         )
         palette = self._resolve_palette_from_style(style)
+        family_rules = self._build_family_rules(style_family)
         return {
             "theme_name": "scholarly_signal",
             "visual_mood": visual_mood,
+            "style_family": style_family,
             "palette": palette,
             "typography": {
                 "title_font_stack": 'Georgia, "Times New Roman", serif',
@@ -1649,6 +1911,108 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                 "summary_size": 26,
                 "body_size": 24,
             },
+            "layout_rules": family_rules["layout_rules"],
+            "component_rules": family_rules["component_rules"],
+            "theme_lock": {
+                "must_keep": [
+                    "Use only the deck palette colors for fills, borders, and emphasis.",
+                    "Keep the same serif title style and sans body style across the deck.",
+                    family_rules["must_keep"],
+                ],
+                "preferred_layout_patterns": family_rules["preferred_layout_patterns"],
+                "component_signature": family_rules["component_signature"],
+                "avoid": [
+                    "Do not introduce unrelated bright color families.",
+                    "Do not use more than two main columns.",
+                    family_rules["avoid"],
+                ],
+            },
+            "footer_text": footer_text,
+            "section_label_template": section_label_template,
+        }
+
+    def _infer_style_family(self, style: str) -> str:
+        style_text = (style or "").strip().lower()
+        if any(keyword in style_text for keyword in ("academic", "report", "paper", "research", "严谨", "学术", "报告")):
+            return "academic"
+        if any(keyword in style_text for keyword in ("business", "brand", "corporate", "executive", "商务", "商业", "品牌")):
+            return "business"
+        if any(keyword in style_text for keyword in ("creative", "illustration", "warm", "friendly", "playful", "soft", "创意", "插画", "柔和")):
+            return "creative"
+        return "modern"
+
+    def _build_family_rules(self, style_family: str) -> Dict[str, Any]:
+        family = (style_family or "modern").strip().lower()
+        if family == "academic":
+            return {
+                "layout_rules": [
+                    "Keep generous white or paper-like breathing room and stable reading rhythm.",
+                    "Prefer section, bullets, two-column, and comparison layouts over showy hero frames.",
+                    "Use image_focus only for genuinely visual pages.",
+                    "Reserve a quiet footer for provenance or page identity.",
+                ],
+                "component_rules": [
+                    "Use restrained panels, subtle dividers, and report-like hierarchy.",
+                    "Keep decoration secondary to text structure and evidence density.",
+                    "Avoid billboard marketing blocks or exaggerated hero cards.",
+                ],
+                "preferred_layout_patterns": [
+                    "section_break",
+                    "split_report_grid",
+                    "comparison_columns",
+                    "timeline_overview",
+                ],
+                "component_signature": "Refined report-style panels, paper-like spacing, and calm academic hierarchy.",
+                "must_keep": "Keep the visual language rigorous, airy, and report-like rather than glossy.",
+                "avoid": "Do not use neon glow, oversized promo badges, or playful sticker motifs.",
+            }
+        if family == "business":
+            return {
+                "layout_rules": [
+                    "Favor crisp comparison, KPI-card, and executive-summary patterns.",
+                    "Use strong alignment and clear block grouping with moderate density.",
+                    "Keep image_focus to showcase slides only.",
+                    "Prefer horizontal momentum and strong title anchoring.",
+                ],
+                "component_rules": [
+                    "Use sharp, decisive cards with stronger contrast and cleaner edges.",
+                    "Accent color should be used sparingly for strategic emphasis.",
+                    "Make hierarchy feel presentation-room ready rather than article-like.",
+                ],
+                "preferred_layout_patterns": [
+                    "executive_hero",
+                    "split_insight_grid",
+                    "kpi_cards",
+                    "decision_comparison",
+                ],
+                "component_signature": "Crisp executive cards, strong title anchors, and controlled business contrast.",
+                "must_keep": "Keep the deck polished, decisive, and boardroom-oriented.",
+                "avoid": "Do not use whimsical illustration accents or soft scrapbook styling.",
+            }
+        if family == "creative":
+            return {
+                "layout_rules": [
+                    "Allow more asymmetry, softer framing, and stronger hero moments.",
+                    "Alternate between image_focus, section, cards, and timeline layouts to keep the deck lively.",
+                    "Use comparison and two-column layouts only when the content clearly calls for them.",
+                    "Let accent shapes support the narrative without overpowering text.",
+                ],
+                "component_rules": [
+                    "Use soft panels, expressive color accents, and warmer visual transitions.",
+                    "Preserve readability, but allow more character in backgrounds and separators.",
+                    "Favor friendly, presentation-forward composition over report density.",
+                ],
+                "preferred_layout_patterns": [
+                    "hero_spotlight",
+                    "soft_cards",
+                    "story_timeline",
+                    "image_caption_feature",
+                ],
+                "component_signature": "Warm expressive panels, softer geometry, and more atmospheric deck motion.",
+                "must_keep": "Keep the deck warm, expressive, and visibly more playful than academic or business presets.",
+                "avoid": "Do not collapse the deck back into a uniform report grid on every page.",
+            }
+        return {
             "layout_rules": [
                 "Keep 72px+ safe margins around major content.",
                 "Prefer one dominant text area plus one supporting card or metrics block.",
@@ -1656,31 +2020,19 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                 "Reserve a quiet footer area for page identity or takeaway.",
             ],
             "component_rules": [
-                "Use rounded cards with subtle borders and a restrained glow.",
+                "Use refined rounded cards with controlled glow and layered depth.",
                 "Use one accent color only for emphasis, not for large fills.",
                 "Keep text hierarchy clear with title, summary, and supporting bullets.",
             ],
-            "theme_lock": {
-                "must_keep": [
-                    "Use only the deck palette colors for fills, borders, and emphasis.",
-                    "Keep the same serif title style and sans body style across the deck.",
-                    "Keep rounded translucent cards and a quiet footer treatment.",
-                ],
-                "preferred_layout_patterns": [
-                    "hero_with_side_card",
-                    "split_insight_grid",
-                    "stacked_cards",
-                    "timeline_overview",
-                ],
-                "component_signature": "Rounded refined cards, restrained accent usage, thin borders, and quiet academic spacing.",
-                "avoid": [
-                    "Do not introduce unrelated bright color families.",
-                    "Do not use more than two main columns.",
-                    "Do not use oversized billboard titles or poster-like full-bleed blocks.",
-                ],
-            },
-            "footer_text": footer_text,
-            "section_label_template": section_label_template,
+            "preferred_layout_patterns": [
+                "hero_with_side_card",
+                "split_insight_grid",
+                "stacked_cards",
+                "timeline_overview",
+            ],
+            "component_signature": "Modern layered cards, restrained glow, and polished presentation spacing.",
+            "must_keep": "Keep the deck sleek, layered, and contemporary without drifting into plain report style.",
+            "avoid": "Do not flatten everything into plain white report blocks unless the prompt explicitly asks for that.",
         }
 
     def _resolve_palette_from_style(self, style: str) -> Dict[str, str]:
@@ -1802,27 +2154,26 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                 return default
             return max(min_value, min(max_value, parsed))
 
+        def _clean_style_family(value: Any, default: str) -> str:
+            candidate = str(value or "").strip().lower()
+            if candidate in {"modern", "business", "academic", "creative"}:
+                return candidate
+            return default
+
         def _clean_list(value: Any, defaults: List[str], limit: int = 6) -> List[str]:
             if isinstance(value, list):
-                cleaned = [str(item).strip() for item in value if str(item).strip()]
+                cleaned = self._normalize_outline_points(value, limit=limit, item_limit=140)
                 if cleaned:
                     return cleaned[:limit]
             return defaults[:limit]
 
-        layout_rules = [
-            str(item).strip()
-            for item in (payload.get("layout_rules") or [])
-            if str(item).strip()
-        ][:6]
-        component_rules = [
-            str(item).strip()
-            for item in (payload.get("component_rules") or [])
-            if str(item).strip()
-        ][:6]
+        layout_rules = self._normalize_outline_points(payload.get("layout_rules"), limit=6, item_limit=180)
+        component_rules = self._normalize_outline_points(payload.get("component_rules"), limit=6, item_limit=180)
 
         return {
             "theme_name": _clean_text(payload.get("theme_name"), fallback["theme_name"]),
             "visual_mood": _clean_text(payload.get("visual_mood"), fallback["visual_mood"]),
+            "style_family": _clean_style_family(payload.get("style_family"), fallback["style_family"]),
             "palette": {
                 "bg": _clean_color(palette_raw.get("bg"), fallback["palette"]["bg"]),
                 "panel": _clean_color(palette_raw.get("panel"), fallback["palette"]["panel"]),
@@ -1898,25 +2249,25 @@ If there are any meaningful problems, set passed=false and provide a concrete re
         theme_lock = theme.get("theme_lock")
         if isinstance(theme_lock, dict):
             return {
-                "must_keep": [
-                    str(item).strip()
-                    for item in (theme_lock.get("must_keep") or [])
-                    if str(item).strip()
-                ] or fallback["theme_lock"]["must_keep"],
-                "preferred_layout_patterns": [
-                    str(item).strip()
-                    for item in (theme_lock.get("preferred_layout_patterns") or [])
-                    if str(item).strip()
-                ] or fallback["theme_lock"]["preferred_layout_patterns"],
+                "must_keep": self._normalize_outline_points(
+                    theme_lock.get("must_keep"),
+                    limit=8,
+                    item_limit=180,
+                ) or fallback["theme_lock"]["must_keep"],
+                "preferred_layout_patterns": self._normalize_outline_points(
+                    theme_lock.get("preferred_layout_patterns"),
+                    limit=8,
+                    item_limit=180,
+                ) or fallback["theme_lock"]["preferred_layout_patterns"],
                 "component_signature": str(
                     theme_lock.get("component_signature")
                     or fallback["theme_lock"]["component_signature"]
                 ).strip(),
-                "avoid": [
-                    str(item).strip()
-                    for item in (theme_lock.get("avoid") or [])
-                    if str(item).strip()
-                ] or fallback["theme_lock"]["avoid"],
+                "avoid": self._normalize_outline_points(
+                    theme_lock.get("avoid"),
+                    limit=8,
+                    item_limit=180,
+                ) or fallback["theme_lock"]["avoid"],
             }
         return fallback["theme_lock"]
 
@@ -1927,6 +2278,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
         return {
             "theme_name": str(theme.get("theme_name") or "deck_theme").strip(),
             "visual_mood": str(theme.get("visual_mood") or "").strip(),
+            "style_family": str(theme.get("style_family") or "modern").strip(),
             "palette_anchor": {
                 "bg": str(palette.get("bg") or "").strip(),
                 "primary": str(palette.get("primary") or "").strip(),
@@ -2146,20 +2498,21 @@ If there are any meaningful problems, set passed=false and provide a concrete re
         return [self._summarize_reference_slide(slide) for slide in references]
 
     def _summarize_reference_slide(self, slide: Dict[str, Any]) -> Dict[str, Any]:
-        html_template = str(slide.get("html_template") or "")
-        css_code = str(slide.get("css_code") or "")
         editable_fields = slide.get("editable_fields") or []
         return {
             "page_num": int(slide.get("page_num") or 0),
             "title": str(slide.get("title") or "").strip(),
+            "layout_type": str(slide.get("layout_type") or slide.get("layoutType") or "").strip(),
             "field_keys": [
                 str(field.get("key") or "").strip()
                 for field in editable_fields
                 if isinstance(field, dict) and str(field.get("key") or "").strip()
             ][:10],
-            "html_outline": self._extract_html_outline(html_template),
-            "component_classes": self._extract_component_classes(html_template, css_code),
-            "css_selectors": self._extract_css_selectors(css_code),
+            "visual_asset_keys": [
+                str(asset.get("key") or "").strip()
+                for asset in (slide.get("visual_assets") or [])
+                if isinstance(asset, dict) and str(asset.get("key") or "").strip()
+            ][:4],
         }
 
     def _extract_html_outline(self, html_template: str, limit: int = 12) -> List[str]:
@@ -2216,6 +2569,42 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                 break
         return cleaned
 
+    def _choose_fallback_layout_type(
+        self,
+        *,
+        outline_item: Dict[str, Any],
+        slide_index: int,
+        theme: Dict[str, Any],
+        visual_assets: Sequence[Dict[str, Any]],
+    ) -> str:
+        style_family = str(theme.get("style_family") or "modern").strip().lower()
+        layout_hint = str(outline_item.get("layout_description") or "").lower()
+        title = str(outline_item.get("title") or "").lower()
+        key_points = self._normalize_outline_points(outline_item.get("key_points"), limit=6, item_limit=120)
+        bullet_count = len(key_points)
+
+        if slide_index == 0:
+            return "cover"
+        if any(keyword in title for keyword in ("overview", "agenda", "outline", "introduction", "background", "summary")):
+            return "section"
+        if any(keyword in layout_hint for keyword in ("compare", "contrast", "trade-off", "versus", "vs", "对比", "比较")):
+            return "comparison"
+        if any(keyword in layout_hint for keyword in ("timeline", "process", "workflow", "loop", "pipeline", "流程", "时间线")):
+            return "timeline"
+        if any(keyword in layout_hint for keyword in ("card", "grid", "domain", "application", "industry", "module", "模块", "领域")):
+            return "cards_2x2"
+        if bullet_count >= 5 and style_family in {"business", "modern"}:
+            return "two_column"
+        if visual_assets and style_family in {"creative", "modern"} and slide_index % 3 == 1:
+            return "image_focus"
+        if bullet_count >= 4 and style_family == "academic":
+            return "bullets"
+        if style_family == "business":
+            return "two_column"
+        if style_family == "creative":
+            return "cards_2x2"
+        return "bullets"
+
     def _build_fallback_slide(
         self,
         *,
@@ -2225,315 +2614,46 @@ If there are any meaningful problems, set passed=false and provide a concrete re
         theme: Dict[str, Any],
         visual_assets: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
-        palette = theme.get("palette") or self._build_fallback_theme(language="zh", style="")["palette"]
-        typography = theme.get("typography") or {}
         visual_assets = (visual_assets or [])[:_MAX_INLINE_VISUAL_ASSETS]
-        has_visual = bool(visual_assets)
-        has_multi_visual = len(visual_assets) > 1
-        key_points = [
-            str(item).strip()
-            for item in (outline_item.get("key_points") or [])
-            if str(item).strip()
-        ][:4]
-        summary = key_points[0] if key_points else str(outline_item.get("layout_description") or "").strip()
+        key_points = self._normalize_outline_points(outline_item.get("key_points"), limit=4, item_limit=120)
+        summary = key_points[0] if key_points else self._clean_text_content(
+            outline_item.get("layout_description"),
+            "",
+            280,
+        )
         takeaway = key_points[-1] if key_points else "Refine the narrative in the editor"
         section_template = str(theme.get("section_label_template") or "Slide {page_num:02d}/{slide_count:02d}")
         try:
             eyebrow = section_template.format(page_num=slide_index + 1, slide_count=slide_count)
         except Exception:  # noqa: BLE001
             eyebrow = f"Slide {slide_index + 1:02d}/{slide_count:02d}"
-
-        visual_markup = ""
-        if has_visual:
-            visual_markup = "\n".join(
-                f'        <div class="visual-shell visual-shell-{asset_index + 1}">{{{{image:{asset.get("key") or self._build_visual_asset_key(asset_index)}}}}}</div>'
-                for asset_index, asset in enumerate(visual_assets)
-            )
-
-        html_template = """
-<div class="slide-root">
-  <div class="slide-shell">
-    <div class="grid-layer"></div>
-    <div class="hero">
-      <div class="hero-copy">
-        <div class="eyebrow">{{field:eyebrow}}</div>
-        <h1 class="title">{{field:title}}</h1>
-        <p class="summary">{{field:summary}}</p>
-        """ + (
-            """
-        <ul class="bullet-list compact">{{list:key_points}}</ul>
-"""
-            if has_visual
-            else ""
-        ) + """
-      </div>
-      """ + (
-            """
-      <div class="visual-card """ + ("visual-card-grid" if has_multi_visual else "") + """">
-""" + visual_markup + """
-      </div>
-"""
-            if has_visual
-            else """
-      <div class="stat-card">
-        <div class="card-label">{{field:points_label}}</div>
-        <ul class="bullet-list">{{list:key_points}}</ul>
-      </div>
-"""
-        ) + """
-    </div>
-    <div class="footer-row">
-      <div class="takeaway-card">
-        <div class="takeaway-label">{{field:takeaway_label}}</div>
-        <p class="takeaway-text">{{field:takeaway}}</p>
-      </div>
-      <div class="footer-tag">{{field:footer}}</div>
-    </div>
-  </div>
-</div>
-""".strip()
-
-        css_code = f"""
-.slide-root {{
-  width: 100%;
-  height: 100%;
-  background:
-    radial-gradient(circle at top right, {palette["secondary"]}33 0%, transparent 28%),
-    radial-gradient(circle at bottom left, {palette["accent"]}22 0%, transparent 32%),
-    {palette["bg"]};
-  color: {palette["text"]};
-  overflow: hidden;
-}}
-.slide-root * {{
-  box-sizing: border-box;
-}}
-.slide-shell {{
-  position: relative;
-  width: 100%;
-  height: 100%;
-  padding: 68px 72px;
-}}
-.grid-layer {{
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
-  background-size: 48px 48px;
-  opacity: 0.22;
-}}
-.hero {{
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: {'1.08fr 0.92fr' if has_visual else '1.5fr 0.95fr'};
-  gap: 28px;
-  height: calc(100% - 120px);
-}}
-.hero-copy {{
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 20px;
-}}
-.eyebrow {{
-  display: inline-flex;
-  align-self: flex-start;
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: {palette["secondary"]}22;
-  border: 1px solid {palette["primary"]}55;
-  color: {palette["primary"]};
-  font-size: {int(typography.get("eyebrow_size") or 18)}px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}}
-.title {{
-  margin: 0;
-  max-width: 880px;
-  font-size: {int(typography.get("title_size") or 56)}px;
-  line-height: 1.04;
-  letter-spacing: -0.04em;
-  font-family: {typography.get("title_font_stack") or 'Georgia, "Times New Roman", serif'};
-}}
-.summary {{
-  margin: 0;
-  max-width: 840px;
-  font-size: {int(typography.get("summary_size") or 26)}px;
-  line-height: 1.42;
-  color: {palette["muted"]};
-  white-space: pre-wrap;
-  font-family: {typography.get("body_font_stack") or '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'};
-}}
-.stat-card, .takeaway-card, .visual-card {{
-  border-radius: 28px;
-  border: 1px solid {palette["primary"]}30;
-  background: {palette["panel"]};
-  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.35);
-  backdrop-filter: blur(10px);
-}}
-.stat-card {{
-  align-self: center;
-  padding: 28px;
-}}
-.visual-card {{
-  padding: 18px;
-  min-height: 420px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}}
-.visual-card.visual-card-grid {{
-  justify-content: stretch;
-}}
-.visual-shell {{
-  width: 100%;
-  height: 100%;
-  min-height: 384px;
-  border-radius: 22px;
-  overflow: hidden;
-}}
-.visual-card.visual-card-grid .visual-shell {{
-  flex: 1 1 0;
-  min-height: 160px;
-}}
-.visual-card.visual-card-grid .visual-shell-1 {{
-  min-height: 236px;
-}}
-.card-label, .takeaway-label {{
-  font-size: {int(typography.get("eyebrow_size") or 18)}px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: {palette["primary"]};
-  margin-bottom: 14px;
-  font-weight: 700;
-}}
-.bullet-list {{
-  margin: 0;
-  padding-left: 26px;
-  display: grid;
-  gap: 14px;
-  font-size: {int(typography.get("body_size") or 24)}px;
-  line-height: 1.35;
-  font-family: {typography.get("body_font_stack") or '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'};
-}}
-.bullet-list li {{
-  color: {palette["text"]};
-}}
-.bullet-list.compact {{
-  max-width: 720px;
-  gap: 10px;
-  font-size: {max(18, int(typography.get("body_size") or 24) - 2)}px;
-}}
-.footer-row {{
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: 1.4fr auto;
-  align-items: end;
-  gap: 18px;
-}}
-.takeaway-card {{
-  padding: 24px 28px;
-}}
-.takeaway-text {{
-  margin: 0;
-  font-size: {int(typography.get("body_size") or 24)}px;
-  line-height: 1.4;
-  color: {palette["text"]};
-  white-space: pre-wrap;
-  font-family: {typography.get("body_font_stack") or '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'};
-}}
-.footer-tag {{
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 220px;
-  padding: 14px 18px;
-  border-radius: 999px;
-  border: 1px solid {palette["accent"]}55;
-  color: {palette["accent"]};
-  font-size: {int(typography.get("eyebrow_size") or 18)}px;
-  font-weight: 700;
-  background: rgba(15, 23, 42, 0.45);
-}}
-""".strip()
-
-        editable_fields = [
-            {
-                "key": "eyebrow",
-                "label": "Eyebrow",
-                "type": "text",
-                "value": eyebrow,
-                "items": [],
-            },
-            {
-                "key": "title",
-                "label": "Title",
-                "type": "text",
-                "value": str(outline_item.get("title") or f"Slide {slide_index + 1}"),
-                "items": [],
-            },
-            {
-                "key": "summary",
-                "label": "Summary",
-                "type": "textarea",
-                "value": summary,
-                "items": [],
-            },
-            {
-                "key": "key_points",
-                "label": "Key Points",
-                "type": "list",
-                "value": "",
-                "items": key_points or ["Summarize the page content here"],
-            },
-            {
-                "key": "takeaway_label",
-                "label": "Takeaway Label",
-                "type": "text",
-                "value": "Takeaway",
-                "items": [],
-            },
-            {
-                "key": "takeaway",
-                "label": "Takeaway",
-                "type": "textarea",
-                "value": takeaway,
-                "items": [],
-            },
-            {
-                "key": "footer",
-                "label": "Footer",
-                "type": "text",
-                "value": str(theme.get("footer_text") or "Paper2Any Frontend PPT"),
-                "items": [],
-            },
-        ]
-        if not has_visual:
-            editable_fields.insert(
-                3,
-                {
-                    "key": "points_label",
-                    "label": "Points Label",
-                    "type": "text",
-                    "value": "Key Points",
-                    "items": [],
-                },
-            )
-
-        return {
-            "slide_id": str(slide_index + 1),
-            "page_num": slide_index + 1,
+        layout_type = self._choose_fallback_layout_type(
+            outline_item=outline_item,
+            slide_index=slide_index,
+            theme=theme,
+            visual_assets=visual_assets,
+        )
+        content = {
+            "eyebrow": eyebrow,
             "title": str(outline_item.get("title") or f"Slide {slide_index + 1}"),
-            "html_template": html_template,
-            "css_code": css_code,
-            "editable_fields": editable_fields,
-            "visual_assets": visual_assets,
-            "generation_note": "Built-in fallback template",
-            "status": "done",
+            "summary": summary,
+            "bullets": key_points or ["Summarize the page content here"],
+            "takeaway": takeaway,
+            "footer": str(theme.get("footer_text") or "Paper2Any Structured PPT"),
+            "visual_caption": "Supporting visual",
         }
+        slide = self._build_structured_slide(
+            layout_type=layout_type,
+            content=content,
+            outline_item=outline_item,
+            slide_index=slide_index,
+            slide_count=slide_count,
+            theme=theme,
+            visual_assets=visual_assets,
+            generation_note="Built-in fallback structured slide",
+        )
+        slide["generation_note"] = "Built-in fallback structured slide"
+        return slide
 
     def _sanitize_html_template(self, html_template: str) -> str:
         cleaned = re.sub(r"<\s*/?\s*(html|head|body)\b[^>]*>", "", html_template, flags=re.IGNORECASE)
@@ -2567,13 +2687,9 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                 if field is None:
                     return ""
                 if str(field.get("type") or "") == "list":
-                    raw_value = " • ".join(
-                        str(item).strip()
-                        for item in (field.get("items") or [])
-                        if str(item).strip()
-                    )
+                    raw_value = " • ".join(self._normalize_outline_points(field.get("items"), limit=12, item_limit=180))
                 else:
-                    raw_value = str(field.get("value") or "")
+                    raw_value = self._extract_outline_text(field.get("value"))
                 return html.escape(" ".join(raw_value.split()), quote=True)
 
             next_value = re.sub(r"\{\{field:([a-zA-Z0-9_]+)\}\}", _replace_field, next_value)

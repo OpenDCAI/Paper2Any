@@ -328,3 +328,4 @@ deploy/precise_clean.sh
 # Runtime temp directories
 /tmp*/
 /outputs/system/tmp/
+deploy/docker.env

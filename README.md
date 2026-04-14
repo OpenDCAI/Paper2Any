@@ -354,6 +354,27 @@ Paper2Any currently includes the following sub-capabilities:
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![pip](https://img.shields.io/badge/pip-latest-3776AB?style=flat-square&logo=pypi&logoColor=white)
 
+### `.env` Modes
+
+Paper2Any now supports two configuration styles:
+
+- **Simple mode**: use `*.env.simple.example`. Recommended for most self-hosted users.
+- **Advanced mode**: use `*.env.example`. Use this only when you need workflow-specific model/provider overrides.
+
+Quick choice:
+
+```bash
+cp fastapi_app/.env.simple.example fastapi_app/.env
+cp frontend-workflow/.env.simple.example frontend-workflow/.env
+```
+
+If you need fine-grained workflow overrides instead:
+
+```bash
+cp fastapi_app/.env.example fastapi_app/.env
+cp frontend-workflow/.env.example frontend-workflow/.env
+```
+
 <details>
 <summary><strong>🐳 Docker (Recommended) — Deployment & Updates</strong></summary>
 
@@ -363,8 +384,9 @@ git clone https://github.com/OpenDCAI/Paper2Any.git
 cd Paper2Any
 
 # 2. Configure environment variables
-cp fastapi_app/.env.example fastapi_app/.env
-cp frontend-workflow/.env.example frontend-workflow/.env
+cp fastapi_app/.env.simple.example fastapi_app/.env
+cp frontend-workflow/.env.simple.example frontend-workflow/.env
+cp deploy/docker.env.example deploy/docker.env
 ```
 
 **Required configuration:**
@@ -374,12 +396,21 @@ cp frontend-workflow/.env.example frontend-workflow/.env
 # Internal API auth key. Must match frontend VITE_API_KEY.
 BACKEND_API_KEY=your-backend-api-key
 
-# Required: Your LLM API URL (replace with your own)
-DEFAULT_LLM_API_URL=https://api.openai.com/v1/
+# Recommended: let backend own all workflow model choices
+APP_BILLING_MODE=free
+PAPER2ANY_CONFIG_MODE=simple
+
+# Required: unified text entry
+SIMPLE_TEXT_API_URL=https://your-text-gateway/v1
+SIMPLE_TEXT_API_KEY=your_text_key
+
+# Optional but recommended: unified image entry
+SIMPLE_IMAGE_API_URL=https://your-image-gateway
+SIMPLE_IMAGE_API_KEY=your_image_key
 
 # Optional: DrawIO OCR / VLM service
-PAPER2DRAWIO_OCR_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-PAPER2DRAWIO_OCR_API_KEY=your_dashscope_key
+SIMPLE_OCR_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+SIMPLE_OCR_API_KEY=your_dashscope_key
 
 # Optional: MinerU official remote API
 MINERU_API_BASE_URL=https://mineru.net/api/v4
@@ -399,52 +430,63 @@ MINERU_API_KEY=your_mineru_api_key
 # Must match BACKEND_API_KEY in fastapi_app/.env
 VITE_API_KEY=your-backend-api-key
 
-# Required: LLM API URLs available in the UI dropdown (comma separated)
-VITE_DEFAULT_LLM_API_URL=https://api.openai.com/v1
-VITE_LLM_API_URLS=https://api.openai.com/v1
+# Usually keep VITE_API_BASE_URL empty in Docker, because nginx proxies /api and /outputs
+VITE_API_BASE_URL=
 
-# Optional: DrawIO page model candidates shown in the UI
-VITE_PAPER2DRAWIO_MODEL=claude-sonnet-4-5-20250929,gpt-5.2
+# Frontend display defaults only
+VITE_DEFAULT_LLM_API_URL=https://your-text-gateway/v1
+VITE_DEFAULT_LLM_MODEL=gpt-4o
+
 # Optional: Supabase (keep consistent with backend)
 # VITE_SUPABASE_URL=https://your-project-id.supabase.co
 # VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
+`deploy/docker.env` (compose overrides):
+```bash
+BACKEND_PORT=8000
+FRONTEND_PORT=3000
+DOCKER_APP_WORKERS=1
+
+# Optional: enable local SAM3 container by running DOCKER_WITH_SAM3=1 bash deploy/docker-up.sh
+SAM3_PORT=8021
+SAM3_SERVER_URLS=
+```
+
 ```bash
 # 3. Build + run
-docker compose up -d --build
+bash deploy/docker-up.sh
 ```
 
 Open:
 - Frontend: http://localhost:3000
 - Backend health: http://localhost:8000/health
 
-> **GPU services note:** Docker only starts the frontend and backend. No GPU model services are included.
+> **GPU services note:** Docker starts backend + frontend by default.
 > - Paper2PPT, Paper2Figure, Knowledge Base, etc. only need LLM APIs and work out of the box.
-> - **PDF2PPT, Image2PPT, Image2Drawio** require the SAM3 segmentation service (needs GPU), deployed separately:
+> - **PDF2PPT, Image2PPT, Image2Drawio** require SAM3 segmentation.
+> - You can either point backend `.env` to an external SAM3 service with `SAM3_SERVER_URLS=...`,
+>   or start the optional local SAM3 compose profile:
 >   ```bash
->   # On a machine with GPU
->   python -m dataflow_agent.toolkits.model_servers.sam3_server \
->       --port 8001 --checkpoint models/sam3/sam3.pt \
->       --bpe models/sam3/bpe_simple_vocab_16e6.txt.gz --device cuda
+>   DOCKER_WITH_SAM3=1 bash deploy/docker-up.sh
 >   ```
->   Then add to `fastapi_app/.env`: `SAM3_SERVER_URLS=http://GPU_MACHINE_IP:8001`
 >
 > See the "Advanced: Local Model Server Load Balancing" section below for details.
 
 Modify & update:
-- After changing code or `.env`, rebuild: `docker compose up -d --build`
+- After changing code or `.env`, rebuild: `bash deploy/docker-up.sh`
 - Pull latest code and rebuild:
   - `git pull`
-  - `docker compose up -d --build`
+  - `bash deploy/docker-up.sh`
 
 Common commands:
-- View logs: `docker compose logs -f`
-- Stop services: `docker compose down`
+- View logs: `bash deploy/docker-logs.sh`
+- Stop services: `bash deploy/docker-down.sh`
+- Build only: `bash deploy/docker-build.sh`
 
 Notes:
 - The first build may take a while (system deps + Python deps).
-- Frontend env is baked at build time (compose build args). If you change it, rebuild with `docker compose up -d --build`.
+- Frontend env is baked at build time. If you change `frontend-workflow/.env` or `deploy/docker.env`, rebuild with `bash deploy/docker-up.sh`.
 - Outputs/models are mounted to the host (`./outputs`, `./models`) for persistence.
 
 </details>
@@ -473,22 +515,36 @@ pip install -e .
 
 #### 2. Install Paper2Any-specific Dependencies (Required)
 
-Paper2Any involves LaTeX rendering, vector graphics processing as well as PPT/PDF conversion, which require extra dependencies:
+Paper2Any involves LaTeX rendering, vector graphics processing as well as PPT/PDF conversion, which require extra dependencies.
+
+The dependency boundary is now:
+- `requirements-base.txt`: shared cross-platform Python runtime
+- `requirements-paper.txt`: paper / PDF / figure extras
+- `requirements-cu12.txt`: NVIDIA CUDA 12 Linux GPU extras
+- `requirements-system-ubuntu.txt`: Ubuntu/Debian system packages, not Python packages
 
 ```bash
-# 1. Python dependencies
-pip install -r requirements-paper.txt || pip install -r requirements-paper-backup.txt
+# 1. Paper / PDF / figure Python extras
+pip install -r requirements-paper.txt
 
-# 2. LaTeX engine (tectonic) - recommended via conda
+# 2. NVIDIA GPU runtime extras (Linux + CUDA 12 only)
+pip install -r requirements-cu12.txt
+
+# 3. LaTeX engine (tectonic) - recommended via conda
 conda install -c conda-forge tectonic -y
 
-# 3. Resolve doclayout_yolo dependency conflicts (Important)
+# 4. Resolve doclayout_yolo dependency conflicts (Important)
 pip install doclayout_yolo --no-deps
 
-# 4. System dependencies (Ubuntu example)
+# 5. System dependencies (Ubuntu example; full list is mirrored in requirements-system-ubuntu.txt)
 sudo apt-get update
-sudo apt-get install -y inkscape libreoffice poppler-utils wkhtmltopdf
+sudo apt-get install -y ffmpeg inkscape libreoffice poppler-utils wkhtmltopdf
 ```
+
+> [!IMPORTANT]
+> `ffmpeg`, `libreoffice/soffice`, `inkscape`, `poppler-utils`, `wkhtmltopdf`, and `tectonic`
+> are external system tools. They are not installed by `pip`, and `deploy/start*.sh`
+> does not auto-install them.
 
 #### 3. Environment Variables
 
@@ -576,16 +632,15 @@ VITE_LLM_API_URLS=https://api.apiyi.com/v1,http://b.apiyi.com:16888/v1,http://12
 ```bash
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-SUPABASE_JWT_SECRET=your-jwt-secret
 ```
 
 ##### Running Without Supabase
 
 If you skip Supabase configuration:
 - ✅ All core features work normally
-- ✅ CLI scripts work without any configuration
-- ❌ No user authentication or quotas
+- ✅ CLI scripts do not require Supabase
+- ❌ No user authentication
+- ❌ No cloud account features such as points, redeem, invite, and history
 - ❌ No cloud file storage
 
 </details>
@@ -656,11 +711,14 @@ pip install -e .
 
 #### 2. Install Paper2Any-specific Dependencies (Recommended)
 
-Paper2Any involves LaTeX rendering and vector graphics processing, which require extra dependencies (see `requirements-paper.txt`):
+Paper2Any involves LaTeX rendering and vector graphics processing, which require extra dependencies:
 
 ```bash
 # Python dependencies
 pip install -r requirements-paper.txt
+
+# NVIDIA GPU runtime extras (Linux only; skip on Windows)
+# pip install -r requirements-cu12.txt
 
 # tectonic: LaTeX engine (recommended via conda)
 conda install -c conda-forge tectonic -y
@@ -694,18 +752,8 @@ pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
 **Paper2Any - Paper Workflow Web Frontend (Recommended)**
 
 ```bash
-# Configure local backend runtime (single source of truth)
-# Edit deploy/app_config.sh:
-#   APP_PORT=8000
-#   APP_WORKERS=2
-
-# Start backend API
-./deploy/start.sh
-
-# Start frontend (new terminal)
-cd frontend-workflow
-npm install
-npm run dev
+# Recommended one-click entrypoint on NVIDIA machines
+bash deploy/start_nv.sh
 ```
 
 Default local addresses:
@@ -713,12 +761,15 @@ Default local addresses:
 - Backend health: http://127.0.0.1:8000/health
 
 Useful local deploy commands:
-- Start backend: `./deploy/start.sh`
+- Start full stack (recommended): `bash deploy/start_nv.sh`
+- Start backend only after loading a deploy profile:
+  `set -a && source deploy/profiles/nv.env && set +a && bash deploy/start.sh`
 - Stop backend: `./deploy/stop.sh`
 - Restart backend: `./deploy/restart.sh`
 
 Notes:
-- `deploy/start.sh` and `deploy/stop.sh` both read the same runtime config from `deploy/app_config.sh`.
+- `deploy/start.sh` reads `deploy/app_config.sh`, but it does not load `deploy/profiles/*.env` by itself.
+- `deploy/start_nv.sh` is the safe one-click entrypoint because it loads `deploy/profiles/nv.env`, prepares local models, starts model servers, then starts backend and frontend.
 - If you change `APP_PORT`, update the frontend proxy target in `frontend-workflow/vite.config.ts` as well.
 
 **Configure Frontend Proxy**
@@ -768,15 +819,8 @@ vllm serve opendatalab/MinerU2.5-2509-1.2B `
 #### 🎨 Web Frontend (Recommended)
 
 ```bash
-# Configure deploy/app_config.sh first if you want to change the local port/workers
-
-# Start backend API
-./deploy/start.sh
-
-# Start frontend (new terminal)
-cd frontend-workflow
-npm install
-npm run dev
+# Recommended one-click entrypoint on NVIDIA machines
+bash deploy/start_nv.sh
 ```
 
 Visit `http://localhost:3000`.

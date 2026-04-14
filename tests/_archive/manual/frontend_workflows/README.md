@@ -33,11 +33,11 @@
 
 常用命令：
 - 跑全部手工回归：
-  - `python tests/manual/frontend_workflows/test_frontend_workflows.py --case all`
+  - `python tests/_archive/manual/frontend_workflows/test_frontend_workflows.py --case all`
 - 只跑 paper2video 两步：
-  - `python tests/manual/frontend_workflows/test_frontend_workflows.py --case paper2video_full`
+  - `python tests/_archive/manual/frontend_workflows/test_frontend_workflows.py --case paper2video_full`
 - 用 pytest 显式跑某一个 case：
-  - `pytest tests/manual/frontend_workflows/test_frontend_workflows.py -s -k paper2video_full`
+  - `pytest tests/_archive/manual/frontend_workflows/test_frontend_workflows.py -s -k paper2video_full`
 
 结果会保存到：
 - `outputs/manual/frontend_workflows/<timestamp>/`

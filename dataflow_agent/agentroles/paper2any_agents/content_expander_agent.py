@@ -51,15 +51,21 @@ class ContentExpander(BaseAgent):
         - text_content: 待扩写的文本
         - expansion_round: 当前扩写轮次
         """
+        language = "zh"
+        request = getattr(self.state, "request", None)
+        if request is not None:
+            language = str(getattr(request, "language", None) or language).strip() or language
         return {
             "text_content": self.state.text_content,
-            "expansion_round": 0,
+            "expansion_round": int(getattr(self.state, "expansion_round", 0) or 0),
+            "language": language,
         }
 
     def get_default_pre_tool_results(self) -> Dict[str, Any]:
         return {
             "text_content": "",
-            "expansion_round": 0
+            "expansion_round": 0,
+            "language": "zh",
         }
 
     # ---------- 结果写回 ----------
@@ -72,7 +78,16 @@ class ContentExpander(BaseAgent):
         """
         将扩写后的文本（字符串）写回 State。
         """
-        state.text_content = result
+        if isinstance(result, dict):
+            text_value = result.get("text")
+            if isinstance(text_value, str):
+                state.text_content = text_value
+            else:
+                state.text_content = str(text_value or "")
+        elif isinstance(result, str):
+            state.text_content = result
+        else:
+            state.text_content = str(result or "")
         super().update_state_result(state, result, pre_tool_results)
 
 

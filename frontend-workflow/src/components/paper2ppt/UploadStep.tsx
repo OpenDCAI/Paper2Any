@@ -112,6 +112,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
 }) => {
   const { t, i18n } = useTranslation(['paper2ppt', 'common']);
   const isSubmitBusy = isUploading || isValidating;
+  const modelSelectionDisabled = !showApiConfig;
   const modelOptions = withModelOptions(PAPER2PPT_MODELS, model);
   const genFigModelOptions = withModelOptions(PAPER2PPT_GEN_FIG_MODELS, genFigModel);
   const genFigModelLabels: Record<string, string> = {
@@ -243,7 +244,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
           imageTitle: '图片版 PPT',
           imageDesc: '沿用现有图像工作流，逐页生成视觉稿并导出。',
           frontendTitle: '可编辑版 PPT',
-          frontendDesc: '生成 16:9 HTML/CSS 模板，文字可编辑，最终截图导出。',
+          frontendDesc: '生成 16:9 结构化 slide schema，文字与图片对象都可编辑，并直接导出真 PPTX。',
           frontendTip: '可编辑版默认文本优先；若开启图像增强，会优先复用论文图表，否则按页面内容自动补示意图。',
         }
       : {
@@ -251,7 +252,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
           imageTitle: 'Image PPT',
           imageDesc: 'Use the current image workflow and export generated visual slides.',
           frontendTitle: 'Editable PPT',
-          frontendDesc: 'Generate editable 16:9 HTML/CSS slides and export by screenshots.',
+          frontendDesc: 'Generate editable 16:9 structured slides and export a real PPTX.',
           frontendTip: 'Editable mode stays text-editable and can optionally reuse paper figures/tables or generate supporting images.',
         };
   const pageCopy = uiLang === 'zh'
@@ -265,7 +266,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
         frontend: {
           kicker: 'Editable Deck Workflow',
           title: '可编辑版 PPT 生成',
-          desc: '生成 16:9 HTML/CSS 可编辑页面，支持画布内直接改字、可选首轮视觉检查和截图导出。',
+          desc: '生成 16:9 结构化可编辑页面，支持画布内直接改字、可选首轮结构检查，并导出真可编辑 PPTX。',
           highlight: '这一页只做可编辑版 deck，不再混入图片版配置。',
         },
       }
@@ -279,7 +280,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
         frontend: {
           kicker: 'Editable Deck Workflow',
           title: 'Editable PPT Generation',
-          desc: 'Generate 16:9 HTML/CSS text slides with inline editing, optional first-pass visual QA, and screenshot export.',
+          desc: 'Generate 16:9 structured editable slides with inline editing, optional first-pass structural QA, and real PPTX export.',
           highlight: 'This page is dedicated to the editable deck workflow only.',
         },
       };
@@ -560,7 +561,8 @@ const UploadStep: React.FC<UploadStepProps> = ({
                     <select 
                       value={model} 
                       onChange={e => setModel(e.target.value)}
-                      className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                      disabled={modelSelectionDisabled}
+                      className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {modelOptions.map((option) => (
                         <option key={option} value={option}>{option}</option>
@@ -572,7 +574,8 @@ const UploadStep: React.FC<UploadStepProps> = ({
                         value={model} 
                         onChange={e => setModel(e.target.value)}
                         placeholder="自定义模型"
-                        className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                        disabled={modelSelectionDisabled}
+                        className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       <div className="pointer-events-none absolute left-full top-1/2 z-20 ml-2 w-56 -translate-y-1/2 rounded-md border border-white/10 bg-black/80 px-2 py-1.5 text-[10px] text-gray-100 opacity-0 shadow-lg transition group-hover:opacity-100">
                         {t('upload.config.customModelTip')}
@@ -593,7 +596,8 @@ const UploadStep: React.FC<UploadStepProps> = ({
                   <select 
                     value={model} 
                     onChange={e => setModel(e.target.value)}
-                    className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                    disabled
+                    className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {modelOptions.map((option) => (
                       <option key={option} value={option}>{option}</option>
@@ -605,13 +609,15 @@ const UploadStep: React.FC<UploadStepProps> = ({
                       value={model} 
                       onChange={e => setModel(e.target.value)}
                       placeholder="自定义模型"
-                      className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                      disabled
+                      className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     <div className="pointer-events-none absolute left-full top-1/2 z-20 ml-2 w-56 -translate-y-1/2 rounded-md border border-white/10 bg-black/80 px-2 py-1.5 text-[10px] text-gray-100 opacity-0 shadow-lg transition group-hover:opacity-100">
                       {t('upload.config.customModelTip')}
                     </div>
                   </div>
                 </div>
+                <p className="mt-2 text-[11px] leading-5 text-emerald-100/70">Free 模式下由后端统一选择文本模型。</p>
               </div>
             </>
           )}
@@ -625,7 +631,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
               <select
                 value={genFigModel}
                 onChange={e => setGenFigModel(e.target.value)}
-                disabled={llmApiUrl.includes('123.129.219.111')}
+                disabled={!showApiConfig || llmApiUrl.includes('123.129.219.111')}
                 className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {genFigModelOptions.map((option) => (
@@ -634,6 +640,9 @@ const UploadStep: React.FC<UploadStepProps> = ({
               </select>
               {llmApiUrl.includes('123.129.219.111') && (
                  <p className="text-[10px] text-gray-500 mt-1">此源仅支持 gemini-3-pro</p>
+              )}
+              {!showApiConfig && (
+                 <p className="text-[10px] text-gray-500 mt-1">Free 模式下由后端统一选择生图模型。</p>
               )}
             </div>
             )}
@@ -649,6 +658,12 @@ const UploadStep: React.FC<UploadStepProps> = ({
               />
             </div>
           </div>
+
+          {pptMode === 'frontend' && pageCount > 20 && (
+            <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] leading-5 text-amber-100">
+              可编辑版大页数会自动切到长文大纲链路。超过 20 页建议开启长文模式；超过 40 页建议优先关闭图像增强和自动结构检查，以提高生成稳定性。
+            </div>
+          )}
 
           <div className="flex items-center gap-2 px-1 py-1">
             <button
@@ -716,16 +731,16 @@ const UploadStep: React.FC<UploadStepProps> = ({
                 <div className="flex items-start justify-between gap-3">
                   <div className="pr-2">
                     <div className="flex items-center gap-2">
-                      <div className="text-sm font-semibold text-white">首轮自动视觉检查</div>
+                      <div className="text-sm font-semibold text-white">首轮自动结构检查</div>
                       <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-gray-300">
                         默认关闭
                       </span>
                     </div>
                     <div className="mt-1 text-xs leading-5 text-cyan-100/80">
-                      开启后，批量生成完成会对每一页并发做一次视觉检查，并在发现问题时自动尝试修复；等待时间会明显变长。
+                      开启后，批量生成完成会对每一页并发做一次结构检查，并在发现问题时自动尝试修复；等待时间会明显变长。
                     </div>
                     <div className="mt-2 text-[11px] leading-5 text-cyan-100/70">
-                      关闭时会直接进入编辑页。需要时再使用编辑页面下方的“视觉检查并修复”按钮逐页处理。
+                      关闭时会直接进入编辑页。需要时再使用编辑页面下方的“结构检查并修复”按钮逐页处理。
                     </div>
                   </div>
                   <button
@@ -897,7 +912,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
 
           <div className="flex items-start gap-2 text-xs text-gray-500 mt-3 px-1">
             <Info size={14} className="mt-0.5 text-gray-400 flex-shrink-0" />
-            <p>{pptMode === 'frontend' ? '可编辑版会在下一步生成可编辑字段和 HTML/CSS 代码；若开启图像增强，会同时预留受控图片槽位；若开启首轮自动视觉检查，会在批量生成后先自动逐页检查，再进入编辑页。' : t('upload.config.tip')}</p>
+            <p>{pptMode === 'frontend' ? '可编辑版会在下一步生成结构化 slide schema；若开启图像增强，会同时预留受控图片槽位；若开启首轮自动结构检查，会在批量生成后先自动逐页检查，再进入编辑页。' : t('upload.config.tip')}</p>
           </div>
 
           {isUploading && (

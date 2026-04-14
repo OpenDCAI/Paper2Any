@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Pencil, X } from 'lucide-react';
-import { FrontendSlide } from './types';
-import { buildFrontendSlideMarkup } from './frontendSlideUtils';
+import { FrontendDeckTheme, FrontendSlide } from './types';
+import StructuredSlideCanvas from './StructuredSlideCanvas';
+import { DESIGN_HEIGHT, DESIGN_WIDTH } from './structuredSlideModel';
 
 interface FrontendSlidePreviewProps {
   slide: FrontendSlide;
+  deckTheme?: FrontendDeckTheme | null;
   className?: string;
-  mode?: 'responsive' | 'capture';
-  captureRef?: (node: HTMLDivElement | null) => void;
   inlineEditEnabled?: boolean;
   onInlineFieldChange?: (fieldKey: string, value: string) => void;
   onInlineListItemChange?: (fieldKey: string, itemIndex: number, value: string) => void;
@@ -29,17 +29,14 @@ interface InlineEditorState {
 
 const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
   slide,
+  deckTheme = null,
   className = '',
-  mode = 'responsive',
-  captureRef,
   inlineEditEnabled = false,
   onInlineFieldChange,
   onInlineListItemChange,
   onInlineListReplace,
   onReplaceImage,
 }) => {
-  const DESIGN_WIDTH = 1600;
-  const DESIGN_HEIGHT = 900;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const [scale, setScale] = useState(1);
@@ -47,7 +44,7 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
   const [pendingImageKey, setPendingImageKey] = useState<string | null>(null);
 
   useEffect(() => {
-    if (mode !== 'responsive' || !containerRef.current) {
+    if (!containerRef.current) {
       return undefined;
     }
 
@@ -61,36 +58,15 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
     updateScale();
     const observer = new ResizeObserver(() => updateScale());
     observer.observe(node);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [mode]);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     setInlineEditor(null);
-  }, [slide.slideId, slide.htmlTemplate, slide.cssCode]);
-
-  useEffect(() => {
-    if (!inlineEditor) {
-      return undefined;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setInlineEditor(null);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [inlineEditor]);
+  }, [slide.slideId, slide.layoutType, slide.title]);
 
   const persistInlineEdit = (editor: InlineEditorState | null) => {
     if (!editor) return;
-
     const nextValue = editor.value;
     if (editor.fieldType === 'list') {
       if (typeof editor.itemIndex === 'number') {
@@ -114,9 +90,7 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
   };
 
   const openImagePicker = (imageKey: string) => {
-    if (!imageKey || !inlineEditEnabled || mode !== 'responsive') {
-      return;
-    }
+    if (!imageKey || !inlineEditEnabled) return;
     setPendingImageKey(imageKey);
     imageInputRef.current?.click();
   };
@@ -126,14 +100,12 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
     const imageKey = pendingImageKey;
     event.target.value = '';
     setPendingImageKey(null);
-    if (!file || !imageKey) {
-      return;
-    }
+    if (!file || !imageKey) return;
     await onReplaceImage?.(imageKey, file);
   };
 
   const handleEditableClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!inlineEditEnabled || mode !== 'responsive' || !containerRef.current) {
+    if (!inlineEditEnabled || !containerRef.current) {
       return;
     }
 
@@ -146,9 +118,7 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
     if (imageNode) {
       event.preventDefault();
       event.stopPropagation();
-      if (inlineEditor) {
-        persistInlineEdit(inlineEditor);
-      }
+      if (inlineEditor) persistInlineEdit(inlineEditor);
       setInlineEditor(null);
       openImagePicker(imageNode.dataset.imageKey || '');
       return;
@@ -156,9 +126,7 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
 
     const editableNode = target.closest('[data-edit-key]') as HTMLElement | null;
     if (!editableNode) {
-      if (inlineEditor) {
-        persistInlineEdit(inlineEditor);
-      }
+      if (inlineEditor) persistInlineEdit(inlineEditor);
       setInlineEditor(null);
       return;
     }
@@ -171,12 +139,8 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
     const itemIndexRaw = editableNode.dataset.editIndex;
     const itemIndex = itemIndexRaw !== undefined ? Number.parseInt(itemIndexRaw, 10) : undefined;
     const field = slide.editableFields.find((item) => item.key === fieldKey);
-    if (!field) {
-      return;
-    }
-    if (inlineEditor) {
-      persistInlineEdit(inlineEditor);
-    }
+    if (!field) return;
+    if (inlineEditor) persistInlineEdit(inlineEditor);
 
     const containerRect = containerRef.current.getBoundingClientRect();
     const targetRect = editableNode.getBoundingClientRect();
@@ -217,35 +181,6 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
     });
   };
 
-  if (mode === 'capture') {
-    return (
-      <div
-        ref={captureRef}
-        className={className}
-        style={{
-          width: `${DESIGN_WIDTH}px`,
-          height: `${DESIGN_HEIGHT}px`,
-          display: 'block',
-          overflow: 'hidden',
-          background: '#07101f',
-        }}
-      >
-        <div
-          style={{
-            width: '100%',
-            height: '100%',
-            display: 'block',
-            overflow: 'hidden',
-            borderRadius: '28px',
-            background: '#0b1020',
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
-          }}
-          dangerouslySetInnerHTML={{ __html: buildFrontendSlideMarkup(slide) }}
-        />
-      </div>
-    );
-  }
-
   return (
     <div
       ref={containerRef}
@@ -261,10 +196,7 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
           transformOrigin: 'center center',
         }}
       >
-        <div
-          className="w-full h-full overflow-hidden rounded-[28px] bg-[#0b1020] shadow-[0_20px_60px_rgba(0,0,0,0.3)]"
-          dangerouslySetInnerHTML={{ __html: buildFrontendSlideMarkup(slide) }}
-        />
+        <StructuredSlideCanvas slide={slide} deckTheme={deckTheme} />
       </div>
 
       {inlineEditEnabled && (

@@ -40,6 +40,18 @@ class AppSettings(BaseSettings):
     MODEL_QWEN_VL_OCR: str = "qwen-vl-ocr-2025-11-20"
 
     # API Configuration
+    PAPER2ANY_CONFIG_MODE: str = "advanced"
+    SIMPLE_TEXT_API_URL: str = ""
+    SIMPLE_TEXT_API_KEY: str = ""
+    SIMPLE_IMAGE_API_URL: str = ""
+    SIMPLE_IMAGE_API_KEY: str = ""
+    SIMPLE_OCR_API_URL: str = ""
+    SIMPLE_OCR_API_KEY: str = ""
+    SIMPLE_TEXT_MODEL: str = "gpt-4o"
+    SIMPLE_IMAGE_MODEL: str = "gemini-3-pro-image-preview"
+    SIMPLE_VLM_MODEL: str = "qwen-vl-ocr-2025-11-20"
+    SIMPLE_EMBEDDING_MODEL: str = "text-embedding-3-small"
+
     DEFAULT_LLM_API_URL: str = "http://123.129.219.111:3000/v1/"
     DF_API_URL: str = "http://123.129.219.111:3000/v1"
     DF_API_KEY: str = ""
@@ -123,6 +135,14 @@ class AppSettings(BaseSettings):
     PAPER2DRAWIO_SAM3_BPE_PATH: str = str(_project_root() / "models" / "sam3" / "bpe_simple_vocab_16e6.txt.gz")
     PAPER2DRAWIO_OCR_API_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     PAPER2DRAWIO_OCR_API_KEY: str = ""
+    PAPER2DRAWIO_SEGMENT_HINT_API_URL: str = ""
+    PAPER2DRAWIO_SEGMENT_HINT_API_KEY: str = ""
+    PAPER2DRAWIO_SEGMENT_HINT_VLM_MODEL: str = "gpt-4o"
+    PAPER2DRAWIO_SEGMENT_HINT_TIMEOUT: int = 120
+    PAPER2PPT_SEGMENT_HINT_API_URL: str = ""
+    PAPER2PPT_SEGMENT_HINT_API_KEY: str = ""
+    PAPER2PPT_SEGMENT_HINT_VLM_MODEL: str = "gpt-4o"
+    PAPER2PPT_SEGMENT_HINT_TIMEOUT: int = 120
     MINERU_API_BASE_URL: str = "https://mineru.net/api/v4"
     MINERU_API_KEY: str = ""
     MINERU_API_MODEL_VERSION: str = "vlm"
@@ -151,21 +171,38 @@ class AppSettings(BaseSettings):
     PDF2PPT_DEFAULT_MODEL: str = "gpt-4o"
     PDF2PPT_DEFAULT_IMAGE_MODEL: str = "gemini-2.5-flash-image"
 
+    # Image2PPT Workflow
+    IMAGE2PPT_DEFAULT_MODEL: str = "gpt-4o"
+    IMAGE2PPT_DEFAULT_IMAGE_MODEL: str = "gemini-2.5-flash-image"
+
     # Paper2Figure Workflow
     PAPER2FIGURE_DEFAULT_MODEL: str = "gpt-4o"
     PAPER2FIGURE_DEFAULT_IMAGE_MODEL: str = "gemini-3-pro-image-preview"
 
     # Paper2Video Workflow
     PAPER2VIDEO_DEFAULT_MODEL: str = "gpt-4o"
+    PAPER2VIDEO_TTS_MODEL: str = "cosyvoice-v3-flash"
+    PAPER2VIDEO_TALKING_MODEL: str = "liveportrait"
 
     # Paper2Drawio Workflow
     PAPER2DRAWIO_DEFAULT_MODEL: str = "gpt-5.4"
     PAPER2DRAWIO_VLM_MODEL: str = "gpt-4o"
     PAPER2DRAWIO_ENABLE_VLM_VALIDATION: bool = False
 
+    # Image2Drawio Workflow
+    IMAGE2DRAWIO_DEFAULT_MODEL: str = "gpt-4o"
+    IMAGE2DRAWIO_DEFAULT_IMAGE_MODEL: str = "gemini-3-pro-image-preview"
+    IMAGE2DRAWIO_VLM_MODEL: str = "qwen-vl-ocr-2025-11-20"
+
     # Knowledge Base
     KB_EMBEDDING_MODEL: str = "gemini-2.5-flash"
     KB_CHAT_MODEL: str = "gpt-4o"
+
+    # MindMap / Poster / Rebuttal
+    MINDMAP_DEFAULT_MODEL: str = "gpt-4o"
+    PAPER2POSTER_DEFAULT_MODEL: str = "gpt-4o"
+    PAPER2POSTER_VISION_MODEL: str = "gpt-4o"
+    PAPER2REBUTTAL_DEFAULT_MODEL: str = "gpt-4o"
 
     # ============================================
     # Layer 3: Role-level Model Configuration
@@ -196,5 +233,127 @@ class AppSettings(BaseSettings):
         extra = "ignore"
 
 
+def _first_non_empty(*values: Optional[str]) -> str:
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def _apply_simple_mode(settings_obj: AppSettings) -> AppSettings:
+    mode = str(getattr(settings_obj, "PAPER2ANY_CONFIG_MODE", "") or "").strip().lower()
+    if mode != "simple":
+        return settings_obj
+
+    text_api_url = _first_non_empty(
+        settings_obj.SIMPLE_TEXT_API_URL,
+        settings_obj.DF_API_URL,
+        settings_obj.DEFAULT_LLM_API_URL,
+    )
+    text_api_key = _first_non_empty(
+        settings_obj.SIMPLE_TEXT_API_KEY,
+        settings_obj.DF_API_KEY,
+    )
+    image_api_url = _first_non_empty(
+        settings_obj.SIMPLE_IMAGE_API_URL,
+        settings_obj.DF_IMAGE_API_URL,
+        text_api_url,
+    )
+    image_api_key = _first_non_empty(
+        settings_obj.SIMPLE_IMAGE_API_KEY,
+        settings_obj.DF_IMAGE_API_KEY,
+        text_api_key,
+    )
+    ocr_api_url = _first_non_empty(
+        settings_obj.SIMPLE_OCR_API_URL,
+        settings_obj.PAPER2DRAWIO_OCR_API_URL,
+        text_api_url,
+    )
+    ocr_api_key = _first_non_empty(
+        settings_obj.SIMPLE_OCR_API_KEY,
+        settings_obj.PAPER2DRAWIO_OCR_API_KEY,
+        text_api_key,
+    )
+
+    text_model = _first_non_empty(settings_obj.SIMPLE_TEXT_MODEL, "gpt-4o")
+    image_model = _first_non_empty(settings_obj.SIMPLE_IMAGE_MODEL, "gemini-3-pro-image-preview")
+    vlm_model = _first_non_empty(settings_obj.SIMPLE_VLM_MODEL, "qwen-vl-ocr-2025-11-20")
+    embedding_model = _first_non_empty(settings_obj.SIMPLE_EMBEDDING_MODEL, "text-embedding-3-small")
+
+    settings_obj.DEFAULT_LLM_API_URL = text_api_url or settings_obj.DEFAULT_LLM_API_URL
+    settings_obj.DF_API_URL = text_api_url or settings_obj.DF_API_URL
+    settings_obj.DF_API_KEY = text_api_key or settings_obj.DF_API_KEY
+    settings_obj.DF_IMAGE_API_URL = image_api_url or settings_obj.DF_IMAGE_API_URL
+    settings_obj.DF_IMAGE_API_KEY = image_api_key or settings_obj.DF_IMAGE_API_KEY
+    settings_obj.PAPER2DRAWIO_OCR_API_URL = ocr_api_url or settings_obj.PAPER2DRAWIO_OCR_API_URL
+    settings_obj.PAPER2DRAWIO_OCR_API_KEY = ocr_api_key or settings_obj.PAPER2DRAWIO_OCR_API_KEY
+
+    for scope in (
+        "PAPER2ANY",
+        "PAPER2PPT",
+        "PPT2POLISH",
+        "PDF2PPT",
+        "IMAGE2PPT",
+        "PAPER2DRAWIO",
+        "PAPER2POSTER",
+        "PAPER2VIDEO",
+        "KB",
+        "KB_DEEPRESEARCH",
+        "PAPER2REBUTTAL",
+    ):
+        setattr(settings_obj, f"{scope}_MANAGED_API_URL", text_api_url)
+        setattr(settings_obj, f"{scope}_MANAGED_API_KEY", text_api_key)
+        setattr(settings_obj, f"{scope}_MANAGED_IMAGE_API_URL", image_api_url)
+        setattr(settings_obj, f"{scope}_MANAGED_IMAGE_API_KEY", image_api_key)
+
+    settings_obj.PAPER2DRAWIO_SEGMENT_HINT_API_URL = text_api_url
+    settings_obj.PAPER2DRAWIO_SEGMENT_HINT_API_KEY = text_api_key
+    settings_obj.PAPER2PPT_SEGMENT_HINT_API_URL = text_api_url
+    settings_obj.PAPER2PPT_SEGMENT_HINT_API_KEY = text_api_key
+
+    settings_obj.PAPER2PPT_DEFAULT_MODEL = text_model
+    settings_obj.PAPER2PPT_DEFAULT_IMAGE_MODEL = image_model
+    settings_obj.PDF2PPT_DEFAULT_MODEL = text_model
+    settings_obj.PDF2PPT_DEFAULT_IMAGE_MODEL = image_model
+    settings_obj.IMAGE2PPT_DEFAULT_MODEL = text_model
+    settings_obj.IMAGE2PPT_DEFAULT_IMAGE_MODEL = image_model
+    settings_obj.PAPER2FIGURE_DEFAULT_MODEL = text_model
+    settings_obj.PAPER2FIGURE_DEFAULT_IMAGE_MODEL = image_model
+    settings_obj.PAPER2VIDEO_DEFAULT_MODEL = text_model
+    settings_obj.PAPER2VIDEO_TTS_MODEL = settings_obj.PAPER2VIDEO_TTS_MODEL or "cosyvoice-v3-flash"
+    settings_obj.PAPER2VIDEO_TALKING_MODEL = settings_obj.PAPER2VIDEO_TALKING_MODEL or "liveportrait"
+    settings_obj.PAPER2DRAWIO_DEFAULT_MODEL = text_model
+    settings_obj.PAPER2DRAWIO_VLM_MODEL = vlm_model
+    settings_obj.IMAGE2DRAWIO_DEFAULT_MODEL = text_model
+    settings_obj.IMAGE2DRAWIO_DEFAULT_IMAGE_MODEL = image_model
+    settings_obj.IMAGE2DRAWIO_VLM_MODEL = vlm_model
+    settings_obj.KB_CHAT_MODEL = text_model
+    settings_obj.KB_EMBEDDING_MODEL = embedding_model
+    settings_obj.MINDMAP_DEFAULT_MODEL = text_model
+    settings_obj.PAPER2POSTER_DEFAULT_MODEL = text_model
+    settings_obj.PAPER2POSTER_VISION_MODEL = text_model
+    settings_obj.PAPER2REBUTTAL_DEFAULT_MODEL = text_model
+
+    settings_obj.PAPER2PPT_OUTLINE_MODEL = text_model
+    settings_obj.PAPER2PPT_CONTENT_MODEL = text_model
+    settings_obj.PAPER2PPT_IMAGE_GEN_MODEL = image_model
+    settings_obj.PAPER2PPT_VLM_MODEL = vlm_model
+    settings_obj.PAPER2PPT_CHART_MODEL = text_model
+    settings_obj.PAPER2PPT_DESC_MODEL = text_model
+    settings_obj.PAPER2PPT_TECHNICAL_MODEL = text_model
+
+    settings_obj.PAPER2FIGURE_TEXT_MODEL = text_model
+    settings_obj.PAPER2FIGURE_IMAGE_MODEL = image_model
+    settings_obj.PAPER2FIGURE_VLM_MODEL = vlm_model
+    settings_obj.PAPER2FIGURE_CHART_MODEL = text_model
+    settings_obj.PAPER2FIGURE_DESC_MODEL = text_model
+    settings_obj.PAPER2FIGURE_REF_IMG_DESC_MODEL = text_model
+    settings_obj.PAPER2FIGURE_TECHNICAL_MODEL = text_model
+
+    settings_obj.PAPER2CITATION_WEBSEARCH_MODEL = settings_obj.PAPER2CITATION_WEBSEARCH_MODEL or text_model
+    return settings_obj
+
+
 # Global configuration instance
-settings = AppSettings()
+settings = _apply_simple_mode(AppSettings())

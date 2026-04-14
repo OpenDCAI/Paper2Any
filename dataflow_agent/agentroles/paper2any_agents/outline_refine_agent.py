@@ -31,11 +31,11 @@ class OutlineRefineAgent(BaseAgent):
 
     @property
     def system_prompt_template_name(self) -> str:
-        return "system_prompt_for_outline_refine_agent"
+        return "system_prompt_for_paper2ppt_outline_refine_agent"
 
     @property
     def task_prompt_template_name(self) -> str:
-        return "task_prompt_for_outline_refine_agent"
+        return "task_prompt_for_paper2ppt_outline_refine_agent"
 
     def get_task_prompt_params(self, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
         return {

@@ -44,6 +44,7 @@ sudo apt-get update
 sudo apt-get install -y \
   build-essential \
   curl \
+  ffmpeg \
   git \
   inkscape \
   libreoffice \
@@ -61,7 +62,8 @@ sudo apt-get install -y \
 说明：
 
 - `Inkscape`、`LibreOffice`、`poppler-utils` 对图形导出和文档转换链路很常见
-- 部分功能还会用到 `wkhtmltopdf`
+- 部分功能还会用到 `ffmpeg`、`wkhtmltopdf`、`tectonic`
+- `requirements-system-ubuntu.txt` 里列的是系统包名，不是 Python 包
 
 ## 4. 后端安装
 
@@ -72,7 +74,10 @@ conda create -n paper2any python=3.11 -y
 conda activate paper2any
 
 pip install --upgrade pip
-pip install -r requirements-paper.txt || pip install -r requirements-paper-backup.txt
+pip install -r requirements-paper.txt
+
+# NVIDIA GPU 机器再额外安装
+pip install -r requirements-cu12.txt
 ```
 
 可选：

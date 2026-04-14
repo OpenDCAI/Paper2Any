@@ -23,6 +23,7 @@ import { backendFetch } from '../services/backendClient';
 import QRCodeTooltip from './QRCodeTooltip';
 import ManagedApiNotice from './ManagedApiNotice';
 import { useRuntimeBilling } from '../hooks/useRuntimeBilling';
+import { appendManagedApiConfig, appendManagedModel } from '../utils/runtimeBillingForm';
 import VersionHistory from './paper2ppt/VersionHistory';
 import {
   buildInsufficientPointsMessage,
@@ -614,11 +615,13 @@ const Ppt2PolishPage = () => {
     }
 
     try {
+      if (userApiConfigRequired) {
         // Step 0: Verify LLM Connection first
         setIsValidating(true);
         setError(null);
         await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || 'deepseek-v3.2');
         setIsValidating(false);
+      }
     } catch (err) {
         setIsValidating(false);
         const message = err instanceof Error ? err.message : 'API 验证失败';
@@ -655,14 +658,11 @@ const Ppt2PolishPage = () => {
       // 调用 /paper2ppt/pagecontent_json 接口
       const formData = new FormData();
       formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-      if (userApiConfigRequired) {
-        formData.append('chat_api_url', llmApiUrl.trim());
-        formData.append('api_key', apiKey.trim());
-      }
-      formData.append('model', model);
+      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
+      appendManagedModel(formData, userApiConfigRequired, 'model', model);
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
-      formData.append('gen_fig_model', genFigModel);
+      appendManagedModel(formData, userApiConfigRequired, 'gen_fig_model', genFigModel);
       formData.append('page_count', '10'); // 默认值，后端可能会调整
       formData.append('email', user?.id || user?.email || '');
       const ext = selectedFile.name.split('.').pop()?.toLowerCase();
@@ -946,13 +946,10 @@ const Ppt2PolishPage = () => {
       }).filter(item => item.ppt_img_path);
       
       const formData = new FormData();
-      formData.append('img_gen_model_name', genFigModel);
+      appendManagedModel(formData, userApiConfigRequired, 'img_gen_model_name', genFigModel);
       formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-      if (userApiConfigRequired) {
-        formData.append('chat_api_url', llmApiUrl.trim());
-        formData.append('api_key', apiKey.trim());
-      }
-      formData.append('model', model);
+      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
+      appendManagedModel(formData, userApiConfigRequired, 'model', model);
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
       formData.append('aspect_ratio', '16:9');
@@ -962,18 +959,17 @@ const Ppt2PolishPage = () => {
       }
       formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', currentPath);
-      formData.append('get_down', 'false');
       formData.append('pagecontent', JSON.stringify(pagecontent));
       
       console.log('Generating initial PPT with pagecontent:', pagecontent);
-      console.log('Request URL: /api/v1/paper2ppt/generate');
+      console.log('Request URL: /api/v1/paper2ppt/slides/generate');
       console.log('Request params:', {
         img_gen_model_name: genFigModel,
         chat_api_url: llmApiUrl,
         // ... 其他参数
       });
 
-      const res = await backendFetch('/api/v1/paper2ppt/generate', {
+      const res = await backendFetch('/api/v1/paper2ppt/slides/generate', {
         method: 'POST',
         headers: {
           'X-Workflow-Amount': String(Math.max(1, slides.length)),
@@ -1120,13 +1116,10 @@ const Ppt2PolishPage = () => {
     try {
       // 调用 /paper2ppt/ppt_json 接口进行编辑
       const formData = new FormData();
-      formData.append('img_gen_model_name', genFigModel);
+      appendManagedModel(formData, userApiConfigRequired, 'img_gen_model_name', genFigModel);
       formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-      if (userApiConfigRequired) {
-        formData.append('chat_api_url', llmApiUrl.trim());
-        formData.append('api_key', apiKey.trim());
-      }
-      formData.append('model', model);
+      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
+      appendManagedModel(formData, userApiConfigRequired, 'model', model);
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
       formData.append('aspect_ratio', '16:9');
@@ -1136,8 +1129,6 @@ const Ppt2PolishPage = () => {
       }
       formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', currentPath);
-      formData.append('get_down', 'true');
-      formData.append('page_id', String(index));
       formData.append('edit_prompt', slidePrompt || '请美化这一页的样式');
       
       // 编辑模式下，必须传递 pagecontent，包含原图路径
@@ -1151,7 +1142,7 @@ const Ppt2PolishPage = () => {
       console.log('pagecontent to send:', pagecontent);
       formData.append('pagecontent', JSON.stringify(pagecontent));
 
-      const res = await backendFetch('/api/v1/paper2ppt/generate', {
+      const res = await backendFetch(`/api/v1/paper2ppt/slides/${index}/edit`, {
         method: 'POST',
         headers: {
           'X-Workflow-Amount': '1',
@@ -1380,13 +1371,10 @@ const Ppt2PolishPage = () => {
     try {
       // 调用 /paper2ppt/ppt_json 接口生成最终 PPT
       const formData = new FormData();
-      formData.append('img_gen_model_name', genFigModel);
+      appendManagedModel(formData, userApiConfigRequired, 'img_gen_model_name', genFigModel);
       formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-      if (userApiConfigRequired) {
-        formData.append('chat_api_url', llmApiUrl.trim());
-        formData.append('api_key', apiKey.trim());
-      }
-      formData.append('model', model);
+      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
+      appendManagedModel(formData, userApiConfigRequired, 'model', model);
       formData.append('language', language);
       formData.append('style', globalPrompt || stylePreset);
       formData.append('aspect_ratio', '16:9');
@@ -1396,9 +1384,6 @@ const Ppt2PolishPage = () => {
       }
       formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath);
-      formData.append('get_down', 'false');
-      formData.append('all_edited_down', 'true');
-
       // 传递最终的 pagecontent
       const pagecontent = outlineData.map(slide => ({
         title: slide.title,
@@ -1408,7 +1393,7 @@ const Ppt2PolishPage = () => {
       }));
       formData.append('pagecontent', JSON.stringify(pagecontent));
 
-      const res = await backendFetch('/api/v1/paper2ppt/generate', {
+      const res = await backendFetch('/api/v1/paper2ppt/finalize', {
         method: 'POST',
         body: formData,
       });
@@ -1680,7 +1665,8 @@ const Ppt2PolishPage = () => {
               <select
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
+                disabled={!userApiConfigRequired}
+                className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {modelOptions.map((option) => (
                   <option key={option} value={option}>{option}</option>
@@ -1692,13 +1678,17 @@ const Ppt2PolishPage = () => {
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
                   placeholder="自定义模型"
-                  className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
+                  disabled={!userApiConfigRequired}
+                  className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <div className="pointer-events-none absolute left-full top-1/2 z-20 ml-2 w-56 -translate-y-1/2 rounded-md border border-white/10 bg-black/80 px-2 py-1.5 text-[10px] text-gray-100 opacity-0 shadow-lg transition group-hover:opacity-100">
                   {t('upload.config.customModelTip')}
                 </div>
               </div>
             </div>
+            {!userApiConfigRequired && (
+              <p className="mt-2 text-[11px] leading-5 text-emerald-100/70">Free 模式下由后端统一选择文本模型。</p>
+            )}
           </div>
           
           <div>
@@ -1706,7 +1696,7 @@ const Ppt2PolishPage = () => {
             <select
               value={genFigModel}
               onChange={(e) => setGenFigModel(e.target.value)}
-              disabled={llmApiUrl === 'http://123.129.219.111:3000/v1'}
+              disabled={!userApiConfigRequired || llmApiUrl === 'http://123.129.219.111:3000/v1'}
               className="w-full rounded-lg border border-white/20 bg-black/40 px-4 py-2.5 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {genFigModelOptions.map((option) => (

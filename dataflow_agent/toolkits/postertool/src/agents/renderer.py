@@ -424,6 +424,36 @@ class Renderer:
             
             if segment['italic']:
                 run.font.italic = True
+
+    def _append_format_segment(
+        self,
+        segments: list,
+        text: str,
+        *,
+        bold: bool = False,
+        italic: bool = False,
+        color: Optional[str] = None,
+    ) -> None:
+        """Append a formatting segment while coalescing adjacent identical styles."""
+        if not text:
+            return
+
+        if segments:
+            last = segments[-1]
+            if (
+                last["bold"] == bold
+                and last["italic"] == italic
+                and last["color"] == color
+            ):
+                last["text"] += text
+                return
+
+        segments.append({
+            "text": text,
+            "bold": bold,
+            "italic": italic,
+            "color": color,
+        })
     
     def _tokenize_formatting(self, text: str) -> list:
         """tokenize text into formatting segments with precise position tracking"""
@@ -452,73 +482,80 @@ class Renderer:
                     
                     # process colored text with automatic bold
                     if colored_text.strip():  # only process non-empty content
-                        segments.append({
-                            'text': colored_text,
-                            'bold': True,  # all colored text is bold
-                            'italic': False,
-                            'color': color_hex
-                        })
+                        self._append_format_segment(
+                            segments,
+                            colored_text,
+                            bold=True,  # all colored text is bold
+                            italic=False,
+                            color=color_hex,
+                        )
                     
                     # move past the entire color block
                     i = closing_tag_end
                     continue
                 else:
                     # malformed color tag, treat as regular text
-                    segments.append({
-                        'text': text[i],
-                        'bold': False,
-                        'italic': False,
-                        'color': None
-                    })
+                    self._append_format_segment(segments, text[i])
                     i += 1
                     continue
+
+            # check for bold italic: ***text***
+            bold_italic_match = re.match(r'\*\*\*(.+?)\*\*\*', text[i:])
+            if bold_italic_match:
+                self._append_format_segment(
+                    segments,
+                    bold_italic_match.group(1),
+                    bold=True,
+                    italic=True,
+                )
+                i += bold_italic_match.end()
+                continue
             
             # check for bold: **text**
-            bold_match = re.match(r'\*\*(.*?)\*\*', text[i:])
+            bold_match = re.match(r'\*\*(.+?)\*\*', text[i:])
             if bold_match:
-                bold_text = bold_match.group(1)
-                segments.append({
-                    'text': bold_text,
-                    'bold': True,
-                    'italic': False,
-                    'color': None
-                })
+                self._append_format_segment(
+                    segments,
+                    bold_match.group(1),
+                    bold=True,
+                    italic=False,
+                )
                 i += bold_match.end()
                 continue
             
             # check for italic: *text*
-            italic_match = re.match(r'\*(.*?)\*', text[i:])
+            italic_match = re.match(r'\*(.+?)\*', text[i:])
             if italic_match:
-                italic_text = italic_match.group(1)
-                segments.append({
-                    'text': italic_text,
-                    'bold': False,
-                    'italic': True,
-                    'color': None
-                })
+                self._append_format_segment(
+                    segments,
+                    italic_match.group(1),
+                    bold=False,
+                    italic=True,
+                )
                 i += italic_match.end()
                 continue
             
             # regular text - find next formatting marker
             next_format = re.search(r'(\*\*|\*|<color:)', text[i:])
             if next_format:
-                regular_text = text[i:i + next_format.start()]
+                marker_offset = next_format.start()
+                # Malformed markdown can leave us on a literal formatting marker.
+                # Consume it as plain text so tokenization always makes progress.
+                if marker_offset == 0:
+                    self._append_format_segment(segments, text[i])
+                    i += 1
+                    continue
+                regular_text = text[i:i + marker_offset]
             else:
                 regular_text = text[i:]
             
-            if regular_text:
-                segments.append({
-                    'text': regular_text,
-                    'bold': False,
-                    'italic': False,
-                    'color': None
-                })
+            self._append_format_segment(segments, regular_text)
             
             if next_format:
-                i += next_format.start()
+                i += marker_offset
             else:
                 break
-        
+
         return segments
     
     def _parse_bold_italic(self, text: str, color: str) -> list:

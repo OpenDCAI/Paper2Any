@@ -1,10 +1,10 @@
 server {
-  listen 80;
+  listen __NGINX_LISTEN_PORT__;
   server_name _;
   client_max_body_size 200m;
 
   location /api/ {
-    proxy_pass http://paper2any-backend:8000;
+    proxy_pass __BACKEND_UPSTREAM_URL__;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -16,7 +16,7 @@ server {
   }
 
   location /paper2video/ {
-    proxy_pass http://paper2any-backend:8000;
+    proxy_pass __BACKEND_UPSTREAM_URL__;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -25,7 +25,7 @@ server {
   }
 
   location /outputs/ {
-    proxy_pass http://paper2any-backend:8000;
+    proxy_pass __BACKEND_UPSTREAM_URL__;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;

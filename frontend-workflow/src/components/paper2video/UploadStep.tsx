@@ -312,13 +312,15 @@ const UploadStep: React.FC<UploadStepProps> = ({
                 <select
                   value={scriptModel}
                   onChange={(e) => setScriptModel(e.target.value)}
-                  className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500"
+                  disabled
+                  className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="gpt-4o">gpt-4o</option>
                   <option value="gpt-4o-mini">gpt-4o-mini</option>
                   <option value="gemini-2.5-flash">gemini-2.5-flash</option>
                   <option value="gemini-2.5-pro">gemini-2.5-pro</option>
                 </select>
+                <p className="mt-2 text-[11px] leading-5 text-emerald-100/70">Free 模式下由后端统一选择脚本、TTS 与数字人模型。</p>
               </div>
             </>
           )}

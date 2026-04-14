@@ -204,9 +204,9 @@ const Image2DrawioPage = () => {
       if (userApiConfigRequired) {
         formData.append('chat_api_url', apiUrl.trim());
         formData.append('api_key', apiKey.trim());
+        formData.append('gen_fig_model', genFigModel);
+        formData.append('vlm_model', vlmModel);
       }
-      formData.append('gen_fig_model', genFigModel);
-      formData.append('vlm_model', vlmModel);
       formData.append('email', user?.id || user?.email || '');
 
       setStatusMessage(t('status.processing'));
@@ -611,12 +611,16 @@ const Image2DrawioPage = () => {
                 <select
                   value={genFigModel}
                   onChange={(e) => setGenFigModel(e.target.value)}
-                  className={inputClass}
+                  disabled={!userApiConfigRequired}
+                  className={`${inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   {genFigModelOptions.map((option) => (
                     <option key={option} value={option}>{option}</option>
                   ))}
                 </select>
+                {!userApiConfigRequired && (
+                  <p className="mt-2 text-[11px] leading-5 text-emerald-100/70">Free 模式下由后端统一选择 DrawIO 转换使用的视觉模型。</p>
+                )}
               </div>
             </div>
 

@@ -162,7 +162,8 @@ const UploadStep: React.FC<UploadStepProps> = ({
             <select
               value={config.text_model}
               onChange={(e) => setConfig({ ...config, text_model: e.target.value })}
-              className="w-full px-4 py-3 bg-black/40 border border-white/20 rounded-xl text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+              disabled={!showApiConfig}
+              className="w-full px-4 py-3 bg-black/40 border border-white/20 rounded-xl text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="gpt-4o">gpt-4o</option>
               <option value="gpt-5.1">gpt-5.1</option>
@@ -179,13 +180,17 @@ const UploadStep: React.FC<UploadStepProps> = ({
             <select
               value={config.vision_model}
               onChange={(e) => setConfig({ ...config, vision_model: e.target.value })}
-              className="w-full px-4 py-3 bg-black/40 border border-white/20 rounded-xl text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+              disabled={!showApiConfig}
+              className="w-full px-4 py-3 bg-black/40 border border-white/20 rounded-xl text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="gemini-3-pro-image-preview">Gemini 3 Pro (中文必选)</option>
               <option value="gemini-2.5-flash-image">Gemini 2.5 (Flash Image)</option>
             </select>
           </div>
         </div>
+        {!showApiConfig && (
+          <p className="mt-3 text-[11px] leading-5 text-emerald-100/70">Free 模式下由后端统一选择 Poster 文本和视觉模型。</p>
+        )}
 
         {/* 海报尺寸 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">

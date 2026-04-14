@@ -248,6 +248,15 @@ async def run_paper2page_content_wf_api(req: Paper2PPTRequest, result_path: Path
     final_state: Paper2FigureState = await run_workflow(workflow_name, state)
     # 提取结果
     pagecontent = _state_get(final_state, "pagecontent", []) or []
+    outline_generation_error = _state_get(final_state, "outline_generation_error", "") or ""
+    if not isinstance(pagecontent, list):
+        log.warning(
+            "[paper2page_content_wf_api] invalid pagecontent payload type=%s, coercing to empty list",
+            type(pagecontent).__name__,
+        )
+        if not outline_generation_error and isinstance(pagecontent, dict):
+            outline_generation_error = _state_get(final_state, "error", "") or pagecontent.get("error", "")
+        pagecontent = []
     log.critical(f"[paper2page_content_wf_api] pagecontent={pagecontent}")
     result_path = _state_get(final_state, "result_path", "") or str(result_root)
 
@@ -256,6 +265,7 @@ async def run_paper2page_content_wf_api(req: Paper2PPTRequest, result_path: Path
         "success": True,
         "pagecontent": pagecontent,
         "result_path": result_path,
+        "error": outline_generation_error,
     }
 
     return Paper2PPTResponse(**resp_data)

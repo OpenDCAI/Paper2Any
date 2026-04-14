@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 
+from fastapi_app.config import settings
 from fastapi_app.schemas import (
     ErrorResponse,
     FrontendPPTExportRequest,
@@ -19,6 +20,7 @@ from fastapi_app.schemas import (
     PageContentRequest,
     PPTGenerationRequest,
 )
+from fastapi_app.services.managed_api_service import resolve_model_name
 from dataflow_agent.utils.version_manager import ImageVersionManager
 from fastapi_app.services.billing_service import BillingService
 from fastapi_app.utils import _to_outputs_url, resolve_outputs_path
@@ -207,6 +209,72 @@ def _consume_paper2ppt_frontend_charge(request: Request, req: FrontendPPTGenerat
     )
 
 
+def _build_ppt_generation_request(
+    *,
+    img_gen_model_name: str,
+    chat_api_url: Optional[str],
+    api_key: Optional[str],
+    credential_scope: Optional[str],
+    email: Optional[str],
+    style: str,
+    aspect_ratio: str,
+    language: str,
+    model: str,
+    get_down: str,
+    all_edited_down: str,
+    result_path: str,
+    pagecontent: Optional[str],
+    page_id: Optional[int],
+    edit_prompt: Optional[str],
+    regenerate_from_outline: str,
+    image_resolution: Optional[str],
+    skip_pages: Optional[str],
+) -> PPTGenerationRequest:
+    return PPTGenerationRequest(
+        img_gen_model_name=resolve_model_name(
+            img_gen_model_name,
+            managed_default=settings.PAPER2PPT_IMAGE_GEN_MODEL,
+            fallback_default=settings.PAPER2PPT_DEFAULT_IMAGE_MODEL,
+        ),
+        chat_api_url=chat_api_url,
+        api_key=api_key,
+        credential_scope=credential_scope,
+        email=email,
+        style=style,
+        aspect_ratio=aspect_ratio,
+        language=language,
+        model=resolve_model_name(
+            model,
+            managed_default=settings.PAPER2PPT_CONTENT_MODEL,
+            fallback_default=settings.PAPER2PPT_DEFAULT_MODEL,
+        ),
+        get_down=get_down,
+        all_edited_down=all_edited_down,
+        result_path=result_path,
+        pagecontent=pagecontent,
+        page_id=page_id,
+        edit_prompt=edit_prompt,
+        regenerate_from_outline=regenerate_from_outline,
+        image_resolution=image_resolution,
+        skip_pages=skip_pages,
+    )
+
+
+async def _execute_paper2ppt_generate(
+    *,
+    request: Request,
+    req: PPTGenerationRequest,
+    reference_img: Optional[UploadFile],
+    service: "Paper2PPTService",
+) -> Dict[str, Any]:
+    _consume_paper2ppt_generate_charge(request, req)
+    return await service.generate_ppt(
+        req=req,
+        reference_img=reference_img,
+        request=request,
+    )
+
+
 @router.post(
     "/paper2ppt/page-content",
     response_model=Dict[str, Any],
@@ -223,11 +291,11 @@ async def paper2ppt_pagecontent_json(
     file: Optional[UploadFile] = File(None),
     text: Optional[str] = Form(None),
     # 可选控制参数（对 pagecontent 也可能有用）
-    model: str = Form("gpt-5.1"),
+    model: str = Form(settings.PAPER2PPT_OUTLINE_MODEL),
     language: str = Form("zh"),
     style: str = Form(""),
     reference_img: Optional[UploadFile] = File(None),
-    gen_fig_model: str = Form(...),
+    gen_fig_model: str = Form(settings.PAPER2PPT_IMAGE_GEN_MODEL),
     page_count: int = Form(...),
     use_long_paper: str = Form("false"),
     # 当 input_type=pdf 时，按“幻灯片图片”模式解析
@@ -247,10 +315,18 @@ async def paper2ppt_pagecontent_json(
         email=email,
         input_type=input_type,
         text=text,
-        model=model,
+        model=resolve_model_name(
+            model,
+            managed_default=settings.PAPER2PPT_OUTLINE_MODEL,
+            fallback_default=settings.PAPER2PPT_DEFAULT_MODEL,
+        ),
         language=language,
         style=style,
-        gen_fig_model=gen_fig_model,
+        gen_fig_model=resolve_model_name(
+            gen_fig_model,
+            managed_default=settings.PAPER2PPT_IMAGE_GEN_MODEL,
+            fallback_default=settings.PAPER2PPT_DEFAULT_IMAGE_MODEL,
+        ),
         page_count=page_count,
         use_long_paper=use_long_paper,
         pdf_as_slides=pdf_as_slides,
@@ -267,13 +343,183 @@ async def paper2ppt_pagecontent_json(
 
 
 @router.post(
+    "/paper2ppt/slides/generate",
+    response_model=Dict[str, Any],
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def paper2ppt_generate_slides(
+    request: Request,
+    img_gen_model_name: str = Form(settings.PAPER2PPT_IMAGE_GEN_MODEL),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
+    credential_scope: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    style: str = Form(""),
+    reference_img: Optional[UploadFile] = File(None),
+    aspect_ratio: str = Form("16:9"),
+    language: str = Form("en"),
+    model: str = Form(settings.PAPER2PPT_CONTENT_MODEL),
+    image_resolution: Optional[str] = Form(None),
+    result_path: str = Form(...),
+    pagecontent: str = Form(...),
+    regenerate_from_outline: str = Form("false"),
+    skip_pages: Optional[str] = Form(None),
+    service: Paper2PPTService = Depends(get_service),
+):
+    """
+    显式的批量页图生成接口：
+    - 根据 pagecontent 批量生成 / 增量生成页面
+    - 不承担单页编辑和最终导出语义
+    """
+    req = _build_ppt_generation_request(
+        img_gen_model_name=img_gen_model_name,
+        chat_api_url=chat_api_url,
+        api_key=api_key,
+        credential_scope=credential_scope,
+        email=email,
+        style=style,
+        aspect_ratio=aspect_ratio,
+        language=language,
+        model=model,
+        get_down="false",
+        all_edited_down="false",
+        result_path=result_path,
+        pagecontent=pagecontent,
+        page_id=None,
+        edit_prompt=None,
+        regenerate_from_outline=regenerate_from_outline,
+        image_resolution=image_resolution,
+        skip_pages=skip_pages,
+    )
+    return await _execute_paper2ppt_generate(
+        request=request,
+        req=req,
+        reference_img=reference_img,
+        service=service,
+    )
+
+
+@router.post(
+    "/paper2ppt/slides/{page_id}/edit",
+    response_model=Dict[str, Any],
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def paper2ppt_edit_slide(
+    page_id: int,
+    request: Request,
+    img_gen_model_name: str = Form(settings.PAPER2PPT_IMAGE_GEN_MODEL),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
+    credential_scope: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    style: str = Form(""),
+    reference_img: Optional[UploadFile] = File(None),
+    aspect_ratio: str = Form("16:9"),
+    language: str = Form("en"),
+    model: str = Form(settings.PAPER2PPT_CONTENT_MODEL),
+    image_resolution: Optional[str] = Form(None),
+    result_path: str = Form(...),
+    pagecontent: Optional[str] = Form(None),
+    edit_prompt: Optional[str] = Form(None),
+    regenerate_from_outline: str = Form("false"),
+    service: Paper2PPTService = Depends(get_service),
+):
+    """
+    显式的单页编辑接口：
+    - edit_prompt: 文字编辑 / 局部改图
+    - regenerate_from_outline=true: 按当前 outline 内容重生该页
+    """
+    req = _build_ppt_generation_request(
+        img_gen_model_name=img_gen_model_name,
+        chat_api_url=chat_api_url,
+        api_key=api_key,
+        credential_scope=credential_scope,
+        email=email,
+        style=style,
+        aspect_ratio=aspect_ratio,
+        language=language,
+        model=model,
+        get_down="true",
+        all_edited_down="false",
+        result_path=result_path,
+        pagecontent=pagecontent,
+        page_id=page_id,
+        edit_prompt=edit_prompt,
+        regenerate_from_outline=regenerate_from_outline,
+        image_resolution=image_resolution,
+        skip_pages=None,
+    )
+    return await _execute_paper2ppt_generate(
+        request=request,
+        req=req,
+        reference_img=reference_img,
+        service=service,
+    )
+
+
+@router.post(
+    "/paper2ppt/finalize",
+    response_model=Dict[str, Any],
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def paper2ppt_finalize(
+    request: Request,
+    img_gen_model_name: str = Form(settings.PAPER2PPT_IMAGE_GEN_MODEL),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
+    credential_scope: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    style: str = Form(""),
+    reference_img: Optional[UploadFile] = File(None),
+    aspect_ratio: str = Form("16:9"),
+    language: str = Form("en"),
+    model: str = Form(settings.PAPER2PPT_CONTENT_MODEL),
+    image_resolution: Optional[str] = Form(None),
+    result_path: str = Form(...),
+    pagecontent: Optional[str] = Form(None),
+    service: Paper2PPTService = Depends(get_service),
+):
+    """
+    显式的最终导出接口：
+    - 基于已有结果目录导出最终 PPTX / PDF
+    - 不承担批量生成和单页编辑语义
+    """
+    req = _build_ppt_generation_request(
+        img_gen_model_name=img_gen_model_name,
+        chat_api_url=chat_api_url,
+        api_key=api_key,
+        credential_scope=credential_scope,
+        email=email,
+        style=style,
+        aspect_ratio=aspect_ratio,
+        language=language,
+        model=model,
+        get_down="false",
+        all_edited_down="true",
+        result_path=result_path,
+        pagecontent=pagecontent,
+        page_id=None,
+        edit_prompt=None,
+        regenerate_from_outline="false",
+        image_resolution=image_resolution,
+        skip_pages=None,
+    )
+    return await _execute_paper2ppt_generate(
+        request=request,
+        req=req,
+        reference_img=reference_img,
+        service=service,
+    )
+
+
+@router.post(
     "/paper2ppt/generate",
     response_model=Dict[str, Any],
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def paper2ppt_ppt_json(
     request: Request,
-    img_gen_model_name: str = Form(...),
+    img_gen_model_name: str = Form(settings.PAPER2PPT_IMAGE_GEN_MODEL),
     chat_api_url: Optional[str] = Form(None),
     api_key: Optional[str] = Form(None),
     credential_scope: Optional[str] = Form(None),
@@ -283,7 +529,7 @@ async def paper2ppt_ppt_json(
     reference_img: Optional[UploadFile] = File(None),
     aspect_ratio: str = Form("16:9"),
     language: str = Form("en"),
-    model: str = Form("gpt-5.1"),
+    model: str = Form(settings.PAPER2PPT_CONTENT_MODEL),
     image_resolution: Optional[str] = Form(None),
     # 关键：是否进入编辑，是否已经有了 nano 结果，现在要进入页面逐个页面编辑
     get_down: str = Form("false"),  # 字符串形式，需要手动转换
@@ -302,12 +548,16 @@ async def paper2ppt_ppt_json(
     service: Paper2PPTService = Depends(get_service),
 ):
     """
-    只跑 paper2ppt：
+    兼容旧接口，内部仍然分派到：
+    - /paper2ppt/slides/generate
+    - /paper2ppt/slides/{page_id}/edit
+    - /paper2ppt/finalize
+
+    旧语义：
     - get_down=false：生成模式（需要 pagecontent）
     - get_down=true：编辑模式（需要 page_id(0-based) + edit_prompt，pagecontent 可选）
     """
-
-    req = PPTGenerationRequest(
+    req = _build_ppt_generation_request(
         img_gen_model_name=img_gen_model_name,
         chat_api_url=chat_api_url,
         api_key=api_key,
@@ -327,15 +577,104 @@ async def paper2ppt_ppt_json(
         image_resolution=image_resolution,
         skip_pages=skip_pages,
     )
-
-    _consume_paper2ppt_generate_charge(request, req)
-
-    data = await service.generate_ppt(
+    return await _execute_paper2ppt_generate(
+        request=request,
         req=req,
         reference_img=reference_img,
-        request=request,
+        service=service,
     )
-    return data
+
+
+@router.post(
+    "/paper2ppt/slides/generate-task",
+    response_model=Dict[str, Any],
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def paper2ppt_generate_slides_task(
+    request: Request,
+    img_gen_model_name: str = Form(settings.PAPER2PPT_IMAGE_GEN_MODEL),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
+    credential_scope: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    style: str = Form(""),
+    reference_img: Optional[UploadFile] = File(None),
+    aspect_ratio: str = Form("16:9"),
+    language: str = Form("en"),
+    model: str = Form(settings.PAPER2PPT_CONTENT_MODEL),
+    image_resolution: Optional[str] = Form(None),
+    result_path: str = Form(...),
+    pagecontent: str = Form(...),
+    regenerate_from_outline: str = Form("false"),
+    skip_pages: Optional[str] = Form(None),
+    task_service: Paper2PPTTaskService = Depends(get_task_service),
+):
+    req = _build_ppt_generation_request(
+        img_gen_model_name=img_gen_model_name,
+        chat_api_url=chat_api_url,
+        api_key=api_key,
+        credential_scope=credential_scope,
+        email=email,
+        style=style,
+        aspect_ratio=aspect_ratio,
+        language=language,
+        model=model,
+        get_down="false",
+        all_edited_down="false",
+        result_path=result_path,
+        pagecontent=pagecontent,
+        page_id=None,
+        edit_prompt=None,
+        regenerate_from_outline=regenerate_from_outline,
+        image_resolution=image_resolution,
+        skip_pages=skip_pages,
+    )
+    return await task_service.submit_generate_task(req=req, reference_img=reference_img, request=request)
+
+
+@router.post(
+    "/paper2ppt/finalize-task",
+    response_model=Dict[str, Any],
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def paper2ppt_finalize_task(
+    request: Request,
+    img_gen_model_name: str = Form(settings.PAPER2PPT_IMAGE_GEN_MODEL),
+    chat_api_url: Optional[str] = Form(None),
+    api_key: Optional[str] = Form(None),
+    credential_scope: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    style: str = Form(""),
+    reference_img: Optional[UploadFile] = File(None),
+    aspect_ratio: str = Form("16:9"),
+    language: str = Form("en"),
+    model: str = Form(settings.PAPER2PPT_CONTENT_MODEL),
+    image_resolution: Optional[str] = Form(None),
+    result_path: str = Form(...),
+    pagecontent: Optional[str] = Form(None),
+    task_service: Paper2PPTTaskService = Depends(get_task_service),
+):
+    req = _build_ppt_generation_request(
+        img_gen_model_name=img_gen_model_name,
+        chat_api_url=chat_api_url,
+        api_key=api_key,
+        credential_scope=credential_scope,
+        email=email,
+        style=style,
+        aspect_ratio=aspect_ratio,
+        language=language,
+        model=model,
+        get_down="false",
+        all_edited_down="true",
+        result_path=result_path,
+        pagecontent=pagecontent,
+        page_id=None,
+        edit_prompt=None,
+        regenerate_from_outline="false",
+        image_resolution=image_resolution,
+        skip_pages=None,
+    )
+    return await task_service.submit_generate_task(req=req, reference_img=reference_img, request=request)
 
 
 @router.post(
@@ -345,7 +684,7 @@ async def paper2ppt_ppt_json(
 )
 async def paper2ppt_generate_task(
     request: Request,
-    img_gen_model_name: str = Form(...),
+    img_gen_model_name: str = Form(settings.PAPER2PPT_IMAGE_GEN_MODEL),
     chat_api_url: Optional[str] = Form(None),
     api_key: Optional[str] = Form(None),
     credential_scope: Optional[str] = Form(None),
@@ -354,7 +693,7 @@ async def paper2ppt_generate_task(
     reference_img: Optional[UploadFile] = File(None),
     aspect_ratio: str = Form("16:9"),
     language: str = Form("en"),
-    model: str = Form("gpt-5.1"),
+    model: str = Form(settings.PAPER2PPT_CONTENT_MODEL),
     image_resolution: Optional[str] = Form(None),
     get_down: str = Form("false"),
     all_edited_down: str = Form("false"),
@@ -367,7 +706,11 @@ async def paper2ppt_generate_task(
     task_service: Paper2PPTTaskService = Depends(get_task_service),
 ):
     req = PPTGenerationRequest(
-        img_gen_model_name=img_gen_model_name,
+        img_gen_model_name=resolve_model_name(
+            img_gen_model_name,
+            managed_default=settings.PAPER2PPT_IMAGE_GEN_MODEL,
+            fallback_default=settings.PAPER2PPT_DEFAULT_IMAGE_MODEL,
+        ),
         chat_api_url=chat_api_url,
         api_key=api_key,
         credential_scope=credential_scope,
@@ -375,7 +718,11 @@ async def paper2ppt_generate_task(
         style=style,
         aspect_ratio=aspect_ratio,
         language=language,
-        model=model,
+        model=resolve_model_name(
+            model,
+            managed_default=settings.PAPER2PPT_CONTENT_MODEL,
+            fallback_default=settings.PAPER2PPT_DEFAULT_MODEL,
+        ),
         get_down=get_down,
         all_edited_down=all_edited_down,
         result_path=result_path,
@@ -415,7 +762,7 @@ async def paper2ppt_outline_refine(
     api_key: Optional[str] = Form(None),
     credential_scope: Optional[str] = Form(None),
     email: Optional[str] = Form(None),
-    model: str = Form("gpt-5.1"),
+    model: str = Form(settings.PAPER2PPT_OUTLINE_MODEL),
     language: str = Form("zh"),
     result_path: Optional[str] = Form(None),
     service: Paper2PPTService = Depends(get_service),
@@ -426,7 +773,11 @@ async def paper2ppt_outline_refine(
         api_key=api_key,
         credential_scope=credential_scope,
         email=email,
-        model=model,
+        model=resolve_model_name(
+            model,
+            managed_default=settings.PAPER2PPT_OUTLINE_MODEL,
+            fallback_default=settings.PAPER2PPT_DEFAULT_MODEL,
+        ),
         language=language,
         result_path=result_path,
         outline_feedback=outline_feedback,
@@ -449,7 +800,7 @@ async def paper2ppt_frontend_generate(
     api_key: Optional[str] = Form(None),
     credential_scope: Optional[str] = Form(None),
     email: Optional[str] = Form(None),
-    model: str = Form("gpt-5.1"),
+    model: str = Form(settings.PAPER2PPT_CONTENT_MODEL),
     language: str = Form("zh"),
     style: str = Form(""),
     include_images: bool = Form(False),
@@ -468,12 +819,20 @@ async def paper2ppt_frontend_generate(
         api_key=api_key,
         credential_scope=credential_scope,
         email=email,
-        model=model,
+        model=resolve_model_name(
+            model,
+            managed_default=settings.PAPER2PPT_CONTENT_MODEL,
+            fallback_default=settings.PAPER2PPT_DEFAULT_MODEL,
+        ),
         language=language,
         style=style,
         include_images=include_images,
         image_style=image_style,
-        image_model=image_model,
+        image_model=resolve_model_name(
+            image_model,
+            managed_default=settings.PAPER2PPT_IMAGE_GEN_MODEL,
+            fallback_default=settings.PAPER2PPT_DEFAULT_IMAGE_MODEL,
+        ),
         page_id=page_id,
         edit_prompt=edit_prompt,
         current_slide=current_slide,

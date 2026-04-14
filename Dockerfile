@@ -1,15 +1,22 @@
-FROM python:3.11-slim
+ARG PYTHON_BASE_IMAGE=python:3.11-slim
+FROM ${PYTHON_BASE_IMAGE}
+
+ARG INSTALL_CUDA=0
 
 WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_ROOT_USER_ACTION=ignore \
+    PAPER2ANY_RUNTIME_TMPDIR=/app/outputs/system/tmp
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    ca-certificates \
     curl \
+    ffmpeg \
     git \
     inkscape \
     libgl1 \
@@ -29,13 +36,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm wkhtmltox_0.12.6.1-3.bookworm_amd64.deb \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements-base.txt requirements-paper.txt requirements-paper-backup.txt ./
+COPY requirements-base.txt requirements-paper.txt requirements-paper-backup.txt requirements-cu12.txt ./
 
 RUN pip install --upgrade pip && \
-    (pip install -r requirements-paper.txt || pip install -r requirements-paper-backup.txt)
+    pip install -r requirements-paper.txt && \
+    if [ "$INSTALL_CUDA" = "1" ]; then pip install -r requirements-cu12.txt; fi
 
 COPY . .
 
+RUN pip install -e . && \
+    mkdir -p /app/outputs/system/tmp /app/models /app/logs /app/data /app/database /app/raw_data_store /app/rebuttal_sessions
+
 EXPOSE 8000
 
-CMD ["uvicorn", "fastapi_app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "fastapi_app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,6 +1,51 @@
 # Paper2Any Deployment
 
+## 0. 运行前依赖边界
+
+这个项目现在需要区分 4 类依赖，不要再把它们都塞进一个 requirements 里：
+
+- `requirements-base.txt`
+  通用 Python 运行时依赖。
+- `requirements-paper.txt`
+  论文 / PDF / 科研绘图相关额外 Python 包。
+- `requirements-cu12.txt`
+  NVIDIA Linux + CUDA 12 的额外 GPU 运行时包。
+- `requirements-system-ubuntu.txt`
+  Ubuntu/Debian 系统工具包名，不是 Python 包。
+
+几个关键事实：
+
+- `ffmpeg`
+- `libreoffice/soffice`
+- `inkscape`
+- `poppler-utils`
+- `wkhtmltopdf`
+- `tectonic`
+
+这些都不是 `pip` 包。
+
+当前 `deploy/start.sh` / `deploy/start_nv.sh` / `deploy/start_muxi.sh` 只负责：
+
+- 读取 profile
+- 选择 Python
+- 校验部分 Python 运行时
+- 启动模型服务 / 后端 / 前端
+
+它们**不会自动安装系统包**，也**不会自动安装 npm / conda / pip 依赖**。
+
 ## 1. 配置文件职责
+
+## 0. 先决定用哪套 `.env`
+
+现在推荐先做这个选择：
+
+- **粗粒度模式**：`fastapi_app/.env.simple.example` + `frontend-workflow/.env.simple.example`
+- **细粒度模式**：`fastapi_app/.env.example` + `frontend-workflow/.env.example`
+
+建议：
+
+- 大多数部署直接先用粗粒度模式
+- 只有需要逐个 workflow 控模型/provider 时，再切细粒度模式
 
 这个项目现在只保留三类配置文件，各管各的，不要重复写同一套 URL / key。
 
@@ -264,6 +309,10 @@ bash deploy/stop_stack.sh
 ### 仅启动后端
 
 ```bash
+set -a
+source deploy/profiles/nv.env
+set +a
+
 bash deploy/start.sh
 ```
 

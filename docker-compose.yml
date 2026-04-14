@@ -1,19 +1,55 @@
-version: "3.8"
-
 services:
   paper2any-backend:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        INSTALL_CUDA: ${DOCKER_BACKEND_INSTALL_CUDA:-0}
+        PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-python:3.11-slim}
+    image: paper2any-backend:local
     container_name: paper2any-backend
-    network_mode: host
+    env_file:
+      - ./fastapi_app/.env
     environment:
-      - PYTHONUNBUFFERED=1
-      - RMBG_MODEL_PATH=/app/models/RMBG-2.0
+      PYTHONUNBUFFERED: "1"
+      PAPER2ANY_RUNTIME_TMPDIR: /app/outputs/system/tmp
+      RMBG_MODEL_PATH: ${RMBG_MODEL_PATH:-/app/models/RMBG-2.0}
+      SAM3_SERVER_URLS: ${SAM3_SERVER_URLS:-}
+      SAM3_HOME: ${SAM3_HOME:-}
+      SAM3_CHECKPOINT_PATH: ${SAM3_CHECKPOINT_PATH:-/app/models/sam3/sam3.pt}
+      SAM3_BPE_PATH: ${SAM3_BPE_PATH:-/app/models/sam3/bpe_simple_vocab_16e6.txt.gz}
+      PAPER2DRAWIO_SAM3_CHECKPOINT_PATH: ${SAM3_CHECKPOINT_PATH:-/app/models/sam3/sam3.pt}
+      PAPER2DRAWIO_SAM3_BPE_PATH: ${SAM3_BPE_PATH:-/app/models/sam3/bpe_simple_vocab_16e6.txt.gz}
+    command:
+      - python
+      - -m
+      - uvicorn
+      - fastapi_app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "${DOCKER_BACKEND_BIND_PORT:-8000}"
+      - --workers
+      - "${DOCKER_APP_WORKERS:-1}"
+      - --log-level
+      - info
     volumes:
       - ./outputs:/app/outputs
       - ./models:/app/models
-      - ./fastapi_app/.env:/app/fastapi_app/.env
+      - ./data:/app/data
+      - ./database:/app/database
+      - ./logs:/app/logs
+      - ./raw_data_store:/app/raw_data_store
+      - ./rebuttal_sessions:/app/rebuttal_sessions
+      - ./fastapi_app/.env:/app/fastapi_app/.env:ro
+    ports:
+      - "${BACKEND_PORT:-8000}:${DOCKER_BACKEND_BIND_PORT:-8000}"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:${DOCKER_BACKEND_BIND_PORT:-8000}/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     restart: unless-stopped
 
   paper2any-frontend:
@@ -21,13 +57,71 @@ services:
       context: .
       dockerfile: frontend-workflow/Dockerfile
       args:
+        NODE_BASE_IMAGE: ${NODE_BASE_IMAGE:-node:20-alpine}
+        NGINX_BASE_IMAGE: ${NGINX_BASE_IMAGE:-nginx:alpine}
         VITE_API_KEY: ${VITE_API_KEY:-}
-        VITE_DEFAULT_LLM_API_URL: ${VITE_DEFAULT_LLM_API_URL:-https://api.apiyi.com/v1}
-        VITE_LLM_API_URLS: ${VITE_LLM_API_URLS:-https://api.apiyi.com/v1,http://b.apiyi.com:16888/v1,http://123.129.219.111:3000/v1}
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_DEFAULT_LLM_API_URL: ${VITE_DEFAULT_LLM_API_URL:-}
+        VITE_LLM_API_URLS: ${VITE_LLM_API_URLS:-}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+    image: paper2any-frontend:local
     container_name: paper2any-frontend
-    ports:
-      - "3000:80"
     depends_on:
-      - paper2any-backend
+      paper2any-backend:
+        condition: service_healthy
+    environment:
+      NGINX_LISTEN_PORT: "${DOCKER_FRONTEND_BIND_PORT:-80}"
+      BACKEND_UPSTREAM_URL: "${BACKEND_UPSTREAM_URL:-http://paper2any-backend:${DOCKER_BACKEND_BIND_PORT:-8000}}"
+    ports:
+      - "${FRONTEND_PORT:-3000}:${DOCKER_FRONTEND_BIND_PORT:-80}"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${DOCKER_FRONTEND_BIND_PORT:-80}/"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  paper2any-sam3:
+    profiles: ["sam3"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        INSTALL_CUDA: 1
+        PYTHON_BASE_IMAGE: ${PYTHON_BASE_IMAGE:-python:3.11-slim}
+    image: paper2any-backend:local-gpu
+    container_name: paper2any-sam3
+    environment:
+      PYTHONUNBUFFERED: "1"
+      SAM3_HOME: ${SAM3_HOME:-/app/models/sam3-official/sam3}
+      SAM3_CHECKPOINT_PATH: ${SAM3_CHECKPOINT_PATH:-/app/models/sam3/sam3.pt}
+      SAM3_BPE_PATH: ${SAM3_BPE_PATH:-/app/models/sam3/bpe_simple_vocab_16e6.txt.gz}
+    command:
+      - python
+      - -m
+      - dataflow_agent.toolkits.model_servers.sam3_server
+      - --host
+      - 0.0.0.0
+      - --port
+      - "${DOCKER_SAM3_BIND_PORT:-8021}"
+      - --checkpoint
+      - "${SAM3_CHECKPOINT_PATH:-/app/models/sam3/sam3.pt}"
+      - --bpe
+      - "${SAM3_BPE_PATH:-/app/models/sam3/bpe_simple_vocab_16e6.txt.gz}"
+      - --device
+      - cuda
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
+    ports:
+      - "${SAM3_PORT:-8021}:${DOCKER_SAM3_BIND_PORT:-8021}"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:${DOCKER_SAM3_BIND_PORT:-8021}/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    gpus: all
     restart: unless-stopped

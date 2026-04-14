@@ -25,7 +25,10 @@ conda create -n paper2any python=3.11 -y
 conda activate paper2any
 
 pip install --upgrade pip
-pip install -r requirements-paper.txt || pip install -r requirements-paper-backup.txt
+pip install -r requirements-paper.txt
+
+# NVIDIA GPU 机器再额外安装
+pip install -r requirements-cu12.txt
 ```
 
 ### 3. 准备前端 Node 环境
@@ -40,10 +43,19 @@ cd ..
 
 ### 4. 复制配置模板
 
+推荐优先使用**粗粒度 simple 模式**，只填少量 URL / Key：
+
+```bash
+cp fastapi_app/.env.simple.example fastapi_app/.env
+cp frontend-workflow/.env.simple.example frontend-workflow/.env
+cp deploy/profiles/nv.env.example deploy/profiles/nv.env
+```
+
+如果你需要逐个 workflow 覆盖模型，再改用：
+
 ```bash
 cp fastapi_app/.env.example fastapi_app/.env
 cp frontend-workflow/.env.example frontend-workflow/.env
-cp deploy/profiles/nv.env.example deploy/profiles/nv.env
 ```
 
 ### 5. 至少填这几项
@@ -53,8 +65,9 @@ cp deploy/profiles/nv.env.example deploy/profiles/nv.env
 ```bash
 BACKEND_API_KEY=your-backend-api-key
 APP_BILLING_MODE=free
-DF_API_URL=https://your-llm-gateway/v1
-DF_API_KEY=your-llm-api-key
+PAPER2ANY_CONFIG_MODE=simple
+SIMPLE_TEXT_API_URL=https://your-llm-gateway/v1
+SIMPLE_TEXT_API_KEY=your-llm-api-key
 ```
 
 `frontend-workflow/.env`
@@ -70,15 +83,20 @@ VITE_API_BASE_URL=
 - 本地 `npm run dev` + Vite 代理模式下，`VITE_API_BASE_URL` 通常留空。
 - 如果你准备启用登录、账户点数、历史文件，需要继续补 `SUPABASE_*`。详见 [开源部署与配置总指南](guides/open_source_deployment.md)。
 
-### 6. 启动后端
+### 6. 启动整套服务（推荐）
 
 ```bash
-bash deploy/start.sh
+bash deploy/start_nv.sh
 ```
 
-### 7. 启动前端
+### 7. 手动分开启动（可选）
 
 ```bash
+set -a
+source deploy/profiles/nv.env
+set +a
+
+bash deploy/start.sh
 bash deploy/start_frontend.sh
 ```
 

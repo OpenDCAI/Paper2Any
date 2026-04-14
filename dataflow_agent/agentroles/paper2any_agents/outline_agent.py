@@ -40,13 +40,11 @@ class OutlineAgent(BaseAgent):
 
     @property
     def system_prompt_template_name(self) -> str:
-        # TODO: 修改为真实的模板 id
-        return "system_prompt_for_outline_agent"
+        return "system_prompt_for_paper2ppt_outline_agent"
 
     @property
     def task_prompt_template_name(self) -> str:
-        # TODO: 修改为真实的模板 id
-        return "task_prompt_for_outline_agent"
+        return "task_prompt_for_paper2ppt_outline_agent"
 
     # ---------- Prompt 参数 ----------
     def get_task_prompt_params(self, pre_tool_results: Dict[str, Any]) -> Dict[str, Any]:
@@ -78,8 +76,15 @@ class OutlineAgent(BaseAgent):
         pre_tool_results: Dict[str, Any],
     ):
         """将推理结果写回 MainState，可按需重写"""
+        if not isinstance(result, list):
+            log.warning("[outline_agent] Invalid result, discard invalid payload and mark pagecontent empty.")
+            state.pagecontent = []
+            setattr(state, "outline_generation_error", "outline_agent did not return a valid JSON array")
+            super().update_state_result(state, [], pre_tool_results)
+            return
 
         state.pagecontent = result
+        setattr(state, "outline_generation_error", "")
         log.info(f"[outline_agent]: outline_agent 生成了 {len(result)} 页内容")
         super().update_state_result(state, result, pre_tool_results)
 

@@ -179,7 +179,9 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                   setError(null);
                   
                   const formData = new FormData();
-                  formData.append('img_gen_model_name', model);
+                  if (userApiConfigRequired) {
+                    formData.append('img_gen_model_name', model);
+                  }
                   if (userApiConfigRequired) {
                     formData.append('chat_api_url', llmApiUrl.trim());
                     formData.append('api_key', apiKey.trim());
@@ -326,9 +328,11 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({
                     setError(null);
                     
                     const formData = new FormData();
-                    formData.append('img_gen_model_name', model);
-                    formData.append('chat_api_url', llmApiUrl.trim());
-                    formData.append('api_key', apiKey.trim());
+                    if (userApiConfigRequired) {
+                      formData.append('img_gen_model_name', model);
+                      formData.append('chat_api_url', llmApiUrl.trim());
+                      formData.append('api_key', apiKey.trim());
+                    }
                     formData.append('input_type', 'FIGURE'); 
                     formData.append('email', email);
                     formData.append('graph_type', 'model_arch');

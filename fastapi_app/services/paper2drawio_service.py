@@ -19,7 +19,7 @@ from dataflow_agent.workflow import get_workflow
 from dataflow_agent.logger import get_logger
 from fastapi_app.config.settings import settings
 from fastapi_app.interprocess_lock import AsyncInterProcessSemaphore
-from fastapi_app.services.managed_api_service import resolve_llm_credentials
+from fastapi_app.services.managed_api_service import resolve_llm_credentials, resolve_model_name
 
 log = get_logger(__name__)
 
@@ -162,6 +162,14 @@ class Paper2DrawioService:
             chat_api_url,
             api_key,
             scope="paper2drawio",
+        )
+        model = resolve_model_name(
+            model,
+            managed_default=settings.PAPER2DRAWIO_DEFAULT_MODEL,
+        )
+        vlm_model = resolve_model_name(
+            vlm_model,
+            managed_default=settings.PAPER2DRAWIO_VLM_MODEL,
         )
         run_dir = self._create_run_dir("paper2drawio", email)
         input_dir = run_dir / "input"
@@ -319,6 +327,10 @@ class Paper2DrawioService:
             chat_api_url,
             api_key,
             scope="paper2drawio",
+        )
+        model = resolve_model_name(
+            model,
+            managed_default=settings.PAPER2DRAWIO_DEFAULT_MODEL,
         )
         current_cells = (
             extract_cells(current_xml)

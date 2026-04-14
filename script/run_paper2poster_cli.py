@@ -21,7 +21,7 @@ from uuid import uuid4
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from script.cli_env import load_project_env
+from script.cli_env import find_output_artifacts, load_project_env
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2PosterState, Paper2PosterRequest
 from dataflow_agent.workflow import run_workflow
@@ -229,6 +229,28 @@ async def run_paper2poster_workflow(args, input_path: str, output_dir: Path):
     log.info("This may take several minutes...")
 
     state = await run_workflow("paper2poster", state)
+
+    expected_artifacts = []
+    if isinstance(state, dict):
+        pptx_path = state.get("output_pptx_path", "") or ""
+        png_path = state.get("output_png_path", "") or ""
+    else:
+        pptx_path = getattr(state, "output_pptx_path", "") or ""
+        png_path = getattr(state, "output_png_path", "") or ""
+
+    if pptx_path:
+        expected_artifacts.append(Path(pptx_path))
+    if png_path:
+        expected_artifacts.append(Path(png_path))
+
+    existing_expected = [path for path in expected_artifacts if path.exists()]
+    if not existing_expected:
+        discovered = find_output_artifacts(output_dir, ("*.pptx", "*.png"))
+        raise RuntimeError(
+            "Paper2Poster finished without final poster artifacts. "
+            f"Expected one of {[str(path) for path in expected_artifacts] or ['<workflow output paths unavailable>']}; "
+            f"discovered {len(discovered)} PNG/PPTX files under {output_dir}"
+        )
 
     log.info("Paper2Poster workflow completed")
 

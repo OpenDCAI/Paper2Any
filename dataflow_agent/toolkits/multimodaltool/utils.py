@@ -11,6 +11,7 @@ log = get_logger(__name__)
 
 class Provider(str, Enum):
     APIYI = "apiyi"
+    IKUNCODE = "ikuncode"
     LOCAL_123 = "local_123"
     OTHER = "other"
 
@@ -20,6 +21,8 @@ def detect_provider(api_url: str) -> Provider:
     """
     根据 api_url 粗略识别服务商
     """
+    if "ikuncode" in api_url:
+        return Provider.IKUNCODE
     if "apiyi" in api_url:
         return Provider.APIYI
     if "123.129.219.111" in api_url:
