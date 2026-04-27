@@ -864,6 +864,16 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
         image_resolution = getattr(state.request, "image_resolution", None) or "2K"
         image_api_url = get_request_image_api_url(state.request)
         image_api_key = get_request_image_api_key(state.request)
+        edit_mask_path = str(
+            getattr(state.request, "edit_mask_path", "")
+            or getattr(state, "edit_mask_path", "")
+            or ""
+        ).strip()
+        if edit_mask_path:
+            edit_mask_path = _abs_path(edit_mask_path)
+            if not os.path.exists(edit_mask_path):
+                log.warning(f"[paper2ppt] Edit page: mask not found: {edit_mask_path}")
+                edit_mask_path = ""
 
         # 检查 ref_img
         user_ref_img = getattr(state.request, "ref_img", None)
@@ -880,7 +890,33 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
         if style and style.strip() and style.strip().lower() != "kartoon":
             style_hint = f" Additional style guidance: {style.strip()}."
 
-        if user_ref_img:
+        if user_ref_img and edit_mask_path:
+            if prompt:
+                full_prompt = (
+                    f"Edit the second image (the slide) using the third image as a mask. "
+                    f"The first image is the style reference. The white region in the third image is the only area that should be modified. "
+                    f"Instruction: '{prompt}'. Preserve all non-masked regions in the slide as much as possible while making the masked area visually consistent with the reference style."
+                    f"{style_hint}"
+                )
+            else:
+                full_prompt = (
+                    "Edit the second image (the slide) using the third image as a mask. "
+                    "The first image is the style reference. The white region in the third image is the only area that should be modified. "
+                    "Preserve all non-masked regions in the slide as much as possible while making the masked area visually consistent with the reference style."
+                    f"{style_hint}"
+                )
+
+            await gemini_multi_image_edit_async(
+                prompt=full_prompt,
+                image_paths=[user_ref_img, old_path, edit_mask_path],
+                save_path=temp_save_path,
+                api_url=image_api_url,
+                api_key=image_api_key,
+                model=state.request.gen_fig_model,
+                aspect_ratio=aspect_ratio,
+                resolution=image_resolution,
+            )
+        elif user_ref_img:
             # 有参考图 -> 多图融合
             if prompt:
                 full_prompt = (
@@ -901,6 +937,30 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
             await gemini_multi_image_edit_async(
                 prompt=full_prompt,
                 image_paths=[user_ref_img, old_path],
+                save_path=temp_save_path,
+                api_url=image_api_url,
+                api_key=image_api_key,
+                model=state.request.gen_fig_model,
+                aspect_ratio=aspect_ratio,
+                resolution=image_resolution,
+            )
+        elif edit_mask_path:
+            if prompt:
+                full_prompt = (
+                    "Edit the first image using the second image as a mask. "
+                    "The white region in the mask is the only area that should be modified. "
+                    f"Instruction: '{prompt}'. Preserve all non-masked regions as much as possible."
+                )
+            else:
+                full_prompt = (
+                    "Edit the first image using the second image as a mask. "
+                    "The white region in the mask is the only area that should be modified. "
+                    "Preserve all non-masked regions as much as possible while improving the masked area."
+                )
+
+            await gemini_multi_image_edit_async(
+                prompt=full_prompt,
+                image_paths=[old_path, edit_mask_path],
                 save_path=temp_save_path,
                 api_url=image_api_url,
                 api_key=image_api_key,
@@ -960,11 +1020,14 @@ def create_paper2ppt_parallel_consistent_graph() -> GenericGraphBuilder:  # noqa
             if isinstance(it, dict):
                 it["generated_img_path"] = save_path
                 it["edit_prompt"] = prompt
+                if edit_mask_path:
+                    it["edit_mask_path"] = edit_mask_path
                 it["mode"] = "edit_again"
                 it["current_version"] = version_num  # 跟踪当前版本号
 
         state.edit_page_prompt = ""
         state.edit_page_num = -1
+        state.edit_mask_path = ""
         return state
 
     async def export_ppt_assets(state: Paper2FigureState) -> Paper2FigureState:

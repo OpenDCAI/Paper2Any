@@ -708,12 +708,47 @@ class ApiYiSeeDreamProvider(AIProviderStrategy):
         raise RuntimeError(f"Failed to parse SeeDream response: {str(data)[:200]}")
 
 
+class ApiYiGPTImageAllProvider(AIProviderStrategy):
+    """
+    APIYI GPT-Image-2-All 特殊适配。
+    该模型不接受 size / quality / n 等字段，b64_json 可能带 data URL 前缀。
+    """
+
+    def match(self, api_url: str, model: str) -> bool:
+        return model.lower() == "gpt-image-2-all"
+
+    def build_generation_request(self, api_url: str, model: str, prompt: str, **kwargs) -> Tuple[str, Dict[str, Any], bool]:
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "response_format": kwargs.get("response_format", "b64_json"),
+        }
+        return f"{api_url.rstrip('/')}/images/generations", payload, False
+
+    def parse_generation_response(self, data: Dict[str, Any]) -> str:
+        if "data" in data and len(data["data"]) > 0:
+            item = data["data"][0]
+            if "b64_json" in item:
+                b64_string = str(item["b64_json"]).strip()
+                if b64_string.startswith("data:"):
+                    comma_index = b64_string.find(",")
+                    if comma_index != -1:
+                        b64_string = b64_string[comma_index + 1 :]
+                padding_needed = (4 - len(b64_string) % 4) % 4
+                if padding_needed > 0:
+                    b64_string += "=" * padding_needed
+                return b64_string
+            if "url" in item:
+                return item["url"]
+        raise RuntimeError(f"Failed to parse GPT-Image-2-All response: {str(data)[:200]}")
+
+
 class ApiYiGPTImageProvider(AIProviderStrategy):
     """
     APIYI GPT-Image 系列模型支持 (兼容 OpenAI Image API)
     """
     def match(self, api_url: str, model: str) -> bool:
-        return model.lower().startswith("gpt-image")
+        return model.lower().startswith("gpt-image") and model.lower() != "gpt-image-2-all"
 
     def build_generation_request(self, api_url: str, model: str, prompt: str, **kwargs) -> Tuple[str, Dict[str, Any], bool]:
         url = f"{api_url.rstrip('/')}/images/generations"
@@ -1357,6 +1392,7 @@ STRATEGIES = [
     IkunCodeGeminiProvider(),
     ApiYiGeminiProvider(),
     ApiYiSeeDreamProvider(),
+    ApiYiGPTImageAllProvider(),
     ApiYiGPTImageProvider(),
     Local123GeminiProvider(),
     OpenAIDalleProvider(),

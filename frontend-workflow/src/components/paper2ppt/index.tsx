@@ -19,6 +19,7 @@ import {
 import {
   FrontendDeckTheme,
   FrontendSlide,
+  MaskSelectionSpec,
   PptGenerationMode,
   Step,
   SlideOutline,
@@ -99,6 +100,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isReviewingFrontendSlide, setIsReviewingFrontendSlide] = useState(false);
   const [slidePrompt, setSlidePrompt] = useState('');
+  const [slideMaskSelection, setSlideMaskSelection] = useState<MaskSelectionSpec | null>(null);
   const [generateTaskMessage, setGenerateTaskMessage] = useState('');
   
   // Step 4: 完成状态
@@ -265,6 +267,12 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (pptMode === 'image' && currentStep === 'generate') {
+      setSlideMaskSelection(null);
+    }
+  }, [currentSlideIndex, currentStep, pptMode]);
 
   const releaseUploadSubmitGuard = (cooldownMs: number = 1200) => {
     if (uploadSubmitGuardTimerRef.current !== null) {
@@ -2300,6 +2308,9 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath);
       formData.append('edit_prompt', slidePrompt);
+      if (slideMaskSelection) {
+        formData.append('mask_spec', JSON.stringify(slideMaskSelection));
+      }
 
       // 如果用户选的是参考图模式，附加参考图，保留用户显式输入的风格提示词
       if (styleMode === 'reference' && referenceImage) {
@@ -2349,6 +2360,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
         status: 'done',
       };
       setGenerateResults([...updatedResults]);
+      setSlideMaskSelection(null);
       setSlidePrompt('');
 
       // 获取更新的版本历史
@@ -2693,6 +2705,8 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
                 taskMessage={generateTaskMessage}
                 slidePrompt={slidePrompt}
                 setSlidePrompt={setSlidePrompt}
+                slideMaskSelection={slideMaskSelection}
+                setSlideMaskSelection={setSlideMaskSelection}
                 saveCurrentSlideEdits={saveCurrentSlideEdits}
                 handleRegenerateSlideFromOutline={handleRegenerateSlideFromOutline}
                 handleRegenerateSlide={handleRegenerateSlide}

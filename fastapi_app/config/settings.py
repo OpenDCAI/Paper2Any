@@ -101,6 +101,10 @@ class AppSettings(BaseSettings):
     PAPER2REBUTTAL_MANAGED_API_KEY: str = ""
     PAPER2REBUTTAL_MANAGED_IMAGE_API_URL: str = ""
     PAPER2REBUTTAL_MANAGED_IMAGE_API_KEY: str = ""
+    IMAGE_PLAYGROUND_MANAGED_API_URL: str = ""
+    IMAGE_PLAYGROUND_MANAGED_API_KEY: str = ""
+    IMAGE_PLAYGROUND_MANAGED_IMAGE_API_URL: str = ""
+    IMAGE_PLAYGROUND_MANAGED_IMAGE_API_KEY: str = ""
     LLM_VERIFY_TIMEOUT_SECONDS: int = 25
     LLM_VERIFY_MAX_TOKENS: int = 32
     APP_BILLING_MODE: str = "paid"
@@ -203,6 +207,7 @@ class AppSettings(BaseSettings):
     PAPER2POSTER_DEFAULT_MODEL: str = "gpt-4o"
     PAPER2POSTER_VISION_MODEL: str = "gpt-4o"
     PAPER2REBUTTAL_DEFAULT_MODEL: str = "gpt-4o"
+    IMAGE_PLAYGROUND_DEFAULT_IMAGE_MODEL: str = "gemini-3.1-flash-image-preview"
 
     # ============================================
     # Layer 3: Role-level Model Configuration
@@ -211,6 +216,7 @@ class AppSettings(BaseSettings):
     PAPER2PPT_OUTLINE_MODEL: str = "gpt-5.1"           # Outline generation
     PAPER2PPT_CONTENT_MODEL: str = "gpt-5.1"           # Content generation
     PAPER2PPT_IMAGE_GEN_MODEL: str = "gemini-3-pro-image-preview"  # Image generation
+    PAPER2PPT_MASK_EDIT_IMAGE_MODEL: str = ""
     PAPER2PPT_VLM_MODEL: str = "qwen-vl-ocr-2025-11-20"  # VLM vision understanding
     PAPER2PPT_VLM_TIMEOUT_SECONDS: int = 45
     PAPER2PPT_CHART_MODEL: str = "gpt-4o"              # Chart generation
@@ -338,6 +344,7 @@ def _apply_simple_mode(settings_obj: AppSettings) -> AppSettings:
     settings_obj.PAPER2PPT_OUTLINE_MODEL = text_model
     settings_obj.PAPER2PPT_CONTENT_MODEL = text_model
     settings_obj.PAPER2PPT_IMAGE_GEN_MODEL = image_model
+    settings_obj.PAPER2PPT_MASK_EDIT_IMAGE_MODEL = image_model
     settings_obj.PAPER2PPT_VLM_MODEL = vlm_model
     settings_obj.PAPER2PPT_CHART_MODEL = text_model
     settings_obj.PAPER2PPT_DESC_MODEL = text_model

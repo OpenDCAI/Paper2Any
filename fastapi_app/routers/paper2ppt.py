@@ -226,6 +226,7 @@ def _build_ppt_generation_request(
     pagecontent: Optional[str],
     page_id: Optional[int],
     edit_prompt: Optional[str],
+    edit_mask_path: Optional[str],
     regenerate_from_outline: str,
     image_resolution: Optional[str],
     skip_pages: Optional[str],
@@ -254,6 +255,7 @@ def _build_ppt_generation_request(
         pagecontent=pagecontent,
         page_id=page_id,
         edit_prompt=edit_prompt,
+        edit_mask_path=edit_mask_path,
         regenerate_from_outline=regenerate_from_outline,
         image_resolution=image_resolution,
         skip_pages=skip_pages,
@@ -265,12 +267,16 @@ async def _execute_paper2ppt_generate(
     request: Request,
     req: PPTGenerationRequest,
     reference_img: Optional[UploadFile],
+    mask_upload: Optional[UploadFile],
+    mask_spec: Optional[str],
     service: "Paper2PPTService",
 ) -> Dict[str, Any]:
     _consume_paper2ppt_generate_charge(request, req)
     return await service.generate_ppt(
         req=req,
         reference_img=reference_img,
+        mask_upload=mask_upload,
+        mask_spec=mask_spec,
         request=request,
     )
 
@@ -363,6 +369,8 @@ async def paper2ppt_generate_slides(
     result_path: str = Form(...),
     pagecontent: str = Form(...),
     regenerate_from_outline: str = Form("false"),
+    mask_spec: Optional[str] = Form(None),
+    mask_file: Optional[UploadFile] = File(None),
     skip_pages: Optional[str] = Form(None),
     service: Paper2PPTService = Depends(get_service),
 ):
@@ -387,6 +395,7 @@ async def paper2ppt_generate_slides(
         pagecontent=pagecontent,
         page_id=None,
         edit_prompt=None,
+        edit_mask_path=None,
         regenerate_from_outline=regenerate_from_outline,
         image_resolution=image_resolution,
         skip_pages=skip_pages,
@@ -395,6 +404,8 @@ async def paper2ppt_generate_slides(
         request=request,
         req=req,
         reference_img=reference_img,
+        mask_upload=mask_file,
+        mask_spec=mask_spec,
         service=service,
     )
 
@@ -421,6 +432,8 @@ async def paper2ppt_edit_slide(
     result_path: str = Form(...),
     pagecontent: Optional[str] = Form(None),
     edit_prompt: Optional[str] = Form(None),
+    mask_spec: Optional[str] = Form(None),
+    mask_file: Optional[UploadFile] = File(None),
     regenerate_from_outline: str = Form("false"),
     service: Paper2PPTService = Depends(get_service),
 ):
@@ -445,6 +458,7 @@ async def paper2ppt_edit_slide(
         pagecontent=pagecontent,
         page_id=page_id,
         edit_prompt=edit_prompt,
+        edit_mask_path=None,
         regenerate_from_outline=regenerate_from_outline,
         image_resolution=image_resolution,
         skip_pages=None,
@@ -453,6 +467,8 @@ async def paper2ppt_edit_slide(
         request=request,
         req=req,
         reference_img=reference_img,
+        mask_upload=mask_file,
+        mask_spec=mask_spec,
         service=service,
     )
 
@@ -500,6 +516,7 @@ async def paper2ppt_finalize(
         pagecontent=pagecontent,
         page_id=None,
         edit_prompt=None,
+        edit_mask_path=None,
         regenerate_from_outline="false",
         image_resolution=image_resolution,
         skip_pages=None,
@@ -508,6 +525,8 @@ async def paper2ppt_finalize(
         request=request,
         req=req,
         reference_img=reference_img,
+        mask_upload=None,
+        mask_spec=None,
         service=service,
     )
 
@@ -543,6 +562,8 @@ async def paper2ppt_ppt_json(
     page_id: Optional[int] = Form(None),
     # 页面编辑提示词（get_down=true 时必传）
     edit_prompt: Optional[str] = Form(None),
+    mask_spec: Optional[str] = Form(None),
+    mask_file: Optional[UploadFile] = File(None),
     regenerate_from_outline: str = Form("false"),
     skip_pages: Optional[str] = Form(None),
     service: Paper2PPTService = Depends(get_service),
@@ -573,6 +594,7 @@ async def paper2ppt_ppt_json(
         pagecontent=pagecontent,
         page_id=page_id,
         edit_prompt=edit_prompt,
+        edit_mask_path=None,
         regenerate_from_outline=regenerate_from_outline,
         image_resolution=image_resolution,
         skip_pages=skip_pages,
@@ -581,6 +603,8 @@ async def paper2ppt_ppt_json(
         request=request,
         req=req,
         reference_img=reference_img,
+        mask_upload=mask_file,
+        mask_spec=mask_spec,
         service=service,
     )
 
@@ -625,6 +649,7 @@ async def paper2ppt_generate_slides_task(
         pagecontent=pagecontent,
         page_id=None,
         edit_prompt=None,
+        edit_mask_path=None,
         regenerate_from_outline=regenerate_from_outline,
         image_resolution=image_resolution,
         skip_pages=skip_pages,
@@ -670,6 +695,7 @@ async def paper2ppt_finalize_task(
         pagecontent=pagecontent,
         page_id=None,
         edit_prompt=None,
+        edit_mask_path=None,
         regenerate_from_outline="false",
         image_resolution=image_resolution,
         skip_pages=None,

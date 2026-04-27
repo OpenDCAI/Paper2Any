@@ -85,6 +85,14 @@ export const IMAGE2DRAWIO_VLM_MODELS = readEnvList('VITE_IMAGE2DRAWIO_VLM_MODEL'
 export const DEFAULT_IMAGE2DRAWIO_GEN_FIG_MODEL = firstOr(IMAGE2DRAWIO_GEN_FIG_MODELS, 'gemini-3-pro-image-preview');
 export const DEFAULT_IMAGE2DRAWIO_VLM_MODEL = firstOr(IMAGE2DRAWIO_VLM_MODELS, 'qwen-vl-ocr-2025-11-20');
 
+export const IMAGE_PLAYGROUND_MODELS = [
+  'gemini-3.1-flash-image-preview',
+  'gemini-3-pro-image-preview',
+  'gpt-image-2',
+  'gpt-image-2-all',
+];
+export const DEFAULT_IMAGE_PLAYGROUND_MODEL = 'gemini-3.1-flash-image-preview';
+
 export const PAPER2REBUTTAL_MODELS = readEnvList('VITE_PAPER2REBUTTAL_MODEL', [
   'deepseek-v3.1',
   'kimi-k2.5',

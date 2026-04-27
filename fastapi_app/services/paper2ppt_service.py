@@ -98,6 +98,7 @@ from uuid import uuid4
 
 import copy
 import hashlib
+from io import BytesIO
 import json
 import os
 from pathlib import Path
@@ -105,7 +106,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, Request, UploadFile
 import httpx
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 
 from fastapi_app.config import settings
 from fastapi_app.schemas import (
@@ -359,7 +360,9 @@ class Paper2PPTService:
         self,
         req: PPTGenerationRequest,
         reference_img: UploadFile | None,
-        request: Request | None,
+        mask_upload: UploadFile | None = None,
+        mask_spec: Optional[str] = None,
+        request: Request | None = None,
     ) -> Dict[str, Any]:
         """只跑 PPT 生成/编辑（paper2ppt 工作流）。"""
         base_dir = self.resolve_result_path(req.result_path)
@@ -408,6 +411,20 @@ class Paper2PPTService:
             if not pc:
                 raise HTTPException(status_code=400, detail="pagecontent is required when get_down=false")
 
+        edit_mask_path = await self._prepare_edit_mask(
+            base_dir=base_dir,
+            pagecontent=pc,
+            page_id=req.page_id,
+            get_down=get_down_bool,
+            mask_upload=mask_upload,
+            mask_spec=mask_spec,
+        )
+        image_model_setting = (
+            settings.PAPER2PPT_MASK_EDIT_IMAGE_MODEL
+            if get_down_bool and edit_mask_path
+            else settings.PAPER2PPT_IMAGE_GEN_MODEL
+        )
+
         from fastapi_app.schemas import Paper2PPTRequest  # 局部导入避免循环
 
         p2ppt_req = Paper2PPTRequest(
@@ -425,7 +442,7 @@ class Paper2PPTService:
             ),
             gen_fig_model=resolve_model_name(
                 req.img_gen_model_name,
-                managed_default=settings.PAPER2PPT_IMAGE_GEN_MODEL,
+                managed_default=image_model_setting,
                 fallback_default=settings.PAPER2PPT_DEFAULT_IMAGE_MODEL,
             ),
             input_type="PDF",
@@ -436,6 +453,7 @@ class Paper2PPTService:
             email=req.email or "",
             all_edited_down=all_edited_down_bool,
             image_resolution=req.image_resolution or "2K",
+            edit_mask_path=str(edit_mask_path) if edit_mask_path else "",
         )
 
         resp_model = await run_paper2ppt_wf_api(
@@ -788,6 +806,155 @@ class Paper2PPTService:
                         log.info(f"[Paper2PPTService] Found cached reference_img at {candidate}")
                         return candidate
         return None
+
+    def _resolve_edit_source_image_path(
+        self,
+        *,
+        base_dir: Path,
+        pagecontent: List[Dict[str, Any]],
+        page_id: int,
+    ) -> Path:
+        candidates: list[str] = []
+        if 0 <= page_id < len(pagecontent):
+            item = pagecontent[page_id]
+            if isinstance(item, dict):
+                for key in ("generated_img_path", "ppt_img_path", "img_path", "asset_ref"):
+                    raw = str(item.get(key) or "").strip()
+                    if raw:
+                        candidates.append(raw)
+
+        candidates.extend([
+            str((base_dir / "ppt_pages" / f"page_{page_id:03d}.png").resolve()),
+            str((base_dir / "ppt_images" / f"slide_{page_id:03d}.png").resolve()),
+        ])
+
+        for raw in candidates:
+            path = Path(raw).expanduser().resolve()
+            if path.exists():
+                return path
+
+        raise HTTPException(
+            status_code=400,
+            detail=f"无法定位第 {page_id + 1} 页的原始图像，无法创建局部编辑遮罩",
+        )
+
+    def _build_mask_from_spec(
+        self,
+        *,
+        source_image_path: Path | str,
+        output_path: Path | str,
+        mask_spec: str,
+    ) -> Path:
+        source_image_path = Path(source_image_path)
+        output_path = Path(output_path)
+        try:
+            payload = json.loads(mask_spec)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail=f"mask_spec 不是合法 JSON: {exc}") from exc
+
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=400, detail="mask_spec 必须是一个对象")
+
+        shape = str(payload.get("shape") or "rect").strip().lower()
+        if shape not in {"rect", "circle"}:
+            raise HTTPException(status_code=400, detail="mask_spec.shape 仅支持 rect 或 circle")
+
+        try:
+            x = float(payload.get("x"))
+            y = float(payload.get("y"))
+            width = float(payload.get("width"))
+            height = float(payload.get("height"))
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="mask_spec 缺少合法的 x/y/width/height") from exc
+
+        if width <= 0 or height <= 0:
+            raise HTTPException(status_code=400, detail="mask_spec 的 width/height 必须大于 0")
+
+        x = max(0.0, min(1.0, x))
+        y = max(0.0, min(1.0, y))
+        width = max(0.0, min(1.0 - x, width))
+        height = max(0.0, min(1.0 - y, height))
+        if width <= 0 or height <= 0:
+            raise HTTPException(status_code=400, detail="mask_spec 归一化后没有有效面积")
+
+        try:
+            with Image.open(source_image_path) as source_image:
+                canvas = Image.new("L", source_image.size, 0)
+                draw = ImageDraw.Draw(canvas)
+                left = round(x * source_image.width)
+                top = round(y * source_image.height)
+                right = round((x + width) * source_image.width)
+                bottom = round((y + height) * source_image.height)
+                bbox = [left, top, max(left + 1, right), max(top + 1, bottom)]
+                if shape == "circle":
+                    draw.ellipse(bbox, fill=255)
+                else:
+                    radius = max(4, int(min(source_image.width, source_image.height) * 0.01))
+                    draw.rounded_rectangle(bbox, radius=radius, fill=255)
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                canvas.save(output_path, format="PNG")
+        except UnidentifiedImageError as exc:
+            raise HTTPException(status_code=400, detail="无法读取原始页图，遮罩创建失败") from exc
+
+        return output_path
+
+    async def _normalize_uploaded_mask(
+        self,
+        *,
+        source_image_path: Path,
+        output_path: Path,
+        mask_upload: UploadFile,
+    ) -> Path:
+        raw = await mask_upload.read()
+        if not raw:
+            raise HTTPException(status_code=400, detail="上传的遮罩文件为空")
+
+        try:
+            with Image.open(source_image_path) as source_image, Image.open(BytesIO(raw)) as mask_image:
+                normalized = mask_image.convert("L").resize(source_image.size, Image.NEAREST)
+                normalized = normalized.point(lambda px: 255 if px >= 16 else 0)
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                normalized.save(output_path, format="PNG")
+        except UnidentifiedImageError as exc:
+            raise HTTPException(status_code=400, detail="上传的遮罩文件不是合法图片") from exc
+
+        return output_path
+
+    async def _prepare_edit_mask(
+        self,
+        *,
+        base_dir: Path,
+        pagecontent: List[Dict[str, Any]],
+        page_id: Optional[int],
+        get_down: bool,
+        mask_upload: UploadFile | None,
+        mask_spec: Optional[str],
+    ) -> Optional[Path]:
+        if not get_down or page_id is None:
+            return None
+        if mask_upload is None and not str(mask_spec or "").strip():
+            return None
+
+        source_image_path = self._resolve_edit_source_image_path(
+            base_dir=base_dir,
+            pagecontent=pagecontent,
+            page_id=page_id,
+        )
+        mask_dir = (base_dir / "edit_masks").resolve()
+        mask_output_path = mask_dir / f"page_{page_id:03d}_mask.png"
+
+        if mask_upload is not None:
+            return await self._normalize_uploaded_mask(
+                source_image_path=source_image_path,
+                output_path=mask_output_path,
+                mask_upload=mask_upload,
+            )
+
+        return self._build_mask_from_spec(
+            source_image_path=source_image_path,
+            output_path=mask_output_path,
+            mask_spec=str(mask_spec or "").strip(),
+        )
 
     async def _prepare_input_for_pagecontent(
         self,

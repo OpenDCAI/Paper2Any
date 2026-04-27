@@ -6,6 +6,7 @@ import Paper2PptPage from './components/Paper2PptPage';
 import Pdf2PptPage from './components/Pdf2PptPage';
 import Image2PptPage from './components/Image2PptPage';
 import Image2DrawioPage from './components/Image2DrawioPage';
+import ImagePlaygroundPage from './components/ImagePlaygroundPage';
 import Ppt2PolishPage from './components/Ppt2PolishPage';
 import KnowledgeBasePage from './components/KnowledgeBasePage';
 import { FilesPage } from './components/FilesPage';
@@ -31,6 +32,7 @@ const pageIds = [
   'paper2figure-tech-exp',
   'paper2figure-model-drawio',
   'paper2drawio-ai',
+  'image-playground',
   'mindmap',
   'paper2ppt',
   'paper2ppt-image',
@@ -57,6 +59,7 @@ const pagePaths: Record<ActivePage, string> = {
   'paper2figure-tech-exp': '/paper2figure/tech-exp',
   'paper2figure-model-drawio': '/paper2figure/model-drawio',
   'paper2drawio-ai': '/paper2drawio-ai',
+  'image-playground': '/image-playground',
   'mindmap': '/mindmap',
   'paper2ppt': '/paper2ppt',
   'paper2ppt-image': '/paper2ppt/image',
@@ -236,6 +239,7 @@ function App() {
           {activePage === 'paper2figure-tech-exp' && <Paper2GraphTechExpPage />}
           {activePage === 'paper2figure-model-drawio' && <Paper2GraphDrawioPage />}
           {activePage === 'paper2drawio-ai' && <Paper2DrawioAiPage />}
+          {activePage === 'image-playground' && <ImagePlaygroundPage />}
           {activePage === 'mindmap' && <MindMapPage />}
           {(activePage === 'paper2ppt' || activePage === 'paper2ppt-image') && (
             <Paper2PptPage initialMode="image" />

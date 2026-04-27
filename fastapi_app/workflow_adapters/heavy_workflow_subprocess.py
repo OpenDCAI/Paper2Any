@@ -23,6 +23,19 @@ HEAVY_WORKFLOW_PYTHON_ENV = "PAPER2ANY_HEAVY_WORKFLOW_PYTHON"
 _LOG_STREAM_LIMIT = 2 * 1024 * 1024
 
 
+def _sanitize_worker_proxy_env(env: dict[str, str]) -> None:
+    """
+    The host shell may export ALL_PROXY=socks5h://..., but several SDK/httpx
+    call sites inside the heavy workflow worker do not support that scheme.
+    Keep HTTP(S) proxy settings intact and drop only the problematic SOCKS
+    inheritance for the worker subprocess.
+    """
+    for key in ("ALL_PROXY", "all_proxy"):
+        raw = (env.get(key, "") or "").strip()
+        if raw.lower().startswith("socks5h://"):
+            env.pop(key, None)
+
+
 def in_heavy_workflow_subprocess() -> bool:
     return (os.getenv(SUBPROCESS_WORKER_ENV, "") or "").strip() == "1"
 
@@ -101,6 +114,7 @@ async def run_heavy_workflow_in_subprocess(
     env = os.environ.copy()
     env[SUBPROCESS_WORKER_ENV] = "1"
     env.setdefault("PYTHONUNBUFFERED", "1")
+    _sanitize_worker_proxy_env(env)
 
     log.info("[heavy-workflow:%s] running worker: %s", mode, " ".join(cmd))
     cleanup = True

@@ -11,6 +11,7 @@
     "nav": {
       "home": "首页总览",
       "paper2figure": "科研绘图生成",
+      "imagePlayground": "生图模型体验",
       "mindmap": "思维导图",
       "paper2drawio": "图表生成 (DrawIO)",
       "paper2ppt": "PPT生成",
@@ -35,6 +36,7 @@
     "navTooltip": {
       "home": "查看全部功能入口、示例预览与推荐使用路径，快速进入各个工作流",
       "paper2figure": "根据文档内容生成科研绘图，包括模型架构图、技术路线图、实验数据图等可编辑的PPTX格式图表",
+      "imagePlayground": "直接调用平台托管生图模型做提示词出图体验，适合快速测试科研绘图 prompt 和视觉方向",
       "mindmap": "上传论文、讲义、会议笔记或直接粘贴正文，生成独立树状思维导图，并在页面内继续编辑节点与分支结构",
       "paper2drawio": "将图片转换为可编辑的DrawIO图表，支持流程图、架构图等多种类型",
       "paper2ppt": "上传PDF或输入主题，AI智能分析内容并生成精美的学术汇报幻灯片",

@@ -19,6 +19,7 @@ _SCOPE_TO_SETTING_NAMES: dict[str, tuple[str, str]] = {
     "kb": ("KB_MANAGED_API_URL", "KB_MANAGED_API_KEY"),
     "kb_deepresearch": ("KB_DEEPRESEARCH_MANAGED_API_URL", "KB_DEEPRESEARCH_MANAGED_API_KEY"),
     "paper2rebuttal": ("PAPER2REBUTTAL_MANAGED_API_URL", "PAPER2REBUTTAL_MANAGED_API_KEY"),
+    "image_playground": ("IMAGE_PLAYGROUND_MANAGED_API_URL", "IMAGE_PLAYGROUND_MANAGED_API_KEY"),
 }
 _SCOPE_TO_IMAGE_SETTING_NAMES: dict[str, tuple[str, str]] = {
     scope: (

@@ -29,6 +29,8 @@ import enPaper2citation from './locales/en/paper2citation.json';
 import zhPaper2citation from './locales/zh/paper2citation.json';
 import enMindmap from './locales/en/mindmap.json';
 import zhMindmap from './locales/zh/mindmap.json';
+import enImagePlayground from './locales/en/imagePlayground.json';
+import zhImagePlayground from './locales/zh/imagePlayground.json';
 
 i18n
   // 检测用户语言
@@ -58,7 +60,8 @@ i18n
         paper2rebuttal: enPaper2rebuttal,
         paper2video: enPaper2video,
         paper2citation: enPaper2citation,
-        mindmap: enMindmap
+        mindmap: enMindmap,
+        imagePlayground: enImagePlayground
       },
       zh: {
         common: zhCommon,
@@ -73,13 +76,14 @@ i18n
         paper2rebuttal: zhPaper2rebuttal,
         paper2video: zhPaper2video,
         paper2citation: zhPaper2citation,
-        mindmap: zhMindmap
+        mindmap: zhMindmap,
+        imagePlayground: zhImagePlayground
       }
     },
     // 默认命名空间
     defaultNS: 'common',
     // 命名空间
-    ns: ['common', 'login', 'paper2ppt', 'pdf2ppt', 'image2ppt', 'image2drawio', 'pptPolish', 'paper2graph', 'paper2drawio', 'paper2rebuttal', 'paper2video', 'paper2citation', 'mindmap']
+    ns: ['common', 'login', 'paper2ppt', 'pdf2ppt', 'image2ppt', 'image2drawio', 'pptPolish', 'paper2graph', 'paper2drawio', 'paper2rebuttal', 'paper2video', 'paper2citation', 'mindmap', 'imagePlayground']
   });
 
 export default i18n;

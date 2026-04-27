@@ -25,6 +25,8 @@ import ManagedApiNotice from './ManagedApiNotice';
 import { useRuntimeBilling } from '../hooks/useRuntimeBilling';
 import { appendManagedApiConfig, appendManagedModel } from '../utils/runtimeBillingForm';
 import VersionHistory from './paper2ppt/VersionHistory';
+import MaskSelectionEditor from './paper2ppt/MaskSelectionEditor';
+import type { MaskSelectionSpec } from './paper2ppt/types';
 import {
   buildInsufficientPointsMessage,
   buildQuotaExhaustedMessage,
@@ -227,6 +229,7 @@ const Ppt2PolishPage = () => {
   const [isBeautifying, setIsBeautifying] = useState(false);
   const [isGeneratingInitial, setIsGeneratingInitial] = useState(false);
   const [slidePrompt, setSlidePrompt] = useState('');
+  const [slideMaskSelection, setSlideMaskSelection] = useState<MaskSelectionSpec | null>(null);
   
   // Step 4: 完成状态
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false);
@@ -253,6 +256,12 @@ const Ppt2PolishPage = () => {
     dataflex: null,
   });
   const [copySuccess, setCopySuccess] = useState('');
+
+  useEffect(() => {
+    if (currentStep === 'beautify') {
+      setSlideMaskSelection(null);
+    }
+  }, [currentSlideIndex, currentStep]);
 
   const shareText = `发现一个超好用的AI工具 DataFlow-Agent！🚀
 支持论文转PPT、PDF转PPT、PPT美化等功能，科研打工人的福音！
@@ -1130,6 +1139,9 @@ const Ppt2PolishPage = () => {
       formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', currentPath);
       formData.append('edit_prompt', slidePrompt || '请美化这一页的样式');
+      if (slideMaskSelection) {
+        formData.append('mask_spec', JSON.stringify(slideMaskSelection));
+      }
       
       // 编辑模式下，必须传递 pagecontent，包含原图路径
       console.log('使用的 outlineData:', currentOutlineData);
@@ -1226,6 +1238,7 @@ const Ppt2PolishPage = () => {
         userPrompt: slidePrompt || undefined,
       };
       setBeautifyResults(updatedResults);
+      setSlideMaskSelection(null);
       setError(null);
 
       // 获取更新的版本历史
@@ -2072,7 +2085,7 @@ const Ppt2PolishPage = () => {
             </div>
             <div>
               <h4 className="text-sm text-gray-400 mb-3 flex items-center gap-2"><Sparkles size={14} className="text-teal-400" /> {t('beautify.result')}</h4>
-              <div className="rounded-lg overflow-hidden border border-teal-500/30 aspect-[16/9] bg-gradient-to-br from-cyan-500/10 to-teal-500/10 flex items-center justify-center">{isBeautifying ? <div className="text-center"><Loader2 size={32} className="text-teal-400 animate-spin mx-auto mb-2" /><p className="text-sm text-teal-300">{t('beautify.processing')}</p></div> : currentResult?.afterImage ? <img src={currentResult.afterImagePreview || currentResult.afterImage} alt="After" className="max-w-full max-h-full object-contain" /> : currentResult?.status === 'failed' ? <div className="text-center px-6"><AlertCircle size={28} className="text-red-300 mx-auto mb-2" /><p className="text-sm text-red-200 mb-1">该页生成失败</p><p className="text-xs text-red-200/80">{currentResult.errorMessage || '请点击“重新生成”重试'}</p></div> : <span className="text-gray-500">{t('beautify.waiting')}</span>}</div>
+              <div className="rounded-lg overflow-hidden border border-teal-500/30 bg-gradient-to-br from-cyan-500/10 to-teal-500/10 p-3">{isBeautifying ? <div className="aspect-[16/9] flex items-center justify-center text-center"><Loader2 size={32} className="text-teal-400 animate-spin mx-auto mb-2" /><p className="text-sm text-teal-300">{t('beautify.processing')}</p></div> : currentResult?.afterImage ? <MaskSelectionEditor imageUrl={currentResult.afterImagePreview || currentResult.afterImage} alt="After" value={slideMaskSelection} onChange={setSlideMaskSelection} disabled={isBeautifying} /> : currentResult?.status === 'failed' ? <div className="aspect-[16/9] flex flex-col items-center justify-center text-center px-6"><AlertCircle size={28} className="text-red-300 mx-auto mb-2" /><p className="text-sm text-red-200 mb-1">该页生成失败</p><p className="text-xs text-red-200/80">{currentResult.errorMessage || '请点击“重新生成”重试'}</p></div> : <div className="aspect-[16/9] flex items-center justify-center"><span className="text-gray-500">{t('beautify.waiting')}</span></div>}</div>
             </div>
           </div>
         </div>
@@ -2089,6 +2102,9 @@ const Ppt2PolishPage = () => {
 
         <div className="glass rounded-xl border border-white/10 p-4 mb-6">
           <div className="flex items-center gap-3"><MessageSquare size={18} className="text-teal-400" /><input type="text" value={slidePrompt} onChange={(e) => setSlidePrompt(e.target.value)} placeholder={t('beautify.regeneratePlaceholder')} className="flex-1 bg-transparent border-none outline-none text-white text-sm placeholder:text-gray-500" /><button onClick={handleRegenerateSlide} disabled={isBeautifying || !slidePrompt.trim()} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 text-sm flex items-center gap-2 disabled:opacity-50 transition-all"><RefreshCw size={14} /> {t('beautify.regenerate')}</button></div>
+          {slideMaskSelection ? (
+            <p className="mt-3 text-xs text-cyan-200/90">已启用局部遮罩编辑，本次会优先修改选中区域并尽量保持其它区域不变。</p>
+          ) : null}
         </div>
         <div className="flex justify-between">
           <button onClick={() => setCurrentStep('upload')} className="px-6 py-2.5 rounded-lg border border-white/20 text-gray-300 hover:bg-white/10 flex items-center gap-2 transition-all"><ArrowLeft size={18} /> {t('beautify.back')}</button>

@@ -37,6 +37,7 @@ from fastapi_app.routers import paper2video
 from fastapi_app.routers import paper2any, paper2citation, paper2figure, paper2ppt, paper2poster
 from fastapi_app.routers import pdf2ppt, image2ppt, kb, kb_workflows, kb_embedding, files
 from fastapi_app.routers import image2drawio
+from fastapi_app.routers import image_playground
 from fastapi_app.routers import mindmap
 from fastapi_app.routers import paper2drawio
 from fastapi_app.routers import paper2rebuttal
@@ -102,6 +103,8 @@ def create_app() -> FastAPI:
     app.include_router(image2ppt.router, prefix="/api/v1", tags=["image2ppt"])
     # Image2DrawIO
     app.include_router(image2drawio.router, prefix="/api/v1", tags=["image2drawio"])
+    # Image Playground
+    app.include_router(image_playground.router, prefix="/api/v1", tags=["image_playground"])
     # MindMap
     app.include_router(mindmap.router, prefix="/api/v1", tags=["mindmap"])
     # 知识库接口

@@ -203,6 +203,51 @@ class Paper2FigureResponse(BaseModel):
     all_output_files: List[str] = []  # 本次任务产生的所有输出文件路径（稍后在路由层转换为 URL）
 
 
+# ===================== image playground 相关 =====================
+
+
+class ImagePlaygroundRequest(BaseModel):
+    prompt: str = Field(..., min_length=1, max_length=12000)
+    model: Optional[str] = None
+    chat_api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    template_key: Optional[str] = None
+    domain_key: Optional[str] = None
+    aspect_ratio: Optional[str] = None
+    resolution: Optional[str] = None
+    size: Optional[str] = None
+    quality: Optional[str] = None
+    batch_count: Literal[1, 2, 4, 8, 16] = 1
+
+
+class ImagePlaygroundImageItem(BaseModel):
+    index: int = 0
+    image_url: str = ""
+    preview_url: str = ""
+    file_path: str = ""
+    preview_path: str = ""
+    file_name: str = ""
+    preview_file_name: str = ""
+    variant_label: str = ""
+
+
+class ImagePlaygroundResponse(BaseModel):
+    success: bool
+    image_url: str = ""
+    file_path: str = ""
+    file_name: str = ""
+    model: str = ""
+    prompt: str = ""
+    workflow_type: str = "image_playground"
+    images: List[ImagePlaygroundImageItem] = []
+    batch_count: int = 1
+    success_count: int = 0
+    failed_count: int = 0
+    zip_path: str = ""
+    zip_file_name: str = ""
+    billing_warning: Optional[str] = None
+
+
 # ===================== paper2ppt 相关 =====================
 
 class PageContentRequest(BaseModel):
@@ -512,6 +557,7 @@ class PPTGenerationRequest(BaseModel):
     pagecontent: Optional[str] = None
     page_id: Optional[int] = None
     edit_prompt: Optional[str] = None
+    edit_mask_path: Optional[str] = None
     regenerate_from_outline: str = "false"
     # 图像生成分辨率（1K/2K/4K 等）
     image_resolution: Optional[str] = None
@@ -587,6 +633,7 @@ class Paper2PPTRequest(BaseModel):
 
     all_edited_down: bool = False
     use_ai_edit: bool = False
+    edit_mask_path: str = ""
 
     def get(self, key: str, default=None):
         """

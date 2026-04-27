@@ -59,6 +59,39 @@
 ## 🔥 News
 
 > [!TIP]
+> 🆕 <strong>2026-04-24 · 生图模型体验页升级</strong><br>
+> 新增独立的 <strong>生图模型体验</strong> 页面，可直接调用平台托管的 Nano Banana 2 / Nano Banana Pro / Image 2 / Image 2 All。<br>
+> 现在支持图中文字语言控制、模型专属参数、<strong>批量生图（1 / 2 / 4 / 8 / 16）</strong>、压缩缩略图预览，以及一键打包下载。
+
+> [!TIP]
+> 🆕 <strong>2026-04-15 · 2026 论文进展</strong><br>
+> 两篇与 Paper2Any 相关的论文已进入 2026 会议信息流：<br>
+> <a href="https://arxiv.org/abs/2511.18036" target="_blank"><strong>Paper2SysArch: Structure-Constrained System Architecture Generation from Scientific Papers</strong></a> · <strong>CVPR 2026 Findings</strong><br>
+> <a href="https://arxiv.org/abs/2602.09809" target="_blank"><strong>SciFlow-Bench: Evaluating Structure-Aware Scientific Diagram Generation via Inverse Parsing</strong></a> · <strong>ACL 2026 Main</strong>
+>
+> <details>
+> <summary><strong>BibTeX</strong></summary>
+>
+> ```bibtex
+> @article{guo2025paper2sysarch,
+>   title   = {Paper2SysArch: Structure-Constrained System Architecture Generation from Scientific Papers},
+>   author  = {Guo, Ziyi and Liu, Zhou and Zhang, Wentao},
+>   journal = {arXiv preprint arXiv:2511.18036},
+>   year    = {2025},
+>   note    = {CVPR 2026 Findings}
+> }
+>
+> @article{zhang2026sciflowbench,
+>   title   = {SciFlow-Bench: Evaluating Structure-Aware Scientific Diagram Generation via Inverse Parsing},
+>   author  = {Zhang, Tong and Lin, Honglin and Liu, Zhou and Chen, Chong and Zhang, Wentao},
+>   journal = {arXiv preprint arXiv:2602.09809},
+>   year    = {2026},
+>   note    = {ACL 2026 Main}
+> }
+> ```
+> </details>
+
+> [!TIP]
 > 🆕 <strong>2026-03-28 · 可编辑版 PPT 展示更新</strong><br>
 > 新增两张 <strong>可编辑版 PPT</strong> 工作流展示图：<br>
 > 一张用于展示多页生成后的 deck 总览，一张用于展示带主题锁定与画布编辑的编辑工作区。
@@ -103,6 +136,7 @@ Paper2Any 当前包含以下几个子能力：
 - **📝 Paper2Rebuttal**：自动生成结构化反驳草稿与修改建议，辅助审稿意见回复。
 - **🖼️ PDF2PPT - 版式保留转换**：精准保留版式的 PDF → 可编辑 PPTX。
 - **🖼️ Image2PPT - 图片转 PPT**：将图片或截图快速转换为结构化幻灯片。
+- **🔥 生图模型体验**：直接调用后端托管生图模型，支持提示词模板、图中文字语言控制、批量生图、压缩缩略图预览与整批下载。
 - **🎨 PPTPolish 智能美化**：基于 AI 的排版优化与风格迁移。
 - **🎬 Paper2Video**：生成讲解视频脚本与配音素材。
 - **🖼️ Paper2Poster - 论文转海报**：将论文 PDF 自动整理为学术海报，支持版式参数、Logo 注入与导出。

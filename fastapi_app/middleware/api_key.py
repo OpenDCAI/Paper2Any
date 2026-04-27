@@ -79,6 +79,7 @@ _RATE_LIMIT_RULES: dict[str, RateLimitRule] = {
     "/api/v1/mindmap/generate": RateLimitRule(limit=16, window_seconds=300, bucket="mindmap-generate"),
     "/api/v1/paper2drawio/generate": RateLimitRule(limit=10, window_seconds=300, bucket="paper2drawio-generate"),
     "/api/v1/paper2drawio/chat": RateLimitRule(limit=24, window_seconds=300, bucket="paper2drawio-chat"),
+    "/api/v1/image-playground/generate": RateLimitRule(limit=12, window_seconds=300, bucket="image-playground-generate"),
     "/api/v1/paper2poster/generate": RateLimitRule(limit=8, window_seconds=300, bucket="paper2poster"),
     "/api/v1/paper2video/generate-subtitle": RateLimitRule(limit=6, window_seconds=300, bucket="paper2video-subtitle"),
     "/api/v1/paper2video/generate-video": RateLimitRule(limit=4, window_seconds=600, bucket="paper2video-video"),
@@ -113,6 +114,7 @@ _WORKFLOW_GUARDS: dict[str, WorkflowGuard] = {
     "/api/v1/mindmap/generate": WorkflowGuard("kb_mindmap", consume_before_execute=False),
     "/api/v1/paper2drawio/generate": WorkflowGuard("paper2drawio"),
     "/api/v1/paper2drawio/chat": WorkflowGuard("paper2drawio"),
+    "/api/v1/image-playground/generate": WorkflowGuard("image_playground", consume_before_execute=False),
     "/api/v1/paper2poster/generate": WorkflowGuard("paper2poster"),
     "/api/v1/paper2video/generate-subtitle": WorkflowGuard("paper2video", consume_before_execute=False),
     "/api/v1/paper2video/generate-video": WorkflowGuard("paper2video"),
@@ -254,6 +256,19 @@ async def _resolve_workflow_charge_decision(
 
     if path == "/api/v1/mindmap/generate":
         return WorkflowChargeDecision(workflow_type=workflow_guard.workflow_type, amount=0)
+
+    if path == "/api/v1/image-playground/generate":
+        amount = _resolve_requested_amount(request, workflow_guard.workflow_type)
+        inferred_amount = max(1, int(get_workflow_cost(workflow_guard.workflow_type, default=1)))
+        try:
+            payload = json.loads((await request.body() or b"{}").decode("utf-8"))
+            batch_count = int(payload.get("batch_count") or 1)
+            if batch_count > 1:
+                inferred_amount *= batch_count
+        except (UnicodeDecodeError, ValueError, TypeError, json.JSONDecodeError):
+            pass
+        resolved_amount = max(inferred_amount, int(amount or inferred_amount))
+        return WorkflowChargeDecision(workflow_type=workflow_guard.workflow_type, amount=resolved_amount)
 
     if not path.startswith("/api/v1/paper2ppt/"):
         amount = _resolve_requested_amount(request, workflow_guard.workflow_type)

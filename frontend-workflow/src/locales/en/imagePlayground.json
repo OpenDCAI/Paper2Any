@@ -1,0 +1,92 @@
+{
+  "hero": {
+    "badge": "HOT IMAGE LAB",
+    "title": "Image Model Playground",
+    "description": "Use points to call backend-managed image models directly. Pick a model, apply a prompt shell, add paper content, and generate immediately."
+  },
+  "meta": {
+    "cost": "{{count}} points per generation",
+    "saved": "The generated image has been saved to History Files"
+  },
+  "managedNotice": "This page lets you switch between backend-managed image models directly. No manual API URL or API Key is required in managed mode, and each generation consumes points.",
+  "models": {
+    "title": "Models",
+    "gemini31": "Nano Banana 2",
+    "gemini31Desc": "Faster and suitable for most academic illustrations and infographics.",
+    "geminiPro": "Nano Banana Pro",
+    "geminiProDesc": "More stable on detail-heavy scientific visuals.",
+    "gptImage2": "Image 2",
+    "gptImage2Desc": "OpenAI-style generation with strong structure and standard visual output.",
+    "gptImage2All": "Image 2 All",
+    "gptImage2AllDesc": "A lighter variant for rapid prompt iteration and quick trials."
+  },
+  "controls": {
+    "textLanguage": "Text Language",
+    "batchCount": "Batch Count",
+    "batchOption": "{{count}} images",
+    "aspectRatio": "Aspect Ratio",
+    "resolution": "Resolution",
+    "size": "Size",
+    "quality": "Quality",
+    "gptImage2AllNotice": "Image 2 All does not support adjustable aspect ratio, resolution, size, or quality on this API, so those controls are intentionally hidden.",
+    "languageOptions": {
+      "en": "English",
+      "zh": "Chinese"
+    },
+    "qualityOptions": {
+      "auto": "Auto",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    }
+  },
+  "templates": {
+    "title": "Templates",
+    "research": "General Research Figure",
+    "researchDesc": "Good for method diagrams, workflows, infographics, and result summaries.",
+    "cs": "Computer Science Paper Figure",
+    "csDesc": "Good for model architecture, system diagrams, algorithms, and module relations.",
+    "bio": "Biology / Medical Paper Figure",
+    "bioDesc": "Good for mechanism diagrams, experiment flows, cell pathways, and medical infographics."
+  },
+  "chips": {
+    "title": "Prompt Chips",
+    "method": "Method Overview",
+    "model": "Model Architecture",
+    "pipeline": "Experiment Pipeline",
+    "result": "Result Summary Infographic",
+    "cover": "Paper Cover Visual"
+  },
+  "inputs": {
+    "paperContent": "Paper Content / Topic",
+    "paperPlaceholder": "Describe the paper, method, theme, or the figure you want to generate.",
+    "extra": "Extra Instructions",
+    "extraPlaceholder": "Add color, style, layout, density, whitespace, or other visual constraints.",
+    "preview": "Final Prompt Preview",
+    "apiUrl": "API URL",
+    "apiKey": "API Key"
+  },
+  "actions": {
+    "generate": "Generate ({{count}} points)",
+    "generateBatch": "Generate {{images}} Images ({{count}} points)",
+    "generating": "Generating {{count}} images...",
+    "copyPrompt": "Copy Prompt",
+    "download": "Download Image",
+    "downloadAll": "Download All"
+  },
+  "result": {
+    "title": "Preview",
+    "empty": "Generated thumbnails will appear here.",
+    "summary": "{{success}} / {{total}} images generated",
+    "partial": "{{success}} images succeeded and {{failed}} images failed in this batch.",
+    "loadingTitle": "Generating {{count}} images...",
+    "loadingDesc": "Backend requests are running in parallel. Only successful images will be billed."
+  },
+  "errors": {
+    "loginRequired": "Please sign in to continue.",
+    "promptRequired": "Please enter paper content or a topic first.",
+    "apiRequired": "This deployment uses user-provided API mode. Please fill in API URL and API Key.",
+    "copyFailed": "Copy failed. Please retry.",
+    "requestFailed": "Image generation request failed"
+  }
+}

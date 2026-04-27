@@ -414,6 +414,7 @@ async def run_paper2ppt_wf_api_local(
             state.edit_page_num = int(edit_page_num)
         if edit_page_prompt is not None:
             state.edit_page_prompt = str(edit_page_prompt)
+        state.edit_mask_path = str(getattr(req, "edit_mask_path", "") or "").strip()
         state.regenerate_from_outline = bool(regenerate_from_outline)
 
         if auto_fill_generated_pages and base_dir is not None:

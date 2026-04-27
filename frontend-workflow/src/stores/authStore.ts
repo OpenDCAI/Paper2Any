@@ -9,6 +9,15 @@ import { User, Session, Provider } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { backendFetch } from "../services/backendClient";
 
+declare global {
+  interface Window {
+    __PAPER2ANY_E2E__?: {
+      setMockUser: (user: Partial<User> | null) => void;
+      clearMockUser: () => void;
+    };
+  }
+}
+
 interface Quota {
   used: number;
   limit: number;
@@ -461,4 +470,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
  */
 export function getAccessToken(): string | null {
   return useAuthStore.getState().session?.access_token ?? null;
+}
+
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  window.__PAPER2ANY_E2E__ = {
+    setMockUser: (user) => {
+      useAuthStore.setState({
+        user: user as User | null,
+        session: null,
+        loading: false,
+        error: null,
+      });
+    },
+    clearMockUser: () => {
+      useAuthStore.setState({
+        user: null,
+        session: null,
+        loading: false,
+        error: null,
+      });
+    },
+  };
 }

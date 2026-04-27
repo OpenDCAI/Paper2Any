@@ -45,6 +45,7 @@ DEFAULT_PRICING: Dict[str, Any] = {
         "paper2video": 5,
         "paper2citation": 1,
         "paper2rebuttal": 1,
+        "image_playground": 2,
         "ppt2polish": 1,
         "kb_report": 1,
         "kb_deepresearch": 2,

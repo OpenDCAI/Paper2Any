@@ -214,6 +214,9 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Local git worktrees
+.worktrees/
+
 # Claude Code
 CLAUDE.md
 

@@ -8,6 +8,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from dataflow_agent.toolkits.multimodaltool.providers import (  # noqa: E402
+    ApiYiGPTImageAllProvider,
+    ApiYiGPTImageProvider,
     IkunCodeGeminiProvider,
     get_provider,
 )
@@ -77,3 +79,55 @@ def test_ikuncode_parse_generation_response_handles_text_then_image_parts() -> N
         ]
     }
     assert provider.parse_generation_response(data) == "ZmFrZS1pbWFnZQ=="
+
+
+def test_get_provider_returns_apiyi_gpt_image_all_strategy_for_special_model() -> None:
+    provider = get_provider("https://api.apiyi.com/v1", "gpt-image-2-all")
+    assert isinstance(provider, ApiYiGPTImageAllProvider)
+
+
+def test_apiyi_gpt_image_all_payload_omits_unsupported_generation_fields() -> None:
+    provider = ApiYiGPTImageAllProvider()
+    url, payload, is_stream = provider.build_generation_request(
+        api_url="https://api.apiyi.com/v1",
+        model="gpt-image-2-all",
+        prompt="test prompt",
+        size="2048x1152",
+        quality="medium",
+        n=2,
+    )
+    assert not is_stream
+    assert url == "https://api.apiyi.com/v1/images/generations"
+    assert payload == {
+        "model": "gpt-image-2-all",
+        "prompt": "test prompt",
+        "response_format": "b64_json",
+    }
+
+
+def test_apiyi_gpt_image_all_parser_strips_data_url_prefix() -> None:
+    provider = ApiYiGPTImageAllProvider()
+    data = {
+        "data": [
+            {
+                "b64_json": "data:image/png;base64,ZmFrZS1pbWFnZQ==",
+            }
+        ]
+    }
+    assert provider.parse_generation_response(data) == "ZmFrZS1pbWFnZQ=="
+
+
+def test_apiyi_gpt_image_2_payload_keeps_supported_fields() -> None:
+    provider = ApiYiGPTImageProvider()
+    _, payload, _ = provider.build_generation_request(
+        api_url="https://api.apiyi.com/v1",
+        model="gpt-image-2",
+        prompt="test prompt",
+        size="2048x1152",
+        quality="medium",
+        output_format="png",
+    )
+    assert payload["model"] == "gpt-image-2"
+    assert payload["size"] == "2048x1152"
+    assert payload["quality"] == "medium"
+    assert payload["output_format"] == "png"

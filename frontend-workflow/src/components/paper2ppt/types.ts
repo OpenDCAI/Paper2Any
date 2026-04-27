@@ -27,10 +27,20 @@ export interface GenerateResult {
   beforeImagePreview?: string;
   afterImage: string;
   afterImagePreview?: string;
-  status: 'pending' | 'processing' | 'done';
+  status: 'pending' | 'processing' | 'done' | 'failed';
   userPrompt?: string;
   versionHistory: ImageVersion[];
   currentVersionIndex: number;
+}
+
+export type MaskSelectionShape = 'rect' | 'circle';
+
+export interface MaskSelectionSpec {
+  shape: MaskSelectionShape;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export type FrontendFieldType = 'text' | 'textarea' | 'list';
