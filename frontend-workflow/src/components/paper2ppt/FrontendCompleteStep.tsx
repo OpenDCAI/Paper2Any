@@ -7,11 +7,12 @@ import {
   RotateCcw,
   Sparkles,
 } from 'lucide-react';
-import { FrontendSlide } from './types';
+import { FrontendDeckTheme, FrontendSlide } from './types';
 import FrontendSlidePreview from './FrontendSlidePreview';
 
 interface FrontendCompleteStepProps {
   slides: FrontendSlide[];
+  deckTheme?: FrontendDeckTheme | null;
   downloadUrl: string | null;
   pdfPreviewUrl: string | null;
   isGeneratingFinal: boolean;
@@ -25,6 +26,7 @@ interface FrontendCompleteStepProps {
 
 const FrontendCompleteStep: React.FC<FrontendCompleteStepProps> = ({
   slides,
+  deckTheme = null,
   downloadUrl,
   pdfPreviewUrl,
   isGeneratingFinal,
@@ -52,7 +54,7 @@ const FrontendCompleteStep: React.FC<FrontendCompleteStepProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {slides.map((slide) => (
             <div key={slide.slideId} className="space-y-2">
-              <FrontendSlidePreview slide={slide} />
+              <FrontendSlidePreview slide={slide} deckTheme={deckTheme} />
               <p className="text-xs text-gray-400">
                 第 {slide.pageNum} 页 · {slide.title}
               </p>

@@ -1,10 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Pencil, X } from 'lucide-react';
-import { FrontendSlide } from './types';
+import {
+  buildFrontendInsertZoneTarget,
+  FrontendDeckTheme,
+  FrontendSlide,
+} from './types';
 import { buildFrontendSlideMarkup } from './frontendSlideUtils';
 
 interface FrontendSlidePreviewProps {
   slide: FrontendSlide;
+  deckTheme?: FrontendDeckTheme | null;
   className?: string;
   mode?: 'responsive' | 'capture';
   captureRef?: (node: HTMLDivElement | null) => void;
@@ -13,6 +18,9 @@ interface FrontendSlidePreviewProps {
   onInlineListItemChange?: (fieldKey: string, itemIndex: number, value: string) => void;
   onInlineListReplace?: (fieldKey: string, items: string[]) => void;
   onReplaceImage?: (imageKey: string, file: File) => void | Promise<void>;
+  selectedBlockId?: string | null;
+  onSelectBlock?: (blockId: string | null) => void;
+  onHoverBlock?: (blockId: string | null) => void;
 }
 
 interface InlineEditorState {
@@ -27,8 +35,19 @@ interface InlineEditorState {
   multiline: boolean;
 }
 
+interface BlockHoverState {
+  blockId: string;
+  role: string;
+  kind: 'block' | 'zone';
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
   slide,
+  deckTheme = null,
   className = '',
   mode = 'responsive',
   captureRef,
@@ -37,6 +56,9 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
   onInlineListItemChange,
   onInlineListReplace,
   onReplaceImage,
+  selectedBlockId = null,
+  onSelectBlock,
+  onHoverBlock,
 }) => {
   const DESIGN_WIDTH = 1600;
   const DESIGN_HEIGHT = 900;
@@ -45,6 +67,8 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
   const [scale, setScale] = useState(1);
   const [inlineEditor, setInlineEditor] = useState<InlineEditorState | null>(null);
   const [pendingImageKey, setPendingImageKey] = useState<string | null>(null);
+  const [hoveredBlock, setHoveredBlock] = useState<BlockHoverState | null>(null);
+  const lastHoverBlockIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (mode !== 'responsive' || !containerRef.current) {
@@ -69,7 +93,14 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
 
   useEffect(() => {
     setInlineEditor(null);
-  }, [slide.slideId, slide.htmlTemplate, slide.cssCode]);
+    setHoveredBlock(null);
+    lastHoverBlockIdRef.current = null;
+    onHoverBlock?.(null);
+  }, [slide.slideId]);
+
+  useEffect(() => {
+    setInlineEditor(null);
+  }, [slide.htmlTemplate, slide.cssCode, slide.templateKey, slide.layoutMode, slide.blocks]);
 
   useEffect(() => {
     if (!inlineEditor) {
@@ -121,6 +152,78 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
     imageInputRef.current?.click();
   };
 
+  const resolveBlockNode = (target: HTMLElement) => {
+    if (target.closest('[data-inline-editor="true"]')) {
+      return null;
+    }
+    return target.closest('[data-block-id]') as HTMLElement | null;
+  };
+
+  const resolveInsertZoneNode = (target: HTMLElement) => {
+    if (target.closest('[data-inline-editor="true"]')) {
+      return null;
+    }
+    return target.closest('[data-insert-zone]') as HTMLElement | null;
+  };
+
+  const notifyHoverBlock = (blockId: string | null) => {
+    if (lastHoverBlockIdRef.current === blockId) {
+      return;
+    }
+    lastHoverBlockIdRef.current = blockId;
+    onHoverBlock?.(blockId);
+  };
+
+  const clearHoveredBlock = () => {
+    setHoveredBlock(null);
+    notifyHoverBlock(null);
+  };
+
+  const handleBlockMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!inlineEditEnabled || mode !== 'responsive' || !containerRef.current) {
+      return;
+    }
+
+    const target = event.target as HTMLElement;
+    const blockNode = resolveBlockNode(target);
+    const zoneNode = resolveInsertZoneNode(target);
+    const blockId = blockNode?.dataset.blockId || '';
+    const zone = zoneNode?.dataset.insertZone || '';
+    const hoverTargetId = blockId || (zone ? buildFrontendInsertZoneTarget(zone) : '');
+    const hoverNode = blockNode || zoneNode;
+    if (!hoverNode || !hoverTargetId) {
+      clearHoveredBlock();
+      return;
+    }
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const blockRect = hoverNode.getBoundingClientRect();
+    const nextHoveredBlock: BlockHoverState = {
+      blockId: hoverTargetId,
+      role: blockNode?.dataset.blockRole || zoneNode?.dataset.insertZoneLabel || zone,
+      kind: blockId ? 'block' : 'zone',
+      left: Math.max(0, blockRect.left - containerRect.left),
+      top: Math.max(0, blockRect.top - containerRect.top),
+      width: Math.max(0, blockRect.width),
+      height: Math.max(0, blockRect.height),
+    };
+
+    setHoveredBlock((prev) => {
+      if (
+        prev
+        && prev.blockId === nextHoveredBlock.blockId
+        && Math.abs(prev.left - nextHoveredBlock.left) < 1
+        && Math.abs(prev.top - nextHoveredBlock.top) < 1
+        && Math.abs(prev.width - nextHoveredBlock.width) < 1
+        && Math.abs(prev.height - nextHoveredBlock.height) < 1
+      ) {
+        return prev;
+      }
+      return nextHoveredBlock;
+    });
+    notifyHoverBlock(hoverTargetId);
+  };
+
   const handleImageInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     const imageKey = pendingImageKey;
@@ -142,6 +245,16 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
       return;
     }
 
+    const blockNode = resolveBlockNode(target);
+    if (blockNode?.dataset.blockId) {
+      onSelectBlock?.(blockNode.dataset.blockId);
+    }
+    const zoneNode = resolveInsertZoneNode(target);
+    const zone = zoneNode?.dataset.insertZone || '';
+    if (!blockNode && zone) {
+      onSelectBlock?.(buildFrontendInsertZoneTarget(zone));
+    }
+
     const imageNode = target.closest('[data-image-key]') as HTMLElement | null;
     if (imageNode) {
       event.preventDefault();
@@ -160,6 +273,9 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
         persistInlineEdit(inlineEditor);
       }
       setInlineEditor(null);
+      if (!blockNode && !zoneNode) {
+        onSelectBlock?.(null);
+      }
       return;
     }
 
@@ -240,7 +356,7 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
             background: '#0b1020',
             boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
           }}
-          dangerouslySetInnerHTML={{ __html: buildFrontendSlideMarkup(slide) }}
+          dangerouslySetInnerHTML={{ __html: buildFrontendSlideMarkup(slide, deckTheme) }}
         />
       </div>
     );
@@ -250,6 +366,8 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
     <div
       ref={containerRef}
       className={`relative w-full aspect-[16/9] overflow-hidden rounded-[28px] bg-[#07101f] ${className}`}
+      onMouseMove={handleBlockMouseMove}
+      onMouseLeave={clearHoveredBlock}
       onMouseDown={handleEditableClick}
     >
       <div
@@ -263,15 +381,52 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
       >
         <div
           className="w-full h-full overflow-hidden rounded-[28px] bg-[#0b1020] shadow-[0_20px_60px_rgba(0,0,0,0.3)]"
-          dangerouslySetInnerHTML={{ __html: buildFrontendSlideMarkup(slide) }}
+          dangerouslySetInnerHTML={{ __html: buildFrontendSlideMarkup(slide, deckTheme) }}
         />
       </div>
+
+      {hoveredBlock && (
+        <div
+          className="pointer-events-none absolute z-20 rounded-[18px] border border-white/85 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.35),0_18px_46px_rgba(15,23,42,0.26)]"
+          style={{
+            left: `${hoveredBlock.left}px`,
+            top: `${hoveredBlock.top}px`,
+            width: `${hoveredBlock.width}px`,
+            height: `${hoveredBlock.height}px`,
+          }}
+        >
+          <div className="absolute left-0 top-0 -translate-y-[calc(100%+6px)] whitespace-nowrap rounded-full border border-white/35 bg-[#06101d]/92 px-2.5 py-1 text-[10px] font-medium text-white shadow-[0_10px_24px_rgba(0,0,0,0.25)]">
+            {hoveredBlock.kind === 'zone' ? '空白区域' : 'hover'}: {hoveredBlock.role || hoveredBlock.blockId}
+          </div>
+        </div>
+      )}
+
+      {(hoveredBlock || selectedBlockId) && (
+        <div className="pointer-events-none absolute right-4 top-4 z-20 flex max-w-[55%] flex-col items-end gap-1.5">
+          {hoveredBlock && (
+            <div className="rounded-full border border-white/25 bg-[#06101d]/85 px-3 py-1.5 text-[11px] text-white/90 shadow-[0_12px_28px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+              鼠标所在：{hoveredBlock.kind === 'zone' ? `空白区域 ${hoveredBlock.role}` : hoveredBlock.blockId}
+            </div>
+          )}
+          {selectedBlockId && (
+            <div className="rounded-full border border-emerald-400/25 bg-[#06101d]/85 px-3 py-1.5 text-[11px] text-emerald-100/85 shadow-[0_12px_28px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+              已选择：{selectedBlockId}
+            </div>
+          )}
+        </div>
+      )}
 
       {inlineEditEnabled && (
         <div className="pointer-events-none absolute inset-x-4 bottom-4 z-20">
           <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-[#06101d]/85 px-3 py-1.5 text-[11px] text-cyan-100/85 shadow-[0_12px_28px_rgba(0,0,0,0.28)] backdrop-blur-xl">
             <Pencil size={12} />
-            点击文字可直接编辑，点击图片可替换
+            {hoveredBlock
+              ? hoveredBlock.kind === 'zone'
+                ? `鼠标所在空白区域：${hoveredBlock.role}，点击后可新增同级 block`
+                : `鼠标所在区域：${hoveredBlock.blockId}`
+              : selectedBlockId
+                ? `当前选择区域：${selectedBlockId}`
+                : '鼠标移到 block 或空白区域上查看目标，点击固定插入位置'}
           </div>
         </div>
       )}

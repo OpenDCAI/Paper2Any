@@ -16,8 +16,13 @@ import {
 } from '../../utils/pointsMessaging';
 
 import {
+  FrontendBlockChild,
   FrontendDeckTheme,
+  FrontendEditableField,
   FrontendSlide,
+  FrontendSlideBlock,
+  FrontendTableData,
+  parseFrontendInsertZoneTarget,
   PptGenerationMode,
   Step,
   SlideOutline,
@@ -495,23 +500,858 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   const getPreviewPath = (item: any, key: string) =>
     String(item?.[`${key}_preview_path`] || item?.[`${key}PreviewPath`] || '').trim();
 
+  const SUPPORTED_SCHEMA_TEMPLATE_KEYS = new Set([
+    'title_cover',
+    'section_divider',
+    'text_focus',
+    'hero_visual',
+    'split_media',
+    'visual_compare',
+    'insight_grid',
+    'metrics_dashboard',
+    'timeline_overview',
+    'stacked_cards',
+    'quote_focus',
+    'dual_list',
+  ]);
+
+  const TEMPLATE_KEY_ALIASES: Record<string, string> = {
+    cover: 'title_cover',
+    cover_slide: 'title_cover',
+    title_slide: 'title_cover',
+    divider: 'section_divider',
+    section: 'section_divider',
+    section_break: 'section_divider',
+    text_only: 'text_focus',
+    text_heavy: 'text_focus',
+    hero: 'hero_visual',
+    single_visual: 'hero_visual',
+    media_split: 'split_media',
+    split_layout: 'split_media',
+    compare: 'visual_compare',
+    comparison: 'visual_compare',
+    image_compare: 'visual_compare',
+    grid: 'insight_grid',
+    card_grid: 'insight_grid',
+    dashboard: 'metrics_dashboard',
+    metrics: 'metrics_dashboard',
+    timeline: 'timeline_overview',
+    process_timeline: 'timeline_overview',
+    cards: 'stacked_cards',
+    card_stack: 'stacked_cards',
+    quote: 'quote_focus',
+    quote_slide: 'quote_focus',
+    two_lists: 'dual_list',
+    dual_column_list: 'dual_list',
+  };
+
+  const PREFERRED_SCHEMA_FIELD_KEYS: Record<string, string> = {
+    title: 'title',
+    summary: 'summary',
+    key_points: 'key_points',
+    takeaway: 'takeaway',
+    footer: 'footer',
+    eyebrow: 'eyebrow',
+  };
+
+  const normalizeStringList = (value: unknown): string[] =>
+    Array.isArray(value)
+      ? value.map((item) => String(item || '').trim()).filter(Boolean)
+      : [];
+
+  const normalizeTableRows = (value: unknown): string[][] =>
+    Array.isArray(value)
+      ? value
+          .map((row) =>
+            Array.isArray(row)
+              ? row.map((cell) => String(cell ?? '').trim())
+              : [],
+          )
+          .filter((row) => row.length > 0)
+      : [];
+
+  const normalizeSchemaTableData = (value: unknown): FrontendTableData | undefined => {
+    const source = (value && typeof value === 'object') ? value as Record<string, unknown> : {};
+    const headers = normalizeStringList(
+      source.headers
+      || source.columns
+      || source.cols,
+    );
+    const rows = normalizeTableRows(
+      source.rows
+      || source.data
+      || source.values,
+    );
+    const maxColumns = Math.max(headers.length, ...rows.map((row) => row.length), 0);
+    if (maxColumns === 0) {
+      return undefined;
+    }
+    return {
+      headers: Array.from({ length: maxColumns }, (_, index) => headers[index] || `列 ${index + 1}`),
+      rows: rows.length > 0
+        ? rows.map((row) => Array.from({ length: maxColumns }, (_, index) => row[index] || ''))
+        : [Array.from({ length: maxColumns }, () => '')],
+    };
+  };
+
+  const toFiniteNumber = (value: unknown, fallback: number) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : fallback;
+  };
+
+  const slugifySchemaToken = (value: unknown) =>
+    String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+  const normalizeSchemaTemplateKey = (value: unknown) => {
+    const candidate = slugifySchemaToken(value);
+    if (!candidate) {
+      return '';
+    }
+    if (SUPPORTED_SCHEMA_TEMPLATE_KEYS.has(candidate)) {
+      return candidate;
+    }
+    return TEMPLATE_KEY_ALIASES[candidate] || '';
+  };
+
+  const pickSchemaTemplateKeyFromBlocks = (
+    blocks: FrontendSlideBlock[],
+    visualAssetCount: number,
+  ) => {
+    const imageCount = blocks.filter((block) => block.type === 'image').length;
+    const listCount = blocks.filter((block) => block.type === 'list').length;
+    const statCount = blocks.filter((block) => block.type === 'stat').length;
+    const quoteCount = blocks.filter((block) => block.type === 'quote').length;
+
+    if (quoteCount > 0) return 'quote_focus';
+    if (imageCount >= 2) return 'visual_compare';
+    if (statCount >= 2) return 'metrics_dashboard';
+    if (listCount >= 2) return 'dual_list';
+    if (imageCount === 1 && listCount > 0) return 'split_media';
+    if (imageCount === 1 || visualAssetCount > 0) return 'hero_visual';
+    if (blocks.length <= 3) return 'section_divider';
+    if (blocks.length >= 6) return 'insight_grid';
+    return 'text_focus';
+  };
+
+  const normalizeSchemaLayoutMode = (value: unknown): FrontendSlide['layoutMode'] => {
+    const candidate = String(value || '').trim().toLowerCase();
+    if (candidate === 'fixed' || candidate === 'hybrid' || candidate === 'fluid') {
+      return candidate;
+    }
+    return 'fluid';
+  };
+
+  const normalizeSchemaBlockType = (value: unknown): FrontendSlideBlock['type'] => {
+    const candidate = String(value || '').trim().toLowerCase();
+    const aliases: Record<string, FrontendSlideBlock['type']> = {
+      paragraph: 'text',
+      textarea: 'text',
+      body: 'text',
+      bullets: 'list',
+      bullet_list: 'list',
+      points: 'list',
+      figure: 'image',
+      visual: 'image',
+      chart: 'image',
+      metric: 'stat',
+      number: 'stat',
+      note: 'callout',
+    };
+    const normalized = aliases[candidate] || candidate || 'text';
+    if (
+      normalized === 'text'
+      || normalized === 'list'
+      || normalized === 'image'
+      || normalized === 'quote'
+      || normalized === 'stat'
+      || normalized === 'callout'
+      || normalized === 'table'
+    ) {
+      return normalized;
+    }
+    return 'text';
+  };
+
+  const normalizeSchemaBlockLayout = (value: unknown, fallbackOrder: number): FrontendSlideBlock['layout'] => {
+    const layout = (value && typeof value === 'object') ? value as Record<string, unknown> : {};
+    const zoneCandidate = String(
+      layout.zone
+      || layout.slot
+      || layout.region
+      || layout.area
+      || 'main',
+    ).trim().toLowerCase();
+    const zone = (
+      zoneCandidate === 'header'
+      || zoneCandidate === 'main'
+      || zoneCandidate === 'aside'
+      || zoneCandidate === 'footer'
+      || zoneCandidate === 'full'
+      || zoneCandidate === 'left'
+      || zoneCandidate === 'right'
+    ) ? zoneCandidate : 'main';
+
+    const span = Math.max(1, Math.min(12, Math.round(toFiniteNumber(layout.span || layout.columns, zone === 'header' || zone === 'footer' || zone === 'full' ? 12 : 6))));
+    const order = Math.max(1, Math.round(toFiniteNumber(layout.order, fallbackOrder)));
+    const widthCandidate = String(
+      layout.preferred_width
+      || layout.preferredWidth
+      || layout.width
+      || '',
+    ).trim().toLowerCase();
+    const preferredWidth = (
+      widthCandidate === 'full'
+      || widthCandidate === 'wide'
+      || widthCandidate === 'half'
+      || widthCandidate === 'third'
+      || widthCandidate === 'narrow'
+      || widthCandidate === 'auto'
+    ) ? widthCandidate : span >= 12 ? 'full' : span >= 8 ? 'wide' : span >= 6 ? 'half' : span >= 4 ? 'third' : 'auto';
+
+    const sideCandidate = String(
+      layout.preferred_side
+      || layout.preferredSide
+      || layout.side
+      || '',
+    ).trim().toLowerCase();
+    const preferredSide = (
+      sideCandidate === 'left'
+      || sideCandidate === 'right'
+      || sideCandidate === 'center'
+      || sideCandidate === 'auto'
+    ) ? sideCandidate : zone === 'left' ? 'left' : zone === 'right' || zone === 'aside' ? 'right' : 'auto';
+
+    const emphasisCandidate = String(layout.emphasis || '').trim().toLowerCase();
+    const emphasis = (
+      emphasisCandidate === 'high'
+      || emphasisCandidate === 'medium'
+      || emphasisCandidate === 'low'
+    ) ? emphasisCandidate : 'medium';
+
+    return {
+      zone,
+      span,
+      order,
+      preferredWidth,
+      preferredSide,
+      emphasis,
+    };
+  };
+
+  const normalizeSchemaBlockChildren = (rawChildren: unknown): FrontendBlockChild[] => {
+    if (!Array.isArray(rawChildren)) {
+      return [];
+    }
+    const seenIds = new Set<string>();
+    const children: FrontendBlockChild[] = [];
+    rawChildren.forEach((rawChild, index) => {
+      if (!rawChild || typeof rawChild !== 'object') {
+        return;
+      }
+      const child = rawChild as Record<string, unknown>;
+      let id = slugifySchemaToken(
+        child.id
+        || child.key
+        || child.field_key
+        || child.fieldKey
+        || child.role
+        || `child_${index + 1}`,
+      ) || `child_${index + 1}`;
+      if (seenIds.has(id)) {
+        id = `${id}_${index + 1}`;
+      }
+      seenIds.add(id);
+
+      const type = normalizeSchemaBlockType(
+        child.type
+        || child.block_type
+        || child.blockType
+        || child.kind,
+      );
+      const role = slugifySchemaToken(
+        child.role
+        || child.semantic_role
+        || child.semanticRole
+        || id,
+      ) || id;
+      const items = normalizeStringList(child.items || child.bullets || child.points);
+      const content = String(
+        child.content
+        || child.text
+        || child.value
+        || child.body
+        || '',
+      ).trim();
+      const assetKey = type === 'image'
+        ? slugifySchemaToken(
+            child.asset_key
+            || child.assetKey
+            || child.image_key
+            || child.imageKey
+            || child.visual_key
+            || child.visualKey
+            || id,
+          ) || id
+        : undefined;
+      const tableData = type === 'table'
+        ? normalizeSchemaTableData(
+            child.table_data
+            || child.tableData
+            || child.table
+          )
+        : undefined;
+
+      if (type === 'table' && !tableData) {
+        return;
+      }
+      if (type !== 'image' && type !== 'list' && type !== 'table' && !content) {
+        return;
+      }
+      if (type === 'list' && items.length === 0 && !content) {
+        return;
+      }
+
+      children.push({
+        id,
+        type,
+        role,
+        content,
+        items: type === 'list' && items.length === 0 && content
+          ? content
+              .split(/\n+/)
+              .map((item) => item.replace(/^[\s\-•]+/, '').trim())
+              .filter(Boolean)
+          : items,
+        assetKey,
+        tableData,
+      });
+    });
+    return children;
+  };
+
+  const normalizeSchemaBlocks = (
+    rawBlocks: unknown,
+    visualAssets: Array<{ key: string }>,
+  ): FrontendSlideBlock[] => {
+    if (!Array.isArray(rawBlocks)) {
+      return [];
+    }
+
+    const availableAssetKeys = visualAssets
+      .map((asset) => slugifySchemaToken(asset.key) || String(asset.key || '').trim())
+      .filter(Boolean);
+    const usedBlockIds = new Set<string>();
+    const usedAssetKeys: string[] = [];
+
+    const pickAssetKey = (preferred: string, fallbackId: string) => {
+      const normalizedPreferred = slugifySchemaToken(preferred);
+      if (normalizedPreferred) {
+        return normalizedPreferred;
+      }
+      const nextUnused = availableAssetKeys.find((key) => !usedAssetKeys.includes(key));
+      return nextUnused || fallbackId;
+    };
+
+    const normalizedBlocks: FrontendSlideBlock[] = [];
+
+    rawBlocks.forEach((rawBlock, index) => {
+      if (!rawBlock || typeof rawBlock !== 'object') {
+        return;
+      }
+      const block = rawBlock as Record<string, unknown>;
+      const fallbackId = `block_${index + 1}`;
+      let id = slugifySchemaToken(
+        block.id
+        || block.key
+        || block.field_key
+        || block.fieldKey
+        || block.role
+        || fallbackId,
+      ) || fallbackId;
+      if (usedBlockIds.has(id)) {
+        id = `${id}_${index + 1}`;
+      }
+      usedBlockIds.add(id);
+
+      const type = normalizeSchemaBlockType(
+        block.type
+        || block.block_type
+        || block.blockType
+        || block.kind,
+      );
+      const role = slugifySchemaToken(
+        block.role
+        || block.semantic_role
+        || block.semanticRole
+        || id,
+      ) || id;
+
+      const items = normalizeStringList(
+        block.items
+        || block.bullets
+        || block.points,
+      );
+      const content = String(
+        block.content
+        || block.text
+        || block.value
+        || block.body
+        || '',
+      ).trim();
+
+      const normalizedItems = type === 'list' && items.length === 0 && content
+        ? content
+            .split(/\n+/)
+            .map((item) => item.replace(/^[\s\-•]+/, '').trim())
+            .filter(Boolean)
+        : items;
+
+      if (type === 'list' && normalizedItems.length === 0) {
+        return;
+      }
+
+      const tableData = type === 'table'
+        ? normalizeSchemaTableData(
+            block.table_data
+            || block.tableData
+            || block.table
+          )
+        : undefined;
+
+      if (type === 'table' && !tableData) {
+        return;
+      }
+      if (type !== 'image' && type !== 'table' && !content && normalizedItems.length === 0) {
+        return;
+      }
+
+      const assetKey = type === 'image'
+        ? pickAssetKey(
+            String(
+              block.asset_key
+              || block.assetKey
+              || block.image_key
+              || block.imageKey
+              || block.visual_key
+              || block.visualKey
+              || '',
+            ),
+            id,
+          )
+        : undefined;
+
+      if (assetKey && !usedAssetKeys.includes(assetKey)) {
+        usedAssetKeys.push(assetKey);
+      }
+
+      normalizedBlocks.push({
+        id,
+        type,
+        role,
+        content,
+        items: normalizedItems,
+        assetKey,
+        tableData,
+        children: normalizeSchemaBlockChildren(
+          block.children
+          || block.content_items
+          || block.contentItems
+          || block.elements,
+        ),
+        layout: normalizeSchemaBlockLayout(
+          block.layout
+          || block.layout_hint
+          || block.layoutHint,
+          index + 1,
+        ),
+      });
+    });
+
+    return normalizedBlocks
+      .sort((a, b) => a.layout.order - b.layout.order || a.id.localeCompare(b.id))
+      .map((block, index) => ({
+        ...block,
+        layout: {
+          ...block.layout,
+          order: index + 1,
+        },
+      }));
+  };
+
+  const getEditableFieldKeyForBlock = (slide: FrontendSlide, block: FrontendSlideBlock) => {
+    const fieldKeys = new Set(slide.editableFields.map((field) => field.key));
+    const candidates = [
+      PREFERRED_SCHEMA_FIELD_KEYS[block.role] || '',
+      block.role || '',
+      block.id || '',
+      slugifySchemaToken(block.role || ''),
+      slugifySchemaToken(block.id || ''),
+    ].filter(Boolean);
+    return candidates.find((candidate) => fieldKeys.has(candidate));
+  };
+
+  const buildIdleFrontendReview = (): NonNullable<FrontendSlide['review']> => ({
+    status: 'idle',
+    summary: '',
+    issues: [],
+  });
+
+  const buildUniqueBlockId = (slide: FrontendSlide, prefix: string) => {
+    const base = slugifySchemaToken(prefix) || 'block';
+    const existingIds = new Set([
+      ...slide.blocks.map((block) => block.id),
+      ...slide.blocks.flatMap((block) => (block.children || []).map((child) => child.id)),
+      ...slide.editableFields.map((field) => field.key),
+      ...slide.visualAssets.map((asset) => asset.key),
+    ]);
+    let candidate = `${base}_${Date.now().toString(36)}`;
+    let counter = 1;
+    while (existingIds.has(candidate)) {
+      counter += 1;
+      candidate = `${base}_${Date.now().toString(36)}_${counter}`;
+    }
+    return candidate;
+  };
+
+  const buildUniqueChildId = (slide: FrontendSlide, prefix: string) => {
+    const base = slugifySchemaToken(prefix) || 'item';
+    const existingIds = new Set([
+      ...slide.blocks.map((block) => block.id),
+      ...slide.blocks.flatMap((block) => (block.children || []).map((child) => child.id)),
+      ...slide.editableFields.map((field) => field.key),
+      ...slide.visualAssets.map((asset) => asset.key),
+    ]);
+    let candidate = `${base}_${Date.now().toString(36)}`;
+    let counter = 1;
+    while (existingIds.has(candidate)) {
+      counter += 1;
+      candidate = `${base}_${Date.now().toString(36)}_${counter}`;
+    }
+    return candidate;
+  };
+
+  const getDefaultInsertionBlockId = (slide: FrontendSlide) =>
+    slide.blocks.find((block) => ['main', 'aside', 'left', 'right', 'full'].includes(block.layout.zone))?.id
+    || slide.blocks[0]?.id
+    || '';
+
+  const blockToChild = (block: FrontendSlideBlock): FrontendBlockChild | null => {
+    if (block.type === 'image') {
+      return {
+        id: `${block.id}_content`,
+        type: 'image',
+        role: block.role,
+        content: '',
+        items: [],
+        assetKey: block.assetKey || block.id,
+      };
+    }
+    if (block.type === 'list') {
+      if (block.items.length === 0) {
+        return null;
+      }
+      return {
+        id: `${block.id}_content`,
+        type: 'list',
+        role: block.role,
+        content: '',
+        items: [...block.items],
+      };
+    }
+    if (block.type === 'table') {
+      if (!block.tableData) {
+        return null;
+      }
+      return {
+        id: `${block.id}_content`,
+        type: 'table',
+        role: block.role,
+        content: '',
+        items: [],
+        tableData: {
+          headers: [...block.tableData.headers],
+          rows: block.tableData.rows.map((row) => [...row]),
+        },
+      };
+    }
+    if (!block.content) {
+      return null;
+    }
+    return {
+      id: `${block.id}_content`,
+      type: block.type,
+      role: block.role,
+      content: block.content,
+      items: [],
+    };
+  };
+
+  const ensureBlockChildren = (block: FrontendSlideBlock): FrontendSlideBlock => {
+    if (block.children && block.children.length > 0) {
+      return block;
+    }
+    const legacyChild = blockToChild(block);
+    return {
+      ...block,
+      children: legacyChild ? [legacyChild] : [],
+    };
+  };
+
+  const insertChildIntoBlock = (
+    slide: FrontendSlide,
+    targetBlockId: string | undefined,
+    child: FrontendBlockChild,
+    editableField?: FrontendEditableField | FrontendEditableField[],
+  ): FrontendSlide => {
+    const fallbackBlockId = getDefaultInsertionBlockId(slide);
+    const resolvedBlockId = targetBlockId && slide.blocks.some((block) => block.id === targetBlockId)
+      ? targetBlockId
+      : fallbackBlockId;
+    if (!resolvedBlockId) {
+      return slide;
+    }
+
+    const editableFields = Array.isArray(editableField)
+      ? editableField
+      : editableField
+        ? [editableField]
+        : [];
+
+    return {
+      ...slide,
+      schemaVersion: slide.schemaVersion || 'frontend_slide_schema_v2',
+      layoutMode: slide.layoutMode || 'fluid',
+      blocks: slide.blocks.map((block) => {
+        if (block.id !== resolvedBlockId) {
+          return block;
+        }
+        const blockWithChildren = ensureBlockChildren(block);
+        return {
+          ...blockWithChildren,
+          children: [...(blockWithChildren.children || []), child],
+        };
+      }),
+      editableFields: editableFields.length > 0
+        ? [...slide.editableFields, ...editableFields]
+        : slide.editableFields,
+      generationNote: '当前页内容已手动编辑。',
+      review: buildIdleFrontendReview(),
+    };
+  };
+
+  const insertTopLevelBlockIntoZone = (
+    slide: FrontendSlide,
+    block: FrontendSlideBlock,
+    editableField?: FrontendEditableField | FrontendEditableField[],
+    visualAssets?: FrontendSlide['visualAssets'],
+  ): FrontendSlide => {
+    const editableFields = Array.isArray(editableField)
+      ? editableField
+      : editableField
+        ? [editableField]
+        : [];
+    return {
+      ...slide,
+      schemaVersion: slide.schemaVersion || 'frontend_slide_schema_v2',
+      layoutMode: slide.layoutMode || 'fluid',
+      blocks: [...slide.blocks, block],
+      editableFields: editableFields.length > 0
+        ? [...slide.editableFields, ...editableFields]
+        : slide.editableFields,
+      visualAssets: visualAssets || slide.visualAssets,
+      generationNote: '当前页内容已手动编辑。',
+      review: buildIdleFrontendReview(),
+    };
+  };
+
+  const buildInsertedBlockLayout = (
+    slide: FrontendSlide,
+    overrides: Partial<FrontendSlideBlock['layout']> = {},
+  ): FrontendSlideBlock['layout'] => ({
+    zone: 'main',
+    span: 6,
+    order: slide.blocks.length + 1,
+    preferredWidth: 'half',
+    preferredSide: 'auto',
+    emphasis: 'medium',
+    ...overrides,
+  });
+
+  const resolveTemplateAfterManualInsert = (
+    slide: FrontendSlide,
+    blocks: FrontendSlideBlock[],
+    visualAssetCount: number,
+    insertedType: FrontendSlideBlock['type'],
+  ) => {
+    const imageCount = blocks.filter((block) => block.type === 'image').length;
+    const nonImageCount = blocks.filter((block) => block.type !== 'image').length;
+    if (insertedType === 'image') {
+      const listCount = blocks.filter((block) => block.type === 'list').length;
+      if (imageCount >= 2) return 'visual_compare';
+      return listCount > 0 ? 'split_media' : 'hero_visual';
+    }
+    if (imageCount > 0) {
+      return imageCount >= 2 ? 'visual_compare' : 'split_media';
+    }
+    if (slide.templateKey === 'title_cover' || slide.templateKey === 'section_divider') {
+      return 'stacked_cards';
+    }
+    if (nonImageCount >= 5) {
+      return 'insight_grid';
+    }
+    return slide.templateKey || pickSchemaTemplateKeyFromBlocks(blocks, visualAssetCount);
+  };
+
+  const parseTableCellFieldKey = (fieldKey: string) => {
+    const match = /^(.+)_cell_(h|\d+)_(\d+)$/.exec(fieldKey);
+    if (!match) {
+      return null;
+    }
+    return {
+      ownerId: match[1],
+      row: match[2] === 'h' ? 'h' as const : Number.parseInt(match[2], 10),
+      col: Number.parseInt(match[3], 10),
+    };
+  };
+
+  const applyTableCellValue = <T extends FrontendSlideBlock | FrontendBlockChild>(
+    item: T,
+    fieldKey: string,
+    value: string,
+  ): T => {
+    const parsed = parseTableCellFieldKey(fieldKey);
+    if (!parsed || parsed.ownerId !== item.id || item.type !== 'table' || !item.tableData) {
+      return item;
+    }
+    const nextTableData: FrontendTableData = {
+      headers: [...item.tableData.headers],
+      rows: item.tableData.rows.map((row) => [...row]),
+    };
+    if (parsed.row === 'h') {
+      if (parsed.col >= 0 && parsed.col < nextTableData.headers.length) {
+        nextTableData.headers[parsed.col] = value;
+      }
+    } else if (
+      parsed.row >= 0
+      && parsed.row < nextTableData.rows.length
+      && parsed.col >= 0
+      && parsed.col < nextTableData.rows[parsed.row].length
+    ) {
+      nextTableData.rows[parsed.row][parsed.col] = value;
+    }
+    return {
+      ...item,
+      tableData: nextTableData,
+    };
+  };
+
+  const syncBlockWithEditableField = (
+    block: FrontendSlideBlock,
+    field: FrontendEditableField,
+  ): FrontendSlideBlock => {
+    const tableSyncedBlock = applyTableCellValue(block, field.key, field.value);
+    if (tableSyncedBlock !== block) {
+      return tableSyncedBlock;
+    }
+
+    if (field.type === 'list') {
+      if (block.type === 'list') {
+        return {
+          ...block,
+          content: '',
+          items: [...field.items],
+        };
+      }
+      return {
+        ...block,
+        content: field.items.join(' • '),
+        items: [...field.items],
+      };
+    }
+
+    if (block.type === 'list') {
+      return {
+        ...block,
+        content: field.value,
+        items: field.value ? [field.value] : [],
+      };
+    }
+
+    return {
+      ...block,
+      content: field.value,
+    };
+  };
+
+  const applyFrontendEditableFieldMutation = (
+    slide: FrontendSlide,
+    fieldKey: string,
+    updater: (field: FrontendEditableField) => FrontendEditableField,
+  ): FrontendSlide => {
+    const currentField = slide.editableFields.find((field) => field.key === fieldKey);
+    if (!currentField) {
+      return slide;
+    }
+    const nextMatchedField = updater(currentField);
+    const nextEditableFields = slide.editableFields.map((field) => {
+      if (field.key !== fieldKey) {
+        return field;
+      }
+      return nextMatchedField;
+    });
+
+    return {
+      ...slide,
+      title: fieldKey === 'title' ? nextMatchedField.value || slide.title : slide.title,
+      blocks: slide.blocks.map((block) =>
+        getEditableFieldKeyForBlock(slide, block) === fieldKey
+          ? syncBlockWithEditableField(block, nextMatchedField)
+          : {
+              ...block,
+              children: (block.children || []).map((child) => {
+                const tableSyncedChild = applyTableCellValue(child, fieldKey, nextMatchedField.value);
+                if (tableSyncedChild !== child) {
+                  return tableSyncedChild;
+                }
+                if (child.id !== fieldKey && child.role !== fieldKey) {
+                  return child;
+                }
+                if (nextMatchedField.type === 'list') {
+                  return {
+                    ...child,
+                    content: '',
+                    items: [...nextMatchedField.items],
+                  };
+                }
+                return {
+                  ...child,
+                  content: nextMatchedField.value,
+                };
+              }),
+            },
+      ),
+      editableFields: nextEditableFields,
+      generationNote: '当前页内容已手动编辑。',
+      review: buildIdleFrontendReview(),
+    };
+  };
+
   const normalizeFrontendSlides = (slides: any[]): FrontendSlide[] =>
-    slides.map((slide: any, index: number) => ({
-      slideId: String(slide.slide_id || slide.slideId || index + 1),
-      pageNum: Number(slide.page_num || slide.pageNum || index + 1),
-      title: slide.title || `第 ${index + 1} 页`,
-      htmlTemplate: slide.html_template || slide.htmlTemplate || '',
-      cssCode: slide.css_code || slide.cssCode || '',
-      editableFields: Array.isArray(slide.editable_fields || slide.editableFields)
+    slides.map((slide: any, index: number) => {
+      const editableFields = Array.isArray(slide.editable_fields || slide.editableFields)
         ? (slide.editable_fields || slide.editableFields).map((field: any) => ({
             key: String(field.key || ''),
             label: String(field.label || field.key || ''),
             type: field.type === 'list' || field.type === 'textarea' ? field.type : 'text',
             value: String(field.value || ''),
-            items: Array.isArray(field.items) ? field.items.map((item: any) => String(item || '')) : [],
+            items: normalizeStringList(field.items),
           }))
-        : [],
-      visualAssets: Array.isArray(slide.visual_assets || slide.visualAssets)
+        : [];
+      const visualAssets = Array.isArray(slide.visual_assets || slide.visualAssets)
         ? (slide.visual_assets || slide.visualAssets).map((asset: any, assetIndex: number) => ({
             key: String(asset.key || `main_visual_${assetIndex + 1}`),
             label: String(asset.label || asset.key || `Image ${assetIndex + 1}`),
@@ -529,37 +1369,97 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
             prompt: asset.prompt || undefined,
             style: asset.style || undefined,
           }))
-        : [],
-      generationNote: slide.generation_note || slide.generationNote || '',
-      status: slide.status === 'processing' || slide.status === 'pending' ? slide.status : 'done',
-      review: {
-        status: 'idle',
-        summary: '',
-        issues: [],
-      },
-    }));
+        : [];
+      const blocks = normalizeSchemaBlocks(
+        slide.blocks
+        || slide.elements
+        || slide.content_blocks
+        || slide.contentBlocks,
+        visualAssets,
+      );
+      const templateKey = normalizeSchemaTemplateKey(
+        slide.template_key
+        || slide.templateKey
+        || slide.layout_template
+        || slide.layoutTemplate,
+      ) || (blocks.length > 0 ? pickSchemaTemplateKeyFromBlocks(blocks, visualAssets.length) : '');
+
+      return {
+        slideId: String(slide.slide_id || slide.slideId || index + 1),
+        pageNum: Number(slide.page_num || slide.pageNum || index + 1),
+        title: String(slide.title || `第 ${index + 1} 页`),
+        schemaVersion: String(slide.schema_version || slide.schemaVersion || '').trim() || undefined,
+        templateKey: templateKey || undefined,
+        layoutMode: blocks.length > 0
+          ? normalizeSchemaLayoutMode(slide.layout_mode || slide.layoutMode)
+          : undefined,
+        blocks,
+        layoutFamily: String(slide.layout_family || slide.layoutFamily || '').trim() || undefined,
+        root: (slide.root && typeof slide.root === 'object') ? slide.root : undefined,
+        content: (slide.content && typeof slide.content === 'object') ? slide.content : undefined,
+        constraints: (slide.constraints && typeof slide.constraints === 'object') ? slide.constraints : undefined,
+        editableMap: (slide.editable_map || slide.editableMap) && typeof (slide.editable_map || slide.editableMap) === 'object'
+          ? (slide.editable_map || slide.editableMap)
+          : undefined,
+        canvasValidation: (slide.canvas_validation || slide.canvasValidation) && typeof (slide.canvas_validation || slide.canvasValidation) === 'object'
+          ? (slide.canvas_validation || slide.canvasValidation)
+          : undefined,
+        layoutIr: (slide.layout_ir || slide.layoutIr) && typeof (slide.layout_ir || slide.layoutIr) === 'object'
+          ? (slide.layout_ir || slide.layoutIr)
+          : undefined,
+        htmlTemplate: slide.html_template || slide.htmlTemplate || '',
+        cssCode: slide.css_code || slide.cssCode || '',
+        editableFields,
+        visualAssets,
+        generationNote: slide.generation_note || slide.generationNote || '',
+        status: slide.status === 'processing' || slide.status === 'pending' ? slide.status : 'done',
+        review: buildIdleFrontendReview(),
+      };
+    });
 
   const normalizeFrontendDeckTheme = (theme: any): FrontendDeckTheme | null => {
     if (!theme || typeof theme !== 'object') {
       return null;
     }
-    const themeLock = typeof theme.theme_lock === 'object' && theme.theme_lock ? theme.theme_lock : {};
+    const themeLockSource = theme.theme_lock || theme.themeLock;
+    const themeLock = typeof themeLockSource === 'object' && themeLockSource ? themeLockSource : {};
+    const palette = theme.palette && typeof theme.palette === 'object'
+      ? {
+          bg: String(theme.palette.bg || ''),
+          panel: String(theme.palette.panel || ''),
+          primary: String(theme.palette.primary || ''),
+          secondary: String(theme.palette.secondary || ''),
+          accent: String(theme.palette.accent || ''),
+          text: String(theme.palette.text || ''),
+          muted: String(theme.palette.muted || ''),
+        }
+      : undefined;
+    const typography = theme.typography && typeof theme.typography === 'object'
+      ? {
+          titleFontStack: String(theme.typography.title_font_stack || theme.typography.titleFontStack || ''),
+          bodyFontStack: String(theme.typography.body_font_stack || theme.typography.bodyFontStack || ''),
+          eyebrowSize: toFiniteNumber(theme.typography.eyebrow_size || theme.typography.eyebrowSize, 18),
+          titleSize: toFiniteNumber(theme.typography.title_size || theme.typography.titleSize, 56),
+          summarySize: toFiniteNumber(theme.typography.summary_size || theme.typography.summarySize, 26),
+          bodySize: toFiniteNumber(theme.typography.body_size || theme.typography.bodySize, 24),
+        }
+      : undefined;
     return {
       themeName: String(theme.theme_name || theme.themeName || 'locked_deck_theme'),
       visualMood: String(theme.visual_mood || theme.visualMood || ''),
       footerText: String(theme.footer_text || theme.footerText || ''),
       sectionLabelTemplate: String(theme.section_label_template || theme.sectionLabelTemplate || ''),
+      palette,
+      typography,
+      layoutRules: normalizeStringList(theme.layout_rules || theme.layoutRules),
+      componentRules: normalizeStringList(theme.component_rules || theme.componentRules),
       themeLock: {
-        mustKeep: Array.isArray(themeLock.must_keep)
-          ? themeLock.must_keep.map((item: unknown) => String(item || '')).filter(Boolean)
-          : [],
-        preferredLayoutPatterns: Array.isArray(themeLock.preferred_layout_patterns)
-          ? themeLock.preferred_layout_patterns.map((item: unknown) => String(item || '')).filter(Boolean)
-          : [],
-        componentSignature: String(themeLock.component_signature || ''),
-        avoid: Array.isArray(themeLock.avoid)
-          ? themeLock.avoid.map((item: unknown) => String(item || '')).filter(Boolean)
-          : [],
+        mustKeep: normalizeStringList(themeLock.must_keep || themeLock.mustKeep),
+        preferredLayoutPatterns: normalizeStringList(
+          themeLock.preferred_layout_patterns || themeLock.preferredLayoutPatterns,
+        ),
+        componentSignature: String(themeLock.component_signature || themeLock.componentSignature || ''),
+        avoid: normalizeStringList(themeLock.avoid),
       },
     };
   };
@@ -568,6 +1468,52 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     slide_id: slide.slideId,
     page_num: slide.pageNum,
     title: slide.title,
+    schema_version: slide.schemaVersion || '',
+    template_key: slide.templateKey || '',
+    layout_mode: slide.layoutMode || '',
+    layout_family: slide.layoutFamily || '',
+    root: slide.root || undefined,
+    content: slide.content || undefined,
+    constraints: slide.constraints || undefined,
+    editable_map: slide.editableMap || undefined,
+    canvas_validation: slide.canvasValidation || undefined,
+    layout_ir: slide.layoutIr || undefined,
+    blocks: slide.blocks.map((block) => ({
+      id: block.id,
+      type: block.type,
+      role: block.role,
+      content: block.content,
+      items: block.items,
+      asset_key: block.assetKey || '',
+      table_data: block.tableData
+        ? {
+            headers: block.tableData.headers,
+            rows: block.tableData.rows,
+          }
+        : undefined,
+      children: (block.children || []).map((child) => ({
+        id: child.id,
+        type: child.type,
+        role: child.role,
+        content: child.content,
+        items: child.items,
+        asset_key: child.assetKey || '',
+        table_data: child.tableData
+          ? {
+              headers: child.tableData.headers,
+              rows: child.tableData.rows,
+            }
+          : undefined,
+      })),
+      layout: {
+        zone: block.layout.zone,
+        span: block.layout.span,
+        order: block.layout.order,
+        preferred_width: block.layout.preferredWidth,
+        preferred_side: block.layout.preferredSide,
+        emphasis: block.layout.emphasis,
+      },
+    })),
     html_template: slide.htmlTemplate,
     css_code: slide.cssCode,
     editable_fields: slide.editableFields.map((field) => ({
@@ -1351,19 +2297,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setFrontendSlides((prev) =>
       prev.map((slide, idx) =>
         idx === slideIndex
-          ? {
-              ...slide,
-              generationNote: '当前页内容已手动编辑。',
-              title: fieldKey === 'title' ? value : slide.title,
-              review: {
-                status: 'idle',
-                summary: '',
-                issues: [],
-              },
-              editableFields: slide.editableFields.map((field) =>
-                field.key === fieldKey ? { ...field, value } : field,
-              ),
-            }
+          ? applyFrontendEditableFieldMutation(slide, fieldKey, (field) => ({ ...field, value }))
           : slide,
       ),
     );
@@ -1373,21 +2307,11 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setFrontendSlides((prev) =>
       prev.map((slide, idx) => {
         if (idx !== slideIndex) return slide;
-        return {
-          ...slide,
-          generationNote: '当前页内容已手动编辑。',
-          review: {
-            status: 'idle',
-            summary: '',
-            issues: [],
-          },
-          editableFields: slide.editableFields.map((field) => {
-            if (field.key !== fieldKey) return field;
-            const nextItems = [...field.items];
-            nextItems[itemIndex] = value;
-            return { ...field, items: nextItems };
-          }),
-        };
+        return applyFrontendEditableFieldMutation(slide, fieldKey, (field) => {
+          const nextItems = [...field.items];
+          nextItems[itemIndex] = value;
+          return { ...field, items: nextItems };
+        });
       }),
     );
   };
@@ -1396,18 +2320,10 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setFrontendSlides((prev) =>
       prev.map((slide, idx) => {
         if (idx !== slideIndex) return slide;
-        return {
-          ...slide,
-          generationNote: '当前页内容已手动编辑。',
-          review: {
-            status: 'idle',
-            summary: '',
-            issues: [],
-          },
-          editableFields: slide.editableFields.map((field) =>
-            field.key === fieldKey ? { ...field, items: [...field.items, ''] } : field,
-          ),
-        };
+        return applyFrontendEditableFieldMutation(slide, fieldKey, (field) => ({
+          ...field,
+          items: [...field.items, ''],
+        }));
       }),
     );
   };
@@ -1416,18 +2332,10 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setFrontendSlides((prev) =>
       prev.map((slide, idx) => {
         if (idx !== slideIndex) return slide;
-        return {
-          ...slide,
-          generationNote: '当前页内容已手动编辑。',
-          review: {
-            status: 'idle',
-            summary: '',
-            issues: [],
-          },
-          editableFields: slide.editableFields.map((field) =>
-            field.key === fieldKey ? { ...field, items } : field,
-          ),
-        };
+        return applyFrontendEditableFieldMutation(slide, fieldKey, (field) => ({
+          ...field,
+          items,
+        }));
       }),
     );
   };
@@ -1436,22 +2344,276 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setFrontendSlides((prev) =>
       prev.map((slide, idx) => {
         if (idx !== slideIndex) return slide;
-        return {
-          ...slide,
-          generationNote: '当前页内容已手动编辑。',
-          review: {
-            status: 'idle',
-            summary: '',
-            issues: [],
-          },
-          editableFields: slide.editableFields.map((field) =>
-            field.key === fieldKey
-              ? { ...field, items: field.items.filter((_, idx2) => idx2 !== itemIndex) }
-              : field,
-          ),
-        };
+        return applyFrontendEditableFieldMutation(slide, fieldKey, (field) => ({
+          ...field,
+          items: field.items.filter((_, idx2) => idx2 !== itemIndex),
+        }));
       }),
     );
+  };
+
+  const buildDefaultTableData = (): FrontendTableData => ({
+    headers: ['指标', '当前值', '说明'],
+    rows: [
+      ['样本量', 'N/A', '补充说明'],
+      ['效果', 'N/A', '补充说明'],
+    ],
+  });
+
+  const buildTableEditableFields = (tableId: string, tableData: FrontendTableData): FrontendEditableField[] => [
+    ...tableData.headers.map((header, colIndex) => ({
+      key: `${tableId}_cell_h_${colIndex}`,
+      label: `表头 ${colIndex + 1}`,
+      type: 'text' as const,
+      value: header,
+      items: [],
+    })),
+    ...tableData.rows.flatMap((row, rowIndex) =>
+      row.map((cell, colIndex) => ({
+        key: `${tableId}_cell_${rowIndex}_${colIndex}`,
+        label: `表格 R${rowIndex + 1}C${colIndex + 1}`,
+        type: 'text' as const,
+        value: cell,
+        items: [],
+      })),
+    ),
+  ];
+
+  const insertFrontendTableBlock = (slideIndex: number, targetBlockId?: string) => {
+    setFrontendSlides((prev) =>
+      prev.map((slide, idx) => {
+        if (idx !== slideIndex) return slide;
+        const tableData = buildDefaultTableData();
+        const targetZone = parseFrontendInsertZoneTarget(targetBlockId);
+        if (targetZone) {
+          const blockId = buildUniqueBlockId(slide, 'table_block');
+          const block: FrontendSlideBlock = {
+            id: blockId,
+            type: 'table',
+            role: blockId,
+            content: '',
+            items: [],
+            tableData,
+            layout: buildInsertedBlockLayout(slide, {
+              zone: targetZone,
+              order: slide.blocks.length + 1,
+              preferredWidth: targetZone === 'full' ? 'full' : 'half',
+              preferredSide: targetZone === 'left' || targetZone === 'right' ? targetZone : 'auto',
+            }),
+          };
+          return insertTopLevelBlockIntoZone(
+            slide,
+            block,
+            buildTableEditableFields(blockId, tableData),
+          );
+        }
+        const childId = buildUniqueChildId(slide, 'table_item');
+        const child: FrontendBlockChild = {
+          id: childId,
+          type: 'table',
+          role: childId,
+          content: '',
+          items: [],
+          tableData,
+        };
+        return insertChildIntoBlock(
+          slide,
+          targetBlockId,
+          child,
+          buildTableEditableFields(childId, tableData),
+        );
+      }),
+    );
+  };
+
+  const insertFrontendTextBlock = (slideIndex: number, targetBlockId?: string) => {
+    setFrontendSlides((prev) =>
+      prev.map((slide, idx) => {
+        if (idx !== slideIndex) return slide;
+        const targetZone = parseFrontendInsertZoneTarget(targetBlockId);
+        if (targetZone) {
+          const blockId = buildUniqueBlockId(slide, 'text_block');
+          const block: FrontendSlideBlock = {
+            id: blockId,
+            type: 'text',
+            role: blockId,
+            content: '新的文本块',
+            items: [],
+            layout: buildInsertedBlockLayout(slide, {
+              zone: targetZone,
+              order: slide.blocks.length + 1,
+              preferredSide: targetZone === 'left' || targetZone === 'right' ? targetZone : 'auto',
+            }),
+          };
+          return insertTopLevelBlockIntoZone(slide, block, {
+            key: blockId,
+            label: '文本块',
+            type: 'textarea',
+            value: block.content,
+            items: [],
+          });
+        }
+        const childId = buildUniqueChildId(slide, 'text_item');
+        const child: FrontendBlockChild = {
+          id: childId,
+          type: 'text',
+          role: childId,
+          content: '新的文本块',
+          items: [],
+        };
+        return insertChildIntoBlock(slide, targetBlockId, child, {
+          key: childId,
+          label: '文本块',
+          type: 'textarea',
+          value: child.content,
+          items: [],
+        });
+      }),
+    );
+  };
+
+  const insertFrontendCalloutBlock = (slideIndex: number, targetBlockId?: string) => {
+    setFrontendSlides((prev) =>
+      prev.map((slide, idx) => {
+        if (idx !== slideIndex) return slide;
+        const targetZone = parseFrontendInsertZoneTarget(targetBlockId);
+        if (targetZone) {
+          const blockId = buildUniqueBlockId(slide, 'callout_block');
+          const block: FrontendSlideBlock = {
+            id: blockId,
+            type: 'callout',
+            role: blockId,
+            content: '新的重点内容',
+            items: [],
+            layout: buildInsertedBlockLayout(slide, {
+              zone: targetZone,
+              order: slide.blocks.length + 1,
+              preferredSide: targetZone === 'left' || targetZone === 'right' ? targetZone : 'auto',
+              emphasis: 'high',
+            }),
+          };
+          return insertTopLevelBlockIntoZone(slide, block, {
+            key: blockId,
+            label: '重点内容',
+            type: 'textarea',
+            value: block.content,
+            items: [],
+          });
+        }
+        const childId = buildUniqueChildId(slide, 'callout_item');
+        const child: FrontendBlockChild = {
+          id: childId,
+          type: 'callout',
+          role: childId,
+          content: '新的重点内容',
+          items: [],
+        };
+        return insertChildIntoBlock(slide, targetBlockId, child, {
+          key: childId,
+          label: '重点内容',
+          type: 'textarea',
+          value: child.content,
+          items: [],
+        });
+      }),
+    );
+  };
+
+  const insertFrontendImageBlock = async (slideIndex: number, file: File, targetBlockId?: string) => {
+    if (!resultPath) {
+      setError('缺少 result_path，请重新上传文件');
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setError('仅支持上传图片文件');
+      return;
+    }
+
+    const currentSlide = frontendSlides[slideIndex];
+    if (!currentSlide) {
+      setError('当前前端页面不存在');
+      return;
+    }
+
+    const assetKey = buildUniqueBlockId(currentSlide, 'user_image');
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('result_path', resultPath);
+      formData.append('asset_key', assetKey);
+      formData.append('file', file);
+
+      const res = await backendFetch('/api/v1/paper2ppt/frontend/upload-asset', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error(await extractErrorMessage(res, '图片上传失败'));
+      }
+
+      const data = await res.json();
+      if (!data.success || !data.asset) {
+        throw new Error(data.error || '图片上传失败');
+      }
+
+      setFrontendSlides((prev) =>
+        prev.map((slide, idx) => {
+          if (idx !== slideIndex) return slide;
+          const nextAsset = {
+            key: assetKey,
+            label: String(data.asset.label || data.asset.key || file.name || assetKey),
+            src: String(data.asset.src || ''),
+            previewSrc: String(data.asset.preview_src || data.asset.previewSrc || data.asset.src || ''),
+            originalSrc: String(data.asset.original_src || data.asset.originalSrc || data.asset.storage_path || data.asset.storagePath || data.asset.src || ''),
+            alt: String(data.asset.alt || file.name || assetKey),
+            sourceType: 'upload' as const,
+            storagePath: String(data.asset.storage_path || data.asset.storagePath || ''),
+            previewStoragePath: String(data.asset.preview_storage_path || data.asset.previewStoragePath || ''),
+            prompt: typeof data.asset.prompt === 'string' ? data.asset.prompt : undefined,
+            style: typeof data.asset.style === 'string' ? data.asset.style : undefined,
+          };
+          const child: FrontendBlockChild = {
+            id: assetKey,
+            type: 'image',
+            role: 'supporting_visual',
+            content: '',
+            items: [],
+            assetKey,
+          };
+          const visualAssets = [...slide.visualAssets, nextAsset];
+          const targetZone = parseFrontendInsertZoneTarget(targetBlockId);
+          if (targetZone) {
+            const block: FrontendSlideBlock = {
+              id: assetKey,
+              type: 'image',
+              role: 'supporting_visual',
+              content: '',
+              items: [],
+              assetKey,
+              layout: buildInsertedBlockLayout(slide, {
+                zone: targetZone,
+                order: slide.blocks.length + 1,
+                preferredSide: targetZone === 'left' || targetZone === 'right' ? targetZone : 'auto',
+              }),
+            };
+            return {
+              ...insertTopLevelBlockIntoZone(slide, block, undefined, visualAssets),
+              generationNote: '当前页已插入图片块。',
+            };
+          }
+          return {
+            ...insertChildIntoBlock(slide, targetBlockId, child),
+            visualAssets,
+            generationNote: '当前页已插入图片块。',
+          };
+        }),
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '图片上传失败';
+      setError(message);
+    }
   };
 
   const replaceFrontendVisualAsset = async (slideIndex: number, imageKey: string, file: File) => {
@@ -1495,28 +2657,34 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       setFrontendSlides((prev) =>
         prev.map((slide, idx) => {
           if (idx !== slideIndex) return slide;
+          const normalizedAsset = {
+            key: imageKey,
+            label: String(data.asset.label || data.asset.key || imageKey),
+            src: String(data.asset.src || ''),
+            previewSrc: String(data.asset.preview_src || data.asset.previewSrc || data.asset.src || ''),
+            originalSrc: String(data.asset.original_src || data.asset.originalSrc || data.asset.storage_path || data.asset.storagePath || data.asset.src || ''),
+            alt: String(data.asset.alt || file.name || imageKey),
+            sourceType: 'upload' as const,
+            storagePath: String(data.asset.storage_path || data.asset.storagePath || ''),
+            previewStoragePath: String(data.asset.preview_storage_path || data.asset.previewStoragePath || ''),
+            prompt: typeof data.asset.prompt === 'string' ? data.asset.prompt : undefined,
+            style: typeof data.asset.style === 'string' ? data.asset.style : undefined,
+          };
+          const hasExistingAsset = slide.visualAssets.some((asset) => asset.key === imageKey);
           return {
             ...slide,
             generationNote: '当前页图片已替换为用户上传版本。',
-            review: {
-              status: 'idle',
-              summary: '',
-              issues: [],
-            },
-            visualAssets: slide.visualAssets.map((asset) =>
-              asset.key === imageKey
-                ? {
-                    ...asset,
-                    src: String(data.asset.src || asset.src || ''),
-                    previewSrc: String(data.asset.preview_src || data.asset.previewSrc || data.asset.src || asset.previewSrc || asset.src || ''),
-                    originalSrc: String(data.asset.original_src || data.asset.originalSrc || data.asset.storage_path || data.asset.storagePath || asset.originalSrc || asset.storagePath || asset.src || ''),
-                    alt: String(data.asset.alt || file.name || asset.alt || ''),
-                    sourceType: 'upload',
-                    storagePath: String(data.asset.storage_path || data.asset.storagePath || asset.storagePath || ''),
-                    previewStoragePath: String(data.asset.preview_storage_path || data.asset.previewStoragePath || asset.previewStoragePath || ''),
-                  }
-                : asset,
-            ),
+            review: buildIdleFrontendReview(),
+            visualAssets: hasExistingAsset
+              ? slide.visualAssets.map((asset) =>
+                  asset.key === imageKey
+                    ? {
+                        ...asset,
+                        ...normalizedAsset,
+                      }
+                    : asset,
+                )
+              : [...slide.visualAssets, normalizedAsset],
           };
         }),
       );
@@ -1599,6 +2767,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
         slideId: slide.id,
         pageNum: index + 1,
         title: slide.title,
+        blocks: [],
         htmlTemplate: '',
         cssCode: '',
         editableFields: [],
@@ -2844,6 +4013,10 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
                 addListItem={addFrontendListItem}
                 removeListItem={removeFrontendListItem}
                 replaceVisualAsset={replaceFrontendVisualAsset}
+                insertTextBlock={insertFrontendTextBlock}
+                insertCalloutBlock={insertFrontendCalloutBlock}
+                insertTableBlock={insertFrontendTableBlock}
+                insertImageBlock={insertFrontendImageBlock}
               />
             ) : (
               <GenerateStep
@@ -2870,6 +4043,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
             pptMode === 'frontend' ? (
               <FrontendCompleteStep
                 slides={frontendSlides}
+                deckTheme={frontendDeckTheme}
                 downloadUrl={downloadUrl}
                 pdfPreviewUrl={pdfPreviewUrl}
                 isGeneratingFinal={isGeneratingFinal}
@@ -2918,6 +4092,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
             <FrontendSlidePreview
               key={`${slide.slideId}-capture`}
               slide={slide}
+              deckTheme={frontendDeckTheme}
               mode="capture"
               className="mb-4"
               captureRef={(node) => {

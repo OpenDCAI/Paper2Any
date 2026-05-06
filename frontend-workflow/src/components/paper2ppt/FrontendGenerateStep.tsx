@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
   Code2,
   FileText,
+  ImagePlus,
   Loader2,
   MonitorSmartphone,
   Plus,
@@ -12,10 +13,13 @@ import {
   RotateCcw,
   ScanSearch,
   ShieldCheck,
+  Table2,
   Trash2,
 } from 'lucide-react';
 import { FrontendDeckTheme, FrontendSlide, SlideOutline, Step } from './types';
+import { parseFrontendInsertZoneTarget } from './types';
 import FrontendSlidePreview from './FrontendSlidePreview';
+import { isSchemaDrivenSlide } from './frontendSlideUtils';
 
 interface FrontendGenerateStepProps {
   outlineData: SlideOutline[];
@@ -41,6 +45,10 @@ interface FrontendGenerateStepProps {
   addListItem: (slideIndex: number, fieldKey: string) => void;
   removeListItem: (slideIndex: number, fieldKey: string, itemIndex: number) => void;
   replaceVisualAsset: (slideIndex: number, imageKey: string, file: File) => Promise<void>;
+  insertTextBlock: (slideIndex: number, targetBlockId?: string) => void;
+  insertCalloutBlock: (slideIndex: number, targetBlockId?: string) => void;
+  insertTableBlock: (slideIndex: number, targetBlockId?: string) => void;
+  insertImageBlock: (slideIndex: number, file: File, targetBlockId?: string) => Promise<void>;
 }
 
 const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
@@ -67,12 +75,37 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
   addListItem,
   removeListItem,
   replaceVisualAsset,
+  insertTextBlock,
+  insertCalloutBlock,
+  insertTableBlock,
+  insertImageBlock,
 }) => {
+  const insertImageInputRef = useRef<HTMLInputElement | null>(null);
   const [panelMode, setPanelMode] = useState<'preview' | 'code'>('preview');
   const [draftHtml, setDraftHtml] = useState('');
   const [draftCss, setDraftCss] = useState('');
   const [codeStatus, setCodeStatus] = useState<string | null>(null);
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
+  const [lastInsertionBlockId, setLastInsertionBlockId] = useState<string | null>(null);
   const currentSlide = frontendSlides[currentSlideIndex];
+  const currentSlideIsSchema = currentSlide ? isSchemaDrivenSlide(currentSlide) : false;
+  const activeInsertionBlockId = selectedBlockId || hoveredBlockId || lastInsertionBlockId || null;
+  const activeInsertionZone = parseFrontendInsertZoneTarget(activeInsertionBlockId);
+  const describeInsertTarget = (target: string | null) => {
+    const zone = parseFrontendInsertZoneTarget(target);
+    if (zone) {
+      const zoneLabel = zone === 'left'
+        ? '左侧空白'
+        : zone === 'right'
+          ? '右侧空白'
+          : zone === 'main'
+            ? '主区域空白'
+            : `${zone} 空白`;
+      return `新增到${zoneLabel}`;
+    }
+    return target ? `插入到 ${target}` : '默认插入到主区域';
+  };
   const outlineSlide = outlineData[currentSlideIndex];
   const isCodeDirty = draftHtml !== (currentSlide?.htmlTemplate || '') || draftCss !== (currentSlide?.cssCode || '');
   const busyMessage = taskMessage || (currentSlide?.status === 'processing' ? '当前页仍在生成中，请稍候。' : '后台任务仍在处理中，请稍候。');
@@ -95,12 +128,63 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
         : currentSlide.status !== 'done'
           ? '当前页尚未完成生成'
           : '';
+  const schemaInspectorValue = currentSlide
+    ? JSON.stringify(
+        {
+          schemaVersion: currentSlide.schemaVersion || 'frontend_slide_schema_v2',
+          templateKey: currentSlide.templateKey || 'auto',
+          layoutMode: currentSlide.layoutMode || 'fluid',
+          blocks: currentSlide.blocks || [],
+          editableFields: currentSlide.editableFields.map((field) => ({
+            key: field.key,
+            type: field.type,
+            label: field.label,
+            value: field.value,
+            items: field.items,
+          })),
+          visualAssets: currentSlide.visualAssets.map((asset) => ({
+            key: asset.key,
+            label: asset.label,
+            sourceType: asset.sourceType,
+            hasSource: Boolean(asset.src || asset.previewSrc || asset.storagePath),
+          })),
+        },
+        null,
+        2,
+      )
+    : '';
 
   useEffect(() => {
     setDraftHtml(currentSlide?.htmlTemplate || '');
     setDraftCss(currentSlide?.cssCode || '');
     setCodeStatus(null);
+    setSelectedBlockId(null);
+    setHoveredBlockId(null);
+    setLastInsertionBlockId(null);
   }, [currentSlide?.slideId, currentSlide?.htmlTemplate, currentSlide?.cssCode]);
+
+  const handleSelectBlock = (blockId: string | null) => {
+    setSelectedBlockId(blockId);
+    if (blockId) {
+      setLastInsertionBlockId(blockId);
+    }
+  };
+
+  const handleHoverBlock = (blockId: string | null) => {
+    setHoveredBlockId(blockId);
+    if (blockId) {
+      setLastInsertionBlockId(blockId);
+    }
+  };
+
+  const handleInsertImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !currentSlide) {
+      return;
+    }
+    await insertImageBlock(currentSlideIndex, file, activeInsertionBlockId || undefined);
+  };
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -177,7 +261,7 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
                       : 'bg-white/5 text-gray-300 hover:bg-white/10'
                   }`}
                 >
-                  <Code2 size={14} /> 代码
+                  <Code2 size={14} /> {currentSlideIsSchema ? '模板' : '代码'}
                 </button>
               </div>
             </div>
@@ -203,15 +287,19 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
                 ) : isGenerating && currentSlide?.status === 'processing' ? (
                   <div className="aspect-[16/9] flex flex-col items-center justify-center text-center">
                     <Loader2 size={40} className="text-cyan-400 animate-spin mb-3" />
-                    <p className="text-base text-cyan-200">正在生成这一页的前端代码...</p>
+                    <p className="text-base text-cyan-200">正在生成这一页的结构化页面...</p>
                     <p className="text-xs text-gray-500 mt-1">
-                      {taskMessage || '大模型正在编排 HTML/CSS 模板'}
+                      {taskMessage || '大模型正在规划模板选择、blocks 和图片槽位'}
                     </p>
                   </div>
                 ) : currentSlide ? (
                   <FrontendSlidePreview
                     slide={currentSlide}
+                    deckTheme={deckTheme}
                     inlineEditEnabled
+                    selectedBlockId={selectedBlockId}
+                    onSelectBlock={handleSelectBlock}
+                    onHoverBlock={handleHoverBlock}
                     onInlineFieldChange={(fieldKey, value) =>
                       updateFieldValue(currentSlideIndex, fieldKey, value)
                     }
@@ -230,6 +318,44 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
                     等待生成
                   </div>
                 )
+              ) : currentSlideIsSchema ? (
+                <div className="grid grid-cols-1 gap-3 p-4">
+                  <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3">
+                    <div className="text-xs font-medium uppercase tracking-[0.18em] text-cyan-200/75">
+                      Schema-Driven Template
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+                      <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                        <div className="text-[11px] text-gray-400">Template Key</div>
+                        <div className="mt-1 text-sm font-medium text-white">{currentSlide?.templateKey || 'auto'}</div>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                        <div className="text-[11px] text-gray-400">Layout Mode</div>
+                        <div className="mt-1 text-sm font-medium text-white">{currentSlide?.layoutMode || 'fluid'}</div>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                        <div className="text-[11px] text-gray-400">Blocks</div>
+                        <div className="mt-1 text-sm font-medium text-white">{currentSlide?.blocks?.length || 0}</div>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                        <div className="text-[11px] text-gray-400">Image Slots</div>
+                        <div className="mt-1 text-sm font-medium text-white">{currentSlide?.visualAssets?.length || 0}</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-xs leading-6 text-cyan-100/75">
+                      当前页由固定模板渲染引擎负责排版，不能直接编辑 HTML/CSS。修改内容请使用右侧字段；修改结构请通过“重新生成”提示词引导模型调整 template 和 blocks。
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-400 mb-1">Schema JSON</div>
+                    <textarea
+                      readOnly
+                      value={schemaInspectorValue}
+                      rows={22}
+                      className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-cyan-100 outline-none resize-none font-mono"
+                    />
+                  </div>
+                </div>
               ) : (
                 <div className="grid grid-cols-1 gap-3 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
@@ -308,7 +434,9 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
             )}
 
             <div className="mt-3 rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 text-xs text-cyan-100/90">
-              批量生成阶段会在后端并行生成页面代码，并复用同一套 deck theme，减少每页风格漂移。
+              {currentSlideIsSchema
+                ? '批量生成阶段会在后端产出 template_key + blocks，并复用同一套 deck theme，由前端模板引擎统一排版。'
+                : '批量生成阶段会在后端并行生成页面代码，并复用同一套 deck theme，减少每页风格漂移。'}
             </div>
 
             {(isReviewing || currentSlide?.review?.status === 'repairing') && (
@@ -407,6 +535,74 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {currentSlideIsSchema && (
+            <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-white">插入组件</h3>
+                <span className="text-[11px] text-gray-400">
+                  {describeInsertTarget(activeInsertionBlockId)}
+                </span>
+              </div>
+              <div className="mb-3 grid grid-cols-1 gap-1.5 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-gray-300">
+                <span>鼠标所在：{hoveredBlockId ? describeInsertTarget(hoveredBlockId) : '无'}</span>
+                <span>点击选择：{selectedBlockId ? describeInsertTarget(selectedBlockId) : '未固定'}</span>
+                <span>插入目标：{describeInsertTarget(activeInsertionBlockId)}</span>
+                {activeInsertionZone ? (
+                  <span className="text-cyan-200">当前会新增同级 block，不会撑开已有内容。</span>
+                ) : null}
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={() => insertTextBlock(currentSlideIndex, activeInsertionBlockId || undefined)}
+                  disabled={isGenerating || isReviewing || !currentSlide}
+                  className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-cyan-100 hover:bg-cyan-500/10 disabled:opacity-50"
+                >
+                  <span className="inline-flex items-center justify-center gap-1.5">
+                    <FileText size={14} /> 文本
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertCalloutBlock(currentSlideIndex, activeInsertionBlockId || undefined)}
+                  disabled={isGenerating || isReviewing || !currentSlide}
+                  className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-amber-100 hover:bg-amber-500/10 disabled:opacity-50"
+                >
+                  <span className="inline-flex items-center justify-center gap-1.5">
+                    <Plus size={14} /> 重点
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertImageInputRef.current?.click()}
+                  disabled={isGenerating || isReviewing || !currentSlide}
+                  className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-emerald-100 hover:bg-emerald-500/10 disabled:opacity-50"
+                >
+                  <span className="inline-flex items-center justify-center gap-1.5">
+                    <ImagePlus size={14} /> 图片
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertTableBlock(currentSlideIndex, activeInsertionBlockId || undefined)}
+                  disabled={isGenerating || isReviewing || !currentSlide}
+                  className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-sky-100 hover:bg-sky-500/10 disabled:opacity-50"
+                >
+                  <span className="inline-flex items-center justify-center gap-1.5">
+                    <Table2 size={14} /> 表格
+                  </span>
+                </button>
+              </div>
+              <input
+                ref={insertImageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleInsertImageChange}
+              />
             </div>
           )}
 

@@ -1,4 +1,5 @@
-import { FrontendEditableField, FrontendSlide, FrontendVisualAsset } from './types';
+import { FrontendDeckTheme, FrontendEditableField, FrontendSlide, FrontendVisualAsset } from './types';
+import { buildSchemaSlideMarkup, isSchemaDrivenSlide } from './frontendSchemaRenderer';
 
 const FIELD_PLACEHOLDER_RE = /\{\{(?:field|list):([a-zA-Z0-9_]+)\}\}/g;
 const IMAGE_PLACEHOLDER_RE = /\{\{image:([a-zA-Z0-9_]+)\}\}/g;
@@ -146,7 +147,13 @@ const renderVisualAsset = (asset: FrontendVisualAsset) => {
 `.trim();
 };
 
-export const buildFrontendSlideMarkup = (slide: FrontendSlide) => {
+export { isSchemaDrivenSlide } from './frontendSchemaRenderer';
+
+export const buildFrontendSlideMarkup = (slide: FrontendSlide, deckTheme?: FrontendDeckTheme | null) => {
+  if (isSchemaDrivenSlide(slide)) {
+    return buildSchemaSlideMarkup(slide, deckTheme);
+  }
+
   let html = ensureSlideRoot(sanitizeTemplate(slide.htmlTemplate || ''));
   html = replaceAttributePlaceholders(html, slide.editableFields);
   slide.editableFields.forEach((field) => {
