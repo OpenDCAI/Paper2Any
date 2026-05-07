@@ -44,6 +44,8 @@ type ResolvedTheme = {
   typography: typeof DEFAULT_TYPOGRAPHY;
 };
 
+type ComputedStyleMap = Record<string, unknown>;
+
 const resolveTheme = (theme?: FrontendDeckTheme | null): ResolvedTheme => ({
   palette: {
     ...DEFAULT_PALETTE,
@@ -92,11 +94,87 @@ const pxToIn = (value: number, axis: 'x' | 'y') =>
   (value / (axis === 'x' ? DESIGN_WIDTH : DESIGN_HEIGHT)) *
   (axis === 'x' ? SLIDE_WIDTH_IN : SLIDE_HEIGHT_IN);
 
+const pxToPt = (value: number) => value * 0.75;
+
+const parseCssPx = (value: unknown, fallback = 0) => {
+  const parsed = Number.parseFloat(String(value || ''));
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const styleValue = (layoutNode: FrontendLayoutIRNode, key: string, fallback = '') =>
+  String((layoutNode.computedStyle as ComputedStyleMap | undefined)?.[key] || fallback);
+
+const fontSizeFromStyle = (layoutNode: FrontendLayoutIRNode, fallbackPx: number) =>
+  Math.max(6, Math.min(60, pxToPt(parseCssPx(styleValue(layoutNode, 'fontSize'), fallbackPx))));
+
+const lineSpacingFromStyle = (layoutNode: FrontendLayoutIRNode, fontSizePt: number) => {
+  const lineHeight = styleValue(layoutNode, 'lineHeight');
+  if (!lineHeight || lineHeight === 'normal') {
+    return Math.round(fontSizePt * 1.22);
+  }
+  const lineHeightPx = parseCssPx(lineHeight, 0);
+  return lineHeightPx > 0 ? Math.max(fontSizePt, Math.round(pxToPt(lineHeightPx))) : Math.round(fontSizePt * 1.22);
+};
+
+const marginFromPadding = (layoutNode: FrontendLayoutIRNode): [number, number, number, number] => {
+  const paddingTop = pxToPt(parseCssPx(styleValue(layoutNode, 'paddingTop'), 0));
+  const paddingRight = pxToPt(parseCssPx(styleValue(layoutNode, 'paddingRight'), 0));
+  const paddingBottom = pxToPt(parseCssPx(styleValue(layoutNode, 'paddingBottom'), 0));
+  const paddingLeft = pxToPt(parseCssPx(styleValue(layoutNode, 'paddingLeft'), 0));
+  return [
+    Math.max(0, Math.min(36, paddingTop)),
+    Math.max(0, Math.min(36, paddingRight)),
+    Math.max(0, Math.min(36, paddingBottom)),
+    Math.max(0, Math.min(36, paddingLeft)),
+  ];
+};
+
+const colorFromStyle = (layoutNode: FrontendLayoutIRNode, key: string, fallback: string) =>
+  toHexColor(styleValue(layoutNode, key), fallback);
+
+const fontFaceFromStyle = (layoutNode: FrontendLayoutIRNode, fallback: string) =>
+  firstFont(styleValue(layoutNode, 'fontFamily'), fallback);
+
+const isBoldStyle = (layoutNode: FrontendLayoutIRNode, fallback = false) => {
+  const raw = styleValue(layoutNode, 'fontWeight');
+  const numeric = Number.parseInt(raw, 10);
+  if (Number.isFinite(numeric)) return numeric >= 600;
+  return raw === 'bold' || raw === 'bolder' || fallback;
+};
+
+const isItalicStyle = (layoutNode: FrontendLayoutIRNode, fallback = false) =>
+  styleValue(layoutNode, 'fontStyle') === 'italic' || fallback;
+
+const alignFromStyle = (layoutNode: FrontendLayoutIRNode): PptxGenJS.HAlign => {
+  const align = styleValue(layoutNode, 'textAlign').toLowerCase();
+  if (align === 'center') return 'center';
+  if (align === 'right' || align === 'end') return 'right';
+  if (align === 'justify') return 'justify';
+  return 'left';
+};
+
+const verticalAlignFromStyle = (layoutNode: FrontendLayoutIRNode): PptxGenJS.VAlign => {
+  const alignItems = styleValue(layoutNode, 'alignItems').toLowerCase();
+  const justify = styleValue(layoutNode, 'justifyContent').toLowerCase();
+  const vertical = styleValue(layoutNode, 'verticalAlign').toLowerCase();
+  if (alignItems === 'center' || justify === 'center' || vertical === 'middle') return 'middle';
+  if (alignItems === 'flex-end' || justify === 'flex-end' || vertical === 'bottom') return 'bottom';
+  return 'top';
+};
+
 const toPptBox = (node: FrontendLayoutIRNode): PptBox => ({
   x: pxToIn(node.box.x, 'x'),
   y: pxToIn(node.box.y, 'y'),
   w: Math.max(0.08, pxToIn(node.box.w, 'x')),
   h: Math.max(0.08, pxToIn(node.box.h, 'y')),
+});
+
+const insetBoxForText = (box: PptBox) => ({
+  ...box,
+  x: box.x + 0.01,
+  y: box.y + 0.01,
+  w: Math.max(0.08, box.w - 0.02),
+  h: Math.max(0.08, box.h - 0.02),
 });
 
 const normalizeComponent = (value?: unknown) => {
@@ -260,27 +338,30 @@ const addBullets = (
   items: string[],
   box: PptBox,
   theme: ResolvedTheme,
+  layoutNode: FrontendLayoutIRNode,
 ) => {
-  const bodyFont = firstFont(theme.typography.bodyFontStack, 'Arial');
-  const textColor = toHexColor(theme.palette.text, '#E2E8F0');
+  const bodyFont = fontFaceFromStyle(layoutNode, firstFont(theme.typography.bodyFontStack, 'Arial'));
+  const fontSize = fontSizeFromStyle(layoutNode, theme.typography.bodySize - 1);
+  const textColor = colorFromStyle(layoutNode, 'color', theme.palette.text);
   const runs: PptxGenJS.TextProps[] = items.map((item, index) => ({
     text: item,
     options: {
-      bullet: { type: 'bullet', indent: 16 },
+      bullet: { type: 'bullet', indent: Math.max(10, fontSize * 0.85) },
       breakLine: index < items.length - 1,
-      hanging: 4,
+      hanging: Math.max(3, fontSize * 0.22),
     },
   }));
   slide.addText(runs, {
     ...box,
-    margin: [4, 8, 4, 10],
+    margin: marginFromPadding(layoutNode),
     fontFace: bodyFont,
-    fontSize: Math.max(12, Math.min(24, theme.typography.bodySize - 3)),
+    fontSize,
     color: textColor,
     breakLine: false,
     fit: 'shrink',
-    paraSpaceAfter: 7,
-    valign: 'top',
+    lineSpacing: lineSpacingFromStyle(layoutNode, fontSize),
+    paraSpaceAfter: Math.max(2, fontSize * 0.25),
+    valign: verticalAlignFromStyle(layoutNode),
     wrap: true,
   });
 };
@@ -346,16 +427,20 @@ const renderCanvasComponent = async (
   const panelColor = toHexColor(theme.palette.panel, '#0F172A');
 
   if (component === 'heading') {
+    const fontSize = fontSizeFromStyle(layoutNode, theme.typography.titleSize);
     addText(
       pptSlide,
       resolveTextRef(sourceSlide, props.text_ref || props.textRef || props.ref, String(props.text || sourceSlide.title || 'Untitled')),
-      box,
+      insetBoxForText(box),
       {
-        fontFace: titleFont,
-        fontSize: Math.max(24, Math.min(48, theme.typography.titleSize * Math.min(1, box.h / 0.85))),
-        bold: true,
-        color: textColor,
-        valign: 'middle',
+        fontFace: fontFaceFromStyle(layoutNode, titleFont),
+        fontSize,
+        bold: isBoldStyle(layoutNode, true),
+        color: colorFromStyle(layoutNode, 'color', textColor),
+        lineSpacing: lineSpacingFromStyle(layoutNode, fontSize),
+        margin: marginFromPadding(layoutNode),
+        align: alignFromStyle(layoutNode),
+        valign: verticalAlignFromStyle(layoutNode),
       },
     );
     return;
@@ -365,8 +450,9 @@ const renderCanvasComponent = async (
     addBullets(
       pptSlide,
       resolveListRef(sourceSlide, props.items_ref || props.itemsRef || props.ref, Array.isArray(props.items) ? props.items.map(String) : []),
-      box,
+      insetBoxForText(box),
       theme,
+      layoutNode,
     );
     return;
   }
@@ -390,9 +476,10 @@ const renderCanvasComponent = async (
         });
       }
     } catch {
+      const fontSize = fontSizeFromStyle(layoutNode, 18);
       addText(pptSlide, asset?.label || 'Image unavailable', box, {
-        fontFace: bodyFont,
-        fontSize: 14,
+        fontFace: fontFaceFromStyle(layoutNode, bodyFont),
+        fontSize,
         color: mutedColor,
         align: 'center',
         valign: 'middle',
@@ -415,18 +502,21 @@ const renderCanvasComponent = async (
     const label = resolveTextRef(sourceSlide, props.label_ref || props.labelRef, String(props.label || ''));
     const valueBox = { ...box, h: Math.max(0.2, box.h * 0.58) };
     const labelBox = { ...box, y: box.y + box.h * 0.58, h: Math.max(0.2, box.h * 0.34) };
+    const statFontSize = fontSizeFromStyle(layoutNode, theme.typography.titleSize * 0.72);
     addText(pptSlide, value, valueBox, {
-      fontFace: titleFont,
-      fontSize: Math.max(20, Math.min(42, theme.typography.titleSize * 0.7)),
-      bold: true,
+      fontFace: fontFaceFromStyle(layoutNode, titleFont),
+      fontSize: statFontSize,
+      bold: isBoldStyle(layoutNode, true),
       color: accentColor,
       valign: 'middle',
+      margin: marginFromPadding(layoutNode),
     });
     addText(pptSlide, label, labelBox, {
       fontFace: bodyFont,
-      fontSize: Math.max(10, Math.min(18, theme.typography.bodySize - 5)),
+      fontSize: Math.max(8, statFontSize * 0.38),
       color: mutedColor,
       valign: 'top',
+      margin: marginFromPadding(layoutNode),
     });
     return;
   }
@@ -435,14 +525,20 @@ const renderCanvasComponent = async (
   if (component === 'quote' || component === 'callout') {
     addPanelShape(pptSlide, pptx, box, panelColor, component === 'quote' ? primaryColor : accentColor, 14);
   }
+  const fontSize = fontSizeFromStyle(
+    layoutNode,
+    component === 'quote' ? theme.typography.titleSize * 0.72 : theme.typography.bodySize,
+  );
   addText(pptSlide, value, box, {
-    fontFace: component === 'quote' ? titleFont : bodyFont,
-    fontSize: component === 'quote'
-      ? Math.max(16, Math.min(34, theme.typography.titleSize * 0.55))
-      : Math.max(12, Math.min(24, theme.typography.bodySize)),
-    italic: component === 'quote',
-    color: textColor,
-    valign: 'top',
+    fontFace: fontFaceFromStyle(layoutNode, component === 'quote' ? titleFont : bodyFont),
+    fontSize,
+    bold: isBoldStyle(layoutNode),
+    italic: isItalicStyle(layoutNode, component === 'quote'),
+    color: colorFromStyle(layoutNode, 'color', textColor),
+    lineSpacing: lineSpacingFromStyle(layoutNode, fontSize),
+    margin: marginFromPadding(layoutNode),
+    align: alignFromStyle(layoutNode),
+    valign: verticalAlignFromStyle(layoutNode),
   });
 };
 

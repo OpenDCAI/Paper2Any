@@ -124,11 +124,13 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
         return;
       }
 
-      const rootRect = canvasRoot.getBoundingClientRect();
+      const slideRoot = (canvasRoot.closest('.slide-root') as HTMLElement | null) || canvasRoot;
+      const rootRect = slideRoot.getBoundingClientRect();
       const nodes = Array.from(canvasRoot.querySelectorAll('[data-canvas-node-id]')) as HTMLElement[];
       const overflowIssues: string[] = [];
       const irNodes = nodes.map((node) => {
         const rect = node.getBoundingClientRect();
+        const style = window.getComputedStyle(node);
         const nodeId = node.dataset.canvasNodeId || node.dataset.blockId || '';
         const left = (rect.left - rootRect.left) / Math.max(scale, 0.0001);
         const top = (rect.top - rootRect.top) / Math.max(scale, 0.0001);
@@ -152,6 +154,33 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
             y: Math.round(top),
             w: Math.round(width),
             h: Math.round(height),
+          },
+          computedStyle: {
+            fontFamily: style.fontFamily,
+            fontSize: style.fontSize,
+            fontWeight: style.fontWeight,
+            fontStyle: style.fontStyle,
+            lineHeight: style.lineHeight,
+            color: style.color,
+            backgroundColor: style.backgroundColor,
+            borderColor: style.borderColor,
+            borderTopColor: style.borderTopColor,
+            borderRightColor: style.borderRightColor,
+            borderBottomColor: style.borderBottomColor,
+            borderLeftColor: style.borderLeftColor,
+            borderTopWidth: style.borderTopWidth,
+            borderRightWidth: style.borderRightWidth,
+            borderBottomWidth: style.borderBottomWidth,
+            borderLeftWidth: style.borderLeftWidth,
+            paddingTop: style.paddingTop,
+            paddingRight: style.paddingRight,
+            paddingBottom: style.paddingBottom,
+            paddingLeft: style.paddingLeft,
+            textAlign: style.textAlign,
+            verticalAlign: style.verticalAlign,
+            display: style.display,
+            alignItems: style.alignItems,
+            justifyContent: style.justifyContent,
           },
           overflow,
         };

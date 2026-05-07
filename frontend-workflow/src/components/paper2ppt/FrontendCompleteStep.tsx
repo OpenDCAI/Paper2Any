@@ -72,7 +72,7 @@ const FrontendCompleteStep: React.FC<FrontendCompleteStepProps> = ({
           >
             {isGeneratingFinal ? (
               <>
-                <Loader2 size={18} className="animate-spin" /> 正在截图并导出...
+                <Loader2 size={18} className="animate-spin" /> 正在导出...
               </>
             ) : (
               <>
@@ -81,7 +81,7 @@ const FrontendCompleteStep: React.FC<FrontendCompleteStepProps> = ({
             )}
           </button>
           <p className="text-xs text-gray-500 mt-3">
-            导出会将每一页前端渲染结果截图，再打包成整页图片版 PPTX / PDF。
+            默认导出为可编辑 PPTX；仅在缺少 Canvas 布局信息时回退为截图版。
           </p>
         </div>
       ) : (
