@@ -49,6 +49,7 @@ interface FrontendGenerateStepProps {
   insertCalloutBlock: (slideIndex: number, targetBlockId?: string) => void;
   insertTableBlock: (slideIndex: number, targetBlockId?: string) => void;
   insertImageBlock: (slideIndex: number, file: File, targetBlockId?: string) => Promise<void>;
+  updateLayoutIr: (slideIndex: number, layoutIr: FrontendSlide['layoutIr']) => void;
 }
 
 const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
@@ -79,6 +80,7 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
   insertCalloutBlock,
   insertTableBlock,
   insertImageBlock,
+  updateLayoutIr,
 }) => {
   const insertImageInputRef = useRef<HTMLInputElement | null>(null);
   const [panelMode, setPanelMode] = useState<'preview' | 'code'>('preview');
@@ -90,6 +92,8 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
   const [lastInsertionBlockId, setLastInsertionBlockId] = useState<string | null>(null);
   const currentSlide = frontendSlides[currentSlideIndex];
   const currentSlideIsSchema = currentSlide ? isSchemaDrivenSlide(currentSlide) : false;
+  const currentCanvasValidation = currentSlide?.canvasValidation;
+  const currentOverflowIssues = currentSlide?.layoutIr?.overflowIssues || [];
   const activeInsertionBlockId = selectedBlockId || hoveredBlockId || lastInsertionBlockId || null;
   const activeInsertionZone = parseFrontendInsertZoneTarget(activeInsertionBlockId);
   const describeInsertTarget = (target: string | null) => {
@@ -132,9 +136,15 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
     ? JSON.stringify(
         {
           schemaVersion: currentSlide.schemaVersion || 'frontend_slide_schema_v2',
+          renderEngine: currentSlide.renderEngine || 'canvas',
           templateKey: currentSlide.templateKey || 'auto',
           layoutMode: currentSlide.layoutMode || 'fluid',
+          layoutFamily: currentSlide.layoutFamily || '',
+          canvasValidation: currentSlide.canvasValidation || null,
+          layoutIr: currentSlide.layoutIr || null,
           blocks: currentSlide.blocks || [],
+          root: currentSlide.root || null,
+          content: currentSlide.content || null,
           editableFields: currentSlide.editableFields.map((field) => ({
             key: field.key,
             type: field.type,
@@ -312,6 +322,7 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
                     onReplaceImage={(imageKey, file) =>
                       replaceVisualAsset(currentSlideIndex, imageKey, file)
                     }
+                    onLayoutIrChange={(layoutIr) => updateLayoutIr(currentSlideIndex, layoutIr)}
                   />
                 ) : (
                   <div className="aspect-[16/9] flex items-center justify-center text-gray-500">
@@ -326,24 +337,52 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
                     </div>
                     <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
                       <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                        <div className="text-[11px] text-gray-400">Render Engine</div>
+                        <div className={`mt-1 text-sm font-medium ${currentSlide?.renderEngine === 'canvas' ? 'text-amber-200' : 'text-emerald-200'}`}>
+                          {currentSlide?.renderEngine || 'canvas'}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
                         <div className="text-[11px] text-gray-400">Template Key</div>
                         <div className="mt-1 text-sm font-medium text-white">{currentSlide?.templateKey || 'auto'}</div>
                       </div>
                       <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                        <div className="text-[11px] text-gray-400">Layout Mode</div>
-                        <div className="mt-1 text-sm font-medium text-white">{currentSlide?.layoutMode || 'fluid'}</div>
+                        <div className="text-[11px] text-gray-400">Canvas Valid</div>
+                        <div className={`mt-1 text-sm font-medium ${currentCanvasValidation?.ok ? 'text-emerald-200' : 'text-rose-200'}`}>
+                          {currentCanvasValidation ? String(currentCanvasValidation.ok) : 'n/a'}
+                        </div>
                       </div>
                       <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                        <div className="text-[11px] text-gray-400">Blocks</div>
-                        <div className="mt-1 text-sm font-medium text-white">{currentSlide?.blocks?.length || 0}</div>
+                        <div className="text-[11px] text-gray-400">Layout Nodes</div>
+                        <div className="mt-1 text-sm font-medium text-white">{currentSlide?.layoutIr?.nodes?.length || 0}</div>
                       </div>
                       <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                        <div className="text-[11px] text-gray-400">Image Slots</div>
-                        <div className="mt-1 text-sm font-medium text-white">{currentSlide?.visualAssets?.length || 0}</div>
+                        <div className="text-[11px] text-gray-400">Overflow</div>
+                        <div className={`mt-1 text-sm font-medium ${currentOverflowIssues.length > 0 ? 'text-rose-200' : 'text-emerald-200'}`}>
+                          {currentOverflowIssues.length}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                      <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                        <div className="text-[11px] text-gray-400">Missing Refs</div>
+                        <div className="mt-1 text-xs text-cyan-100/80">
+                          {currentCanvasValidation?.missingRefs?.length
+                            ? currentCanvasValidation.missingRefs.join(', ')
+                            : 'none'}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                        <div className="text-[11px] text-gray-400">Orphan Content</div>
+                        <div className="mt-1 text-xs text-cyan-100/80">
+                          {currentCanvasValidation?.orphanContentKeys?.length
+                            ? currentCanvasValidation.orphanContentKeys.join(', ')
+                            : 'none'}
+                        </div>
                       </div>
                     </div>
                     <div className="mt-3 text-xs leading-6 text-cyan-100/75">
-                      当前页由固定模板渲染引擎负责排版，不能直接编辑 HTML/CSS。修改内容请使用右侧字段；修改结构请通过“重新生成”提示词引导模型调整 template 和 blocks。
+                      当前页默认由 Canvas 引擎负责排版，并在后台采集浏览器真实 layout_ir。
                     </div>
                   </div>
                   <div>
@@ -551,7 +590,11 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
                 <span>点击选择：{selectedBlockId ? describeInsertTarget(selectedBlockId) : '未固定'}</span>
                 <span>插入目标：{describeInsertTarget(activeInsertionBlockId)}</span>
                 {activeInsertionZone ? (
-                  <span className="text-cyan-200">当前会新增同级 block，不会撑开已有内容。</span>
+                  <span className="text-cyan-200">
+                    {currentSlide?.renderEngine === 'canvas'
+                      ? '当前会新增同级 Canvas 节点。'
+                      : '当前会新增同级 block，不会撑开已有内容。'}
+                  </span>
                 ) : null}
               </div>
               <div className="grid grid-cols-4 gap-2">

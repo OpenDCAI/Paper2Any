@@ -19,6 +19,7 @@ import {
   FrontendBlockChild,
   FrontendDeckTheme,
   FrontendEditableField,
+  FrontendCanvasNode,
   FrontendSlide,
   FrontendSlideBlock,
   FrontendTableData,
@@ -49,6 +50,10 @@ import {
   inspectSlideLayout,
   validateFrontendSlideCode,
 } from './frontendSlideUtils';
+import {
+  buildCanvasSlidesPptxBlob,
+  canExportCanvasSlidesToPptx,
+} from './canvasPptxExporter';
 
 const MANAGED_CREDENTIAL_SCOPE = 'paper2ppt';
 
@@ -1034,6 +1039,311 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     return candidate;
   };
 
+  const collectCanvasNodeIds = (node?: FrontendCanvasNode): string[] => {
+    if (!node) return [];
+    return [
+      node.id,
+      ...(node.children || []).flatMap((child) => collectCanvasNodeIds(child)),
+    ].filter(Boolean);
+  };
+
+  const buildUniqueCanvasNodeId = (slide: FrontendSlide, prefix: string) => {
+    const base = slugifySchemaToken(prefix) || 'node';
+    const existingIds = new Set([
+      ...collectCanvasNodeIds(slide.root),
+      ...slide.blocks.map((block) => block.id),
+      ...slide.editableFields.map((field) => field.key),
+      ...slide.visualAssets.map((asset) => asset.key),
+    ]);
+    let candidate = `${base}_${Date.now().toString(36)}`;
+    let counter = 1;
+    while (existingIds.has(candidate)) {
+      counter += 1;
+      candidate = `${base}_${Date.now().toString(36)}_${counter}`;
+    }
+    return candidate;
+  };
+
+  const cloneTableData = (tableData: FrontendTableData): FrontendTableData => ({
+    headers: [...tableData.headers],
+    rows: tableData.rows.map((row) => [...row]),
+  });
+
+  const normalizeContentTableData = (value: unknown): FrontendTableData | null => {
+    if (!value || typeof value !== 'object') return null;
+    const source = value as Record<string, unknown>;
+    const headers = Array.isArray(source.headers)
+      ? source.headers.map((item) => String(item ?? ''))
+      : Array.isArray(source.columns)
+        ? source.columns.map((item) => String(item ?? ''))
+        : [];
+    const rows = Array.isArray(source.rows)
+      ? source.rows
+          .filter((row): row is unknown[] => Array.isArray(row))
+          .map((row) => row.map((cell) => String(cell ?? '')))
+      : [];
+    if (headers.length === 0 && rows.length === 0) return null;
+    const maxCols = Math.max(headers.length, ...rows.map((row) => row.length), 1);
+    return {
+      headers: Array.from({ length: maxCols }, (_, index) => headers[index] || `列 ${index + 1}`),
+      rows: rows.length > 0
+        ? rows.map((row) => Array.from({ length: maxCols }, (_, index) => row[index] || ''))
+        : [Array.from({ length: maxCols }, () => '')],
+    };
+  };
+
+  const mergeTableCellFieldIntoGroups = (
+    groups: Record<string, FrontendTableData>,
+    fieldKey: string,
+    value: string,
+  ) => {
+    const match = /^(.+)_cell_(h|\d+)_(\d+)$/.exec(fieldKey);
+    if (!match) return false;
+    const ownerId = match[1];
+    const rowIndex = match[2] === 'h' ? 'h' : Number.parseInt(match[2], 10);
+    const colIndex = Number.parseInt(match[3], 10);
+    if (!Number.isFinite(colIndex) || (rowIndex !== 'h' && !Number.isFinite(rowIndex))) {
+      return true;
+    }
+    const tableData = groups[ownerId] || { headers: [], rows: [] };
+    if (rowIndex === 'h') {
+      while (tableData.headers.length <= colIndex) {
+        tableData.headers.push(`列 ${tableData.headers.length + 1}`);
+      }
+      tableData.headers[colIndex] = value;
+    } else {
+      while (tableData.rows.length <= rowIndex) {
+        tableData.rows.push([]);
+      }
+      while (tableData.rows[rowIndex].length <= colIndex) {
+        tableData.rows[rowIndex].push('');
+      }
+      tableData.rows[rowIndex][colIndex] = value;
+    }
+    groups[ownerId] = tableData;
+    return true;
+  };
+
+  const buildCanvasContentFromSlide = (slide: FrontendSlide): Record<string, unknown> => {
+    const content: Record<string, unknown> = {
+      ...(slide.content || {}),
+    };
+    Object.keys(content).forEach((key) => {
+      if (/^(.+)_cell_(h|\d+)_(\d+)$/.test(key)) {
+        delete content[key];
+      }
+    });
+    const tableFieldGroups: Record<string, FrontendTableData> = {};
+    slide.editableFields.forEach((field) => {
+      if (mergeTableCellFieldIntoGroups(tableFieldGroups, field.key, field.value)) {
+        return;
+      }
+      content[field.key] = field.type === 'list' ? [...field.items] : field.value;
+    });
+    slide.blocks.forEach((block) => {
+      if (block.type === 'table' && block.tableData) {
+        content[block.role || block.id] = cloneTableData(block.tableData);
+      } else if (block.type === 'list' && block.items.length > 0 && !(block.role in content)) {
+        content[block.role || block.id] = [...block.items];
+      } else if (block.content && !(block.role in content)) {
+        content[block.role || block.id] = block.content;
+      }
+    });
+    Object.entries(tableFieldGroups).forEach(([ownerId, tableData]) => {
+      content[ownerId] = {
+        ...(content[ownerId] && typeof content[ownerId] === 'object' ? content[ownerId] as Record<string, unknown> : {}),
+        ...cloneTableData(tableData),
+      };
+    });
+    content.assets = {
+      ...((content.assets && typeof content.assets === 'object') ? content.assets as Record<string, unknown> : {}),
+      ...Object.fromEntries(
+        slide.visualAssets.map((asset) => [
+          asset.key,
+          {
+            type: 'image',
+            asset_key: asset.key,
+            src: asset.src,
+            preview_src: asset.previewSrc || asset.src,
+            original_src: asset.originalSrc || asset.storagePath || asset.src,
+            alt: asset.alt,
+          },
+        ]),
+      ),
+    };
+    return content;
+  };
+
+  const buildCanvasRootFromSlide = (slide: FrontendSlide): FrontendCanvasNode => {
+    if (slide.root) return slide.root;
+    const headerNodes: FrontendCanvasNode[] = [];
+    const mainNodes: FrontendCanvasNode[] = [];
+    const asideNodes: FrontendCanvasNode[] = [];
+    const footerNodes: FrontendCanvasNode[] = [];
+    slide.blocks.forEach((block) => {
+      const component = block.role === 'title'
+        ? 'heading'
+        : block.type === 'list'
+          ? 'bullets'
+          : block.type === 'image'
+            ? 'figure'
+            : block.type === 'table'
+              ? 'table'
+              : block.type === 'stat'
+                ? 'stat'
+                : block.type === 'callout'
+                  ? 'callout'
+                  : 'text';
+      const props = component === 'bullets'
+        ? { items_ref: block.role || block.id }
+        : component === 'figure'
+          ? { asset_ref: block.assetKey || block.id, asset_key: block.assetKey || block.id }
+          : component === 'table'
+            ? { table_ref: block.role || block.id }
+            : { text_ref: block.role || block.id };
+      const node: FrontendCanvasNode = {
+        type: 'component',
+        id: block.id,
+        component,
+        props,
+      };
+      const zone = block.layout?.zone || 'main';
+      if (zone === 'header') headerNodes.push(node);
+      else if (zone === 'footer') footerNodes.push(node);
+      else if (zone === 'aside' || zone === 'right') asideNodes.push(node);
+      else mainNodes.push(node);
+    });
+    const mainChildren: FrontendCanvasNode[] = [
+      {
+        type: 'container',
+        id: 'main_left',
+        style: { direction: 'column', gap: 18, weight: 1, align: 'stretch' },
+        children: mainNodes,
+      },
+    ];
+    if (asideNodes.length > 0) {
+      mainChildren.push({
+        type: 'container',
+        id: 'main_right',
+        style: { direction: 'column', gap: 18, weight: 1, align: 'stretch' },
+        children: asideNodes,
+      });
+    }
+    return {
+      type: 'container',
+      id: 'root',
+      style: { direction: 'column', gap: 24, align: 'stretch' },
+      children: [
+        ...(headerNodes.length > 0 ? [{
+          type: 'container' as const,
+          id: 'header',
+          style: { direction: 'column' as const, gap: 12, align: 'stretch' as const },
+          children: headerNodes,
+        }] : []),
+        {
+          type: 'container',
+          id: 'main',
+          style: { direction: mainChildren.length > 1 ? 'row' : 'column', gap: 24, weight: 1, align: 'stretch' },
+          children: mainChildren,
+        },
+        ...(footerNodes.length > 0 ? [{
+          type: 'container' as const,
+          id: 'footer',
+          style: { direction: 'row' as const, gap: 16, align: 'end' as const, justify: 'between' as const },
+          children: footerNodes,
+        }] : []),
+      ],
+    };
+  };
+
+  const appendCanvasNodeToContainer = (
+    root: FrontendCanvasNode,
+    node: FrontendCanvasNode,
+    targetId?: string,
+  ): FrontendCanvasNode => {
+    let inserted = false;
+    const appendToFirstMain = (current: FrontendCanvasNode): FrontendCanvasNode => {
+      if ((current.id === 'main_left' || current.id === 'main' || current.id === 'root') && current.type === 'container') {
+        inserted = true;
+        return { ...current, children: [...(current.children || []), node] };
+      }
+      return {
+        ...current,
+        children: (current.children || []).map((child) => inserted ? child : appendToFirstMain(child)),
+      };
+    };
+    const visit = (current: FrontendCanvasNode): FrontendCanvasNode => {
+      const children = current.children || [];
+      if (targetId && current.id === targetId && current.type === 'container') {
+        inserted = true;
+        return { ...current, children: [...children, node] };
+      }
+      const targetIndex = targetId ? children.findIndex((child) => child.id === targetId) : -1;
+      if (targetIndex >= 0) {
+        const target = children[targetIndex];
+        inserted = true;
+        if (target.type === 'container') {
+          const nextTarget = { ...target, children: [...(target.children || []), node] };
+          return {
+            ...current,
+            children: children.map((child, index) => index === targetIndex ? nextTarget : child),
+          };
+        }
+        return {
+          ...current,
+          children: [
+            ...children.slice(0, targetIndex + 1),
+            node,
+            ...children.slice(targetIndex + 1),
+          ],
+        };
+      }
+      return {
+        ...current,
+        children: children.map((child) => inserted ? child : visit(child)),
+      };
+    };
+    const nextRoot = targetId ? visit(root) : root;
+    return inserted ? nextRoot : appendToFirstMain(nextRoot);
+  };
+
+  const insertCanvasNode = (
+    slide: FrontendSlide,
+    node: FrontendCanvasNode,
+    options: {
+      targetId?: string;
+      contentPatch?: Record<string, unknown>;
+      editableFields?: FrontendEditableField | FrontendEditableField[];
+      visualAssets?: FrontendSlide['visualAssets'];
+    } = {},
+  ): FrontendSlide => {
+    const editableFields = Array.isArray(options.editableFields)
+      ? options.editableFields
+      : options.editableFields
+        ? [options.editableFields]
+        : [];
+    const root = buildCanvasRootFromSlide(slide);
+    const targetId = parseFrontendInsertZoneTarget(options.targetId) ? undefined : options.targetId;
+    return {
+      ...slide,
+      renderEngine: 'canvas',
+      schemaVersion: slide.schemaVersion || 'ppt_canvas_schema_v1',
+      root: appendCanvasNodeToContainer(root, node, targetId),
+      content: {
+        ...buildCanvasContentFromSlide(slide),
+        ...(options.contentPatch || {}),
+      },
+      blocks: [],
+      editableFields: editableFields.length > 0
+        ? [...slide.editableFields, ...editableFields]
+        : slide.editableFields,
+      visualAssets: options.visualAssets || slide.visualAssets,
+      layoutIr: undefined,
+      generationNote: '当前页 Canvas 内容已手动编辑。',
+      review: buildIdleFrontendReview(),
+    };
+  };
+
   const getDefaultInsertionBlockId = (slide: FrontendSlide) =>
     slide.blocks.find((block) => ['main', 'aside', 'left', 'right', 'full'].includes(block.layout.zone))?.id
     || slide.blocks[0]?.id
@@ -1249,6 +1559,62 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     };
   };
 
+  const applyTableCellValueToCanvasContent = (
+    content: Record<string, unknown>,
+    fieldKey: string,
+    value: string,
+  ) => {
+    const parsed = parseTableCellFieldKey(fieldKey);
+    if (!parsed) {
+      return content;
+    }
+    const tableData = normalizeContentTableData(content[parsed.ownerId]) || { headers: [], rows: [] };
+    const nextTableData = cloneTableData(tableData);
+    const nextContent = { ...content };
+    delete nextContent[fieldKey];
+    if (parsed.row === 'h') {
+      while (nextTableData.headers.length <= parsed.col) {
+        nextTableData.headers.push(`列 ${nextTableData.headers.length + 1}`);
+      }
+      nextTableData.headers[parsed.col] = value;
+    } else {
+      while (nextTableData.rows.length <= parsed.row) {
+        nextTableData.rows.push([]);
+      }
+      while (nextTableData.rows[parsed.row].length <= parsed.col) {
+        nextTableData.rows[parsed.row].push('');
+      }
+      nextTableData.rows[parsed.row][parsed.col] = value;
+      while (nextTableData.headers.length <= parsed.col) {
+        nextTableData.headers.push(`列 ${nextTableData.headers.length + 1}`);
+      }
+    }
+    return {
+      ...nextContent,
+      [parsed.ownerId]: {
+        ...(content[parsed.ownerId] && typeof content[parsed.ownerId] === 'object'
+          ? content[parsed.ownerId] as Record<string, unknown>
+          : {}),
+        ...nextTableData,
+      },
+    };
+  };
+
+  const syncCanvasContentWithEditableField = (
+    slide: FrontendSlide,
+    field: FrontendEditableField,
+  ) => {
+    const content = { ...(slide.content || {}) };
+    const tableSyncedContent = applyTableCellValueToCanvasContent(content, field.key, field.value);
+    if (tableSyncedContent !== content) {
+      return tableSyncedContent;
+    }
+    return {
+      ...content,
+      [field.key]: field.type === 'list' ? [...field.items] : field.value,
+    };
+  };
+
   const syncBlockWithEditableField = (
     block: FrontendSlideBlock,
     field: FrontendEditableField,
@@ -1303,10 +1669,14 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       }
       return nextMatchedField;
     });
+    const isCanvasSlide = slide.renderEngine === 'canvas';
 
     return {
       ...slide,
       title: fieldKey === 'title' ? nextMatchedField.value || slide.title : slide.title,
+      content: isCanvasSlide
+        ? syncCanvasContentWithEditableField(slide, nextMatchedField)
+        : slide.content,
       blocks: slide.blocks.map((block) =>
         getEditableFieldKeyForBlock(slide, block) === fieldKey
           ? syncBlockWithEditableField(block, nextMatchedField)
@@ -1335,6 +1705,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
             },
       ),
       editableFields: nextEditableFields,
+      layoutIr: isCanvasSlide ? undefined : slide.layoutIr,
       generationNote: '当前页内容已手动编辑。',
       review: buildIdleFrontendReview(),
     };
@@ -1377,23 +1748,50 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
         || slide.contentBlocks,
         visualAssets,
       );
+      if (!blocks.some((block) => block.type === 'list')) {
+        const keyPointField = editableFields.find((field: FrontendEditableField) => field.key === 'key_points' && field.items.length > 0);
+        const contentKeyPoints = Array.isArray(slide.content?.key_points)
+          ? slide.content.key_points.map((item: unknown) => String(item || '').trim()).filter(Boolean)
+          : [];
+        const keyPointItems = keyPointField?.items?.length ? keyPointField.items : contentKeyPoints;
+        if (keyPointItems.length > 0) {
+          blocks.push({
+            id: 'key_points',
+            type: 'list',
+            role: 'key_points',
+            content: '',
+            items: keyPointItems,
+            layout: {
+              zone: visualAssets.length > 0 ? 'main' : 'full',
+              span: visualAssets.length > 0 ? 6 : 12,
+              order: blocks.length + 1,
+              preferredWidth: visualAssets.length > 0 ? 'wide' : 'full',
+              preferredSide: 'auto',
+              emphasis: 'medium',
+            },
+          });
+        }
+      }
       const templateKey = normalizeSchemaTemplateKey(
         slide.template_key
         || slide.templateKey
         || slide.layout_template
         || slide.layoutTemplate,
       ) || (blocks.length > 0 ? pickSchemaTemplateKeyFromBlocks(blocks, visualAssets.length) : '');
+      const rawRenderEngine = String(slide.render_engine || slide.renderEngine || '').trim().toLowerCase();
+      const renderEngine = rawRenderEngine === 'blocks' ? 'blocks' : 'canvas';
 
       return {
         slideId: String(slide.slide_id || slide.slideId || index + 1),
         pageNum: Number(slide.page_num || slide.pageNum || index + 1),
         title: String(slide.title || `第 ${index + 1} 页`),
         schemaVersion: String(slide.schema_version || slide.schemaVersion || '').trim() || undefined,
+        renderEngine,
         templateKey: templateKey || undefined,
         layoutMode: blocks.length > 0
           ? normalizeSchemaLayoutMode(slide.layout_mode || slide.layoutMode)
           : undefined,
-        blocks,
+        blocks: renderEngine === 'canvas' ? [] : blocks,
         layoutFamily: String(slide.layout_family || slide.layoutFamily || '').trim() || undefined,
         root: (slide.root && typeof slide.root === 'object') ? slide.root : undefined,
         content: (slide.content && typeof slide.content === 'object') ? slide.content : undefined,
@@ -1401,9 +1799,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
         editableMap: (slide.editable_map || slide.editableMap) && typeof (slide.editable_map || slide.editableMap) === 'object'
           ? (slide.editable_map || slide.editableMap)
           : undefined,
-        canvasValidation: (slide.canvas_validation || slide.canvasValidation) && typeof (slide.canvas_validation || slide.canvasValidation) === 'object'
-          ? (slide.canvas_validation || slide.canvasValidation)
-          : undefined,
+        canvasValidation: normalizeCanvasValidation(slide.canvas_validation || slide.canvasValidation),
         layoutIr: (slide.layout_ir || slide.layoutIr) && typeof (slide.layout_ir || slide.layoutIr) === 'object'
           ? (slide.layout_ir || slide.layoutIr)
           : undefined,
@@ -1464,11 +1860,40 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     };
   };
 
+  const normalizeCanvasValidation = (value: any) => {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+    return {
+      ok: Boolean(value.ok),
+      usedRefs: normalizeStringList(value.used_refs || value.usedRefs),
+      definedContentKeys: normalizeStringList(value.defined_content_keys || value.definedContentKeys),
+      missingRefs: normalizeStringList(value.missing_refs || value.missingRefs),
+      orphanContentKeys: normalizeStringList(value.orphan_content_keys || value.orphanContentKeys),
+      emptyComponents: normalizeStringList(value.empty_components || value.emptyComponents),
+      issues: Array.isArray(value.issues)
+        ? value.issues
+            .filter((issue: any) => issue && typeof issue === 'object')
+            .map((issue: any) => ({
+              severity: issue.severity === 'error' || issue.severity === 'warning' || issue.severity === 'info'
+                ? issue.severity
+                : 'repairable',
+              code: String(issue.code || ''),
+              nodeId: issue.node_id || issue.nodeId ? String(issue.node_id || issue.nodeId) : undefined,
+              ref: issue.ref ? String(issue.ref) : undefined,
+              suggestedRef: issue.suggested_ref || issue.suggestedRef ? String(issue.suggested_ref || issue.suggestedRef) : undefined,
+              message: String(issue.message || issue.code || ''),
+            }))
+        : [],
+    };
+  };
+
   const serializeFrontendSlide = (slide: FrontendSlide) => ({
     slide_id: slide.slideId,
     page_num: slide.pageNum,
     title: slide.title,
     schema_version: slide.schemaVersion || '',
+    render_engine: slide.renderEngine || 'canvas',
     template_key: slide.templateKey || '',
     layout_mode: slide.layoutMode || '',
     layout_family: slide.layoutFamily || '',
@@ -1994,7 +2419,12 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       setFrontendSlides([]);
       setFrontendDeckTheme(null);
       frontendCaptureRefs.current = [];
-      setDownloadUrl(null);
+      setDownloadUrl((previousUrl) => {
+        if (previousUrl?.startsWith('blob:')) {
+          URL.revokeObjectURL(previousUrl);
+        }
+        return null;
+      });
       setPdfPreviewUrl(null);
       setResultPath(null);
       setProgress(0);
@@ -2352,6 +2782,22 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     );
   };
 
+  const updateFrontendLayoutIr = (slideIndex: number, layoutIr: FrontendSlide['layoutIr']) => {
+    if (!layoutIr) return;
+    setFrontendSlides((prev) =>
+      prev.map((slide, idx) => {
+        if (idx !== slideIndex) return slide;
+        const previous = slide.layoutIr ? JSON.stringify(slide.layoutIr) : '';
+        const next = JSON.stringify(layoutIr);
+        if (previous === next) return slide;
+        return {
+          ...slide,
+          layoutIr,
+        };
+      }),
+    );
+  };
+
   const buildDefaultTableData = (): FrontendTableData => ({
     headers: ['指标', '当前值', '说明'],
     rows: [
@@ -2384,6 +2830,28 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       prev.map((slide, idx) => {
         if (idx !== slideIndex) return slide;
         const tableData = buildDefaultTableData();
+        if (slide.renderEngine === 'canvas') {
+          const nodeId = buildUniqueCanvasNodeId(slide, 'table');
+          return insertCanvasNode(
+            slide,
+            {
+              type: 'component',
+              id: nodeId,
+              component: 'table',
+              props: { table_ref: nodeId },
+            },
+            {
+              targetId: targetBlockId,
+              contentPatch: {
+                [nodeId]: {
+                  headers: tableData.headers,
+                  rows: tableData.rows,
+                },
+              },
+              editableFields: buildTableEditableFields(nodeId, tableData),
+            },
+          );
+        }
         const targetZone = parseFrontendInsertZoneTarget(targetBlockId);
         if (targetZone) {
           const blockId = buildUniqueBlockId(slide, 'table_block');
@@ -2430,6 +2898,30 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setFrontendSlides((prev) =>
       prev.map((slide, idx) => {
         if (idx !== slideIndex) return slide;
+        if (slide.renderEngine === 'canvas') {
+          const nodeId = buildUniqueCanvasNodeId(slide, 'text');
+          const value = '新的文本块';
+          return insertCanvasNode(
+            slide,
+            {
+              type: 'component',
+              id: nodeId,
+              component: 'text',
+              props: { text_ref: nodeId },
+            },
+            {
+              targetId: targetBlockId,
+              contentPatch: { [nodeId]: value },
+              editableFields: {
+                key: nodeId,
+                label: '文本块',
+                type: 'textarea',
+                value,
+                items: [],
+              },
+            },
+          );
+        }
         const targetZone = parseFrontendInsertZoneTarget(targetBlockId);
         if (targetZone) {
           const blockId = buildUniqueBlockId(slide, 'text_block');
@@ -2476,6 +2968,30 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setFrontendSlides((prev) =>
       prev.map((slide, idx) => {
         if (idx !== slideIndex) return slide;
+        if (slide.renderEngine === 'canvas') {
+          const nodeId = buildUniqueCanvasNodeId(slide, 'callout');
+          const value = '新的重点内容';
+          return insertCanvasNode(
+            slide,
+            {
+              type: 'component',
+              id: nodeId,
+              component: 'callout',
+              props: { text_ref: nodeId },
+            },
+            {
+              targetId: targetBlockId,
+              contentPatch: { [nodeId]: value },
+              editableFields: {
+                key: nodeId,
+                label: '重点内容',
+                type: 'textarea',
+                value,
+                items: [],
+              },
+            },
+          );
+        }
         const targetZone = parseFrontendInsertZoneTarget(targetBlockId);
         if (targetZone) {
           const blockId = buildUniqueBlockId(slide, 'callout_block');
@@ -2535,7 +3051,9 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       return;
     }
 
-    const assetKey = buildUniqueBlockId(currentSlide, 'user_image');
+    const assetKey = currentSlide.renderEngine === 'canvas'
+      ? buildUniqueCanvasNodeId(currentSlide, 'user_image')
+      : buildUniqueBlockId(currentSlide, 'user_image');
     setError(null);
 
     try {
@@ -2583,6 +3101,40 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
             assetKey,
           };
           const visualAssets = [...slide.visualAssets, nextAsset];
+          if (slide.renderEngine === 'canvas') {
+            return insertCanvasNode(
+              slide,
+              {
+                type: 'component',
+                id: assetKey,
+                component: 'figure',
+                props: {
+                  asset_ref: assetKey,
+                  asset_key: assetKey,
+                  fit: 'contain',
+                },
+              },
+              {
+                targetId: targetBlockId,
+                visualAssets,
+                contentPatch: {
+                  assets: {
+                    ...(((slide.content?.assets && typeof slide.content.assets === 'object')
+                      ? slide.content.assets as Record<string, unknown>
+                      : {})),
+                    [assetKey]: {
+                      type: 'image',
+                      asset_key: assetKey,
+                      src: nextAsset.src,
+                      preview_src: nextAsset.previewSrc || nextAsset.src,
+                      original_src: nextAsset.originalSrc || nextAsset.storagePath || nextAsset.src,
+                      alt: nextAsset.alt,
+                    },
+                  },
+                },
+              },
+            );
+          }
           const targetZone = parseFrontendInsertZoneTarget(targetBlockId);
           if (targetZone) {
             const block: FrontendSlideBlock = {
@@ -3672,10 +4224,32 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     }
 
     setIsGeneratingFinal(true);
-    setFinalTaskMessage('正在准备前端页面截图...');
+    setFinalTaskMessage('正在准备可编辑 PPTX...');
     setError(null);
 
     try {
+      setFinalTaskMessage('正在解析 Canvas 布局...');
+      await sleep(180);
+      const slidesForExport = normalizeFrontendSlides(
+        frontendSlides.map((slide) => serializeFrontendSlide(slide)),
+      );
+      if (canExportCanvasSlidesToPptx(slidesForExport)) {
+        setFinalTaskMessage('正在生成可编辑 PPTX...');
+        const pptxBlob = await buildCanvasSlidesPptxBlob(slidesForExport, frontendDeckTheme);
+        const objectUrl = URL.createObjectURL(pptxBlob);
+        setDownloadUrl((previousUrl) => {
+          if (previousUrl?.startsWith('blob:')) {
+            URL.revokeObjectURL(previousUrl);
+          }
+          return objectUrl;
+        });
+        setPdfPreviewUrl(null);
+        await uploadAndSaveFile(pptxBlob, 'paper2ppt_editable.pptx', 'paper2ppt');
+        setFinalTaskMessage('');
+        return;
+      }
+
+      setFinalTaskMessage('Canvas 布局信息不足，正在回退为截图版 PPTX...');
       const screenshotFiles: File[] = [];
       for (let index = 0; index < frontendSlides.length; index += 1) {
         const node = frontendCaptureRefs.current[index];
@@ -3872,6 +4446,15 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     }
 
     try {
+      if (downloadUrl.startsWith('blob:')) {
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = 'paper2ppt_editable.pptx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
       const res = await fetch(downloadUrl);
       if (!res.ok) {
         throw new Error('下载失败');
@@ -3899,7 +4482,12 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setGenerateResults([]);
     setFrontendSlides([]);
     setFrontendDeckTheme(null);
-    setDownloadUrl(null);
+    setDownloadUrl((previousUrl) => {
+      if (previousUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(previousUrl);
+      }
+      return null;
+    });
     setPdfPreviewUrl(null);
     setResultPath(null);
     setError(null);
@@ -4017,6 +4605,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
                 insertCalloutBlock={insertFrontendCalloutBlock}
                 insertTableBlock={insertFrontendTableBlock}
                 insertImageBlock={insertFrontendImageBlock}
+                updateLayoutIr={updateFrontendLayoutIr}
               />
             ) : (
               <GenerateStep
@@ -4098,6 +4687,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
               captureRef={(node) => {
                 frontendCaptureRefs.current[index] = node;
               }}
+              onLayoutIrChange={(layoutIr) => updateFrontendLayoutIr(index, layoutIr)}
             />
           ))}
         </div>

@@ -3,6 +3,7 @@ import { Check, Pencil, X } from 'lucide-react';
 import {
   buildFrontendInsertZoneTarget,
   FrontendDeckTheme,
+  FrontendLayoutIR,
   FrontendSlide,
 } from './types';
 import { buildFrontendSlideMarkup } from './frontendSlideUtils';
@@ -21,6 +22,7 @@ interface FrontendSlidePreviewProps {
   selectedBlockId?: string | null;
   onSelectBlock?: (blockId: string | null) => void;
   onHoverBlock?: (blockId: string | null) => void;
+  onLayoutIrChange?: (layoutIr: FrontendLayoutIR) => void;
 }
 
 interface InlineEditorState {
@@ -59,6 +61,7 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
   selectedBlockId = null,
   onSelectBlock,
   onHoverBlock,
+  onLayoutIrChange,
 }) => {
   const DESIGN_WIDTH = 1600;
   const DESIGN_HEIGHT = 900;
@@ -69,6 +72,11 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
   const [pendingImageKey, setPendingImageKey] = useState<string | null>(null);
   const [hoveredBlock, setHoveredBlock] = useState<BlockHoverState | null>(null);
   const lastHoverBlockIdRef = useRef<string | null>(null);
+  const onLayoutIrChangeRef = useRef(onLayoutIrChange);
+
+  useEffect(() => {
+    onLayoutIrChangeRef.current = onLayoutIrChange;
+  }, [onLayoutIrChange]);
 
   useEffect(() => {
     if (mode !== 'responsive' || !containerRef.current) {
@@ -100,7 +108,81 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
 
   useEffect(() => {
     setInlineEditor(null);
-  }, [slide.htmlTemplate, slide.cssCode, slide.templateKey, slide.layoutMode, slide.blocks]);
+  }, [slide.htmlTemplate, slide.cssCode, slide.templateKey, slide.layoutMode, slide.blocks, slide.root, slide.renderEngine]);
+
+  useEffect(() => {
+    if (slide.renderEngine !== 'canvas' || !containerRef.current) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const measure = () => {
+      const container = containerRef.current;
+      if (!container || cancelled) return;
+      const canvasRoot = container.querySelector('.template-canvas-schema') as HTMLElement | null;
+      if (!canvasRoot) {
+        return;
+      }
+
+      const rootRect = canvasRoot.getBoundingClientRect();
+      const nodes = Array.from(canvasRoot.querySelectorAll('[data-canvas-node-id]')) as HTMLElement[];
+      const overflowIssues: string[] = [];
+      const irNodes = nodes.map((node) => {
+        const rect = node.getBoundingClientRect();
+        const nodeId = node.dataset.canvasNodeId || node.dataset.blockId || '';
+        const left = (rect.left - rootRect.left) / Math.max(scale, 0.0001);
+        const top = (rect.top - rootRect.top) / Math.max(scale, 0.0001);
+        const width = rect.width / Math.max(scale, 0.0001);
+        const height = rect.height / Math.max(scale, 0.0001);
+        const overflow = node.scrollWidth > node.clientWidth + 1
+          || node.scrollHeight > node.clientHeight + 1
+          || left < -1
+          || top < -1
+          || left + width > DESIGN_WIDTH + 1
+          || top + height > DESIGN_HEIGHT + 1;
+        if (overflow) {
+          overflowIssues.push(`${nodeId || 'unknown'} overflow`);
+        }
+        return {
+          nodeId,
+          type: node.dataset.blockRole === 'container' ? 'container' as const : 'component' as const,
+          component: node.dataset.blockRole === 'container' ? undefined : node.dataset.blockRole as FrontendLayoutIR['nodes'][number]['component'],
+          box: {
+            x: Math.round(left),
+            y: Math.round(top),
+            w: Math.round(width),
+            h: Math.round(height),
+          },
+          overflow,
+        };
+      });
+
+      onLayoutIrChangeRef.current?.({
+        schemaVersion: 'ppt_layout_ir_v1',
+        slideId: slide.slideId,
+        viewport: {
+          width: DESIGN_WIDTH,
+          height: DESIGN_HEIGHT,
+          scale,
+        },
+        nodes: irNodes,
+        overflowIssues,
+      });
+    };
+
+    const frame = window.requestAnimationFrame(() => {
+      measure();
+      window.setTimeout(measure, 120);
+    });
+    const observer = new ResizeObserver(() => measure());
+    observer.observe(containerRef.current);
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [mode, slide.renderEngine, slide.slideId, slide.root, slide.blocks, slide.editableFields, slide.visualAssets, scale]);
 
   useEffect(() => {
     if (!inlineEditor) {
@@ -336,7 +418,10 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
   if (mode === 'capture') {
     return (
       <div
-        ref={captureRef}
+        ref={(node) => {
+          containerRef.current = node;
+          captureRef?.(node);
+        }}
         className={className}
         style={{
           width: `${DESIGN_WIDTH}px`,
@@ -422,11 +507,15 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
             <Pencil size={12} />
             {hoveredBlock
               ? hoveredBlock.kind === 'zone'
-                ? `鼠标所在空白区域：${hoveredBlock.role}，点击后可新增同级 block`
+                ? slide.renderEngine === 'canvas'
+                  ? `鼠标所在空白区域：${hoveredBlock.role}，点击后可新增同级节点`
+                  : `鼠标所在空白区域：${hoveredBlock.role}，点击后可新增同级 block`
                 : `鼠标所在区域：${hoveredBlock.blockId}`
               : selectedBlockId
                 ? `当前选择区域：${selectedBlockId}`
-                : '鼠标移到 block 或空白区域上查看目标，点击固定插入位置'}
+                : slide.renderEngine === 'canvas'
+                  ? '鼠标移到 Canvas 节点或空白区域上查看目标，点击固定插入位置'
+                  : '鼠标移到 block 或空白区域上查看目标，点击固定插入位置'}
           </div>
         </div>
       )}

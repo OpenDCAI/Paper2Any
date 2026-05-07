@@ -387,6 +387,7 @@ def create_image2drawio_graph() -> GenericGraphBuilder:
             log.warning(f"[image2drawio] no_text mask failed: {e}")
             state.no_text_path = ""
 
+
         state.ocr_items = ocr_items
         return state
 

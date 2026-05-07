@@ -159,6 +159,99 @@ const renderCanvasPlaceholder = (node: FrontendCanvasNode, label: string) => `
 </div>
 `.trim();
 
+const normalizeCanvasComponent = (rawComponent: unknown) => {
+  const component = slugify(String(rawComponent || 'placeholder'));
+  const aliases: Record<string, string> = {
+    h1: 'heading',
+    h2: 'heading',
+    title: 'heading',
+    subtitle: 'text',
+    paragraph: 'text',
+    body: 'text',
+    body_text: 'text',
+    bullet_list: 'bullets',
+    bullet_points: 'bullets',
+    key_points: 'bullets',
+    list: 'bullets',
+    points: 'bullets',
+    image: 'figure',
+    visual: 'figure',
+    chart: 'figure',
+    diagram: 'figure',
+    table_card: 'table',
+    data_table: 'table',
+    metric: 'stat',
+    number: 'stat',
+    kpi: 'stat',
+    card: 'callout',
+    note: 'callout',
+    insight: 'callout',
+    timeline: 'bullets',
+    timeline_item: 'text',
+  };
+  const normalized = aliases[component] || component;
+  return ['heading', 'text', 'bullets', 'quote', 'stat', 'callout', 'figure', 'table', 'placeholder'].includes(normalized)
+    ? normalized
+    : 'text';
+};
+
+const normalizeCanvasTableData = (value: unknown) => {
+  const source = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const headers = Array.isArray(source.headers)
+    ? source.headers.map((item) => String(item || '').trim()).filter(Boolean)
+    : Array.isArray(source.columns)
+      ? source.columns.map((item) => String(item || '').trim()).filter(Boolean)
+      : [];
+  const rows = Array.isArray(source.rows)
+    ? source.rows
+        .filter((row): row is unknown[] => Array.isArray(row))
+        .map((row) => row.map((cell) => String(cell ?? '').trim()))
+        .filter((row) => row.length > 0)
+    : [];
+  const maxCols = Math.max(headers.length, ...rows.map((row) => row.length), 0);
+  if (maxCols <= 0) return undefined;
+  return {
+    headers: Array.from({ length: maxCols }, (_, index) => headers[index] || `列 ${index + 1}`),
+    rows: rows.length > 0
+      ? rows.map((row) => Array.from({ length: maxCols }, (_, index) => row[index] || ''))
+      : [Array.from({ length: maxCols }, () => '')],
+  };
+};
+
+const renderCanvasTableMarkup = (slide: FrontendSlide, node: FrontendCanvasNode, attrs: string) => {
+  const props = node.props || {};
+  const ref = props.table_ref || props.tableRef || props.ref || node.id;
+  const ownerId = String(ref || node.id);
+  const fieldMap = buildFieldMap(slide);
+  const tableData = normalizeCanvasTableData(
+    props.table_data
+    || props.tableData
+    || props.table
+    || resolveContentPath(slide.content, ownerId),
+  );
+  if (!tableData) return renderCanvasPlaceholder(node, 'Missing table data');
+  return `
+<div class="schema-canvas-component schema-table-card" ${attrs}>
+  <div class="schema-table-scroll">
+    <table class="schema-table">
+      <thead>
+        <tr>${tableData.headers.map((header, colIndex) => {
+          const field = fieldMap.get(getTableCellFieldKey(ownerId, 'h', colIndex));
+          return `<th>${wrapEditableText(field, field?.value || header)}</th>`;
+        }).join('')}</tr>
+      </thead>
+      <tbody>
+        ${tableData.rows.map((row, rowIndex) => `<tr>${row.map((cell, colIndex) => {
+          const field = fieldMap.get(getTableCellFieldKey(ownerId, rowIndex, colIndex));
+          return `<td>${wrapEditableText(field, field?.value || cell)}</td>`;
+        }).join('')}</tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+</div>
+`.trim();
+};
+
 const resolveTheme = (theme?: FrontendDeckTheme | null) => ({
   palette: {
     ...DEFAULT_PALETTE,
@@ -747,6 +840,8 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null) => {
   background: rgba(255, 255, 255, 0.03);
 }
 .schema-canvas-root {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -754,9 +849,16 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null) => {
 .schema-canvas-container {
   min-width: 0;
   min-height: 0;
+  width: 100%;
+}
+.schema-canvas-container[data-canvas-node-id="root"],
+.schema-canvas-container[data-canvas-node-id="main"] {
+  flex: 1 1 auto;
+  height: 100%;
 }
 .schema-canvas-component {
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 .schema-canvas-heading {
   margin: 0;
@@ -785,6 +887,21 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null) => {
   background: color-mix(in srgb, var(--schema-panel) 72%, transparent);
   font-family: var(--schema-body-font);
   font-size: 18px;
+}
+.template-canvas-schema .schema-shell {
+  padding: 58px 64px 52px;
+}
+.template-canvas-schema .schema-main {
+  display: flex;
+  min-height: 0;
+}
+.template-canvas-schema .schema-visual-card {
+  min-height: 220px;
+  height: 100%;
+}
+.template-canvas-schema .schema-bullets {
+  max-height: 100%;
+  overflow: hidden;
 }
 .schema-quote {
   margin: 0;
@@ -1047,7 +1164,7 @@ const renderFooter = (slide: FrontendSlide, context: ReturnType<typeof buildSche
 
 const renderCanvasComponent = (slide: FrontendSlide, node: FrontendCanvasNode) => {
   const props = node.props || {};
-  const component = node.component || 'placeholder';
+  const component = normalizeCanvasComponent(node.component || props.component || props.kind);
   const attrs = `data-block-id="${escapeHtml(node.id)}" data-block-role="${escapeHtml(component)}" data-canvas-node-id="${escapeHtml(node.id)}"`;
 
   if (component === 'heading') {
@@ -1105,10 +1222,14 @@ const renderCanvasComponent = (slide: FrontendSlide, node: FrontendCanvasNode) =
   }
 
   if (component === 'table') {
-    return renderCanvasPlaceholder(node, 'Table component placeholder');
+    return renderCanvasTableMarkup(slide, node, attrs);
   }
 
-  return renderCanvasPlaceholder(node, 'Unsupported component');
+  const fallbackText = resolveTextRef(slide, props.text_ref || props.textRef || props.ref, String(props.text || props.content || node.id || ''));
+  if (fallbackText.trim()) {
+    return `<div class="schema-canvas-component schema-canvas-text" ${attrs}>${formatTextValue(fallbackText)}</div>`;
+  }
+  return renderCanvasPlaceholder(node, 'Empty component');
 };
 
 const renderCanvasNode = (slide: FrontendSlide, node: FrontendCanvasNode): string => {
@@ -1127,7 +1248,7 @@ const renderCanvasNode = (slide: FrontendSlide, node: FrontendCanvasNode): strin
 `.trim();
 };
 
-const renderCanvasSlide = (slide: FrontendSlide, theme?: FrontendDeckTheme | null) => `
+const renderCanvasSlide = (slide: FrontendSlide) => `
 <div class="slide-root schema-root template-canvas-schema" data-layout-family="${escapeHtml(slide.layoutFamily || 'custom')}">
   <div class="schema-shell">
     <div class="schema-main schema-canvas-root">
@@ -1458,8 +1579,8 @@ export const isSchemaDrivenSlide = (slide: FrontendSlide) =>
   Boolean(slide.root || slide.schemaVersion || (Array.isArray(slide.blocks) && slide.blocks.length > 0));
 
 export const buildSchemaSlideMarkup = (slide: FrontendSlide, theme?: FrontendDeckTheme | null) => {
-  if (slide.root) {
-    return `<style>${buildSchemaBaseCss(theme)}</style>${renderCanvasSlide(slide, theme)}`;
+  if (slide.renderEngine === 'canvas' && slide.root) {
+    return `<style>${buildSchemaBaseCss(theme)}</style>${renderCanvasSlide(slide)}`;
   }
   const templateKey = pickSchemaTemplateKey(slide);
   const renderer = TEMPLATE_RENDERERS[templateKey] || TEMPLATE_RENDERERS.text_focus;

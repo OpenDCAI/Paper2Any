@@ -65,6 +65,7 @@ export type FrontendLayoutSideHint = 'left' | 'right' | 'center' | 'auto';
 export type FrontendLayoutEmphasis = 'high' | 'medium' | 'low';
 export type FrontendLayoutMode = 'fluid' | 'hybrid' | 'fixed';
 export type FrontendSlideBlockType = 'text' | 'list' | 'image' | 'quote' | 'stat' | 'callout' | 'table';
+export type FrontendRenderEngine = 'blocks' | 'canvas';
 export type FrontendCanvasNodeType = 'container' | 'component';
 export type FrontendCanvasDirection = 'row' | 'column' | 'grid';
 export type FrontendCanvasComponentType =
@@ -219,6 +220,7 @@ export interface FrontendLayoutIR {
     scale: number;
   };
   nodes: FrontendLayoutIRNode[];
+  overflowIssues?: string[];
 }
 
 export interface FrontendDeckPalette {
@@ -245,6 +247,7 @@ export interface FrontendSlide {
   pageNum: number;
   title: string;
   schemaVersion?: string;
+  renderEngine?: FrontendRenderEngine;
   templateKey?: string;
   layoutMode?: FrontendLayoutMode;
   blocks: FrontendSlideBlock[];
