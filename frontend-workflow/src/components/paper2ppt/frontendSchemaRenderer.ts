@@ -5,6 +5,8 @@ import {
   FrontendEditableField,
   FrontendBlockChild,
   FrontendCanvasNode,
+  FrontendCanvasVisualSpec,
+  FrontendCanvasVisualStyle,
   FrontendSlide,
   FrontendSlideBlock,
   FrontendVisualAsset,
@@ -264,6 +266,95 @@ const resolveTheme = (theme?: FrontendDeckTheme | null) => ({
   footerText: theme?.footerText || 'Paper2Any Frontend PPT',
 });
 
+const resolveCanvasVisualTheme = (
+  theme?: FrontendDeckTheme | null,
+  visualSpec?: FrontendCanvasVisualSpec | null,
+) => {
+  const baseTheme = resolveTheme(theme);
+  const surface = visualSpec?.surface || {};
+  return {
+    palette: {
+      ...baseTheme.palette,
+      ...(visualSpec?.palette || {}),
+      bg: surface.background || visualSpec?.palette?.bg || baseTheme.palette.bg,
+      panel: surface.panel || visualSpec?.palette?.panel || baseTheme.palette.panel,
+      primary: surface.primary || visualSpec?.palette?.primary || baseTheme.palette.primary,
+      secondary: surface.secondary || visualSpec?.palette?.secondary || baseTheme.palette.secondary,
+      accent: surface.accent || visualSpec?.palette?.accent || baseTheme.palette.accent,
+      text: surface.text || visualSpec?.palette?.text || baseTheme.palette.text,
+      muted: surface.muted || visualSpec?.palette?.muted || baseTheme.palette.muted,
+    },
+    typography: {
+      ...baseTheme.typography,
+      ...(visualSpec?.typography || {}),
+    },
+    surface: {
+      cardRadius: surface.cardRadius ?? 28,
+      cardPadding: surface.cardPadding ?? 24,
+      sectionGap: surface.sectionGap ?? 22,
+    },
+    layout: {
+      safeMargin: visualSpec?.layout?.safeMargin ?? 62,
+      sectionGap: visualSpec?.layout?.sectionGap ?? 22,
+      contentGap: visualSpec?.layout?.contentGap ?? 18,
+      maxColumns: visualSpec?.layout?.maxColumns ?? 2,
+    },
+    footerText: theme?.footerText || 'Paper2Any Frontend PPT',
+  };
+};
+
+const getCanvasNodeVisualStyle = (
+  slide: FrontendSlide,
+  node: FrontendCanvasNode,
+  component: string,
+) => {
+  const visualSpec = slide.visualSpec || {};
+  const nodeStyles = visualSpec.nodeStyles || {};
+  const componentStyles = visualSpec.componentStyles || {};
+  const rawNodeStyle = nodeStyles[node.id] || {};
+  const rawComponentStyle = componentStyles[component as keyof typeof componentStyles] || {};
+  const propsStyle = (node.props as Record<string, unknown> | undefined)?.visual_style
+    || (node.props as Record<string, unknown> | undefined)?.visualStyle
+    || {};
+  return {
+    ...rawComponentStyle,
+    ...rawNodeStyle,
+    ...(typeof propsStyle === 'object' ? propsStyle as Record<string, unknown> : {}),
+  };
+};
+
+const buildCanvasStyleAttr = (style: Record<string, unknown>) => {
+  const rules: string[] = [];
+  const push = (key: string, cssKey = key, unit: string | null = null) => {
+    const value = style[key];
+    if (value === undefined || value === null) return;
+    const text = String(value).trim();
+    if (!text) return;
+    if (unit) {
+      const numeric = Number(text);
+      if (Number.isFinite(numeric)) {
+        rules.push(`${cssKey}:${Math.max(0, numeric)}${unit}`);
+        return;
+      }
+    }
+    rules.push(`${cssKey}:${text}`);
+  };
+  push('fill', 'background-color');
+  push('color');
+  push('borderColor', 'border-color');
+  push('borderWidth', 'border-width', 'px');
+  push('radius', 'border-radius', 'px');
+  push('padding', 'padding', 'px');
+  push('fontFamily', 'font-family');
+  push('fontSize', 'font-size', 'px');
+  push('fontWeight', 'font-weight');
+  push('fontStyle', 'font-style');
+  push('lineHeight', 'line-height', 'px');
+  push('textAlign', 'text-align');
+  push('opacity');
+  return rules.join(';');
+};
+
 const getFieldKeyForBlock = (slide: FrontendSlide, block: FrontendSlideBlock) => {
   const candidates = [
     PREFERRED_FIELD_KEYS[block.role] || '',
@@ -309,13 +400,19 @@ const wrapEditableText = (
   return `<span${attrs}>${formatTextValue(value)}</span>`;
 };
 
-const renderVisualAsset = (asset: FrontendVisualAsset | undefined, assetKey: string, label: string) => {
+const renderVisualAsset = (
+  asset: FrontendVisualAsset | undefined,
+  assetKey: string,
+  label: string,
+  imageFit?: FrontendCanvasVisualStyle['imageFit'],
+) => {
   const previewSrc = (asset?.previewSrc || asset?.src || '').trim();
   const originalSrc = (asset?.originalSrc || previewSrc || '').trim();
   const sourceLabel = asset?.sourceType === 'paper_asset' ? '论文图表' : asset?.sourceType === 'upload' ? '用户上传' : 'AI 配图';
   const safeAssetKey = escapeHtml(assetKey || asset?.key || 'main_visual');
   const safeLabel = escapeHtml(asset?.label || label || assetKey || 'Image');
   const safeAlt = escapeHtml(asset?.alt || safeLabel || 'Slide image');
+  const resolvedImageFit = imageFit === 'contain' || imageFit === 'fill' ? imageFit : 'cover';
 
   if (!previewSrc) {
     return `
@@ -331,7 +428,7 @@ const renderVisualAsset = (asset: FrontendVisualAsset | undefined, assetKey: str
   return `
 <div class="ppt-managed-image" data-image-key="${safeAssetKey}" data-image-label="${safeLabel}">
   <div class="ppt-managed-image-frame">
-    <img src="${escapeHtml(previewSrc)}" data-preview-src="${escapeHtml(previewSrc)}" data-original-src="${escapeHtml(originalSrc)}" alt="${safeAlt}" class="ppt-managed-image-el" />
+    <img src="${escapeHtml(previewSrc)}" data-preview-src="${escapeHtml(previewSrc)}" data-original-src="${escapeHtml(originalSrc)}" alt="${safeAlt}" class="ppt-managed-image-el" style="object-fit:${escapeHtml(resolvedImageFit)};object-position:center;" />
   </div>
   <div class="ppt-managed-image-badge">${escapeHtml(sourceLabel)}</div>
 </div>
@@ -649,8 +746,8 @@ const pickSchemaTemplateKey = (slide: FrontendSlide) => {
   return 'text_focus';
 };
 
-const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null) => {
-  const resolved = resolveTheme(theme);
+const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null, visualSpec?: FrontendCanvasVisualSpec | null) => {
+  const resolved = resolveCanvasVisualTheme(theme, visualSpec);
   return `
 .slide-root.schema-root {
   --schema-bg: ${resolved.palette.bg};
@@ -666,6 +763,12 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null) => {
   --schema-summary-size: ${resolved.typography.summarySize}px;
   --schema-body-size: ${resolved.typography.bodySize}px;
   --schema-eyebrow-size: ${resolved.typography.eyebrowSize}px;
+  --schema-card-radius: ${resolved.surface.cardRadius}px;
+  --schema-card-padding: ${resolved.surface.cardPadding}px;
+  --schema-shell-padding-x: ${resolved.layout.safeMargin}px;
+  --schema-shell-padding-top: ${resolved.layout.safeMargin}px;
+  --schema-shell-padding-bottom: ${Math.max(40, Math.round(resolved.layout.safeMargin * 0.9))}px;
+  --schema-shell-gap: ${resolved.layout.sectionGap}px;
   width: 100%;
   height: 100%;
   background:
@@ -682,10 +785,10 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null) => {
   position: relative;
   width: 100%;
   height: 100%;
-  padding: 62px 70px 56px;
+  padding: var(--schema-shell-padding-top) var(--schema-shell-padding-x) var(--schema-shell-padding-bottom);
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: var(--schema-shell-gap);
   background:
     linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
     linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px);
@@ -742,14 +845,14 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null) => {
   background: var(--schema-panel);
   border: 1px solid color-mix(in srgb, var(--schema-primary) 22%, transparent);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
-  border-radius: 28px;
+  border-radius: var(--schema-card-radius);
   backdrop-filter: blur(10px);
 }
 .schema-card,
 .schema-stat-card,
 .schema-callout,
 .schema-table-card {
-  padding: 24px 26px;
+  padding: var(--schema-card-padding) calc(var(--schema-card-padding) + 2px);
 }
 .schema-card-title,
 .schema-label {
@@ -1166,12 +1269,15 @@ const renderCanvasComponent = (slide: FrontendSlide, node: FrontendCanvasNode) =
   const props = node.props || {};
   const component = normalizeCanvasComponent(node.component || props.component || props.kind);
   const attrs = `data-block-id="${escapeHtml(node.id)}" data-block-role="${escapeHtml(component)}" data-canvas-node-id="${escapeHtml(node.id)}"`;
+  const visualStyle = getCanvasNodeVisualStyle(slide, node, component);
+  const styleAttr = buildCanvasStyleAttr(visualStyle);
+  const style = styleAttr ? ` style="${escapeHtml(styleAttr)}"` : '';
 
   if (component === 'heading') {
     const ref = props.text_ref || props.textRef || props.ref;
     const value = resolveTextRef(slide, ref, String(props.text || slide.title || 'Untitled'));
     const field = ref ? buildFieldMap(slide).get(String(ref)) : undefined;
-    return `<h1 class="schema-canvas-component schema-canvas-heading" ${attrs}>${wrapEditableText(field, value || 'Untitled')}</h1>`;
+    return `<h1 class="schema-canvas-component schema-canvas-heading" ${attrs}${style}>${wrapEditableText(field, value || 'Untitled')}</h1>`;
   }
 
   if (component === 'text' || component === 'quote' || component === 'callout') {
@@ -1180,7 +1286,7 @@ const renderCanvasComponent = (slide: FrontendSlide, node: FrontendCanvasNode) =
     if (!value.trim()) return renderCanvasPlaceholder(node, 'Missing text reference');
     const field = ref ? buildFieldMap(slide).get(String(ref)) : undefined;
     const className = component === 'quote' ? 'schema-quote' : component === 'callout' ? 'schema-callout' : 'schema-canvas-text';
-    return `<div class="schema-canvas-component ${className}" ${attrs}>${wrapEditableText(field, value)}</div>`;
+    return `<div class="schema-canvas-component ${className}" ${attrs}${style}>${wrapEditableText(field, value)}</div>`;
   }
 
   if (component === 'bullets') {
@@ -1189,7 +1295,7 @@ const renderCanvasComponent = (slide: FrontendSlide, node: FrontendCanvasNode) =
     if (items.length === 0) return renderCanvasPlaceholder(node, 'Missing list reference');
     const field = ref ? buildFieldMap(slide).get(String(ref)) : undefined;
     return `
-<ul class="schema-canvas-component schema-bullets" ${attrs}>
+<ul class="schema-canvas-component schema-bullets" ${attrs}${style}>
   ${items.map((item, index) => `<li>${wrapEditableText(field, item, index)}</li>`).join('')}
 </ul>
 `.trim();
@@ -1206,16 +1312,20 @@ const renderCanvasComponent = (slide: FrontendSlide, node: FrontendCanvasNode) =
       || ref
       || node.id,
     );
-    return `<div class="schema-canvas-component schema-visual-card" ${attrs}>${renderVisualAsset(buildAssetMap(slide).get(assetKey), assetKey, String(props.label || 'Figure'))}</div>`;
+    return `<div class="schema-canvas-component schema-visual-card" ${attrs}${style}>${renderVisualAsset(buildAssetMap(slide).get(assetKey), assetKey, String(props.label || 'Figure'), visualStyle.imageFit)}</div>`;
   }
 
   if (component === 'stat') {
-    const value = resolveTextRef(slide, props.value_ref || props.valueRef || props.ref, String(props.value || ''));
-    const label = resolveTextRef(slide, props.label_ref || props.labelRef, String(props.label || ''));
+    const valueRef = props.value_ref || props.valueRef || props.ref || props.text_ref || props.textRef;
+    const labelRef = props.label_ref || props.labelRef;
+    const value = resolveTextRef(slide, valueRef, String(props.value || props.text || ''));
+    const label = resolveTextRef(slide, labelRef, String(props.label || ''));
+    const valueField = valueRef ? buildFieldMap(slide).get(String(valueRef)) : undefined;
+    const labelField = labelRef ? buildFieldMap(slide).get(String(labelRef)) : undefined;
     if (!value.trim() && !label.trim()) return renderCanvasPlaceholder(node, 'Missing stat reference');
     return `
-<div class="schema-canvas-component schema-stat-card" ${attrs}>
-  <div class="schema-stat-value">${formatTextValue(value || '--')}</div>
+<div class="schema-canvas-component schema-stat-card" ${attrs}${style}>
+  <div class="schema-stat-value">${wrapEditableText(valueField, value || '--')}</div>
   ${label ? `<div class="schema-stat-label">${formatTextValue(label)}</div>` : ''}
 </div>
 `.trim();
@@ -1227,7 +1337,7 @@ const renderCanvasComponent = (slide: FrontendSlide, node: FrontendCanvasNode) =
 
   const fallbackText = resolveTextRef(slide, props.text_ref || props.textRef || props.ref, String(props.text || props.content || node.id || ''));
   if (fallbackText.trim()) {
-    return `<div class="schema-canvas-component schema-canvas-text" ${attrs}>${formatTextValue(fallbackText)}</div>`;
+    return `<div class="schema-canvas-component schema-canvas-text" ${attrs}${style}>${formatTextValue(fallbackText)}</div>`;
   }
   return renderCanvasPlaceholder(node, 'Empty component');
 };
@@ -1580,7 +1690,7 @@ export const isSchemaDrivenSlide = (slide: FrontendSlide) =>
 
 export const buildSchemaSlideMarkup = (slide: FrontendSlide, theme?: FrontendDeckTheme | null) => {
   if (slide.renderEngine === 'canvas' && slide.root) {
-    return `<style>${buildSchemaBaseCss(theme)}</style>${renderCanvasSlide(slide)}`;
+    return `<style>${buildSchemaBaseCss(theme, slide.visualSpec || null)}</style>${renderCanvasSlide(slide)}`;
   }
   const templateKey = pickSchemaTemplateKey(slide);
   const renderer = TEMPLATE_RENDERERS[templateKey] || TEMPLATE_RENDERERS.text_focus;

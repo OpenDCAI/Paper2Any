@@ -1,6 +1,8 @@
 import PptxGenJS from 'pptxgenjs';
 import {
   FrontendCanvasNode,
+  FrontendCanvasVisualSpec,
+  FrontendCanvasVisualStyle,
   FrontendDeckTheme,
   FrontendLayoutIRNode,
   FrontendSlide,
@@ -46,6 +48,20 @@ type ResolvedTheme = {
 
 type ComputedStyleMap = Record<string, unknown>;
 
+type ResolvedCanvasVisualTheme = ResolvedTheme & {
+  surface: {
+    cardRadius: number;
+    cardPadding: number;
+    sectionGap: number;
+  };
+  layout: {
+    safeMargin: number;
+    sectionGap: number;
+    contentGap: number;
+    maxColumns: number;
+  };
+};
+
 const resolveTheme = (theme?: FrontendDeckTheme | null): ResolvedTheme => ({
   palette: {
     ...DEFAULT_PALETTE,
@@ -56,6 +72,42 @@ const resolveTheme = (theme?: FrontendDeckTheme | null): ResolvedTheme => ({
     ...(theme?.typography || {}),
   },
 });
+
+const resolveCanvasVisualTheme = (
+  theme?: FrontendDeckTheme | null,
+  visualSpec?: FrontendCanvasVisualSpec | null,
+): ResolvedCanvasVisualTheme => {
+  const baseTheme = resolveTheme(theme);
+  const surface = visualSpec?.surface || {};
+  return {
+    palette: {
+      ...baseTheme.palette,
+      ...(visualSpec?.palette || {}),
+      bg: surface.background || visualSpec?.palette?.bg || baseTheme.palette.bg,
+      panel: surface.panel || visualSpec?.palette?.panel || baseTheme.palette.panel,
+      primary: surface.primary || visualSpec?.palette?.primary || baseTheme.palette.primary,
+      secondary: surface.secondary || visualSpec?.palette?.secondary || baseTheme.palette.secondary,
+      accent: surface.accent || visualSpec?.palette?.accent || baseTheme.palette.accent,
+      text: surface.text || visualSpec?.palette?.text || baseTheme.palette.text,
+      muted: surface.muted || visualSpec?.palette?.muted || baseTheme.palette.muted,
+    },
+    typography: {
+      ...baseTheme.typography,
+      ...(visualSpec?.typography || {}),
+    },
+    surface: {
+      cardRadius: surface.cardRadius ?? 28,
+      cardPadding: surface.cardPadding ?? 24,
+      sectionGap: surface.sectionGap ?? 22,
+    },
+    layout: {
+      safeMargin: visualSpec?.layout?.safeMargin ?? 62,
+      sectionGap: visualSpec?.layout?.sectionGap ?? 22,
+      contentGap: visualSpec?.layout?.contentGap ?? 18,
+      maxColumns: Math.max(1, Math.min(4, visualSpec?.layout?.maxColumns ?? 2)),
+    },
+  };
+};
 
 const stripHash = (value: string) => value.trim().replace(/^#/, '');
 
@@ -266,18 +318,380 @@ const buildAssetMap = (slide: FrontendSlide) => {
     Object.entries(contentAssets as Record<string, Record<string, unknown>>).forEach(([key, raw]) => {
       if (!raw || typeof raw !== 'object') return;
       const assetKey = String(raw.asset_key || raw.assetKey || key);
+      const existing = assets.get(assetKey);
       assets.set(assetKey, {
         key: assetKey,
-        label: String(raw.label || assetKey),
-        src: String(raw.src || ''),
-        previewSrc: raw.preview_src ? String(raw.preview_src) : raw.previewSrc ? String(raw.previewSrc) : undefined,
-        originalSrc: raw.original_src ? String(raw.original_src) : raw.originalSrc ? String(raw.originalSrc) : undefined,
-        alt: String(raw.alt || raw.label || assetKey),
-        sourceType: 'upload',
+        label: existing?.label || String(raw.label || assetKey),
+        src: existing?.src || String(raw.src || ''),
+        previewSrc: existing?.previewSrc || (raw.preview_src ? String(raw.preview_src) : raw.previewSrc ? String(raw.previewSrc) : undefined),
+        originalSrc: existing?.originalSrc || (raw.original_src ? String(raw.original_src) : raw.originalSrc ? String(raw.originalSrc) : undefined),
+        alt: existing?.alt || String(raw.alt || raw.label || assetKey),
+        sourceType: existing?.sourceType || 'upload',
       });
     });
   }
   return assets;
+};
+
+const toFiniteNumber = (value: unknown, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const clampNumber = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value));
+
+const getCanvasNodeVisualStyle = (
+  slide: FrontendSlide,
+  node: FrontendCanvasNode,
+  component: string,
+): FrontendCanvasVisualStyle => {
+  const visualSpec = slide.visualSpec || {};
+  const nodeStyles = visualSpec.nodeStyles || {};
+  const componentStyles = visualSpec.componentStyles || {};
+  const rawNodeStyle = nodeStyles[node.id] || {};
+  const rawComponentStyle = componentStyles[component as keyof typeof componentStyles] || {};
+  const propsStyle = (node.props as Record<string, unknown> | undefined)?.visual_style
+    || (node.props as Record<string, unknown> | undefined)?.visualStyle
+    || {};
+  return {
+    ...rawComponentStyle,
+    ...rawNodeStyle,
+    ...(typeof propsStyle === 'object' ? propsStyle as FrontendCanvasVisualStyle : {}),
+  };
+};
+
+const getComponentFontSize = (
+  component: string,
+  theme: ResolvedCanvasVisualTheme,
+  visualStyle: FrontendCanvasVisualStyle,
+) => {
+  if (typeof visualStyle.fontSize === 'number' && visualStyle.fontSize > 0) {
+    return visualStyle.fontSize;
+  }
+  if (component === 'heading') return theme.typography.titleSize;
+  if (component === 'quote') return Math.max(20, Math.round(theme.typography.titleSize * 0.72));
+  if (component === 'stat') return Math.max(20, Math.round(theme.typography.titleSize * 0.62));
+  return theme.typography.bodySize;
+};
+
+const getComponentPadding = (
+  component: string,
+  theme: ResolvedCanvasVisualTheme,
+  visualStyle: FrontendCanvasVisualStyle,
+) => {
+  if (typeof visualStyle.padding === 'number' && visualStyle.padding >= 0) {
+    return visualStyle.padding;
+  }
+  if (component === 'figure') return 14;
+  if (component === 'stat') return Math.max(16, theme.surface.cardPadding - 2);
+  return theme.surface.cardPadding;
+};
+
+const estimateComponentHeight = (
+  slide: FrontendSlide,
+  node: FrontendCanvasNode,
+  component: string,
+  width: number,
+  theme: ResolvedCanvasVisualTheme,
+  visualStyle: FrontendCanvasVisualStyle,
+) => {
+  const fontSize = getComponentFontSize(component, theme, visualStyle);
+  const padding = getComponentPadding(component, theme, visualStyle);
+  const innerWidth = Math.max(140, width - padding * 2);
+  const charsPerLine = Math.max(12, Math.floor(innerWidth / Math.max(8, fontSize * 0.56)));
+  const ref = node.props || {};
+
+  if (component === 'heading') {
+    const text = resolveTextRef(slide, ref.text_ref || ref.textRef || ref.ref, String(ref.text || slide.title || ''));
+    const lines = Math.max(1, Math.ceil(Math.max(1, text.length) / charsPerLine));
+    return clampNumber(lines * fontSize * 1.28 + padding * 2.2, 72, 280);
+  }
+
+  if (component === 'bullets') {
+    const items = resolveListRef(slide, ref.items_ref || ref.itemsRef || ref.ref, Array.isArray(ref.items) ? ref.items.map(String) : []);
+    const lines = Math.max(1, items.reduce((sum, item) => sum + Math.max(1, Math.ceil(item.length / charsPerLine)), 0));
+    return clampNumber(lines * fontSize * 1.28 + padding * 2.2 + Math.max(0, items.length - 1) * 6, 96, 360);
+  }
+
+  if (component === 'quote' || component === 'callout' || component === 'text') {
+    const text = resolveTextRef(slide, ref.text_ref || ref.textRef || ref.ref, String(ref.text || ref.content || ''));
+    const lines = Math.max(1, Math.ceil(Math.max(1, text.length) / charsPerLine));
+    return clampNumber(lines * fontSize * 1.36 + padding * 2.2, 84, 320);
+  }
+
+  if (component === 'stat') {
+    return clampNumber(fontSize * 2.4 + padding * 2, 112, 220);
+  }
+
+  if (component === 'figure') {
+    const assetRef = String(ref.asset_ref || ref.assetRef || ref.asset_key || ref.assetKey || ref.ref || '').trim();
+    const asset = buildAssetMap(slide).get(assetRef) || buildAssetMap(slide).get(String(ref.asset_key || ref.assetKey || ''));
+    if (asset && asset.previewSrc) {
+      return clampNumber(width * 0.66, 200, 420);
+    }
+    return clampNumber(width * 0.54, 180, 360);
+  }
+
+  if (component === 'table') {
+    const tableData = resolveTableData(slide, node);
+    const rowCount = tableData ? tableData.rows.length : 2;
+    const headerCount = tableData ? tableData.headers.length : 2;
+    const lineHeight = fontSize * 1.15;
+    return clampNumber((rowCount + 1) * lineHeight + Math.max(1, headerCount) * 18 + padding * 2, 120, 420);
+  }
+
+  return clampNumber(fontSize * 2 + padding * 2, 72, 280);
+};
+
+const estimateCanvasNodeHeight = (
+  slide: FrontendSlide,
+  node: FrontendCanvasNode,
+  width: number,
+  theme: ResolvedCanvasVisualTheme,
+): number => {
+  if (node.type === 'component') {
+    const component = normalizeComponent(node.component || node.props?.component || node.props?.kind);
+    const visualStyle = getCanvasNodeVisualStyle(slide, node, component);
+    return estimateComponentHeight(slide, node, component, width, theme, visualStyle);
+  }
+
+  const children = (node.children || []).filter(Boolean);
+  if (children.length === 0) {
+    return theme.surface.cardPadding * 2 + 48;
+  }
+
+  const style = node.style || {};
+  const direction = style.direction === 'row' || style.direction === 'grid' ? style.direction : 'column';
+  const gap = clampNumber(toFiniteNumber(style.gap, theme.layout.contentGap), 0, 72);
+  const padding = clampNumber(
+    toFiniteNumber(style.padding, node.id === 'root' ? theme.layout.safeMargin : theme.surface.cardPadding),
+    0,
+    96,
+  );
+  const innerWidth = Math.max(140, width - padding * 2);
+
+  if (direction === 'row') {
+    const weights = children.map((child) => Math.max(0.25, toFiniteNumber(child.style?.weight, 1)));
+    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0) || children.length;
+    const availableWidth = Math.max(0, innerWidth - gap * Math.max(0, children.length - 1));
+    const heights = children.map((child, index) => {
+      const childWidth = Math.max(120, availableWidth * (weights[index] / totalWeight));
+      return estimateCanvasNodeHeight(slide, child, childWidth, theme);
+    });
+    return Math.max(64, Math.max(...heights, 0)) + padding * 2;
+  }
+
+  if (direction === 'grid') {
+    const columns = clampNumber(
+      Math.round(toFiniteNumber(style.columns, theme.layout.maxColumns)),
+      1,
+      4,
+    );
+    const cellWidth = (innerWidth - gap * (columns - 1)) / columns;
+    const rows = Math.max(1, Math.ceil(children.length / columns));
+    let totalHeight = padding * 2;
+    for (let rowIndex = 0; rowIndex < rows; rowIndex += 1) {
+      const rowChildren = children.slice(rowIndex * columns, rowIndex * columns + columns);
+      const rowHeights = rowChildren.map((child) => estimateCanvasNodeHeight(slide, child, cellWidth, theme));
+      totalHeight += Math.max(...rowHeights, 0);
+      if (rowIndex < rows - 1) totalHeight += gap;
+    }
+    return totalHeight;
+  }
+
+  const childHeights = children.map((child) => estimateCanvasNodeHeight(slide, child, innerWidth, theme));
+  return childHeights.reduce((sum, height) => sum + height, 0) + gap * Math.max(0, children.length - 1) + padding * 2;
+};
+
+const buildComputedStyleForComponent = (
+  component: string,
+  theme: ResolvedCanvasVisualTheme,
+  visualStyle: FrontendCanvasVisualStyle,
+): ComputedStyleMap => {
+  const fontSize = getComponentFontSize(component, theme, visualStyle);
+  const padding = getComponentPadding(component, theme, visualStyle);
+  const color = visualStyle.color
+    || (component === 'heading' ? theme.palette.text : component === 'stat' ? theme.palette.accent : theme.palette.text);
+  const backgroundColor = visualStyle.fill
+    || (component === 'figure' || component === 'quote' || component === 'callout' || component === 'stat'
+      ? theme.palette.panel
+      : 'transparent');
+  const borderColor = visualStyle.borderColor
+    || (component === 'figure' || component === 'quote' || component === 'callout' || component === 'stat'
+      ? theme.palette.primary
+      : 'transparent');
+  const borderWidth = typeof visualStyle.borderWidth === 'number' ? visualStyle.borderWidth : (component === 'figure' ? 1 : 0);
+  const lineHeight = visualStyle.lineHeight || Math.round(fontSize * (component === 'heading' ? 1.12 : component === 'stat' ? 1.05 : 1.28));
+  const fontWeight = visualStyle.fontWeight || (component === 'heading' ? 700 : component === 'stat' ? 800 : 400);
+  const fontStyle = visualStyle.fontStyle || (component === 'quote' ? 'italic' : 'normal');
+  const textAlign = visualStyle.textAlign || (component === 'stat' ? 'center' : 'left');
+  const alignItems = textAlign === 'center' ? 'center' : 'flex-start';
+  const justifyContent = component === 'stat' ? 'center' : 'flex-start';
+  const verticalAlign = component === 'stat' ? 'middle' : 'top';
+  const normalizedImageFit = visualStyle.imageFit === 'contain' || visualStyle.imageFit === 'fill'
+    ? visualStyle.imageFit
+    : 'cover';
+  return {
+    fontFamily: visualStyle.fontFamily
+      || (component === 'heading' ? theme.typography.titleFontStack : theme.typography.bodyFontStack),
+    fontSize: `${fontSize}px`,
+    fontWeight: String(fontWeight),
+    fontStyle,
+    lineHeight: `${lineHeight}px`,
+    color,
+    backgroundColor,
+    borderColor,
+    borderTopColor: borderColor,
+    borderRightColor: borderColor,
+    borderBottomColor: borderColor,
+    borderLeftColor: borderColor,
+    borderTopWidth: `${borderWidth}px`,
+    borderRightWidth: `${borderWidth}px`,
+    borderBottomWidth: `${borderWidth}px`,
+    borderLeftWidth: `${borderWidth}px`,
+    paddingTop: `${padding}px`,
+    paddingRight: `${padding}px`,
+    paddingBottom: `${padding}px`,
+    paddingLeft: `${padding}px`,
+    textAlign,
+    verticalAlign,
+    display: 'flex',
+    alignItems,
+    justifyContent,
+    opacity: visualStyle.opacity !== undefined ? visualStyle.opacity : 1,
+    imageFit: normalizedImageFit,
+  };
+};
+
+const buildFallbackLayoutNodes = (
+  slide: FrontendSlide,
+  theme: ResolvedCanvasVisualTheme,
+): FrontendLayoutIRNode[] => {
+  const root = slide.root;
+  if (!root) {
+    return [];
+  }
+  const layoutNodes: FrontendLayoutIRNode[] = [];
+
+  const visit = (node: FrontendCanvasNode, box: PptBox): void => {
+    if (!node?.id) return;
+    if (node.type === 'component') {
+      const component = normalizeComponent(node.component || node.props?.component || node.props?.kind);
+      const visualStyle = getCanvasNodeVisualStyle(slide, node, component);
+      layoutNodes.push({
+        nodeId: node.id,
+        type: 'component',
+        component: component as FrontendLayoutIRNode['component'],
+        box: {
+          x: Math.round(box.x),
+          y: Math.round(box.y),
+          w: Math.round(box.w),
+          h: Math.round(box.h),
+        },
+        computedStyle: buildComputedStyleForComponent(component, theme, visualStyle),
+        overflow: false,
+      });
+      return;
+    }
+
+    const children = (node.children || []).filter(Boolean);
+    const style = node.style || {};
+    const direction = style.direction === 'row' || style.direction === 'grid' ? style.direction : 'column';
+    const gap = clampNumber(toFiniteNumber(style.gap, theme.layout.contentGap), 0, 72);
+    const padding = clampNumber(
+      toFiniteNumber(style.padding, node.id === 'root' ? theme.layout.safeMargin : theme.surface.cardPadding),
+      0,
+      96,
+    );
+    const inner = {
+      x: box.x + padding,
+      y: box.y + padding,
+      w: Math.max(0, box.w - padding * 2),
+      h: Math.max(0, box.h - padding * 2),
+    };
+
+    if (children.length === 0) {
+      return;
+    }
+
+    if (direction === 'row') {
+      const weights = children.map((child) => Math.max(0.25, toFiniteNumber(child.style?.weight, 1)));
+      const totalWeight = weights.reduce((sum, weight) => sum + weight, 0) || children.length;
+      const availableWidth = Math.max(0, inner.w - gap * Math.max(0, children.length - 1));
+      let cursorX = inner.x;
+      children.forEach((child, index) => {
+        const childWidth = index === children.length - 1
+          ? Math.max(0, inner.x + inner.w - cursorX)
+          : Math.max(120, availableWidth * (weights[index] / totalWeight));
+        visit(child, {
+          x: cursorX,
+          y: inner.y,
+          w: childWidth,
+          h: inner.h,
+        });
+        cursorX += childWidth + gap;
+      });
+      return;
+    }
+
+    if (direction === 'grid') {
+      const columns = clampNumber(
+        Math.round(toFiniteNumber(style.columns, theme.layout.maxColumns)),
+        1,
+        4,
+      );
+      const rows = Math.max(1, Math.ceil(children.length / columns));
+      const cellWidth = (inner.w - gap * (columns - 1)) / columns;
+      const rowHeights = Array.from({ length: rows }, (_, rowIndex) => {
+        const rowChildren = children.slice(rowIndex * columns, rowIndex * columns + columns);
+        return Math.max(...rowChildren.map((child) => estimateCanvasNodeHeight(slide, child, cellWidth, theme)), 0);
+      });
+      let cursorY = inner.y;
+      for (let rowIndex = 0; rowIndex < rows; rowIndex += 1) {
+        const rowChildren = children.slice(rowIndex * columns, rowIndex * columns + columns);
+        let cursorX = inner.x;
+        const rowHeight = rowHeights[rowIndex] || 0;
+        rowChildren.forEach((child) => {
+          visit(child, {
+            x: cursorX,
+            y: cursorY,
+            w: cellWidth,
+            h: rowHeight,
+          });
+          cursorX += cellWidth + gap;
+        });
+        cursorY += rowHeight + gap;
+      }
+      return;
+    }
+
+    const estimatedHeights = children.map((child) => estimateCanvasNodeHeight(slide, child, inner.w, theme));
+    const totalEstimated = estimatedHeights.reduce((sum, item) => sum + item, 0) || children.length;
+    const availableHeight = Math.max(0, inner.h - gap * Math.max(0, children.length - 1));
+    let cursorY = inner.y;
+    children.forEach((child, index) => {
+      const childHeight = index === children.length - 1
+        ? Math.max(0, inner.y + inner.h - cursorY)
+        : Math.max(64, availableHeight * (estimatedHeights[index] / totalEstimated));
+      visit(child, {
+        x: inner.x,
+        y: cursorY,
+        w: inner.w,
+        h: childHeight,
+      });
+      cursorY += childHeight + gap;
+    });
+  };
+
+  visit(root, {
+    x: 0,
+    y: 0,
+    w: DESIGN_WIDTH,
+    h: DESIGN_HEIGHT,
+  });
+
+  return layoutNodes;
 };
 
 const blobToDataUrl = (blob: Blob) =>
@@ -417,6 +831,7 @@ const renderCanvasComponent = async (
 ) => {
   const component = normalizeComponent(node.component || node.props?.component || node.props?.kind || layoutNode.component);
   const props = node.props || {};
+  const visualStyle = getCanvasNodeVisualStyle(sourceSlide, node, component);
   const box = toPptBox(layoutNode);
   const titleFont = firstFont(theme.typography.titleFontStack, 'Georgia');
   const bodyFont = firstFont(theme.typography.bodyFontStack, 'Arial');
@@ -460,6 +875,9 @@ const renderCanvasComponent = async (
   if (component === 'figure') {
     const assetRef = String(props.asset_ref || props.assetRef || props.asset_key || props.assetKey || props.ref || '').trim();
     const asset = assets.get(assetRef) || assets.get(String(props.asset_key || props.assetKey || ''));
+    const imageFit = visualStyle.imageFit === 'contain' || visualStyle.imageFit === 'fill'
+      ? visualStyle.imageFit
+      : 'cover';
     addPanelShape(pptSlide, pptx, box, panelColor, primaryColor, 18);
     try {
       const data = await resolveImageData(asset);
@@ -468,7 +886,7 @@ const renderCanvasComponent = async (
           data,
           ...box,
           sizing: {
-            type: 'cover',
+            type: imageFit === 'contain' ? 'contain' : 'cover',
             w: box.w,
             h: box.h,
           },
@@ -554,25 +972,30 @@ export const buildCanvasSlidesPptxBlob = async (
   pptx.subject = 'Editable Canvas PPT export';
   pptx.title = 'paper2ppt_editable';
 
-  const theme = resolveTheme(deckTheme);
+  const theme = resolveCanvasVisualTheme(deckTheme, slides[0]?.visualSpec || null);
   pptx.theme = {
     headFontFace: firstFont(theme.typography.titleFontStack, 'Georgia'),
     bodyFontFace: firstFont(theme.typography.bodyFontStack, 'Arial'),
   };
 
   for (const sourceSlide of slides) {
+    const slideTheme = resolveCanvasVisualTheme(deckTheme, sourceSlide.visualSpec || null);
     const pptSlide = pptx.addSlide();
-    pptSlide.background = { color: toHexColor(theme.palette.bg, '#0B1020') };
+    pptSlide.background = { color: toHexColor(slideTheme.palette.bg, '#0B1020') };
     const nodeMap = new Map<string, FrontendCanvasNode>();
     walkCanvasNodes(sourceSlide.root, nodeMap);
-    const layoutNodes = (sourceSlide.layoutIr?.nodes || [])
+    const measuredLayoutNodes = (sourceSlide.layoutIr?.nodes || [])
       .filter((item) => item.type === 'component' && nodeMap.has(item.nodeId));
+    const measuredIds = new Set(measuredLayoutNodes.map((item) => item.nodeId));
+    const fallbackLayoutNodes = buildFallbackLayoutNodes(sourceSlide, slideTheme)
+      .filter((item) => item.type === 'component' && nodeMap.has(item.nodeId) && !measuredIds.has(item.nodeId));
+    const layoutNodes = [...measuredLayoutNodes, ...fallbackLayoutNodes];
     const assets = buildAssetMap(sourceSlide);
 
     for (const layoutNode of layoutNodes) {
       const node = nodeMap.get(layoutNode.nodeId);
       if (!node) continue;
-      await renderCanvasComponent(pptSlide, pptx, sourceSlide, node, layoutNode, theme, assets);
+      await renderCanvasComponent(pptSlide, pptx, sourceSlide, node, layoutNode, slideTheme, assets);
     }
   }
 
@@ -605,6 +1028,5 @@ export const canExportCanvasSlidesToPptx = (slides: FrontendSlide[]) =>
   slides.length > 0 &&
   slides.every((slide) =>
     slide.renderEngine === 'canvas' &&
-    slide.root &&
-    slide.layoutIr?.nodes?.some((node) => node.type === 'component'),
+    Boolean(slide.root),
   );

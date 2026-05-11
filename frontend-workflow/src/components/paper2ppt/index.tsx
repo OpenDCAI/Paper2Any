@@ -20,6 +20,8 @@ import {
   FrontendDeckTheme,
   FrontendEditableField,
   FrontendCanvasNode,
+  FrontendCanvasVisualSpec,
+  FrontendCanvasVisualStyle,
   FrontendSlide,
   FrontendSlideBlock,
   FrontendTableData,
@@ -1780,6 +1782,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       ) || (blocks.length > 0 ? pickSchemaTemplateKeyFromBlocks(blocks, visualAssets.length) : '');
       const rawRenderEngine = String(slide.render_engine || slide.renderEngine || '').trim().toLowerCase();
       const renderEngine = rawRenderEngine === 'blocks' ? 'blocks' : 'canvas';
+      const visualSpec = normalizeCanvasVisualSpec(slide.visual_spec || slide.visualSpec);
 
       return {
         slideId: String(slide.slide_id || slide.slideId || index + 1),
@@ -1795,6 +1798,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
         layoutFamily: String(slide.layout_family || slide.layoutFamily || '').trim() || undefined,
         root: (slide.root && typeof slide.root === 'object') ? slide.root : undefined,
         content: (slide.content && typeof slide.content === 'object') ? slide.content : undefined,
+        visualSpec,
         constraints: (slide.constraints && typeof slide.constraints === 'object') ? slide.constraints : undefined,
         editableMap: (slide.editable_map || slide.editableMap) && typeof (slide.editable_map || slide.editableMap) === 'object'
           ? (slide.editable_map || slide.editableMap)
@@ -1888,6 +1892,177 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     };
   };
 
+  const normalizeCanvasVisualStyle = (value: any): FrontendCanvasVisualStyle => {
+    if (!value || typeof value !== 'object') {
+      return {};
+    }
+    const source = value as Record<string, unknown>;
+    const textAlign = String(source.textAlign || source.text_align || '').trim().toLowerCase();
+    const fontStyle = String(source.fontStyle || source.font_style || '').trim().toLowerCase();
+    const imageFit = String(source.imageFit || source.image_fit || '').trim().toLowerCase();
+    const style: FrontendCanvasVisualStyle = {};
+    const fill = String(source.fill || source.background || source.backgroundColor || '').trim();
+    const color = String(source.color || source.textColor || source.text_color || '').trim();
+    const borderColor = String(source.borderColor || source.border_color || '').trim();
+    const fontFamily = String(source.fontFamily || source.font_family || '').trim();
+    if (fill) style.fill = fill;
+    if (color) style.color = color;
+    if (borderColor) style.borderColor = borderColor;
+    if (source.borderWidth !== undefined || source.border_width !== undefined) {
+      style.borderWidth = toFiniteNumber(source.borderWidth ?? source.border_width, 0);
+    }
+    if (source.radius !== undefined || source.borderRadius !== undefined || source.border_radius !== undefined) {
+      style.radius = toFiniteNumber(source.radius ?? source.borderRadius ?? source.border_radius, 0);
+    }
+    if (source.padding !== undefined) {
+      style.padding = toFiniteNumber(source.padding, 0);
+    }
+    if (fontFamily) style.fontFamily = fontFamily;
+    if (source.fontSize !== undefined || source.font_size !== undefined) {
+      style.fontSize = toFiniteNumber(source.fontSize ?? source.font_size, 0);
+    }
+    if (source.fontWeight !== undefined || source.font_weight !== undefined) {
+      const fontWeight = source.fontWeight ?? source.font_weight;
+      style.fontWeight = typeof fontWeight === 'number' || typeof fontWeight === 'string'
+        ? fontWeight
+        : String(fontWeight);
+    }
+    if (fontStyle === 'italic' || fontStyle === 'normal') {
+      style.fontStyle = fontStyle;
+    }
+    if (source.lineHeight !== undefined || source.line_height !== undefined) {
+      style.lineHeight = toFiniteNumber(source.lineHeight ?? source.line_height, 0);
+    }
+    if (textAlign === 'left' || textAlign === 'center' || textAlign === 'right' || textAlign === 'justify') {
+      style.textAlign = textAlign;
+    }
+    if (source.opacity !== undefined) {
+      style.opacity = toFiniteNumber(source.opacity, 1);
+    }
+    if (imageFit === 'contain' || imageFit === 'cover' || imageFit === 'fill') {
+      style.imageFit = imageFit;
+    }
+    if (source.emphasis === 'high' || source.emphasis === 'medium' || source.emphasis === 'low') {
+      style.emphasis = source.emphasis;
+    }
+    return style;
+  };
+
+  const normalizeCanvasVisualSpec = (value: any): FrontendCanvasVisualSpec | undefined => {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+    const source = value as Record<string, unknown>;
+    const spec: FrontendCanvasVisualSpec = {};
+
+    const paletteSource = source.palette && typeof source.palette === 'object'
+      ? source.palette as Record<string, unknown>
+      : undefined;
+    if (paletteSource) {
+      spec.palette = {
+        bg: String(paletteSource.bg || '').trim() || undefined,
+        panel: String(paletteSource.panel || '').trim() || undefined,
+        primary: String(paletteSource.primary || '').trim() || undefined,
+        secondary: String(paletteSource.secondary || '').trim() || undefined,
+        accent: String(paletteSource.accent || '').trim() || undefined,
+        text: String(paletteSource.text || '').trim() || undefined,
+        muted: String(paletteSource.muted || '').trim() || undefined,
+      };
+    }
+
+    const typographySource = source.typography && typeof source.typography === 'object'
+      ? source.typography as Record<string, unknown>
+      : undefined;
+    if (typographySource) {
+      spec.typography = {
+        titleFontStack: String(typographySource.titleFontStack || typographySource.title_font_stack || '').trim() || undefined,
+        bodyFontStack: String(typographySource.bodyFontStack || typographySource.body_font_stack || '').trim() || undefined,
+        eyebrowSize: typographySource.eyebrowSize !== undefined || typographySource.eyebrow_size !== undefined
+          ? toFiniteNumber(typographySource.eyebrowSize ?? typographySource.eyebrow_size, 18)
+          : undefined,
+        titleSize: typographySource.titleSize !== undefined || typographySource.title_size !== undefined
+          ? toFiniteNumber(typographySource.titleSize ?? typographySource.title_size, 56)
+          : undefined,
+        summarySize: typographySource.summarySize !== undefined || typographySource.summary_size !== undefined
+          ? toFiniteNumber(typographySource.summarySize ?? typographySource.summary_size, 26)
+          : undefined,
+        bodySize: typographySource.bodySize !== undefined || typographySource.body_size !== undefined
+          ? toFiniteNumber(typographySource.bodySize ?? typographySource.body_size, 24)
+          : undefined,
+      };
+    }
+
+    const surfaceSource = source.surface && typeof source.surface === 'object'
+      ? source.surface as Record<string, unknown>
+      : undefined;
+    if (surfaceSource) {
+      spec.surface = {
+        background: String(surfaceSource.background || '').trim() || undefined,
+        panel: String(surfaceSource.panel || '').trim() || undefined,
+        primary: String(surfaceSource.primary || '').trim() || undefined,
+        secondary: String(surfaceSource.secondary || '').trim() || undefined,
+        accent: String(surfaceSource.accent || '').trim() || undefined,
+        text: String(surfaceSource.text || '').trim() || undefined,
+        muted: String(surfaceSource.muted || '').trim() || undefined,
+        cardRadius: surfaceSource.cardRadius !== undefined || surfaceSource.card_radius !== undefined
+          ? toFiniteNumber(surfaceSource.cardRadius ?? surfaceSource.card_radius, 0)
+          : undefined,
+        cardPadding: surfaceSource.cardPadding !== undefined || surfaceSource.card_padding !== undefined
+          ? toFiniteNumber(surfaceSource.cardPadding ?? surfaceSource.card_padding, 0)
+          : undefined,
+        sectionGap: surfaceSource.sectionGap !== undefined || surfaceSource.section_gap !== undefined
+          ? toFiniteNumber(surfaceSource.sectionGap ?? surfaceSource.section_gap, 0)
+          : undefined,
+      };
+    }
+
+    const layoutSource = source.layout && typeof source.layout === 'object'
+      ? source.layout as Record<string, unknown>
+      : undefined;
+    if (layoutSource) {
+      spec.layout = {
+        safeMargin: layoutSource.safeMargin !== undefined || layoutSource.safe_margin !== undefined
+          ? toFiniteNumber(layoutSource.safeMargin ?? layoutSource.safe_margin, 72)
+          : undefined,
+        sectionGap: layoutSource.sectionGap !== undefined || layoutSource.section_gap !== undefined
+          ? toFiniteNumber(layoutSource.sectionGap ?? layoutSource.section_gap, 24)
+          : undefined,
+        contentGap: layoutSource.contentGap !== undefined || layoutSource.content_gap !== undefined
+          ? toFiniteNumber(layoutSource.contentGap ?? layoutSource.content_gap, 18)
+          : undefined,
+        maxColumns: layoutSource.maxColumns !== undefined || layoutSource.max_columns !== undefined
+          ? toFiniteNumber(layoutSource.maxColumns ?? layoutSource.max_columns, 0)
+          : undefined,
+      };
+    }
+
+    const nodeStylesSource = source.node_styles || source.nodeStyles;
+    if (nodeStylesSource && typeof nodeStylesSource === 'object') {
+      const nodeStyles = Object.fromEntries(
+        Object.entries(nodeStylesSource as Record<string, unknown>)
+          .map(([key, raw]) => [String(key), normalizeCanvasVisualStyle(raw)])
+          .filter(([, style]) => Object.keys(style as Record<string, unknown>).length > 0),
+      );
+      if (Object.keys(nodeStyles).length > 0) {
+        spec.nodeStyles = nodeStyles as FrontendCanvasVisualSpec['nodeStyles'];
+      }
+    }
+
+    const componentStylesSource = source.component_styles || source.componentStyles;
+    if (componentStylesSource && typeof componentStylesSource === 'object') {
+      const componentStyles = Object.fromEntries(
+        Object.entries(componentStylesSource as Record<string, unknown>)
+          .map(([key, raw]) => [String(key), normalizeCanvasVisualStyle(raw)])
+          .filter(([, style]) => Object.keys(style as Record<string, unknown>).length > 0),
+      );
+      if (Object.keys(componentStyles).length > 0) {
+        spec.componentStyles = componentStyles as FrontendCanvasVisualSpec['componentStyles'];
+      }
+    }
+
+    return Object.keys(spec).length > 0 ? spec : undefined;
+  };
+
   const serializeFrontendSlide = (slide: FrontendSlide) => ({
     slide_id: slide.slideId,
     page_num: slide.pageNum,
@@ -1899,6 +2074,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     layout_family: slide.layoutFamily || '',
     root: slide.root || undefined,
     content: slide.content || undefined,
+    visual_spec: slide.visualSpec || undefined,
     constraints: slide.constraints || undefined,
     editable_map: slide.editableMap || undefined,
     canvas_validation: slide.canvasValidation || undefined,
@@ -4249,71 +4425,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
         return;
       }
 
-      setFinalTaskMessage('Canvas 布局信息不足，正在回退为截图版 PPTX...');
-      const screenshotFiles: File[] = [];
-      for (let index = 0; index < frontendSlides.length; index += 1) {
-        const node = frontendCaptureRefs.current[index];
-        if (!node) {
-          throw new Error(`第 ${index + 1} 页尚未渲染完成，请稍后重试`);
-        }
-        setFinalTaskMessage(`正在渲染第 ${index + 1}/${frontendSlides.length} 页截图...`);
-        await sleep(40);
-        const blob = await captureSlideToPngBlob(node, 1600, 900, {
-          useOriginalAssets: true,
-        });
-        if (!blob) {
-          throw new Error(`第 ${index + 1} 页截图失败`);
-        }
-        screenshotFiles.push(
-          new File([blob], `page_${String(index).padStart(3, '0')}.png`, {
-            type: 'image/png',
-          }),
-        );
-      }
-
-      const formData = new FormData();
-      formData.append('result_path', resultPath);
-      formData.append(
-        'slides',
-        JSON.stringify(frontendSlides.map((slide) => serializeFrontendSlide(slide))),
-      );
-      screenshotFiles.forEach((file) => {
-        formData.append('screenshots', file);
-      });
-
-      setFinalTaskMessage('正在打包 PPTX / PDF...');
-      const res = await backendFetch('/api/v1/paper2ppt/frontend/export', {
-        method: 'POST',
-        body: formData,
-      });
-      if (!res.ok) {
-        throw new Error(await extractErrorMessage(res, '可编辑版 PPT 导出失败'));
-      }
-
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || '可编辑版 PPT 导出失败');
-      }
-
-      if (data.ppt_pptx_path) {
-        setDownloadUrl(data.ppt_pptx_path);
-      }
-      if (data.ppt_pdf_path) {
-        setPdfPreviewUrl(data.ppt_pdf_path);
-      }
-
-      const outputFilePath =
-        data.ppt_pptx_path ||
-        data.ppt_pdf_path ||
-        data.all_output_files?.find((url: string) => url.endsWith('.pptx') || url.endsWith('.pdf'));
-      if (!outputFilePath) {
-        throw new Error('导出失败：未找到最终文件');
-      }
-
-      await uploadGeneratedResultFile(
-        outputFilePath,
-        outputFilePath.endsWith('.pdf') ? 'paper2ppt_frontend.pdf' : 'paper2ppt_frontend.pptx',
-      );
+      throw new Error('当前页面不是完整 Canvas schema，已停止导出，避免生成图片型 PPTX。请重新生成或稍后重试。');
     } catch (err) {
       const message = err instanceof Error ? err.message : '可编辑版 PPT 导出失败';
       setError(message);

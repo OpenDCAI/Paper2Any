@@ -160,6 +160,49 @@ export interface FrontendCanvasNodeStyle {
   emphasis?: FrontendLayoutEmphasis;
 }
 
+export interface FrontendCanvasVisualStyle {
+  fill?: string;
+  color?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  radius?: number;
+  padding?: number;
+  fontFamily?: string;
+  fontSize?: number;
+  fontWeight?: number | string;
+  fontStyle?: 'normal' | 'italic';
+  lineHeight?: number;
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+  opacity?: number;
+  imageFit?: 'contain' | 'cover' | 'fill';
+  emphasis?: FrontendLayoutEmphasis;
+}
+
+export interface FrontendCanvasVisualSpec {
+  palette?: Partial<FrontendDeckPalette>;
+  typography?: Partial<FrontendDeckTypography>;
+  surface?: {
+    background?: string;
+    panel?: string;
+    primary?: string;
+    secondary?: string;
+    accent?: string;
+    text?: string;
+    muted?: string;
+    cardRadius?: number;
+    cardPadding?: number;
+    sectionGap?: number;
+  };
+  layout?: {
+    safeMargin?: number;
+    sectionGap?: number;
+    contentGap?: number;
+    maxColumns?: number;
+  };
+  nodeStyles?: Record<string, FrontendCanvasVisualStyle>;
+  componentStyles?: Partial<Record<FrontendCanvasComponentType, FrontendCanvasVisualStyle>>;
+}
+
 export interface FrontendCanvasNode {
   type: FrontendCanvasNodeType;
   id: string;
@@ -254,6 +297,7 @@ export interface FrontendSlide {
   layoutFamily?: string;
   root?: FrontendCanvasNode;
   content?: Record<string, unknown>;
+  visualSpec?: FrontendCanvasVisualSpec;
   constraints?: Record<string, unknown>;
   editableMap?: Record<string, string>;
   canvasValidation?: FrontendCanvasValidation;

@@ -261,7 +261,7 @@ class FrontendPPTGenerationRequest(BaseModel):
 
 
 class FrontendPPTExportRequest(BaseModel):
-    """Export frontend slides into screenshot-based PPTX/PDF."""
+    """Legacy screenshot fallback for frontend slides; Canvas PPTX is generated in the browser."""
     result_path: str
     slides: str
 

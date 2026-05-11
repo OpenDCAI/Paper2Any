@@ -108,7 +108,7 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
 
   useEffect(() => {
     setInlineEditor(null);
-  }, [slide.htmlTemplate, slide.cssCode, slide.templateKey, slide.layoutMode, slide.blocks, slide.root, slide.renderEngine]);
+  }, [slide.htmlTemplate, slide.cssCode, slide.templateKey, slide.layoutMode, slide.blocks, slide.root, slide.visualSpec, slide.renderEngine]);
 
   useEffect(() => {
     if (slide.renderEngine !== 'canvas' || !containerRef.current) {
@@ -211,7 +211,7 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
       window.cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [mode, slide.renderEngine, slide.slideId, slide.root, slide.blocks, slide.editableFields, slide.visualAssets, scale]);
+  }, [mode, slide.renderEngine, slide.slideId, slide.root, slide.visualSpec, slide.blocks, slide.editableFields, slide.visualAssets, scale]);
 
   useEffect(() => {
     if (!inlineEditor) {

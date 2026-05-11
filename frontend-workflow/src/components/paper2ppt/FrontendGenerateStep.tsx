@@ -19,7 +19,7 @@ import {
 import { FrontendDeckTheme, FrontendSlide, SlideOutline, Step } from './types';
 import { parseFrontendInsertZoneTarget } from './types';
 import FrontendSlidePreview from './FrontendSlidePreview';
-import { isSchemaDrivenSlide } from './frontendSlideUtils';
+import { buildFrontendSlideMarkup, isSchemaDrivenSlide } from './frontendSlideUtils';
 
 interface FrontendGenerateStepProps {
   outlineData: SlideOutline[];
@@ -132,37 +132,7 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
         : currentSlide.status !== 'done'
           ? '当前页尚未完成生成'
           : '';
-  const schemaInspectorValue = currentSlide
-    ? JSON.stringify(
-        {
-          schemaVersion: currentSlide.schemaVersion || 'frontend_slide_schema_v2',
-          renderEngine: currentSlide.renderEngine || 'canvas',
-          templateKey: currentSlide.templateKey || 'auto',
-          layoutMode: currentSlide.layoutMode || 'fluid',
-          layoutFamily: currentSlide.layoutFamily || '',
-          canvasValidation: currentSlide.canvasValidation || null,
-          layoutIr: currentSlide.layoutIr || null,
-          blocks: currentSlide.blocks || [],
-          root: currentSlide.root || null,
-          content: currentSlide.content || null,
-          editableFields: currentSlide.editableFields.map((field) => ({
-            key: field.key,
-            type: field.type,
-            label: field.label,
-            value: field.value,
-            items: field.items,
-          })),
-          visualAssets: currentSlide.visualAssets.map((asset) => ({
-            key: asset.key,
-            label: asset.label,
-            sourceType: asset.sourceType,
-            hasSource: Boolean(asset.src || asset.previewSrc || asset.storagePath),
-          })),
-        },
-        null,
-        2,
-      )
-    : '';
+  const renderedHtmlValue = currentSlide ? buildFrontendSlideMarkup(currentSlide, deckTheme) : '';
 
   useEffect(() => {
     setDraftHtml(currentSlide?.htmlTemplate || '');
@@ -386,10 +356,10 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-gray-400 mb-1">Schema JSON</div>
+                    <div className="text-xs text-gray-400 mb-1">Converted HTML</div>
                     <textarea
                       readOnly
-                      value={schemaInspectorValue}
+                      value={renderedHtmlValue}
                       rows={22}
                       className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-cyan-100 outline-none resize-none font-mono"
                     />
