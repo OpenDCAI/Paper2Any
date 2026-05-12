@@ -496,6 +496,34 @@ Open:
 - Frontend: http://localhost:3000
 - Backend health: http://localhost:8000/health
 
+Optional ONLYOFFICE editable PPTX support:
+
+Paper2PPT can export HTML-based editable PPTX files and open them in ONLYOFFICE for online editing. Start a local ONLYOFFICE Document Server first:
+
+```bash
+# Optional: load a pre-downloaded image tar if your deployment ships one
+docker load -i /path/to/onlyoffice-documentserver-latest.tar
+
+docker run -d --name paper2any-onlyoffice \
+  -p 8082:80 \
+  --add-host=host.docker.internal:host-gateway \
+  -e JWT_ENABLED=false \
+  -e ALLOW_PRIVATE_IP_ADDRESS=true \
+  onlyoffice/documentserver:latest
+```
+
+Then configure backend environment variables:
+
+```bash
+ONLYOFFICE_DOCUMENT_SERVER_URL=/onlyoffice
+ONLYOFFICE_THINKFLOW_PUBLIC_URL=http://host.docker.internal:8000
+ONLYOFFICE_DOCUMENT_DOWNLOAD_BASE_URL=http://host.docker.internal:8000
+ONLYOFFICE_SERVER_DOWNLOAD_URL_BASE=http://127.0.0.1:8082
+ONLYOFFICE_JWT_SECRET=
+```
+
+For local Vite development, `/onlyoffice` is proxied to `http://localhost:8082`. If you access the frontend through an SSH forwarded port, set Document Server `storage.externalHost` to the browser-facing origin, for example `http://localhost:13000/onlyoffice`. See [ONLYOFFICE editable PPTX deployment](docs/onlyoffice-editable-ppt.md) for the full setup, troubleshooting, and production notes.
+
 > **GPU services note:** Docker starts backend + frontend by default.
 > - Paper2PPT, Paper2Figure, Knowledge Base, etc. only need LLM APIs and work out of the box.
 > - **PDF2PPT, Image2PPT, Image2Drawio** require SAM3 segmentation.
