@@ -31,7 +31,8 @@
       "paper2drawioAi": "流程图/架构图生成",
       "paper2figureModelDrawio": "模型结构图生成",
       "paper2pptImage": "图片版 PPT 生成",
-      "paper2pptFrontend": "可编辑版 PPT 生成"
+      "paper2pptFrontend": "可编辑版 PPT 生成",
+      "paper2pptCode": "代码型可编辑 PPT"
     },
     "navTooltip": {
       "home": "查看全部功能入口、示例预览与推荐使用路径，快速进入各个工作流",
@@ -56,7 +57,8 @@
       "paper2drawioAi": "输入文本生成流程图/架构图（DrawIO），可在线编辑并导出 PNG / SVG / DrawIO",
       "paper2figureModelDrawio": "生成模型结构图，支持提示词微调与预览，并可转 DrawIO 在线编辑或导出 PPT / PNG / SVG",
       "paper2pptImage": "上传论文 PDF 或输入主题，生成带图像设计的图片版学术 PPT",
-      "paper2pptFrontend": "生成 16:9 HTML/CSS 可编辑版 PPT，支持逐页编辑、视觉检查和截图导出 PPTX / PDF"
+      "paper2pptFrontend": "生成 16:9 HTML/CSS 可编辑版 PPT，支持逐页编辑、视觉检查和截图导出 PPTX / PDF",
+      "paper2pptCode": "复用论文解析与大纲确认流程，在后端直接生成真实可编辑 PPTX，并返回 PDF / IR / 运行日志"
     },
     "sidebar": {
       "toggle": "切换菜单",
@@ -69,6 +71,7 @@
       "primaryCta": "先看科研绘图",
       "secondaryCta": "图片版 PPT",
       "frontendCta": "可编辑版 PPT",
+      "codeCta": "代码型可编辑 PPT",
       "sections": {
         "creation": {
           "title": "从论文内容直接生成",
@@ -103,6 +106,11 @@
           "title": "可编辑版 PPT 生成",
           "description": "生成 16:9 HTML/CSS 可编辑页面，支持画布内直接改字、逐页视觉检查和截图导出 PPTX / PDF。",
           "badge": "Editable Deck"
+        },
+        "paper2pptCode": {
+          "title": "代码型可编辑 PPT",
+          "description": "沿用现有论文解析与大纲流程，在后端直接生成真实可编辑 PPTX，适合后续继续在 PowerPoint / Keynote / WPS 中编辑。",
+          "badge": "Code Deck"
         },
         "paper2video": {
           "title": "论文 / PPT 转讲解视频",

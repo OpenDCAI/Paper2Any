@@ -8,10 +8,14 @@ version = "0.1.0"
 description = "LLM agent component for DataFlow."
 authors = [{ name = "Zhou Liu", email = "liuzhoul82@gmail.com" }]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.9,<3.13"
 
 dependencies = [
     "openai>=1.0.0",
+    "pydantic>=2.7.0",
+    "python-pptx>=1.0.2",
+    "pillow>=10.0.0",
+    "python-dotenv>=1.0.0",
     "langgraph==0.6.7",
     "langgraph-checkpoint==2.1.1",
     "langgraph-prebuilt==0.6.4",
@@ -22,6 +26,7 @@ dependencies = [
     "langchain-openai==0.3.33",
     "langchain-text-splitters==0.3.11",
     "faiss-cpu==1.12.0",
+    "unoserver>=3.6",
 ]
 
 [project.optional-dependencies]

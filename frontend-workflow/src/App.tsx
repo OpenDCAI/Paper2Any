@@ -37,6 +37,7 @@ const pageIds = [
   'paper2ppt',
   'paper2ppt-image',
   'paper2ppt-frontend',
+  'paper2ppt-code',
   'paper2video',
   'paper2poster',
   'paper2citation',
@@ -64,6 +65,7 @@ const pagePaths: Record<ActivePage, string> = {
   'paper2ppt': '/paper2ppt',
   'paper2ppt-image': '/paper2ppt/image',
   'paper2ppt-frontend': '/paper2ppt/frontend',
+  'paper2ppt-code': '/paper2ppt/code',
   'paper2video': '/paper2video',
   'paper2poster': '/paper2poster',
   'paper2citation': '/paper2citation',
@@ -245,6 +247,7 @@ function App() {
             <Paper2PptPage initialMode="image" />
           )}
           {activePage === 'paper2ppt-frontend' && <Paper2PptPage initialMode="frontend" />}
+          {activePage === 'paper2ppt-code' && <Paper2PptPage initialMode="code" />}
           {activePage === 'paper2video' && <Paper2VideoPage />}
           {activePage === 'paper2poster' && <Paper2PosterPage />}
           {activePage === 'paper2citation' && <Paper2CitationPage />}

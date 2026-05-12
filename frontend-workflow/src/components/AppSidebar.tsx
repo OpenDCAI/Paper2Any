@@ -8,6 +8,7 @@ import {
   Presentation,
   FileText,
   MonitorSmartphone,
+  FileCode2,
   ImagePlus,
   Image,
   Wand2,
@@ -86,6 +87,13 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
       tooltipKey: t('app.navSubTooltip.paper2pptFrontend'),
       icon: MonitorSmartphone,
       gradient: 'from-amber-500 to-orange-500'
+    },
+    {
+      id: 'paper2ppt-code',
+      labelKey: t('app.navSub.paper2pptCode'),
+      tooltipKey: t('app.navSubTooltip.paper2pptCode'),
+      icon: FileCode2,
+      gradient: 'from-cyan-500 to-blue-500'
     }
   ]), [t]);
 

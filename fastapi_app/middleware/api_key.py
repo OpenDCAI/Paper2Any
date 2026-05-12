@@ -95,6 +95,10 @@ _RATE_LIMIT_RULES: dict[str, RateLimitRule] = {
     "/api/v1/paper2ppt/generate-task": RateLimitRule(limit=12, window_seconds=300, bucket="paper2ppt-generate-task"),
     "/api/v1/paper2ppt/outline-refine": RateLimitRule(limit=20, window_seconds=300, bucket="paper2ppt-outline-refine"),
     "/api/v1/paper2ppt/frontend/generate": RateLimitRule(limit=16, window_seconds=300, bucket="paper2ppt-frontend-generate"),
+    "/api/v1/paper2ppt/code/generate": RateLimitRule(limit=12, window_seconds=300, bucket="paper2ppt-code-generate"),
+    "/api/v1/paper2ppt/code/generate-task": RateLimitRule(limit=12, window_seconds=300, bucket="paper2ppt-code-generate-task"),
+    "/api/v1/paper2ppt/code/assemble-task": RateLimitRule(limit=12, window_seconds=300, bucket="paper2ppt-code-assemble-task"),
+    "/api/v1/paper2ppt/code/patch-slide-task": RateLimitRule(limit=20, window_seconds=300, bucket="paper2ppt-code-patch-slide"),
     "/api/v1/paper2ppt/frontend/review": RateLimitRule(limit=24, window_seconds=300, bucket="paper2ppt-frontend-review"),
     "/api/v1/kb/chat": RateLimitRule(limit=30, window_seconds=300, bucket="kb-chat"),
     "/api/v1/kb/search": RateLimitRule(limit=40, window_seconds=300, bucket="kb-search"),
@@ -129,6 +133,10 @@ _WORKFLOW_GUARDS: dict[str, WorkflowGuard] = {
     "/api/v1/paper2ppt/generate": WorkflowGuard("paper2ppt"),
     "/api/v1/paper2ppt/generate-task": WorkflowGuard("paper2ppt"),
     "/api/v1/paper2ppt/frontend/generate": WorkflowGuard("paper2ppt"),
+    "/api/v1/paper2ppt/code/generate": WorkflowGuard("paper2ppt"),
+    "/api/v1/paper2ppt/code/generate-task": WorkflowGuard("paper2ppt"),
+    "/api/v1/paper2ppt/code/assemble-task": WorkflowGuard("paper2ppt"),
+    "/api/v1/paper2ppt/code/patch-slide-task": WorkflowGuard("paper2ppt"),
     "/api/v1/kb/chat": WorkflowGuard("kb_chat"),
     "/api/v1/kb/search": WorkflowGuard("kb_search"),
     "/api/v1/kb/generate-ppt": WorkflowGuard("kb_ppt"),
@@ -281,6 +289,10 @@ async def _resolve_workflow_charge_decision(
         "/api/v1/paper2ppt/generate",
         "/api/v1/paper2ppt/generate-task",
         "/api/v1/paper2ppt/frontend/generate",
+        "/api/v1/paper2ppt/code/generate",
+        "/api/v1/paper2ppt/code/generate-task",
+        "/api/v1/paper2ppt/code/assemble-task",
+        "/api/v1/paper2ppt/code/patch-slide-task",
     }:
         return None
 

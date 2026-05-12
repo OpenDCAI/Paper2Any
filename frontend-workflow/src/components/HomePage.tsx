@@ -241,6 +241,14 @@ export function HomePage({ onNavigate }: HomePageProps) {
                     <FileText size={16} />
                     <span>{t('app.home.frontendCta')}</span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('paper2ppt-code')}
+                    className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-5 py-3 text-sm font-semibold text-white/85 transition-all duration-300 hover:border-cyan-300/35 hover:bg-cyan-300/15"
+                  >
+                    <Presentation size={16} />
+                    <span>{t('app.home.codeCta')}</span>
+                  </button>
                 </div>
               </div>
             </div>

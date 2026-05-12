@@ -96,6 +96,7 @@ paper2ppt 业务 Service 层
 
 from uuid import uuid4
 
+import asyncio
 import copy
 import hashlib
 from io import BytesIO
@@ -103,6 +104,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, Request, UploadFile
 import httpx
@@ -137,6 +139,9 @@ from dataflow_agent.utils_common import robust_parse_json
 
 log = get_logger(__name__)
 
+if TYPE_CHECKING:
+    from vendor.presentagent_runtime.contracts import EditablePPTRunArtifacts
+
 PROJECT_ROOT = get_project_root()
 BASE_OUTPUT_DIR = get_outputs_root()
 _PREVIEW_MAX_SIDE = 1280
@@ -168,6 +173,9 @@ class Paper2PPTService:
     def _resolve_credential_scope(raw_scope: Optional[str], default_scope: str = "paper2ppt") -> str:
         scope = (raw_scope or "").strip().lower()
         return scope or default_scope
+
+    def resolve_credential_scope(self, raw_scope: Optional[str], default_scope: str = "paper2ppt") -> str:
+        return self._resolve_credential_scope(raw_scope, default_scope)
 
     @staticmethod
     def _parse_page_index_list(raw: Optional[str], *, max_count: int | None = None) -> list[int]:
@@ -619,6 +627,75 @@ class Paper2PPTService:
 
         return normalized
 
+    def normalize_editable_ppt_response(
+        self,
+        *,
+        result_path: str,
+        artifacts: "EditablePPTRunArtifacts",
+        request: Request | None,
+    ) -> Dict[str, Any]:
+        normalized: Dict[str, Any] = {
+            "success": True,
+            "result_path": str(result_path),
+            "ppt_pptx_path": artifacts.pptx_path,
+            "ppt_pdf_path": artifacts.pdf_path,
+            "planned_ir_path": artifacts.planned_ir_path,
+            "final_ir_path": artifacts.final_ir_path,
+            "materials_manifest_path": artifacts.materials_manifest_path,
+            "material_resolution_path": artifacts.material_resolution_path,
+            "ir_path": artifacts.ir_path,
+            "render_log_path": artifacts.log_path,
+            "slides_dir": getattr(artifacts, "slides_dir", "") or "",
+            "slide_artifacts": [
+                sa.model_dump() for sa in getattr(artifacts, "slide_artifacts", []) or []
+            ],
+            "all_output_files": [],
+            "error": "",
+        }
+
+        if request is not None:
+            normalized["ppt_pptx_path"] = _to_outputs_url(artifacts.pptx_path, request)
+            if artifacts.pdf_path:
+                normalized["ppt_pdf_path"] = _to_outputs_url(artifacts.pdf_path, request)
+            if artifacts.planned_ir_path:
+                normalized["planned_ir_path"] = _to_outputs_url(artifacts.planned_ir_path, request)
+            if artifacts.final_ir_path:
+                normalized["final_ir_path"] = _to_outputs_url(artifacts.final_ir_path, request)
+            if artifacts.materials_manifest_path:
+                normalized["materials_manifest_path"] = _to_outputs_url(artifacts.materials_manifest_path, request)
+            if artifacts.material_resolution_path:
+                normalized["material_resolution_path"] = _to_outputs_url(artifacts.material_resolution_path, request)
+            normalized["ir_path"] = _to_outputs_url(artifacts.ir_path, request)
+            normalized["render_log_path"] = _to_outputs_url(artifacts.log_path, request)
+            slide_items: list[dict[str, Any]] = []
+            for sa in normalized.get("slide_artifacts", []):
+                pptx_p = str(sa.get("pptx_path") or "")
+                preview_p = str(sa.get("preview_png_path") or "")
+                slide_items.append({
+                    **sa,
+                    "pptx_path": _to_outputs_url(pptx_p, request) if pptx_p else "",
+                    "preview_png_path": _to_outputs_url(preview_p, request) if preview_p else "",
+                })
+            normalized["slide_artifacts"] = slide_items
+            normalized["all_output_files"] = self._collect_output_files_as_urls(str(result_path), request)
+
+        return normalized
+
+    def normalize_pagecontent_asset_paths_for_runtime(
+        self,
+        pagecontent: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        normalized = copy.deepcopy(pagecontent or [])
+        for item in normalized:
+            if not isinstance(item, dict):
+                continue
+            for key in ["ppt_img_path", "asset_ref", "generated_img_path"]:
+                if key in item and item[key]:
+                    value = str(item[key]).strip()
+                    if value.startswith(("http://", "https://", "/outputs/")) or Path(value).is_absolute() or value.startswith("outputs/"):
+                        item[key] = str(resolve_outputs_path(value, must_exist=False))
+        return normalized
+
     def _collect_failed_pages(self, pagecontent: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         failed_pages: List[Dict[str, Any]] = []
         for fallback_idx, item in enumerate(pagecontent or []):
@@ -1064,6 +1141,9 @@ class Paper2PPTService:
             if not isinstance(it, dict):
                 raise HTTPException(status_code=400, detail=f"pagecontent[{i}] must be an object(dict)")
         return self._normalize_pagecontent_items(obj)
+
+    def parse_pagecontent_json(self, pagecontent_json: str) -> List[Dict[str, Any]]:
+        return self._parse_pagecontent_json(pagecontent_json)
 
     def _extract_outline_text(self, value: Any) -> str:
         if value is None:

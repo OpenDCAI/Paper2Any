@@ -28,6 +28,10 @@ import {
   StyleMode,
   StylePreset,
   Paper2PPTTaskResponse,
+  EditablePPTGenerationResult,
+  CodeSlideArtifact,
+  CodeTaskProgress,
+  CodeTaskResponse,
 } from './types';
 import { MAX_FILE_SIZE, STORAGE_KEY } from './constants';
 
@@ -39,6 +43,8 @@ import GenerateStep from './GenerateStep';
 import CompleteStep from './CompleteStep';
 import FrontendGenerateStep from './FrontendGenerateStep';
 import FrontendCompleteStep from './FrontendCompleteStep';
+import CodeGenerateStep from './CodeGenerateStep';
+import CodeCompleteStep from './CodeCompleteStep';
 import { validateStructuredSlide, buildStructuredSlideRepairPrompt } from './structuredSlideModel';
 import { exportStructuredSlidesToPptx } from './exportStructuredSlides';
 
@@ -107,7 +113,17 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [irUrl, setIrUrl] = useState<string | null>(null);
+  const [renderLogUrl, setRenderLogUrl] = useState<string | null>(null);
   const [finalTaskMessage, setFinalTaskMessage] = useState('');
+
+  const [codeProgress, setCodeProgress] = useState<CodeTaskProgress | null>(null);
+  const [codeSlideArtifacts, setCodeSlideArtifacts] = useState<CodeSlideArtifact[]>([]);
+  const [codePlannedIrUrl, setCodePlannedIrUrl] = useState<string | null>(null);
+  const [codeFinalIrUrl, setCodeFinalIrUrl] = useState<string | null>(null);
+  const [codeMaterialsManifestUrl, setCodeMaterialsManifestUrl] = useState<string | null>(null);
+  const [codeMaterialResolutionUrl, setCodeMaterialResolutionUrl] = useState<string | null>(null);
+  const [patchingSlideIndex, setPatchingSlideIndex] = useState<number | null>(null);
 
   // 通用状态
   const [error, setError] = useState<string | null>(null);
@@ -513,6 +529,62 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     throw new Error('任务执行超时，请稍后到历史输出目录检查结果');
   };
 
+  const submitCodeTask = async (
+    endpoint: string,
+    formData: FormData,
+    workflowAmount?: number,
+  ): Promise<CodeTaskResponse> => {
+    const res = await backendFetch(endpoint, {
+      method: 'POST',
+      headers: workflowAmount && workflowAmount > 0
+        ? { 'X-Workflow-Amount': String(workflowAmount) }
+        : undefined,
+      body: formData,
+    });
+    if (!res.ok) {
+      throw new Error(await parseErrorMessage(res, '服务器繁忙，请稍后再试'));
+    }
+    const data = await res.json() as CodeTaskResponse;
+    if (!data.success || !data.task_id) {
+      throw new Error(data.error || data.message || '任务提交失败');
+    }
+    return data;
+  };
+
+  const pollCodeTask = async (
+    taskId: string,
+    onUpdate?: (task: CodeTaskResponse) => void,
+  ): Promise<CodeTaskResponse> => {
+    let transientFailures = 0;
+    for (let attempt = 0; attempt < 720; attempt += 1) {
+      try {
+        const res = await backendFetch(`/api/v1/paper2ppt/code/tasks/${taskId}`);
+        if (!res.ok) {
+          throw new Error(await parseErrorMessage(res, '任务状态查询失败'));
+        }
+        const data = await res.json() as CodeTaskResponse;
+        onUpdate?.(data);
+        transientFailures = 0;
+        if (data.status === 'done') return data;
+        if (data.status === 'failed') {
+          throw new Error(data.error || data.message || '任务执行失败');
+        }
+
+        // Adaptive interval: 500ms during slide rendering for progressive visibility
+        const isRenderingSlides = data.progress?.stage === 'slide_rendering';
+        const interval = isRenderingSlides ? 500 : (attempt < 20 ? 1500 : 2500);
+        await sleep(interval);
+      } catch (err) {
+        transientFailures += 1;
+        if (transientFailures >= 5) {
+          throw err instanceof Error ? err : new Error('任务轮询失败');
+        }
+        await sleep(attempt < 20 ? 1500 : 2500);
+      }
+    }
+    throw new Error('任务执行超时，请稍后重试');
+  };
+
   const preloadGeneratedImages = (outputFiles?: string[]) => {
     if (!outputFiles || !Array.isArray(outputFiles)) return;
     console.log('预加载所有生成的图片...');
@@ -746,6 +818,12 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     globalPrompt || getStyleDescription(stylePreset, mode);
 
   const getFrontendGenerationCostPerPage = () => (frontendIncludeImages ? 2 : 1);
+
+  const getCodeRuntimeStyle = () => {
+    if (stylePreset === 'business') return 'dark';
+    if (stylePreset === 'creative') return 'warm';
+    return 'clean';
+  };
 
   const requestFrontendSlideGeneration = async ({
     slideIndex,
@@ -1061,6 +1139,8 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       setFrontendDeckTheme(null);
       setDownloadUrl(null);
       setPdfPreviewUrl(null);
+      setIrUrl(null);
+      setRenderLogUrl(null);
       setResultPath(null);
       setProgress(0);
       setProgressStatus('正在初始化...');
@@ -1673,6 +1753,156 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     }
   };
 
+  const handleConfirmCodeOutline = async () => {
+    const totalPages = outlineData.length;
+    const requiredPoints = totalPages;
+
+    if (
+      requiredPoints > 0 &&
+      !(await ensureQuotaForAction(requiredPoints, `生成代码型可编辑 PPT（${totalPages} 页，预计 ${requiredPoints} 点）`))
+    ) {
+      return;
+    }
+
+    setCurrentStep('generate');
+    setCurrentSlideIndex(0);
+    setIsGenerating(true);
+    setGenerateTaskMessage('准备启动 Agent 运行时...');
+    setError(null);
+    setDownloadUrl(null);
+    setPdfPreviewUrl(null);
+    setIrUrl(null);
+    setRenderLogUrl(null);
+    setCodeProgress(null);
+    setCodeSlideArtifacts([]);
+
+    try {
+      const formData = new FormData();
+      formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
+      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
+      appendManagedModel(formData, userApiConfigRequired, 'model', model);
+      formData.append('language', language);
+      formData.append('style', globalPrompt || getCodeRuntimeStyle());
+      formData.append('email', user?.id || user?.email || '');
+      formData.append('result_path', resultPath || '');
+      formData.append('include_pdf_preview', 'false');
+      formData.append('pagecontent', JSON.stringify(buildPagecontentForGeneration()));
+
+      const submitted = await submitCodeTask(
+        '/api/v1/paper2ppt/code/generate-task',
+        formData,
+        requiredPoints > 0 ? requiredPoints : undefined,
+      );
+      if (submitted.progress) {
+        setCodeProgress(submitted.progress);
+      }
+
+      const finalTask = await pollCodeTask(submitted.task_id, (task) => {
+        if (task.progress) {
+          console.log('[pollCodeTask] stage:', task.progress.stage,
+                      'slideDone:', task.progress.slideDone,
+                      'slideTotal:', task.progress.slideTotal,
+                      'artifacts:', task.progress.slideArtifacts?.length);
+          setCodeProgress(task.progress);
+          const rawArtifacts = task.progress.slideArtifacts;
+          if (Array.isArray(rawArtifacts) && rawArtifacts.length > 0) {
+            setCodeSlideArtifacts(rawArtifacts.map((a) => ({
+              index: Number(a['index'] ?? 0),
+              slideId: String(a['slide_id'] ?? a['slideId'] ?? ''),
+              title: String(a['title'] ?? ''),
+              pptxUrl: String(a['pptx_path'] ?? a['pptxUrl'] ?? ''),
+              previewUrl: String(a['preview_png_path'] ?? a['previewUrl'] ?? ''),
+              status: (a['status'] as 'pending' | 'code_ready' | 'rendered' | 'failed') ?? 'rendered',
+            })));
+          }
+          if (task.progress.message) {
+            setGenerateTaskMessage(task.progress.message);
+          }
+        }
+      });
+
+      const result = finalTask.result || {};
+      if (result.result_path) {
+        setResultPath(result.result_path as string);
+      }
+      setIrUrl((result.ir_path as string) || null);
+      setRenderLogUrl((result.render_log_path as string) || null);
+      setCodePlannedIrUrl((result.planned_ir_path as string) || null);
+      setCodeFinalIrUrl((result.final_ir_path as string) || null);
+      setCodeMaterialsManifestUrl((result.materials_manifest_path as string) || null);
+      setCodeMaterialResolutionUrl((result.material_resolution_path as string) || null);
+      const rawFinalArtifacts = (result.slide_artifacts as Array<Record<string, unknown>>) || [];
+      if (rawFinalArtifacts.length > 0) {
+        setCodeSlideArtifacts(rawFinalArtifacts.map((a) => ({
+          index: Number(a['index'] ?? 0),
+          slideId: String(a['slide_id'] ?? a['slideId'] ?? ''),
+          title: String(a['title'] ?? ''),
+          pptxUrl: String(a['pptx_path'] ?? a['pptxUrl'] ?? ''),
+          previewUrl: String(a['preview_png_path'] ?? a['previewUrl'] ?? ''),
+          status: (a['status'] as 'pending' | 'rendered' | 'failed') ?? 'rendered',
+        })));
+      }
+      setConfirmedOutlineSnapshot(cloneOutlineSnapshot(outlineData));
+
+      if (requiredPoints > 0) {
+        await consumeQuotaForAction(
+          'paper2ppt',
+          requiredPoints,
+          `代码型可编辑 PPT 已生成，但 ${requiredPoints} 点扣费记录失败，请刷新余额确认。`,
+        );
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '代码型可编辑 PPT 生成失败';
+      setError(message);
+    } finally {
+      setGenerateTaskMessage('');
+      setIsGenerating(false);
+    }
+  };
+
+  const handlePatchSlide = async (
+    slideIndex: number,
+    feedback: string,
+    feedbackType: import('./types').PatchFeedbackType,
+  ): Promise<void> => {
+    if (!resultPath) throw new Error('result_path 未设置，请先生成幻灯片');
+    setPatchingSlideIndex(slideIndex);
+    try {
+      const formData = new FormData();
+      formData.append('result_path', resultPath);
+      formData.append('slide_index', String(slideIndex));
+      formData.append('feedback', feedback);
+      formData.append('feedback_type', feedbackType);
+      formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
+      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
+      appendManagedModel(formData, userApiConfigRequired, 'model', model);
+
+      const submitted = await submitCodeTask('/api/v1/paper2ppt/code/patch-slide-task', formData);
+      const finalTask = await pollCodeTask(submitted.task_id);
+
+      const artifact = finalTask.result?.slide_artifact as Record<string, unknown> | undefined;
+      if (artifact) {
+        const pptxUrl = String(artifact['pptx_path'] ?? artifact['pptxUrl'] ?? '');
+        const previewUrl = String(artifact['preview_png_path'] ?? artifact['previewUrl'] ?? '');
+        setCodeSlideArtifacts((prev) => {
+          const updated = prev.map((a) =>
+            a.index === slideIndex
+              ? {
+                  ...a,
+                  pptxUrl: pptxUrl || a.pptxUrl,
+                  previewUrl: previewUrl || a.previewUrl,
+                  status: 'rendered' as const,
+                }
+              : a,
+          );
+          return updated;
+        });
+      }
+    } finally {
+      setPatchingSlideIndex(null);
+    }
+  };
+
   const handleConfirmOutline = async () => {
     try {
       if (isRefiningOutline || isGenerating || isOutlineSubmitLocked || outlineSubmitGuardRef.current) {
@@ -1683,6 +1913,11 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
       if (pptMode === 'frontend') {
         await handleConfirmFrontendOutline();
+        return;
+      }
+
+      if (pptMode === 'code') {
+        await handleConfirmCodeOutline();
         return;
       }
 
@@ -2386,6 +2621,10 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
   const handleConfirmSlide = () => {
     setError(null);
+    if (pptMode === 'code') {
+      setCurrentStep('complete');
+      return;
+    }
     if (currentSlideIndex < outlineData.length - 1) {
       const nextIndex = currentSlideIndex + 1;
       setCurrentSlideIndex(nextIndex);
@@ -2446,6 +2685,42 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   const handleGenerateFinal = async () => {
     if (pptMode === 'frontend') {
       await handleGenerateFrontendFinal();
+      return;
+    }
+    if (pptMode === 'code') {
+      if (!resultPath) {
+        setError('缺少 result_path');
+        return;
+      }
+      setIsGeneratingFinal(true);
+      setFinalTaskMessage('正在提交组装任务...');
+      setError(null);
+      try {
+        const formData = new FormData();
+        formData.append('result_path', resultPath);
+        formData.append('include_pdf_preview', 'true');
+        const submitted = await submitCodeTask('/api/v1/paper2ppt/code/assemble-task', formData);
+        const finalTask = await pollCodeTask(submitted.task_id, (task) => {
+          if (task.progress?.message) {
+            setFinalTaskMessage(task.progress.message);
+          } else if (task.message) {
+            setFinalTaskMessage(task.message);
+          }
+        });
+        const result = finalTask.result || {};
+        if (result.ppt_pptx_path) setDownloadUrl(result.ppt_pptx_path as string);
+        if (result.ppt_pdf_path) setPdfPreviewUrl(result.ppt_pdf_path as string);
+        await uploadGeneratedResultFile(
+          (result.ppt_pptx_path as string) || null,
+          'paper2ppt_code_editable.pptx',
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : '代码型可编辑 PPT 组装失败';
+        setError(message);
+      } finally {
+        setFinalTaskMessage('');
+        setIsGeneratingFinal(false);
+      }
       return;
     }
     if (!resultPath) {
@@ -2584,6 +2859,8 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setFrontendDeckTheme(null);
     setDownloadUrl(null);
     setPdfPreviewUrl(null);
+    setIrUrl(null);
+    setRenderLogUrl(null);
     setResultPath(null);
     setError(null);
     setProgress(0);
@@ -2591,6 +2868,12 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setGenerateTaskMessage('');
     setFinalTaskMessage('');
     setIsReviewingFrontendSlide(false);
+    setCodeProgress(null);
+    setCodeSlideArtifacts([]);
+    setCodePlannedIrUrl(null);
+    setCodeFinalIrUrl(null);
+    setCodeMaterialsManifestUrl(null);
+    setCodeMaterialResolutionUrl(null);
     if (downloadUrl?.startsWith('blob:')) {
       URL.revokeObjectURL(downloadUrl);
     }
@@ -2695,6 +2978,20 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
                 removeListItem={removeFrontendListItem}
                 replaceVisualAsset={replaceFrontendVisualAsset}
               />
+            ) : pptMode === 'code' ? (
+              <CodeGenerateStep
+                outlineData={outlineData}
+                isGenerating={isGenerating}
+                taskMessage={generateTaskMessage}
+                progress={codeProgress}
+                slideArtifacts={codeSlideArtifacts}
+                error={error}
+                resultPath={resultPath}
+                setCurrentStep={setCurrentStep}
+                handleConfirmSlide={handleConfirmSlide}
+                onPatchSlide={handlePatchSlide}
+                patchingSlideIndex={patchingSlideIndex}
+              />
             ) : (
               <GenerateStep
                 outlineData={outlineData}
@@ -2727,6 +3024,26 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
                 pdfPreviewUrl={pdfPreviewUrl}
                 isGeneratingFinal={isGeneratingFinal}
                 taskMessage={finalTaskMessage}
+                handleGenerateFinal={handleGenerateFinal}
+                handleDownloadPptx={handleDownloadPptx}
+                handleDownloadPdf={handleDownloadPdf}
+                handleReset={handleReset}
+                error={error}
+              />
+            ) : pptMode === 'code' ? (
+              <CodeCompleteStep
+                outlineData={outlineData}
+                downloadUrl={downloadUrl}
+                pdfPreviewUrl={pdfPreviewUrl}
+                irUrl={irUrl}
+                renderLogUrl={renderLogUrl}
+                plannedIrUrl={codePlannedIrUrl}
+                finalIrUrl={codeFinalIrUrl}
+                materialsManifestUrl={codeMaterialsManifestUrl}
+                materialResolutionUrl={codeMaterialResolutionUrl}
+                slideArtifacts={codeSlideArtifacts}
+                isGeneratingFinal={isGeneratingFinal}
+                taskMessage={finalTaskMessage || generateTaskMessage}
                 handleGenerateFinal={handleGenerateFinal}
                 handleDownloadPptx={handleDownloadPptx}
                 handleDownloadPdf={handleDownloadPdf}
