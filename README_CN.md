@@ -487,6 +487,34 @@ bash deploy/docker-up.sh
 - 前端：http://localhost:3000
 - 后端健康检查：http://localhost:8000/health
 
+可选：启用 ONLYOFFICE 可编辑 PPTX：
+
+Paper2PPT 可以导出基于 HTML 的可编辑 PPTX，并通过 ONLYOFFICE 在线编辑。先启动本地 ONLYOFFICE Document Server：
+
+```bash
+# 可选：如果部署环境提供了预下载镜像 tar，先导入
+docker load -i /path/to/onlyoffice-documentserver-latest.tar
+
+docker run -d --name paper2any-onlyoffice \
+  -p 8082:80 \
+  --add-host=host.docker.internal:host-gateway \
+  -e JWT_ENABLED=false \
+  -e ALLOW_PRIVATE_IP_ADDRESS=true \
+  onlyoffice/documentserver:latest
+```
+
+然后配置后端环境变量：
+
+```bash
+ONLYOFFICE_DOCUMENT_SERVER_URL=/onlyoffice
+ONLYOFFICE_THINKFLOW_PUBLIC_URL=http://host.docker.internal:8000
+ONLYOFFICE_DOCUMENT_DOWNLOAD_BASE_URL=http://host.docker.internal:8000
+ONLYOFFICE_SERVER_DOWNLOAD_URL_BASE=http://127.0.0.1:8082
+ONLYOFFICE_JWT_SECRET=
+```
+
+本地 Vite 开发时，`/onlyoffice` 会代理到 `http://localhost:8082`。如果通过 SSH 端口转发访问前端，需要把 Document Server 的 `storage.externalHost` 设置成浏览器实际访问的地址，例如 `http://localhost:13000/onlyoffice`。完整部署、排障和生产注意事项见 [ONLYOFFICE 可编辑 PPTX 部署文档](docs/onlyoffice-editable-ppt.md)。
+
 > **GPU 服务说明：** Docker 默认启动后端 + 前端。
 > - Paper2PPT、Paper2Figure、知识库等功能仅依赖 LLM API，Docker 启动后即可使用。
 > - **PDF2PPT、Image2PPT、Image2Drawio** 依赖 SAM3 图像分割。
