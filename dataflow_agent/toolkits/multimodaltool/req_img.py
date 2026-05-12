@@ -30,7 +30,10 @@ async def _post_stream_and_accumulate(
     
     log.info(f"POST STREAM {url}")
     
-    async with httpx.AsyncClient(timeout=httpx.Timeout(timeout), http2=False) as client:
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(timeout, connect=30.0, read=timeout),
+        http2=False,
+    ) as client:
         try:
             full_content = []
             async with client.stream("POST", url, headers=headers, json=payload) as response:

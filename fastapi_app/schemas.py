@@ -322,6 +322,61 @@ class FrontendPPTReviewRequest(BaseModel):
     layout_issues: Optional[str] = None
 
 
+class EditablePPTGenerationRequest(BaseModel):
+    """Generate a real editable PPTX through the backend code runtime."""
+    chat_api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    credential_scope: Optional[str] = None
+    email: Optional[str] = None
+    model: str = settings.PAPER2PPT_CONTENT_MODEL
+    vlm_model: str = settings.PAPER2PPT_VLM_MODEL
+    image_model: str = settings.PAPER2PPT_IMAGE_GEN_MODEL
+    language: str = "zh"
+    style: str = ""
+    result_path: str
+    pagecontent: str
+    include_pdf_preview: bool = True
+
+
+class AssembleEditablePPTRequest(BaseModel):
+    """Assemble a full editable PPTX from an existing final_ir.json."""
+    result_path: str
+    include_pdf_preview: bool = True
+
+
+class PatchSlideRequest(BaseModel):
+    """Patch a single slide based on user feedback."""
+    result_path: str
+    slide_index: int
+    feedback: str
+    feedback_type: str = "auto"
+    chat_api_url: Optional[str] = None
+    api_key: Optional[str] = None
+    credential_scope: Optional[str] = None
+    model: str = settings.PAPER2PPT_CONTENT_MODEL
+    image_api_url: Optional[str] = None
+    image_api_key: Optional[str] = None
+    image_model: str = settings.PAPER2PPT_IMAGE_GEN_MODEL
+
+
+class EditablePPTGenerationResponse(BaseModel):
+    """Backend response for the paper2ppt/code runtime."""
+    success: bool = True
+    result_path: str = ""
+    ppt_pptx_path: str = ""
+    ppt_pdf_path: str = ""
+    planned_ir_path: str = ""
+    final_ir_path: str = ""
+    materials_manifest_path: str = ""
+    material_resolution_path: str = ""
+    ir_path: str = ""
+    render_log_path: str = ""
+    slides_dir: str = ""
+    slide_artifacts: List[Dict[str, Any]] = []
+    all_output_files: List[str] = []
+    error: str = ""
+
+
 # ===================== KB Deep Research 相关 =====================
 
 class DeepResearchRequest(BaseModel):

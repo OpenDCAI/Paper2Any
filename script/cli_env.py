@@ -22,6 +22,8 @@ def _load_env_manually(env_file: Path) -> None:
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
+        if line.startswith("export "):
+            line = line[len("export ") :].strip()
         key, value = line.split("=", 1)
         key = key.strip()
         value = value.strip()
@@ -53,8 +55,14 @@ def load_project_env() -> None:
 
 def resolve_cli_text_credentials(api_url: str | None, api_key: str | None) -> tuple[str, str]:
     return (
-        api_url or os.getenv("DF_API_URL", "https://api.openai.com/v1"),
-        api_key or os.getenv("DF_API_KEY", ""),
+        api_url
+        or os.getenv("SIMPLE_TEXT_API_URL", "")
+        or os.getenv("PAPER2PPT_MANAGED_API_URL", "")
+        or os.getenv("DF_API_URL", "https://api.openai.com/v1"),
+        api_key
+        or os.getenv("SIMPLE_TEXT_API_KEY", "")
+        or os.getenv("PAPER2PPT_MANAGED_API_KEY", "")
+        or os.getenv("DF_API_KEY", ""),
     )
 
 
@@ -66,8 +74,22 @@ def resolve_cli_image_credentials(
     fallback_key: str | None = None,
 ) -> tuple[str, str]:
     return (
-        image_api_url or os.getenv("DF_IMAGE_API_URL", "") or fallback_url or os.getenv("DF_API_URL", "https://api.openai.com/v1"),
-        image_api_key or os.getenv("DF_IMAGE_API_KEY", "") or fallback_key or os.getenv("DF_API_KEY", ""),
+        image_api_url
+        or os.getenv("SIMPLE_IMAGE_API_URL", "")
+        or os.getenv("PAPER2PPT_MANAGED_IMAGE_API_URL", "")
+        or os.getenv("DF_IMAGE_API_URL", "")
+        or fallback_url
+        or os.getenv("SIMPLE_TEXT_API_URL", "")
+        or os.getenv("PAPER2PPT_MANAGED_API_URL", "")
+        or os.getenv("DF_API_URL", "https://api.openai.com/v1"),
+        image_api_key
+        or os.getenv("SIMPLE_IMAGE_API_KEY", "")
+        or os.getenv("PAPER2PPT_MANAGED_IMAGE_API_KEY", "")
+        or os.getenv("DF_IMAGE_API_KEY", "")
+        or fallback_key
+        or os.getenv("SIMPLE_TEXT_API_KEY", "")
+        or os.getenv("PAPER2PPT_MANAGED_API_KEY", "")
+        or os.getenv("DF_API_KEY", ""),
     )
 
 

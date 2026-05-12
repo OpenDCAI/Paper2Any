@@ -40,6 +40,7 @@ from fastapi_app.routers import image2drawio
 from fastapi_app.routers import image_playground
 from fastapi_app.routers import mindmap
 from fastapi_app.routers import paper2drawio
+from fastapi_app.routers import paper2ppt_code
 from fastapi_app.routers import paper2rebuttal
 from fastapi_app.middleware.api_key import APIKeyMiddleware
 from dataflow_agent.utils import get_project_root
@@ -91,6 +92,7 @@ def create_app() -> FastAPI:
     app.include_router(account.router, prefix="/api/v1", tags=["account"])
     # Paper2PPT
     app.include_router(paper2ppt.router, prefix="/api/v1", tags=["paper2ppt"])
+    app.include_router(paper2ppt_code.router, prefix="/api/v1", tags=["paper2ppt"])
     # Paper2Citation
     app.include_router(paper2citation.router, prefix="/api/v1", tags=["paper2citation"])
     # paper2video

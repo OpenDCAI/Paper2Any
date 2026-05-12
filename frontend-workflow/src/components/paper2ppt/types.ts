@@ -1,5 +1,5 @@
 export type Step = 'upload' | 'outline' | 'generate' | 'complete';
-export type PptGenerationMode = 'image' | 'frontend';
+export type PptGenerationMode = 'image' | 'frontend' | 'code';
 
 export interface SlideOutline {
   id: string;
@@ -231,12 +231,121 @@ export interface Paper2PPTTaskResponse {
     success: boolean;
     ppt_pdf_path?: string;
     ppt_pptx_path?: string;
+    ir_path?: string;
+    render_log_path?: string;
     pagecontent?: Array<Record<string, unknown>>;
     result_path?: string;
     all_output_files?: string[];
   } | null;
 }
 
+export interface EditablePPTGenerationResult {
+  success: boolean;
+  result_path: string;
+  ppt_pptx_path: string;
+  ppt_pdf_path: string;
+  ir_path: string;
+  render_log_path: string;
+  all_output_files: string[];
+  error: string;
+  planned_ir_path?: string;
+  final_ir_path?: string;
+  materials_manifest_path?: string;
+  material_resolution_path?: string;
+  slides_dir?: string;
+  slide_artifacts?: CodeSlideArtifact[];
+}
+
 export type UploadMode = 'file' | 'text' | 'topic';
 export type StyleMode = 'prompt' | 'reference';
 export type StylePreset = 'modern' | 'business' | 'academic' | 'creative';
+
+export type CodeStage =
+  | 'planning'
+  | 'final_ir'
+  | 'slide_rendering'
+  | 'assembling'
+  | 'done';
+
+export interface CodeSlideArtifact {
+  index: number;
+  slideId: string;
+  title: string;
+  pptxUrl: string;
+  previewUrl: string;
+  status: 'pending' | 'code_ready' | 'rendered' | 'failed';
+}
+
+export interface CodeTaskArtifacts {
+  plannedIrPath?: string;
+  finalIrPath?: string;
+  materialsManifestPath?: string;
+  materialResolutionPath?: string;
+  slideArtifacts: CodeSlideArtifact[];
+}
+
+export interface CodeTaskProgress {
+  stage: CodeStage;
+  stageIndex: number;
+  stageTotal: number;
+  slideDone: number;
+  slideTotal: number;
+  message: string;
+  plannedIrPath?: string;
+  materialsManifestPath?: string;
+  materialResolutionPath?: string;
+  finalIrPath?: string;
+  slideArtifacts?: Array<Record<string, unknown>>;
+}
+
+export interface CodeTaskResponse {
+  success: boolean;
+  task_id: string;
+  task_type: 'code_generate' | 'code_assemble' | 'patch_slide';
+  status: 'queued' | 'running' | 'done' | 'failed';
+  message: string;
+  error?: string | null;
+  progress?: CodeTaskProgress | null;
+  result?: {
+    success?: boolean;
+    result_path?: string;
+    ppt_pptx_path?: string;
+    ppt_pdf_path?: string;
+    planned_ir_path?: string;
+    final_ir_path?: string;
+    materials_manifest_path?: string;
+    material_resolution_path?: string;
+    ir_path?: string;
+    render_log_path?: string;
+    slides_dir?: string;
+    slide_artifacts?: Array<Record<string, unknown>>;
+    all_output_files?: string[];
+    // patch_slide result fields
+    slide_index?: number;
+    slide_artifact?: Record<string, unknown>;
+  } | null;
+}
+
+export type PatchFeedbackType = 'text' | 'image' | 'both' | 'auto';
+
+export interface PatchSlideProgress {
+  stage: 'patch_analyzing' | 'patch_ir_done' | 'patch_codegen' | 'patch_rendering' | 'done' | 'failed';
+  slideIndex: number;
+  message: string;
+  slideArtifact?: Record<string, unknown> | null;
+}
+
+export interface PatchSlideTaskResponse {
+  success: boolean;
+  task_id: string;
+  task_type: 'patch_slide';
+  status: 'queued' | 'running' | 'done' | 'failed';
+  message: string;
+  error?: string | null;
+  progress?: PatchSlideProgress | null;
+  result?: {
+    success?: boolean;
+    slide_index?: number;
+    slide_artifact?: Record<string, unknown>;
+  } | null;
+}

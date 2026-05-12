@@ -6,6 +6,7 @@ import {
   UploadCloud, Settings2, Loader2, AlertCircle, Sparkles,
   ArrowRight, FileText, Key, Globe, Cpu, Type, Lightbulb,
   MonitorSmartphone,
+  FileCode2,
   Info, X
 } from 'lucide-react';
 import QRCodeTooltip from '../QRCodeTooltip';
@@ -245,7 +246,10 @@ const UploadStep: React.FC<UploadStepProps> = ({
           imageDesc: '沿用现有图像工作流，逐页生成视觉稿并导出。',
           frontendTitle: '可编辑版 PPT',
           frontendDesc: '生成 16:9 结构化 slide schema，文字与图片对象都可编辑，并直接导出真 PPTX。',
+          codeTitle: '代码型可编辑 PPT',
+          codeDesc: '直接在后端生成真实 PPTX 文件，适合继续在 PowerPoint / Keynote / WPS 中编辑。',
           frontendTip: '可编辑版默认文本优先；若开启图像增强，会优先复用论文图表，否则按页面内容自动补示意图。',
+          codeTip: '代码型模式会复用当前大纲与素材，在后端直接输出真实可编辑 PPTX，并附带 IR 与运行日志。',
         }
       : {
           title: 'PPT Mode',
@@ -253,7 +257,10 @@ const UploadStep: React.FC<UploadStepProps> = ({
           imageDesc: 'Use the current image workflow and export generated visual slides.',
           frontendTitle: 'Editable PPT',
           frontendDesc: 'Generate editable 16:9 structured slides and export a real PPTX.',
+          codeTitle: 'Code Editable PPT',
+          codeDesc: 'Generate a real PPTX directly on the backend for continued editing in PowerPoint, Keynote, or WPS.',
           frontendTip: 'Editable mode stays text-editable and can optionally reuse paper figures/tables or generate supporting images.',
+          codeTip: 'Code mode reuses the confirmed outline and assets, then outputs a real editable PPTX with IR and runtime logs.',
         };
   const pageCopy = uiLang === 'zh'
     ? {
@@ -269,6 +276,12 @@ const UploadStep: React.FC<UploadStepProps> = ({
           desc: '生成 16:9 结构化可编辑页面，支持画布内直接改字、可选首轮结构检查，并导出真可编辑 PPTX。',
           highlight: '这一页只做可编辑版 deck，不再混入图片版配置。',
         },
+        code: {
+          kicker: 'Code Deck Workflow',
+          title: '代码型可编辑 PPT 生成',
+          desc: '复用现有论文解析与大纲确认流程，在后端直接生成真实可编辑 PPTX，同时保留 IR 与运行日志。',
+          highlight: '这一页专注后端真实 PPTX 生成，不走截图导出或前端 HTML/CSS 画布。',
+        },
       }
     : {
         image: {
@@ -283,11 +296,27 @@ const UploadStep: React.FC<UploadStepProps> = ({
           desc: 'Generate 16:9 structured editable slides with inline editing, optional first-pass structural QA, and real PPTX export.',
           highlight: 'This page is dedicated to the editable deck workflow only.',
         },
+        code: {
+          kicker: 'Code Deck Workflow',
+          title: 'Code Editable PPT Generation',
+          desc: 'Reuse the existing parsing and outline flow, then generate a real editable PPTX on the backend together with IR and runtime logs.',
+          highlight: 'This page focuses on backend-native PPTX generation instead of screenshot export or frontend HTML/CSS editing.',
+        },
       };
-  const currentPageCopy = pptMode === 'frontend' ? pageCopy.frontend : pageCopy.image;
-  const promptCards = pptMode === 'frontend' ? frontendStylePromptCards : imageStylePromptCards;
-  const presetOptions = pptMode === 'frontend'
-    ? (
+  const currentPageCopy = pptMode === 'frontend'
+    ? pageCopy.frontend
+    : pptMode === 'code'
+      ? pageCopy.code
+      : pageCopy.image;
+  const promptCards = pptMode === 'image' ? imageStylePromptCards : frontendStylePromptCards;
+  const presetOptions = pptMode === 'image'
+    ? [
+        { value: 'modern', label: t('upload.config.presets.modern') },
+        { value: 'business', label: t('upload.config.presets.business') },
+        { value: 'academic', label: t('upload.config.presets.academic') },
+        { value: 'creative', label: t('upload.config.presets.creative') },
+      ]
+    : (
         uiLang === 'zh'
           ? [
               { value: 'modern', label: '暖白赤陶' },
@@ -301,30 +330,24 @@ const UploadStep: React.FC<UploadStepProps> = ({
               { value: 'academic', label: 'Parchment + Burgundy' },
               { value: 'creative', label: 'Forest Green' },
             ]
-      )
-    : [
-        { value: 'modern', label: t('upload.config.presets.modern') },
-        { value: 'business', label: t('upload.config.presets.business') },
-        { value: 'academic', label: t('upload.config.presets.academic') },
-        { value: 'creative', label: t('upload.config.presets.creative') },
-      ];
-  const stylePresetLabel = pptMode === 'frontend'
-    ? (uiLang === 'zh' ? '主题色方向' : 'Palette Direction')
-    : t('upload.config.stylePreset');
-  const promptLabel = pptMode === 'frontend'
-    ? (uiLang === 'zh' ? '前端主题提示词' : 'Frontend Theme Prompt')
-    : t('upload.config.promptLabel');
-  const promptPlaceholder = pptMode === 'frontend'
-    ? (uiLang === 'zh'
-        ? '例如：米白背景，酒红强调，像答辩 keynote；标题克制、卡片边框更细...'
-        : 'Example: ivory canvas, burgundy accents, keynote-like academic tone; restrained titles and thinner card borders...')
-    : t('upload.config.promptPlaceholder');
-  const promptCardsTitle = pptMode === 'frontend'
-    ? (uiLang === 'zh' ? '推荐主题 / 配色候选' : 'Recommended Palette / Theme Directions')
-    : t('upload.config.promptCardsTitle');
-  const promptCardsTip = pptMode === 'frontend'
-    ? (uiLang === 'zh' ? '可编辑版建议直接写颜色、材质和组件气质' : 'For editable decks, specify palette, material, and component language directly')
-    : t('upload.config.promptCardsTip');
+      );
+  const stylePresetLabel = pptMode === 'image'
+    ? t('upload.config.stylePreset')
+    : (uiLang === 'zh' ? '主题色方向' : 'Palette Direction');
+  const promptLabel = pptMode === 'image'
+    ? t('upload.config.promptLabel')
+    : (uiLang === 'zh' ? '可编辑 PPT 主题提示词' : 'Editable PPT Theme Prompt');
+  const promptPlaceholder = pptMode === 'image'
+    ? t('upload.config.promptPlaceholder')
+    : (uiLang === 'zh'
+        ? '例如：米白背景，酒红强调，像答辩 keynote；标题克制、分页清楚、正文适合继续手工编辑...'
+        : 'Example: ivory canvas, burgundy accents, keynote-like academic tone; restrained titles, clear pagination, and body text suited for manual editing...');
+  const promptCardsTitle = pptMode === 'image'
+    ? t('upload.config.promptCardsTitle')
+    : (uiLang === 'zh' ? '推荐主题 / 配色候选' : 'Recommended Palette / Theme Directions');
+  const promptCardsTip = pptMode === 'image'
+    ? t('upload.config.promptCardsTip')
+    : (uiLang === 'zh' ? '可编辑路线建议直接写颜色、材质和组件气质' : 'For editable routes, specify palette, material, and component language directly');
   const frontendImageStyleOptions = uiLang === 'zh'
     ? [
         { value: 'academic_illustration', label: '学术示意图' },
@@ -374,7 +397,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
                 <span className="w-1 h-4 rounded-full bg-cyan-500"></span>
                 <h3 className="text-white font-medium text-sm">{modeTexts.title}</h3>
               </div>
-              <div className="grid grid-cols-2 gap-3 p-1.5 bg-black/40 rounded-2xl border border-white/5">
+              <div className="grid grid-cols-1 gap-3 p-1.5 bg-black/40 rounded-2xl border border-white/5 md:grid-cols-3">
                 <button
                   type="button"
                   onClick={() => setPptMode('image')}
@@ -409,10 +432,32 @@ const UploadStep: React.FC<UploadStepProps> = ({
                     {modeTexts.frontendDesc}
                   </p>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setPptMode('code')}
+                  className={`text-left rounded-xl px-4 py-4 transition-all ${
+                    pptMode === 'code'
+                      ? 'bg-gradient-to-br from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/30 ring-1 ring-white/20'
+                      : 'bg-white/5 text-gray-300 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <FileCode2 size={18} className={pptMode === 'code' ? 'text-white' : 'text-cyan-300'} />
+                    <span className="font-semibold text-sm">{modeTexts.codeTitle}</span>
+                  </div>
+                  <p className={`text-xs leading-relaxed ${pptMode === 'code' ? 'text-cyan-100' : 'text-gray-400'}`}>
+                    {modeTexts.codeDesc}
+                  </p>
+                </button>
               </div>
               {pptMode === 'frontend' && (
                 <p className="mt-3 text-xs text-amber-200 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
                   {modeTexts.frontendTip}
+                </p>
+              )}
+              {pptMode === 'code' && (
+                <p className="mt-3 text-xs text-cyan-200 bg-cyan-500/10 border border-cyan-500/20 rounded-xl px-3 py-2">
+                  {modeTexts.codeTip}
                 </p>
               )}
             </div>
@@ -623,7 +668,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
           )}
           
           <div className={`grid gap-3 ${pptMode === 'image' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {(pptMode === 'image' || frontendIncludeImages) && (
+            {(pptMode === 'image' || (pptMode === 'frontend' && frontendIncludeImages)) && (
             <div>
               <label className="block text-xs text-gray-400 mb-1">
                 {pptMode === 'frontend' ? '可编辑版生图模型' : t('upload.config.genModel')}
@@ -659,9 +704,9 @@ const UploadStep: React.FC<UploadStepProps> = ({
             </div>
           </div>
 
-          {pptMode === 'frontend' && pageCount > 20 && (
+          {pptMode !== 'image' && pageCount > 20 && (
             <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] leading-5 text-amber-100">
-              可编辑版大页数会自动切到长文大纲链路。超过 20 页建议开启长文模式；超过 40 页建议优先关闭图像增强和自动结构检查，以提高生成稳定性。
+              可编辑路线的大页数会自动切到长文大纲链路。超过 20 页建议开启长文模式；超过 40 页建议优先关闭图像增强和自动结构检查，以提高生成稳定性。
             </div>
           )}
 
@@ -761,6 +806,23 @@ const UploadStep: React.FC<UploadStepProps> = ({
             </div>
           )}
 
+          {pptMode === 'code' && (
+            <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                <FileCode2 size={16} className="text-cyan-300" />
+                <span>{uiLang === 'zh' ? '代码型可编辑路线说明' : 'Code Editable Route Notes'}</span>
+              </div>
+              <div className="mt-2 space-y-2 text-xs leading-5 text-cyan-100/80">
+                <p>{uiLang === 'zh'
+                  ? '这一模式会复用当前上传、解析和大纲确认流程，在后端直接生成真实 PPTX，而不是先生成整页图片或 HTML/CSS。'
+                  : 'This mode reuses the current upload, parsing, and outline flow, then generates a real PPTX directly on the backend instead of image slides or HTML/CSS.'}</p>
+                <p>{uiLang === 'zh'
+                  ? '完成后会返回 PPTX、预览 PDF（若可用）、Deck IR 和运行日志，方便排查与后续迭代。'
+                  : 'It returns the PPTX, preview PDF when available, deck IR, and runtime log for debugging and iteration.'}</p>
+              </div>
+            </div>
+          )}
+
           <div className="border-t border-white/10 pt-4 mt-2">
             <h4 className="text-xs text-gray-400 mb-2">{t('upload.config.styleTitle')}</h4>
 
@@ -803,7 +865,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
               </div>
             )}
 
-            {pptMode === 'frontend' || styleMode === 'prompt' ? (
+            {pptMode !== 'image' || styleMode === 'prompt' ? (
               <>
                 <div className="mb-3">
                   <label className="block text-xs text-gray-400 mb-1">{stylePresetLabel}</label>
@@ -827,9 +889,15 @@ const UploadStep: React.FC<UploadStepProps> = ({
                     className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500 resize-none" 
                   />
                 </div>
-                {pptMode === 'frontend' && (
-                  <div className="text-[11px] text-amber-200 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
-                    可编辑版建议把颜色、材质、留白感和卡片语言写清楚，不要只写“科技风 / 学术风”这类过泛描述。
+                {pptMode !== 'image' && (
+                  <div className={`text-[11px] border rounded-lg px-3 py-2 ${
+                    pptMode === 'code'
+                      ? 'text-cyan-200 bg-cyan-500/10 border-cyan-500/20'
+                      : 'text-amber-200 bg-amber-500/10 border-amber-500/20'
+                  }`}>
+                    {pptMode === 'code'
+                      ? '代码型可编辑版建议优先写清楚整体配色、风格克制程度和正文可读性，避免过于抽象的视觉描述。'
+                      : '可编辑版建议把颜色、材质、留白感和卡片语言写清楚，不要只写“科技风 / 学术风”这类过泛描述。'}
                   </div>
                 )}
                 <div>
@@ -912,7 +980,11 @@ const UploadStep: React.FC<UploadStepProps> = ({
 
           <div className="flex items-start gap-2 text-xs text-gray-500 mt-3 px-1">
             <Info size={14} className="mt-0.5 text-gray-400 flex-shrink-0" />
-            <p>{pptMode === 'frontend' ? '可编辑版会在下一步生成结构化 slide schema；若开启图像增强，会同时预留受控图片槽位；若开启首轮自动结构检查，会在批量生成后先自动逐页检查，再进入编辑页。' : t('upload.config.tip')}</p>
+            <p>{pptMode === 'frontend'
+              ? '可编辑版会在下一步生成结构化 slide schema；若开启图像增强，会同时预留受控图片槽位；若开启首轮自动结构检查，会在批量生成后先自动逐页检查，再进入编辑页。'
+              : pptMode === 'code'
+                ? '代码型可编辑版会在大纲确认后直接调用后端真实 PPTX 生成链路，不提供前端逐页画布编辑，但会返回 PPTX、PDF、IR 与运行日志。'
+                : t('upload.config.tip')}</p>
           </div>
 
           {isUploading && (

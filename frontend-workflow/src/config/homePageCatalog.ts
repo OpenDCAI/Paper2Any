@@ -6,6 +6,7 @@ export type HomeNavigablePage =
   | 'paper2ppt'
   | 'paper2ppt-image'
   | 'paper2ppt-frontend'
+  | 'paper2ppt-code'
   | 'paper2video'
   | 'paper2poster'
   | 'paper2citation'
@@ -89,6 +90,18 @@ export const featuredHomeCards: HomeFeatureCard[] = [
     badgeKey: 'app.home.cards.paper2pptFrontend.badge',
     icon: 'presentation',
     accent: 'from-amber-500/80 via-orange-400/70 to-yellow-300/70',
+    preview: {
+      kind: 'image',
+      src: '/home-previews/paper2ppt-frontend.png',
+    },
+  },
+  {
+    page: 'paper2ppt-code',
+    titleKey: 'app.home.cards.paper2pptCode.title',
+    descriptionKey: 'app.home.cards.paper2pptCode.description',
+    badgeKey: 'app.home.cards.paper2pptCode.badge',
+    icon: 'presentation',
+    accent: 'from-cyan-500/80 via-sky-400/70 to-blue-300/70',
     preview: {
       kind: 'image',
       src: '/home-previews/paper2ppt-frontend.png',
@@ -181,6 +194,18 @@ export const homeFeatureSections: HomeFeatureSection[] = [
         badgeKey: 'app.home.cards.paper2pptFrontend.badge',
         icon: 'presentation',
         accent: 'from-amber-500/75 via-orange-400/65 to-yellow-300/60',
+        preview: {
+          kind: 'image',
+          src: '/home-previews/paper2ppt-frontend.png',
+        },
+      },
+      {
+        page: 'paper2ppt-code',
+        titleKey: 'app.home.cards.paper2pptCode.title',
+        descriptionKey: 'app.home.cards.paper2pptCode.description',
+        badgeKey: 'app.home.cards.paper2pptCode.badge',
+        icon: 'presentation',
+        accent: 'from-cyan-500/75 via-sky-400/65 to-blue-300/60',
         preview: {
           kind: 'image',
           src: '/home-previews/paper2ppt-frontend.png',
