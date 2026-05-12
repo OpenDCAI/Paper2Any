@@ -35,6 +35,12 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
+      '/onlyoffice': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+        ws: true,
+        rewrite: (path) => path.replace(/^\/onlyoffice/, ''),
+      },
     },
   },
 })

@@ -20,6 +20,7 @@ interface StructuredSlideCanvasProps {
   slide: FrontendSlide;
   deckTheme?: FrontendDeckTheme | null;
   useOriginalAssets?: boolean;
+  pptxCompatible?: boolean;
 }
 
 const toCssFont = (value: string) => value || 'system-ui, sans-serif';
@@ -112,7 +113,7 @@ const editableList = (
   );
 };
 
-const imageToken = (asset: FrontendVisualAsset | undefined) => {
+const imageToken = (asset: FrontendVisualAsset | undefined, pptxCompatible = false) => {
   if (!asset || !asset.src) {
     return (
       <div
@@ -126,7 +127,9 @@ const imageToken = (asset: FrontendVisualAsset | undefined) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'linear-gradient(135deg, rgba(15,23,42,0.18), rgba(15,23,42,0.32))',
+          background: pptxCompatible
+            ? 'rgba(15,23,42,0.24)'
+            : 'linear-gradient(135deg, rgba(15,23,42,0.18), rgba(15,23,42,0.32))',
           color: 'rgba(226,232,240,0.7)',
           fontSize: 16,
           fontWeight: 600,
@@ -169,6 +172,7 @@ export const StructuredSlideCanvas: React.FC<StructuredSlideCanvasProps> = ({
   slide,
   deckTheme,
   useOriginalAssets = false,
+  pptxCompatible = false,
 }) => {
   const theme = ensureDeckTheme(deckTheme);
   const styleFamily = getDeckStyleFamily(theme);
@@ -184,8 +188,9 @@ export const StructuredSlideCanvas: React.FC<StructuredSlideCanvasProps> = ({
     height: DESIGN_HEIGHT,
     overflow: 'hidden',
     borderRadius: styleFamily === 'academic' ? 18 : styleFamily === 'business' ? 20 : 28,
-    background:
-      styleFamily === 'academic'
+    background: pptxCompatible
+      ? theme.palette.bg
+      : styleFamily === 'academic'
         ? `linear-gradient(180deg, ${theme.palette.bg}, ${theme.palette.bg}), repeating-linear-gradient(180deg, transparent 0, transparent 35px, ${theme.palette.primary}08 36px)`
         : styleFamily === 'business'
           ? `linear-gradient(135deg, ${theme.palette.bg} 0%, ${theme.palette.bg} 74%, ${theme.palette.accent}12 100%)`
@@ -208,7 +213,7 @@ export const StructuredSlideCanvas: React.FC<StructuredSlideCanvasProps> = ({
     boxSizing: 'border-box',
   };
 
-  const gridLayer = (
+  const gridLayer = pptxCompatible ? null : (
     <div
       style={{
         position: 'absolute',
@@ -240,8 +245,8 @@ export const StructuredSlideCanvas: React.FC<StructuredSlideCanvasProps> = ({
     : styleFamily === 'creative'
       ? (
         <>
-          <div style={{ position: 'absolute', top: -80, right: -40, width: 320, height: 320, borderRadius: '50%', background: `${theme.palette.secondary}22`, filter: 'blur(12px)' }} />
-          <div style={{ position: 'absolute', bottom: -60, left: -30, width: 260, height: 260, borderRadius: '50%', background: `${theme.palette.accent}20`, filter: 'blur(10px)' }} />
+          <div style={{ position: 'absolute', top: -80, right: -40, width: 320, height: 320, borderRadius: '50%', background: `${theme.palette.secondary}22`, filter: pptxCompatible ? undefined : 'blur(12px)' }} />
+          <div style={{ position: 'absolute', bottom: -60, left: -30, width: 260, height: 260, borderRadius: '50%', background: `${theme.palette.accent}20`, filter: pptxCompatible ? undefined : 'blur(10px)' }} />
         </>
       )
       : styleFamily === 'academic'
@@ -433,7 +438,7 @@ export const StructuredSlideCanvas: React.FC<StructuredSlideCanvasProps> = ({
               {layout?.bulletsKey ? editableList(field(layout.bulletsKey), theme, true) : null}
             </div>
             <div style={{ ...panel, padding: 18, minHeight: 460, display: 'grid', gridTemplateRows: '1fr auto', gap: 12 }}>
-              {imageToken(imageAsset)}
+              {imageToken(imageAsset, pptxCompatible)}
               {layout?.visualCaptionKey
                 ? editableText(field(layout.visualCaptionKey), 'visual-caption', { ...summaryStyle, fontSize: 18 }, 'p')
                 : null}

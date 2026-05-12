@@ -14,11 +14,11 @@ from typing import List, Dict, Any, Optional, Iterator
 from datetime import datetime
 from urllib.parse import quote
 
-from fastapi import APIRouter, Body, Depends, UploadFile, File, Form, Request, HTTPException
+from fastapi import APIRouter, Body, Depends, UploadFile, File, Form, Request, HTTPException, Query
 from fastapi.responses import StreamingResponse, Response
 import mimetypes
 
-from fastapi_app.dependencies import AuthUser, get_current_user
+from fastapi_app.dependencies import AuthUser, get_current_user_or_system
 from fastapi_app.config.settings import settings
 from fastapi_app.utils import (
     _to_outputs_url,
@@ -101,6 +101,12 @@ def _resolve_primary_user_dir(user: Optional[AuthUser], email: Optional[str]) ->
     return candidates[0] if candidates else "default"
 
 
+def get_onlyoffice_service() -> "OnlyOfficeFileService":
+    from fastapi_app.services.onlyoffice_file_service import OnlyOfficeFileService
+
+    return OnlyOfficeFileService()
+
+
 def _allowed_user_output_roots(user: AuthUser) -> List[Path]:
     outputs_root = OUTPUTS_ROOT
     roots = [
@@ -176,6 +182,9 @@ def _should_include_history_file(path: Path, workflow_type: str, rel_parts: tupl
 
     if suffix == ".pptx":
         return True
+
+    if suffix in {".html", ".htm"}:
+        return filename.startswith("paper2ppt") or workflow_type in PDF_WORKFLOW_TYPES
 
     if workflow_type in POSTER_WORKFLOW_TYPES:
         # Only keep the root-level poster outputs, not mined page PNGs or intermediate JSON.
@@ -269,7 +278,7 @@ def _resolve_file_access_token(token: str) -> Path:
 @router.post("/access-url")
 async def create_file_access_url(
     path: str = Body(..., embed=True),
-    user: AuthUser = Depends(get_current_user),
+    user: AuthUser = Depends(get_current_user_or_system),
 ) -> Dict[str, Any]:
     asset_path = _ensure_user_owned_output_path(path, user)
     ttl_seconds = max(30, int(settings.FILE_ACCESS_URL_TTL_SECONDS or 900))
@@ -335,11 +344,62 @@ async def stream_file(token: str, request: Request):
     )
 
 
+@router.get("/onlyoffice/config")
+async def get_onlyoffice_config(
+    request: Request,
+    path: str = Query(...),
+    editor_session_id: str = Query(""),
+    browser_base_url: str = Query(""),
+    user: AuthUser = Depends(get_current_user_or_system),
+) -> Dict[str, Any]:
+    asset_path = _ensure_user_owned_output_path(path, user)
+    service = get_onlyoffice_service()
+    return service.get_onlyoffice_config(
+        path=str(asset_path),
+        request_base_url=str(request.base_url).rstrip("/"),
+        browser_base_url=browser_base_url,
+        editor_session_id=editor_session_id,
+    )
+
+
+@router.api_route("/onlyoffice/download/{document_key}.pptx", methods=["GET", "HEAD"])
+async def download_onlyoffice_document(
+    document_key: str,
+    path: str = Query(...),
+    editor_session_id: str = Query(""),
+    method: str = "GET",
+) -> Response:
+    service = get_onlyoffice_service()
+    return service.get_onlyoffice_document_response(
+        path=path,
+        document_key=document_key,
+        editor_session_id=editor_session_id,
+        method=method,
+    )
+
+
+@router.post("/onlyoffice/callback")
+async def handle_onlyoffice_callback(
+    request: Request,
+    payload: Dict[str, Any] = Body(...),
+    path: str = Query(...),
+    document_key: str = Query(""),
+    editor_session_id: str = Query(""),
+) -> Dict[str, int]:
+    service = get_onlyoffice_service()
+    return service.handle_onlyoffice_callback(
+        path=path,
+        payload=payload,
+        document_key=document_key,
+        editor_session_id=editor_session_id,
+    )
+
+
 @router.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
     workflow_type: str = Form(...),
-    user: AuthUser = Depends(get_current_user),
+    user: AuthUser = Depends(get_current_user_or_system),
 ) -> Dict[str, Any]:
     """
     Upload a file to local storage.
@@ -387,7 +447,7 @@ async def upload_file(
 @router.get("/history")
 async def get_file_history(
     request: Request,
-    user: AuthUser = Depends(get_current_user),
+    user: AuthUser = Depends(get_current_user_or_system),
 ) -> Dict[str, Any]:
     """
     Get file history for authenticated user.

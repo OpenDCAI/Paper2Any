@@ -26,7 +26,7 @@ def test_paper2ppt_generate_multipart_survives_middleware(monkeypatch):
         charges.append(kwargs)
         return {"success": True, "amount": kwargs.get("amount", 0)}
 
-    async def fake_generate(self, req, reference_img=None, request=None):
+    async def fake_generate(self, req, reference_img=None, mask_upload=None, mask_spec=None, request=None):
         captured["req"] = req
         captured["reference_img_name"] = getattr(reference_img, "filename", None)
         return {
