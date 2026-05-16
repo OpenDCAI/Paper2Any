@@ -2,6 +2,7 @@ export type HomeNavigablePage =
   | 'paper2figure-tech-exp'
   | 'paper2figure-model-drawio'
   | 'paper2drawio-ai'
+  | 'image-playground'
   | 'mindmap'
   | 'paper2ppt'
   | 'paper2ppt-image'
@@ -33,7 +34,8 @@ export type HomeIconKey =
   | 'fileSearch'
   | 'messageSquare'
   | 'bookOpen'
-  | 'folderKanban';
+  | 'folderKanban'
+  | 'flame';
 
 export interface HomePreviewAsset {
   kind: HomePreviewKind;
@@ -58,6 +60,18 @@ export interface HomeFeatureSection {
 }
 
 export const featuredHomeCards: HomeFeatureCard[] = [
+  {
+    page: 'image-playground',
+    titleKey: 'app.home.cards.imagePlayground.title',
+    descriptionKey: 'app.home.cards.imagePlayground.description',
+    badgeKey: 'app.home.cards.imagePlayground.badge',
+    icon: 'flame',
+    accent: 'from-orange-500/80 via-rose-400/70 to-pink-300/70',
+    preview: {
+      kind: 'image',
+      src: '/home-previews/paper2figure-tech-exp.png',
+    },
+  },
   {
     page: 'paper2figure-model-drawio',
     titleKey: 'app.home.cards.paper2figureModel.title',

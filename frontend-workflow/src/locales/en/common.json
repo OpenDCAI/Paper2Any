@@ -65,10 +65,42 @@
     "home": {
       "kicker": "Research Creation Console",
       "title": "One entrance for every Paper2Any workflow",
-      "description": "Use the landing page to understand what each tool does before you jump into the corresponding workflow. Tools with reference images show live previews; the rest use premium placeholders for now.",
+      "description": "A one-stop AI workspace for research and presentations. Transform papers, PDFs, images, and slides into polished figures, editable decks, diagrams, videos, posters, and rebuttal drafts.",
       "primaryCta": "Start with Figures",
       "secondaryCta": "Image PPT",
       "frontendCta": "Editable PPT",
+      "rebuttalCta": "Draft a rebuttal",
+      "cardAction": "Open workflow",
+      "modulesTitle": "Powerful AI modules",
+      "modulesDescription": "Move from paper understanding to figures, slides, diagrams, video, and research writing without switching tools.",
+      "imagePlaygroundTitle": "Image Model Playground",
+      "imagePlaygroundDescription": "Batch-test research visual prompts with managed image models.",
+      "dashboardTitle": "Paper2Any workflow console",
+      "pipelineLabel": "Pipeline",
+      "pipelineStep1Title": "Upload paper",
+      "pipelineStep1Detail": "PDF / text / image",
+      "pipelineStep2Title": "Extract structure",
+      "pipelineStep2Detail": "Methods, figures, claims",
+      "pipelineStep3Title": "Generate output",
+      "pipelineStep3Detail": "PPT, DrawIO, rebuttal",
+      "workflowTitle": "From static paper to dynamic research output",
+      "workflowPoint1Title": "Automated structure discovery",
+      "workflowPoint1Description": "Extract sections, methods, claims, and visual opportunities from dense academic content.",
+      "workflowPoint2Title": "Editable visual generation",
+      "workflowPoint2Description": "Create DrawIO diagrams, PPT decks, posters, and image-first visuals that can keep moving through the workflow.",
+      "workflowPoint3Title": "Research writing support",
+      "workflowPoint3Description": "Use citation tracking and rebuttal drafting to support the review and revision cycle.",
+      "processingLabel": "AI Processing",
+      "outputLabel": "Research output",
+      "outputDescription": "Convert dense papers into structured slides, diagrams, posters, videos, and rebuttal drafts from the same workspace.",
+      "ctaTitle": "Ready to elevate your research workflow?",
+      "ctaDescription": "Start from a paper, a topic, a PDF, or an existing slide deck and route it into the right Paper2Any workspace.",
+      "stats": {
+        "workflows": "Workflows",
+        "stages": "Core stages",
+        "batchImages": "Batch images",
+        "console": "Unified console"
+      },
       "sections": {
         "creation": {
           "title": "Generate directly from paper content",
@@ -108,6 +140,11 @@
           "title": "Paper / PPT to Narrated Video",
           "description": "Generate per-slide scripts and voiceover, with optional digital human presentation, for teaching and outreach.",
           "badge": "Slides → Video"
+        },
+        "imagePlayground": {
+          "title": "Image Model Playground",
+          "description": "Generate one or many research visuals from a prompt, compare variants, and download the best outputs.",
+          "badge": "Prompt → Image"
         },
         "paper2figureModel": {
           "title": "Model Diagram Generator",

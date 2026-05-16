@@ -65,10 +65,42 @@
     "home": {
       "kicker": "Research Creation Console",
       "title": "一个入口，串起 Paper2Any 的全部科研工作流",
-      "description": "先在这里看懂每个功能能做什么，再直接进入对应页面。首页会优先展示已有参考图的工具，没有参考图的功能先以高级占位卡呈现，后续可以继续补示例。",
+      "description": "面向科研和汇报的一站式 AI 工作台。把论文、PDF、图片和幻灯片转成高质量科研图、可编辑 PPT、DrawIO 图、视频、海报和审稿回复初稿。",
       "primaryCta": "先看科研绘图",
       "secondaryCta": "图片版 PPT",
       "frontendCta": "可编辑版 PPT",
+      "rebuttalCta": "生成审稿回复",
+      "cardAction": "打开工作流",
+      "modulesTitle": "强大的 AI 科研模块",
+      "modulesDescription": "从论文理解到图表、PPT、结构图、视频和科研写作，一个工作台里完成流转。",
+      "imagePlaygroundTitle": "生图模型体验",
+      "imagePlaygroundDescription": "批量测试科研视觉 prompt，对比不同生图模型产出。",
+      "dashboardTitle": "Paper2Any 工作流控制台",
+      "pipelineLabel": "流程",
+      "pipelineStep1Title": "上传论文",
+      "pipelineStep1Detail": "PDF / 文本 / 图片",
+      "pipelineStep2Title": "提取结构",
+      "pipelineStep2Detail": "方法、图表、核心结论",
+      "pipelineStep3Title": "生成产出",
+      "pipelineStep3Detail": "PPT、DrawIO、Rebuttal",
+      "workflowTitle": "从静态论文到动态科研产出",
+      "workflowPoint1Title": "自动识别论文结构",
+      "workflowPoint1Description": "从密集论文内容里提取章节、方法、核心结论和可视化机会。",
+      "workflowPoint2Title": "生成可继续编辑的视觉资产",
+      "workflowPoint2Description": "生成 DrawIO 图、PPT、海报和图片型页面，并继续进入后续编辑流程。",
+      "workflowPoint3Title": "覆盖科研写作与返修阶段",
+      "workflowPoint3Description": "结合引用追踪和 rebuttal 生成，支撑论文投稿、评审回复和修改循环。",
+      "processingLabel": "AI 处理中",
+      "outputLabel": "科研产出",
+      "outputDescription": "在同一个工作台里，把密集论文转成结构化 PPT、图表、海报、视频和审稿回复初稿。",
+      "ctaTitle": "准备升级你的科研工作流？",
+      "ctaDescription": "从论文、主题、PDF 或已有 PPT 出发，把素材送进最合适的 Paper2Any 工作台。",
+      "stats": {
+        "workflows": "工作流",
+        "stages": "核心阶段",
+        "batchImages": "批量生图",
+        "console": "统一入口"
+      },
       "sections": {
         "creation": {
           "title": "从论文内容直接生成",
@@ -108,6 +140,11 @@
           "title": "论文 / PPT 转讲解视频",
           "description": "按页生成讲稿与配音，可选数字人形象，适合课程讲解和成果传播。",
           "badge": "Slides → Video"
+        },
+        "imagePlayground": {
+          "title": "生图模型体验",
+          "description": "根据 prompt 一次生成单张或多张科研视觉图，对比不同变体并下载最佳结果。",
+          "badge": "Prompt → Image"
         },
         "paper2figureModel": {
           "title": "模型结构图生成",
