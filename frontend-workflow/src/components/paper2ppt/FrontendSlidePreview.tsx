@@ -19,6 +19,7 @@ interface FrontendSlidePreviewProps {
   onInlineListItemChange?: (fieldKey: string, itemIndex: number, value: string) => void;
   onInlineListReplace?: (fieldKey: string, items: string[]) => void;
   onReplaceImage?: (imageKey: string, file: File) => void | Promise<void>;
+  onDeleteImage?: (imageKey: string) => void;
   selectedBlockId?: string | null;
   onSelectBlock?: (blockId: string | null) => void;
   onHoverBlock?: (blockId: string | null) => void;
@@ -58,6 +59,7 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
   onInlineListItemChange,
   onInlineListReplace,
   onReplaceImage,
+  onDeleteImage,
   selectedBlockId = null,
   onSelectBlock,
   onHoverBlock,
@@ -214,13 +216,28 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
   }, [mode, slide.renderEngine, slide.slideId, slide.root, slide.visualSpec, slide.blocks, slide.editableFields, slide.visualAssets, scale]);
 
   useEffect(() => {
-    if (!inlineEditor) {
+    if (!inlineEditEnabled || mode !== 'responsive') {
       return undefined;
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setInlineEditor(null);
+        return;
+      }
+      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedBlockId) {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest('input, textarea, [contenteditable="true"]')) {
+          return;
+        }
+        const asset = slide.visualAssets.find((item) => item.key === selectedBlockId);
+        if (!asset) {
+          return;
+        }
+        event.preventDefault();
+        onDeleteImage?.(asset.key);
+        setInlineEditor(null);
+        onSelectBlock?.(null);
       }
     };
 
@@ -228,7 +245,7 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [inlineEditor]);
+  }, [inlineEditEnabled, mode, onDeleteImage, onSelectBlock, selectedBlockId, slide.visualAssets]);
 
   const persistInlineEdit = (editor: InlineEditorState | null) => {
     if (!editor) return;
@@ -374,7 +391,9 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
         persistInlineEdit(inlineEditor);
       }
       setInlineEditor(null);
-      openImagePicker(imageNode.dataset.imageKey || '');
+      const imageKey = imageNode.dataset.imageKey || '';
+      onSelectBlock?.(imageKey);
+      openImagePicker(imageKey);
       return;
     }
 
@@ -477,15 +496,16 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
   }
 
   return (
-    <div
-      ref={containerRef}
-      className={`relative w-full aspect-[16/9] overflow-hidden rounded-[28px] bg-[#07101f] ${className}`}
-      onMouseMove={handleBlockMouseMove}
-      onMouseLeave={clearHoveredBlock}
-      onMouseDown={handleEditableClick}
-    >
+    <div className={`w-full ${className}`}>
       <div
-        className="absolute left-1/2 top-1/2"
+        ref={containerRef}
+        className="relative w-full aspect-[16/9] overflow-hidden rounded-[28px] bg-[#07101f]"
+        onMouseMove={handleBlockMouseMove}
+        onMouseLeave={clearHoveredBlock}
+        onMouseDown={handleEditableClick}
+      >
+        <div
+          className="absolute left-1/2 top-1/2"
         style={{
           width: `${DESIGN_WIDTH}px`,
           height: `${DESIGN_HEIGHT}px`,
@@ -499,55 +519,17 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
         />
       </div>
 
-      {hoveredBlock && (
-        <div
-          className="pointer-events-none absolute z-20 rounded-[18px] border border-white/85 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.35),0_18px_46px_rgba(15,23,42,0.26)]"
-          style={{
-            left: `${hoveredBlock.left}px`,
-            top: `${hoveredBlock.top}px`,
-            width: `${hoveredBlock.width}px`,
-            height: `${hoveredBlock.height}px`,
-          }}
-        >
-          <div className="absolute left-0 top-0 -translate-y-[calc(100%+6px)] whitespace-nowrap rounded-full border border-white/35 bg-[#06101d]/92 px-2.5 py-1 text-[10px] font-medium text-white shadow-[0_10px_24px_rgba(0,0,0,0.25)]">
-            {hoveredBlock.kind === 'zone' ? '空白区域' : 'hover'}: {hoveredBlock.role || hoveredBlock.blockId}
-          </div>
-        </div>
-      )}
-
-      {(hoveredBlock || selectedBlockId) && (
-        <div className="pointer-events-none absolute right-4 top-4 z-20 flex max-w-[55%] flex-col items-end gap-1.5">
-          {hoveredBlock && (
-            <div className="rounded-full border border-white/25 bg-[#06101d]/85 px-3 py-1.5 text-[11px] text-white/90 shadow-[0_12px_28px_rgba(0,0,0,0.28)] backdrop-blur-xl">
-              鼠标所在：{hoveredBlock.kind === 'zone' ? `空白区域 ${hoveredBlock.role}` : hoveredBlock.blockId}
-            </div>
-          )}
-          {selectedBlockId && (
-            <div className="rounded-full border border-emerald-400/25 bg-[#06101d]/85 px-3 py-1.5 text-[11px] text-emerald-100/85 shadow-[0_12px_28px_rgba(0,0,0,0.28)] backdrop-blur-xl">
-              已选择：{selectedBlockId}
-            </div>
-          )}
-        </div>
-      )}
-
-      {inlineEditEnabled && (
-        <div className="pointer-events-none absolute inset-x-4 bottom-4 z-20">
-          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-[#06101d]/85 px-3 py-1.5 text-[11px] text-cyan-100/85 shadow-[0_12px_28px_rgba(0,0,0,0.28)] backdrop-blur-xl">
-            <Pencil size={12} />
-            {hoveredBlock
-              ? hoveredBlock.kind === 'zone'
-                ? slide.renderEngine === 'canvas'
-                  ? `鼠标所在空白区域：${hoveredBlock.role}，点击后可新增同级节点`
-                  : `鼠标所在空白区域：${hoveredBlock.role}，点击后可新增同级 block`
-                : `鼠标所在区域：${hoveredBlock.blockId}`
-              : selectedBlockId
-                ? `当前选择区域：${selectedBlockId}`
-                : slide.renderEngine === 'canvas'
-                  ? '鼠标移到 Canvas 节点或空白区域上查看目标，点击固定插入位置'
-                  : '鼠标移到 block 或空白区域上查看目标，点击固定插入位置'}
-          </div>
-        </div>
-      )}
+        {hoveredBlock && (
+          <div
+            className="pointer-events-none absolute z-20 rounded-[18px] border border-white/85 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.35),0_18px_46px_rgba(15,23,42,0.26)]"
+            style={{
+              left: `${hoveredBlock.left}px`,
+              top: `${hoveredBlock.top}px`,
+              width: `${hoveredBlock.width}px`,
+              height: `${hoveredBlock.height}px`,
+            }}
+          />
+        )}
 
       {inlineEditor && (
         <div
@@ -623,14 +605,44 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
         </div>
       )}
 
+        {inlineEditEnabled && (
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleImageInputChange}
+          />
+        )}
+      </div>
+
       {inlineEditEnabled && (
-        <input
-          ref={imageInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleImageInputChange}
-        />
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-cyan-100/80">
+          <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/15 bg-cyan-500/10 px-3 py-1.5">
+            <Pencil size={12} />
+            {hoveredBlock
+              ? hoveredBlock.kind === 'zone'
+                ? slide.renderEngine === 'canvas'
+                  ? `鼠标所在空白区域：${hoveredBlock.role}，点击后可新增同级节点`
+                  : `鼠标所在空白区域：${hoveredBlock.role}，点击后可新增同级 block`
+                : `鼠标所在区域：${hoveredBlock.blockId}`
+              : selectedBlockId
+                ? `当前选择区域：${selectedBlockId}`
+                : slide.renderEngine === 'canvas'
+                  ? '鼠标移到 Canvas 节点或空白区域上查看目标，点击固定插入位置'
+                  : '鼠标移到 block 或空白区域上查看目标，点击固定插入位置'}
+          </span>
+          {selectedBlockId && (
+            <span className="inline-flex rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-emerald-100/85">
+              已选择：{selectedBlockId}
+            </span>
+          )}
+          {selectedBlockId && slide.visualAssets.some((asset) => asset.key === selectedBlockId) && (
+            <span className="inline-flex rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1.5 text-rose-100/85">
+              按 Delete 删除图片
+            </span>
+          )}
+        </div>
       )}
     </div>
   );

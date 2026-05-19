@@ -47,6 +47,7 @@ export interface FrontendEditableField {
   type: FrontendFieldType;
   value: string;
   items: string[];
+  autoDeleteOnEmpty?: boolean;
 }
 
 export type FrontendVisualAssetSource = 'generated' | 'paper_asset' | 'upload';

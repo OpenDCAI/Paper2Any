@@ -14,7 +14,6 @@ import {
   ScanSearch,
   ShieldCheck,
   Table2,
-  Trash2,
 } from 'lucide-react';
 import { FrontendDeckTheme, FrontendSlide, SlideOutline, Step } from './types';
 import { parseFrontendInsertZoneTarget } from './types';
@@ -42,9 +41,8 @@ interface FrontendGenerateStepProps {
   updateFieldValue: (slideIndex: number, fieldKey: string, value: string) => void;
   updateListItem: (slideIndex: number, fieldKey: string, itemIndex: number, value: string) => void;
   replaceListItems: (slideIndex: number, fieldKey: string, items: string[]) => void;
-  addListItem: (slideIndex: number, fieldKey: string) => void;
-  removeListItem: (slideIndex: number, fieldKey: string, itemIndex: number) => void;
   replaceVisualAsset: (slideIndex: number, imageKey: string, file: File) => Promise<void>;
+  deleteVisualAsset: (slideIndex: number, imageKey: string) => void;
   insertTextBlock: (slideIndex: number, targetBlockId?: string) => void;
   insertCalloutBlock: (slideIndex: number, targetBlockId?: string) => void;
   insertTableBlock: (slideIndex: number, targetBlockId?: string) => void;
@@ -73,9 +71,8 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
   updateFieldValue,
   updateListItem,
   replaceListItems,
-  addListItem,
-  removeListItem,
   replaceVisualAsset,
+  deleteVisualAsset,
   insertTextBlock,
   insertCalloutBlock,
   insertTableBlock,
@@ -133,6 +130,11 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
           ? '当前页尚未完成生成'
           : '';
   const renderedHtmlValue = currentSlide ? buildFrontendSlideMarkup(currentSlide, deckTheme) : '';
+  const hasSidePanel = Boolean(
+    deckTheme
+    || currentSlideIsSchema
+    || (currentSlide?.visualAssets?.length || 0) > 0,
+  );
 
   useEffect(() => {
     setDraftHtml(currentSlide?.htmlTemplate || '');
@@ -208,7 +210,7 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6">
+      <div className={`grid grid-cols-1 ${hasSidePanel ? 'xl:grid-cols-[1.2fr_0.8fr]' : ''} gap-6`}>
         <div className="space-y-4">
           <div className="glass rounded-xl border border-white/10 p-4">
             <div className="flex items-center justify-between mb-3">
@@ -265,12 +267,19 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
                     </p>
                   </div>
                 ) : isGenerating && currentSlide?.status === 'processing' ? (
-                  <div className="aspect-[16/9] flex flex-col items-center justify-center text-center">
-                    <Loader2 size={40} className="text-cyan-400 animate-spin mb-3" />
-                    <p className="text-base text-cyan-200">正在生成这一页的结构化页面...</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {taskMessage || '大模型正在规划模板选择、blocks 和图片槽位'}
-                    </p>
+                  <div className="aspect-[16/9] grid grid-cols-[0.95fr_1.05fr] items-center gap-8 px-12 text-left">
+                    <div className="flex justify-center">
+                      <div className="relative h-28 w-28 rounded-2xl border border-cyan-400/25 bg-cyan-500/10 shadow-[0_22px_60px_rgba(34,211,238,0.12)]">
+                        <div className="absolute inset-4 rounded-xl border border-cyan-300/20 bg-black/20" />
+                        <Loader2 size={36} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-cyan-300 animate-spin" />
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-lg font-semibold text-cyan-100">正在生成这一页的结构化页面...</p>
+                      <p className="mt-2 max-w-xl text-sm leading-6 text-gray-400">
+                        {taskMessage || '大模型正在规划模板选择、blocks 和图片槽位'}
+                      </p>
+                    </div>
                   </div>
                 ) : currentSlide ? (
                   <FrontendSlidePreview
@@ -292,6 +301,7 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
                     onReplaceImage={(imageKey, file) =>
                       replaceVisualAsset(currentSlideIndex, imageKey, file)
                     }
+                    onDeleteImage={(imageKey) => deleteVisualAsset(currentSlideIndex, imageKey)}
                     onLayoutIrChange={(layoutIr) => updateLayoutIr(currentSlideIndex, layoutIr)}
                   />
                 ) : (
@@ -515,173 +525,118 @@ const FrontendGenerateStep: React.FC<FrontendGenerateStepProps> = ({
           </div>
         </div>
 
-        <div className="glass rounded-xl border border-white/10 p-5">
-          {deckTheme && (
-            <div className="mb-4 rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-200/75">Deck Theme Locked</div>
-                  <div className="mt-1 text-sm font-semibold text-white">{deckTheme.themeName}</div>
-                </div>
-                <div className="rounded-full border border-cyan-400/20 bg-[#06101d]/80 px-3 py-1 text-[11px] text-cyan-100/80">
-                  单页重生成继承整套主题
-                </div>
-              </div>
-              {deckTheme.themeLock.componentSignature && (
-                <p className="mt-3 text-xs leading-6 text-cyan-100/80">
-                  {deckTheme.themeLock.componentSignature}
-                </p>
-              )}
-              {deckTheme.themeLock.mustKeep.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {deckTheme.themeLock.mustKeep.slice(0, 4).map((rule) => (
-                    <span
-                      key={rule}
-                      className="rounded-full border border-cyan-400/15 bg-white/5 px-2.5 py-1 text-[11px] text-cyan-50/85"
-                    >
-                      {rule}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {currentSlideIsSchema && (
-            <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold text-white">插入组件</h3>
-                <span className="text-[11px] text-gray-400">
-                  {describeInsertTarget(activeInsertionBlockId)}
-                </span>
-              </div>
-              <div className="mb-3 grid grid-cols-1 gap-1.5 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-gray-300">
-                <span>鼠标所在：{hoveredBlockId ? describeInsertTarget(hoveredBlockId) : '无'}</span>
-                <span>点击选择：{selectedBlockId ? describeInsertTarget(selectedBlockId) : '未固定'}</span>
-                <span>插入目标：{describeInsertTarget(activeInsertionBlockId)}</span>
-                {activeInsertionZone ? (
-                  <span className="text-cyan-200">
-                    {currentSlide?.renderEngine === 'canvas'
-                      ? '当前会新增同级 Canvas 节点。'
-                      : '当前会新增同级 block，不会撑开已有内容。'}
-                  </span>
-                ) : null}
-              </div>
-              <div className="grid grid-cols-4 gap-2">
-                <button
-                  type="button"
-                  onClick={() => insertTextBlock(currentSlideIndex, activeInsertionBlockId || undefined)}
-                  disabled={isGenerating || isReviewing || !currentSlide}
-                  className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-cyan-100 hover:bg-cyan-500/10 disabled:opacity-50"
-                >
-                  <span className="inline-flex items-center justify-center gap-1.5">
-                    <FileText size={14} /> 文本
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => insertCalloutBlock(currentSlideIndex, activeInsertionBlockId || undefined)}
-                  disabled={isGenerating || isReviewing || !currentSlide}
-                  className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-amber-100 hover:bg-amber-500/10 disabled:opacity-50"
-                >
-                  <span className="inline-flex items-center justify-center gap-1.5">
-                    <Plus size={14} /> 重点
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => insertImageInputRef.current?.click()}
-                  disabled={isGenerating || isReviewing || !currentSlide}
-                  className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-emerald-100 hover:bg-emerald-500/10 disabled:opacity-50"
-                >
-                  <span className="inline-flex items-center justify-center gap-1.5">
-                    <ImagePlus size={14} /> 图片
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => insertTableBlock(currentSlideIndex, activeInsertionBlockId || undefined)}
-                  disabled={isGenerating || isReviewing || !currentSlide}
-                  className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-sky-100 hover:bg-sky-500/10 disabled:opacity-50"
-                >
-                  <span className="inline-flex items-center justify-center gap-1.5">
-                    <Table2 size={14} /> 表格
-                  </span>
-                </button>
-              </div>
-              <input
-                ref={insertImageInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleInsertImageChange}
-              />
-            </div>
-          )}
-
-          <h3 className="text-white font-semibold mb-4">可编辑文本字段</h3>
-          {currentSlide?.visualAssets && currentSlide.visualAssets.length > 0 && (
-            <div className="mb-4 rounded-xl border border-amber-400/20 bg-amber-500/5 p-3 text-xs text-amber-100/90">
-              当前页已启用图片槽位。直接点击画布内图片即可替换为你自己的文件。
-            </div>
-          )}
-          <div className="space-y-4 max-h-[760px] overflow-auto pr-1">
-            {currentSlide?.editableFields?.map((field) => (
-              <div key={field.key} className="rounded-xl border border-white/10 bg-white/5 p-3">
-                <div className="text-xs text-gray-400 mb-2">{field.label}</div>
-                {field.type === 'list' ? (
-                  <div className="space-y-2">
-                    {field.items.map((item, itemIndex) => (
-                      <div key={`${field.key}-${itemIndex}`} className="flex gap-2">
-                        <input
-                          type="text"
-                          value={item}
-                          onChange={(e) =>
-                            updateListItem(currentSlideIndex, field.key, itemIndex, e.target.value)
-                          }
-                          disabled={isGenerating}
-                          className="flex-1 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-cyan-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeListItem(currentSlideIndex, field.key, itemIndex)}
-                          disabled={isGenerating}
-                          className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-red-300 disabled:opacity-50"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => addListItem(currentSlideIndex, field.key)}
-                      disabled={isGenerating}
-                      className="w-full py-2 rounded-lg border border-dashed border-cyan-500/30 text-cyan-200 text-xs hover:bg-cyan-500/10 disabled:opacity-50 flex items-center justify-center gap-1"
-                    >
-                      <Plus size={14} /> 添加一条
-                    </button>
+        {hasSidePanel && (
+          <div className="glass rounded-xl border border-white/10 p-5">
+            {deckTheme && (
+              <div className="mb-4 rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-200/75">Deck Theme Locked</div>
+                    <div className="mt-1 text-sm font-semibold text-white">{deckTheme.themeName}</div>
                   </div>
-                ) : field.type === 'textarea' ? (
-                  <textarea
-                    value={field.value}
-                    onChange={(e) => updateFieldValue(currentSlideIndex, field.key, e.target.value)}
-                    disabled={isGenerating}
-                    rows={4}
-                    className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none resize-none focus:ring-2 focus:ring-cyan-500"
-                  />
-                ) : (
-                  <input
-                    type="text"
-                    value={field.value}
-                    onChange={(e) => updateFieldValue(currentSlideIndex, field.key, e.target.value)}
-                    disabled={isGenerating}
-                    className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-cyan-500"
-                  />
+                  <div className="rounded-full border border-cyan-400/20 bg-[#06101d]/80 px-3 py-1 text-[11px] text-cyan-100/80">
+                    单页重生成继承整套主题
+                  </div>
+                </div>
+                {deckTheme.themeLock.componentSignature && (
+                  <p className="mt-3 text-xs leading-6 text-cyan-100/80">
+                    {deckTheme.themeLock.componentSignature}
+                  </p>
+                )}
+                {deckTheme.themeLock.mustKeep.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {deckTheme.themeLock.mustKeep.slice(0, 4).map((rule) => (
+                      <span
+                        key={rule}
+                        className="rounded-full border border-cyan-400/15 bg-white/5 px-2.5 py-1 text-[11px] text-cyan-50/85"
+                      >
+                        {rule}
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
-            ))}
+            )}
+
+            {currentSlideIsSchema && (
+              <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-white">插入组件</h3>
+                  <span className="text-[11px] text-gray-400">
+                    {describeInsertTarget(activeInsertionBlockId)}
+                  </span>
+                </div>
+                <div className="mb-3 grid grid-cols-1 gap-1.5 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-gray-300">
+                  <span>鼠标所在：{hoveredBlockId ? describeInsertTarget(hoveredBlockId) : '无'}</span>
+                  <span>点击选择：{selectedBlockId ? describeInsertTarget(selectedBlockId) : '未固定'}</span>
+                  <span>插入目标：{describeInsertTarget(activeInsertionBlockId)}</span>
+                  {activeInsertionZone ? (
+                    <span className="text-cyan-200">
+                      {currentSlide?.renderEngine === 'canvas'
+                        ? '当前会新增同级 Canvas 节点。'
+                        : '当前会新增同级 block，不会撑开已有内容。'}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => insertTextBlock(currentSlideIndex, activeInsertionBlockId || undefined)}
+                    disabled={isGenerating || isReviewing || !currentSlide}
+                    className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-cyan-100 hover:bg-cyan-500/10 disabled:opacity-50"
+                  >
+                    <span className="inline-flex items-center justify-center gap-1.5">
+                      <FileText size={14} /> 文本
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertCalloutBlock(currentSlideIndex, activeInsertionBlockId || undefined)}
+                    disabled={isGenerating || isReviewing || !currentSlide}
+                    className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-amber-100 hover:bg-amber-500/10 disabled:opacity-50"
+                  >
+                    <span className="inline-flex items-center justify-center gap-1.5">
+                      <Plus size={14} /> 重点
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertImageInputRef.current?.click()}
+                    disabled={isGenerating || isReviewing || !currentSlide}
+                    className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-emerald-100 hover:bg-emerald-500/10 disabled:opacity-50"
+                  >
+                    <span className="inline-flex items-center justify-center gap-1.5">
+                      <ImagePlus size={14} /> 图片
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertTableBlock(currentSlideIndex, activeInsertionBlockId || undefined)}
+                    disabled={isGenerating || isReviewing || !currentSlide}
+                    className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-sky-100 hover:bg-sky-500/10 disabled:opacity-50"
+                  >
+                    <span className="inline-flex items-center justify-center gap-1.5">
+                      <Table2 size={14} /> 表格
+                    </span>
+                  </button>
+                </div>
+                <input
+                  ref={insertImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleInsertImageChange}
+                />
+              </div>
+            )}
+
+            {currentSlide?.visualAssets && currentSlide.visualAssets.length > 0 && (
+              <div className="rounded-xl border border-amber-400/20 bg-amber-500/5 p-3 text-xs text-amber-100/90">
+                当前页已启用图片槽位。直接点击画布内图片即可替换为你自己的文件。
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
       <div className="flex justify-between mt-6">

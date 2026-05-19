@@ -561,6 +561,15 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     eyebrow: 'eyebrow',
   };
 
+  const AUTO_DELETE_EDITABLE_FIELD_PREFIXES = ['text_', 'callout_'];
+  const AUTO_DELETE_CANVAS_COMPONENTS = new Set(['text', 'callout', 'quote']);
+  const AUTO_DELETE_BLOCK_TYPES = new Set<FrontendSlideBlock['type']>(['text', 'callout', 'quote']);
+  const PROTECTED_EDITABLE_FIELD_KEYS = new Set([
+    ...Object.values(PREFERRED_SCHEMA_FIELD_KEYS),
+    'presenter',
+    'subtitle',
+  ]);
+
   const normalizeStringList = (value: unknown): string[] =>
     Array.isArray(value)
       ? value.map((item) => String(item || '').trim()).filter(Boolean)
@@ -1655,6 +1664,262 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     };
   };
 
+  const isGeneratedManualTextFieldKey = (fieldKey: string) =>
+    AUTO_DELETE_EDITABLE_FIELD_PREFIXES.some((prefix) => fieldKey.startsWith(prefix));
+
+  const getCanvasTextRef = (node: FrontendCanvasNode) => {
+    const props = node.props || {};
+    return String(props.text_ref || props.textRef || props.ref || '').trim();
+  };
+
+  const findAutoDeletableCanvasNode = (
+    node: FrontendCanvasNode | undefined,
+    fieldKey: string,
+  ): FrontendCanvasNode | undefined => {
+    if (!node) return undefined;
+    const component = String(node.component || node.props?.component || node.props?.kind || '').trim().toLowerCase();
+    if (
+      node.type === 'component'
+      && AUTO_DELETE_CANVAS_COMPONENTS.has(component)
+      && (node.id === fieldKey || getCanvasTextRef(node) === fieldKey)
+    ) {
+      return node;
+    }
+    return (node.children || [])
+      .map((child) => findAutoDeletableCanvasNode(child, fieldKey))
+      .find(Boolean);
+  };
+
+  const removeCanvasNodeByEditableField = (
+    node: FrontendCanvasNode,
+    fieldKey: string,
+  ): { node?: FrontendCanvasNode; removed: boolean } => {
+    const component = String(node.component || node.props?.component || node.props?.kind || '').trim().toLowerCase();
+    const matchedNode = findAutoDeletableCanvasNode(node, fieldKey);
+    if (
+      node.type === 'component'
+      && AUTO_DELETE_CANVAS_COMPONENTS.has(component)
+      && matchedNode?.id === node.id
+    ) {
+      return { removed: true };
+    }
+
+    let removed = false;
+    const nextChildren = (node.children || []).flatMap((child) => {
+      const result = removeCanvasNodeByEditableField(child, fieldKey);
+      if (result.removed) {
+        removed = true;
+      }
+      return result.node ? [result.node] : [];
+    });
+
+    return {
+      node: removed ? { ...node, children: nextChildren } : node,
+      removed,
+    };
+  };
+
+  const blockOwnsAutoDeletableField = (
+    slide: FrontendSlide,
+    block: FrontendSlideBlock,
+    fieldKey: string,
+  ) => AUTO_DELETE_BLOCK_TYPES.has(block.type)
+    && (getEditableFieldKeyForBlock(slide, block) === fieldKey || block.id === fieldKey || block.role === fieldKey);
+
+  const childOwnsAutoDeletableField = (
+    child: FrontendBlockChild,
+    fieldKey: string,
+  ) => AUTO_DELETE_BLOCK_TYPES.has(child.type)
+    && (child.id === fieldKey || child.role === fieldKey);
+
+  const shouldAutoDeleteEditableField = (
+    slide: FrontendSlide,
+    field: FrontendEditableField,
+  ) => {
+    if (field.autoDeleteOnEmpty) {
+      return true;
+    }
+    if (parseTableCellFieldKey(field.key)) {
+      return false;
+    }
+    if (PROTECTED_EDITABLE_FIELD_KEYS.has(field.key)) {
+      return false;
+    }
+    if (slide.renderEngine === 'canvas') {
+      const node = findAutoDeletableCanvasNode(buildCanvasRootFromSlide(slide), field.key);
+      return Boolean(node && (isGeneratedManualTextFieldKey(field.key) || getCanvasTextRef(node) === field.key));
+    }
+    return slide.blocks.some((block) =>
+      blockOwnsAutoDeletableField(slide, block, field.key)
+      || (block.children || []).some((child) => childOwnsAutoDeletableField(child, field.key)),
+    );
+  };
+
+  const canvasNodeUsesAsset = (node: FrontendCanvasNode, imageKey: string) => {
+    const props = node.props || {};
+    return node.id === imageKey
+      || String(props.asset_ref || props.assetRef || props.ref || '').trim() === imageKey
+      || String(props.asset_key || props.assetKey || '').trim() === imageKey;
+  };
+
+  const removeCanvasNodeByAssetKey = (
+    node: FrontendCanvasNode,
+    imageKey: string,
+  ): { node?: FrontendCanvasNode; removed: boolean } => {
+    const component = String(node.component || node.props?.component || node.props?.kind || '').trim().toLowerCase();
+    if (node.type === 'component' && component === 'figure' && canvasNodeUsesAsset(node, imageKey)) {
+      return { removed: true };
+    }
+
+    let removed = false;
+    const nextChildren = (node.children || []).flatMap((child) => {
+      const result = removeCanvasNodeByAssetKey(child, imageKey);
+      if (result.removed) {
+        removed = true;
+      }
+      return result.node ? [result.node] : [];
+    });
+
+    return {
+      node: removed ? { ...node, children: nextChildren } : node,
+      removed,
+    };
+  };
+
+  const removeFrontendImageContent = (
+    slide: FrontendSlide,
+    imageKey: string,
+  ): FrontendSlide => {
+    if (!imageKey || !slide.visualAssets.some((asset) => asset.key === imageKey)) {
+      return slide;
+    }
+
+    const nextVisualAssets = slide.visualAssets.filter((asset) => asset.key !== imageKey);
+    if (slide.renderEngine === 'canvas') {
+      const nextContent = { ...buildCanvasContentFromSlide(slide) };
+      const nextAssets = nextContent.assets && typeof nextContent.assets === 'object'
+        ? { ...(nextContent.assets as Record<string, unknown>) }
+        : {};
+      delete nextAssets[imageKey];
+      nextContent.assets = nextAssets;
+      const root = buildCanvasRootFromSlide(slide);
+      const removedRoot = removeCanvasNodeByAssetKey(root, imageKey);
+      return {
+        ...slide,
+        root: removedRoot.node || root,
+        content: nextContent,
+        visualAssets: nextVisualAssets,
+        layoutIr: undefined,
+        generationNote: '当前页已删除图片块。',
+        review: buildIdleFrontendReview(),
+      };
+    }
+
+    let removed = false;
+    const nextBlocks = slide.blocks.flatMap((block) => {
+      if (block.type === 'image' && (block.assetKey === imageKey || block.id === imageKey)) {
+        removed = true;
+        return [];
+      }
+      const children = block.children || [];
+      const nextChildren = children.filter((child) => {
+        const shouldRemove = child.type === 'image' && (child.assetKey === imageKey || child.id === imageKey);
+        if (shouldRemove) {
+          removed = true;
+        }
+        return !shouldRemove;
+      });
+      return nextChildren.length === children.length
+        ? [block]
+        : [{ ...block, children: nextChildren }];
+    });
+
+    return {
+      ...slide,
+      blocks: removed ? nextBlocks : slide.blocks,
+      visualAssets: nextVisualAssets,
+      layoutIr: undefined,
+      generationNote: '当前页已删除图片块。',
+      review: buildIdleFrontendReview(),
+    };
+  };
+
+  const removeFrontendEditableFieldContent = (
+    slide: FrontendSlide,
+    fieldKey: string,
+  ): FrontendSlide => {
+    const currentField = slide.editableFields.find((field) => field.key === fieldKey);
+    if (!currentField || !shouldAutoDeleteEditableField(slide, currentField)) {
+      return slide;
+    }
+
+    const isCanvasSlide = slide.renderEngine === 'canvas';
+    const matchedCanvasNode = isCanvasSlide
+      ? findAutoDeletableCanvasNode(buildCanvasRootFromSlide(slide), fieldKey)
+      : undefined;
+    const targetContentKey = isCanvasSlide
+      ? (matchedCanvasNode ? getCanvasTextRef(matchedCanvasNode) || fieldKey : fieldKey)
+      : fieldKey;
+    const nextEditableFields = slide.editableFields.filter((field) => field.key !== fieldKey);
+    const nextEditableMap = slide.editableMap ? { ...slide.editableMap } : undefined;
+    if (nextEditableMap) {
+      delete nextEditableMap[fieldKey];
+    }
+
+    if (isCanvasSlide) {
+      const nextContent = { ...buildCanvasContentFromSlide(slide) };
+      delete nextContent[targetContentKey];
+      const root = buildCanvasRootFromSlide(slide);
+      const removedRoot = removeCanvasNodeByEditableField(root, fieldKey);
+      if (!removedRoot.removed) {
+        return slide;
+      }
+      return {
+        ...slide,
+        root: removedRoot.node || root,
+        content: nextContent,
+        editableFields: nextEditableFields,
+        editableMap: nextEditableMap,
+        layoutIr: undefined,
+        generationNote: '当前页内容已手动编辑。',
+        review: buildIdleFrontendReview(),
+      };
+    }
+
+    let removed = false;
+    const nextBlocks = slide.blocks.flatMap((block) => {
+      if (blockOwnsAutoDeletableField(slide, block, fieldKey)) {
+        removed = true;
+        return [];
+      }
+      const children = block.children || [];
+      const nextChildren = children.filter((child) => {
+        const shouldRemove = childOwnsAutoDeletableField(child, fieldKey);
+        if (shouldRemove) {
+          removed = true;
+        }
+        return !shouldRemove;
+      });
+      return nextChildren.length === children.length
+        ? [block]
+        : [{ ...block, children: nextChildren }];
+    });
+
+    if (!removed) {
+      return slide;
+    }
+
+    return {
+      ...slide,
+      blocks: nextBlocks,
+      editableFields: nextEditableFields,
+      editableMap: nextEditableMap,
+      layoutIr: undefined,
+      generationNote: '当前页内容已手动编辑。',
+      review: buildIdleFrontendReview(),
+    };
+  };
+
   const applyFrontendEditableFieldMutation = (
     slide: FrontendSlide,
     fieldKey: string,
@@ -1722,6 +1987,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
             type: field.type === 'list' || field.type === 'textarea' ? field.type : 'text',
             value: String(field.value || ''),
             items: normalizeStringList(field.items),
+            autoDeleteOnEmpty: Boolean(field.auto_delete_on_empty || field.autoDeleteOnEmpty),
           }))
         : [];
       const visualAssets = Array.isArray(slide.visual_assets || slide.visualAssets)
@@ -2124,6 +2390,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       type: field.type,
       value: field.value,
       items: field.items,
+      auto_delete_on_empty: Boolean(field.autoDeleteOnEmpty),
     })),
     visual_assets: slide.visualAssets.map((asset) => ({
       key: asset.key,
@@ -2892,11 +3159,14 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
   const updateFrontendFieldValue = (slideIndex: number, fieldKey: string, value: string) => {
     setFrontendSlides((prev) =>
-      prev.map((slide, idx) =>
-        idx === slideIndex
-          ? applyFrontendEditableFieldMutation(slide, fieldKey, (field) => ({ ...field, value }))
-          : slide,
-      ),
+      prev.map((slide, idx) => {
+        if (idx !== slideIndex) return slide;
+        const field = slide.editableFields.find((item) => item.key === fieldKey);
+        if (field && value.trim() === '' && shouldAutoDeleteEditableField(slide, field)) {
+          return removeFrontendEditableFieldContent(slide, fieldKey);
+        }
+        return applyFrontendEditableFieldMutation(slide, fieldKey, (item) => ({ ...item, value }));
+      }),
     );
   };
 
@@ -2904,10 +3174,14 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setFrontendSlides((prev) =>
       prev.map((slide, idx) => {
         if (idx !== slideIndex) return slide;
-        return applyFrontendEditableFieldMutation(slide, fieldKey, (field) => {
-          const nextItems = [...field.items];
+        const field = slide.editableFields.find((item) => item.key === fieldKey);
+        if (field && value.trim() === '' && field.items.length <= 1 && shouldAutoDeleteEditableField(slide, field)) {
+          return removeFrontendEditableFieldContent(slide, fieldKey);
+        }
+        return applyFrontendEditableFieldMutation(slide, fieldKey, (item) => {
+          const nextItems = [...item.items];
           nextItems[itemIndex] = value;
-          return { ...field, items: nextItems };
+          return { ...item, items: nextItems };
         });
       }),
     );
@@ -2929,9 +3203,14 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setFrontendSlides((prev) =>
       prev.map((slide, idx) => {
         if (idx !== slideIndex) return slide;
-        return applyFrontendEditableFieldMutation(slide, fieldKey, (field) => ({
-          ...field,
-          items,
+        const nextItems = items.map((item) => item.trim()).filter(Boolean);
+        const field = slide.editableFields.find((item) => item.key === fieldKey);
+        if (field && nextItems.length === 0 && shouldAutoDeleteEditableField(slide, field)) {
+          return removeFrontendEditableFieldContent(slide, fieldKey);
+        }
+        return applyFrontendEditableFieldMutation(slide, fieldKey, (item) => ({
+          ...item,
+          items: nextItems,
         }));
       }),
     );
@@ -3085,6 +3364,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
                 type: 'textarea',
                 value,
                 items: [],
+                autoDeleteOnEmpty: true,
               },
             },
           );
@@ -3110,6 +3390,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
             type: 'textarea',
             value: block.content,
             items: [],
+            autoDeleteOnEmpty: true,
           });
         }
         const childId = buildUniqueChildId(slide, 'text_item');
@@ -3126,6 +3407,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
           type: 'textarea',
           value: child.content,
           items: [],
+          autoDeleteOnEmpty: true,
         });
       }),
     );
@@ -3155,6 +3437,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
                 type: 'textarea',
                 value,
                 items: [],
+                autoDeleteOnEmpty: true,
               },
             },
           );
@@ -3181,6 +3464,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
             type: 'textarea',
             value: block.content,
             items: [],
+            autoDeleteOnEmpty: true,
           });
         }
         const childId = buildUniqueChildId(slide, 'callout_item');
@@ -3197,6 +3481,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
           type: 'textarea',
           value: child.content,
           items: [],
+          autoDeleteOnEmpty: true,
         });
       }),
     );
@@ -3333,6 +3618,14 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       const message = err instanceof Error ? err.message : '图片上传失败';
       setError(message);
     }
+  };
+
+  const deleteFrontendVisualAsset = (slideIndex: number, imageKey: string) => {
+    setFrontendSlides((prev) =>
+      prev.map((slide, idx) =>
+        idx === slideIndex ? removeFrontendImageContent(slide, imageKey) : slide,
+      ),
+    );
   };
 
   const replaceFrontendVisualAsset = async (slideIndex: number, imageKey: string, file: File) => {
@@ -4701,9 +4994,8 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
                 updateFieldValue={updateFrontendFieldValue}
                 updateListItem={updateFrontendListItem}
                 replaceListItems={replaceFrontendListItems}
-                addListItem={addFrontendListItem}
-                removeListItem={removeFrontendListItem}
                 replaceVisualAsset={replaceFrontendVisualAsset}
+                deleteVisualAsset={deleteFrontendVisualAsset}
                 insertTextBlock={insertFrontendTextBlock}
                 insertCalloutBlock={insertFrontendCalloutBlock}
                 insertTableBlock={insertFrontendTableBlock}

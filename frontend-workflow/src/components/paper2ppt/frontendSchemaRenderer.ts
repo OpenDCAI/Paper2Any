@@ -176,7 +176,7 @@ const buildCanvasStyle = (node: FrontendCanvasNode) => {
 };
 
 const renderCanvasPlaceholder = (node: FrontendCanvasNode, label: string) => `
-<div class="schema-canvas-placeholder" data-block-id="${escapeHtml(node.id)}" data-block-role="placeholder">
+<div class="schema-canvas-placeholder" data-block-id="${escapeHtml(node.id)}" data-block-role="placeholder" data-canvas-node-id="${escapeHtml(node.id)}">
   ${escapeHtml(label)}
 </div>
 `.trim();
@@ -1328,17 +1328,29 @@ const renderCanvasComponent = (slide: FrontendSlide, node: FrontendCanvasNode) =
     const ref = props.text_ref || props.textRef || props.ref;
     const value = resolveTextRef(slide, ref, String(props.text || ''));
     if (String(ref || '').trim() === 'eyebrow' && isSystemPageLabel(value)) return '';
-    if (!value.trim()) return renderCanvasPlaceholder(node, 'Missing text reference');
     const field = ref ? buildFieldMap(slide).get(String(ref)) : undefined;
     const className = component === 'quote' ? 'schema-quote' : component === 'callout' ? 'schema-callout' : 'schema-canvas-text';
+    if (!value.trim()) {
+      return field
+        ? `<div class="schema-canvas-component ${className}" ${attrs}${style}>${wrapEditableText(field, '点击编辑文本')}</div>`
+        : '';
+    }
     return `<div class="schema-canvas-component ${className}" ${attrs}${style}>${wrapEditableText(field, value)}</div>`;
   }
 
   if (component === 'bullets') {
     const ref = props.items_ref || props.itemsRef || props.ref;
     const items = resolveListRef(slide, ref, Array.isArray(props.items) ? props.items.map((item) => String(item || '').trim()).filter(Boolean) : []);
-    if (items.length === 0) return renderCanvasPlaceholder(node, 'Missing list reference');
     const field = ref ? buildFieldMap(slide).get(String(ref)) : undefined;
+    if (items.length === 0) {
+      return field
+        ? `
+<ul class="schema-canvas-component schema-bullets" ${attrs}${style}>
+  <li>${wrapEditableText(field, '点击添加要点', 0)}</li>
+</ul>
+`.trim()
+        : '';
+    }
     return `
 <ul class="schema-canvas-component schema-bullets" ${attrs}${style}>
   ${items.map((item, index) => `<li>${wrapEditableText(field, item, index)}</li>`).join('')}
@@ -1367,11 +1379,11 @@ const renderCanvasComponent = (slide: FrontendSlide, node: FrontendCanvasNode) =
     const label = resolveTextRef(slide, labelRef, String(props.label || ''));
     const valueField = valueRef ? buildFieldMap(slide).get(String(valueRef)) : undefined;
     const labelField = labelRef ? buildFieldMap(slide).get(String(labelRef)) : undefined;
-    if (!value.trim() && !label.trim()) return renderCanvasPlaceholder(node, 'Missing stat reference');
+    if (!value.trim() && !label.trim() && !valueField && !labelField) return '';
     return `
 <div class="schema-canvas-component schema-stat-card" ${attrs}${style}>
-  <div class="schema-stat-value">${wrapEditableText(valueField, value || '--')}</div>
-  ${label ? `<div class="schema-stat-label">${formatTextValue(label)}</div>` : ''}
+  <div class="schema-stat-value">${wrapEditableText(valueField, value || '点击编辑数值')}</div>
+  ${label || labelField ? `<div class="schema-stat-label">${labelField ? wrapEditableText(labelField, label || '点击编辑标签') : formatTextValue(label)}</div>` : ''}
 </div>
 `.trim();
   }
@@ -1384,7 +1396,7 @@ const renderCanvasComponent = (slide: FrontendSlide, node: FrontendCanvasNode) =
   if (fallbackText.trim()) {
     return `<div class="schema-canvas-component schema-canvas-text" ${attrs}${style}>${formatTextValue(fallbackText)}</div>`;
   }
-  return renderCanvasPlaceholder(node, 'Empty component');
+  return '';
 };
 
 const renderCanvasNode = (slide: FrontendSlide, node: FrontendCanvasNode): string => {
