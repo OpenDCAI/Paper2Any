@@ -7,6 +7,7 @@ import { getApiSettings } from '../../../services/apiSettingsService';
 import { backendFetch } from '../../../services/backendClient';
 import { useAuthStore } from '../../../stores/authStore';
 import { MarkdownViewerModal } from './MarkdownViewerModal';
+import { useRuntimeBilling } from '../../../hooks/useRuntimeBilling';
 
 interface DeepResearchToolProps {
   files: KnowledgeFile[];
@@ -28,6 +29,7 @@ interface SummaryItem {
 
 export const DeepResearchTool = ({ files = [], selectedIds, onGenerateSuccess }: DeepResearchToolProps) => {
   const { user } = useAuthStore();
+  const { userApiConfigRequired } = useRuntimeBilling();
   const [mode, setMode] = useState<'llm' | 'web'>('llm');
   const [topic, setTopic] = useState('');
   const [apiUrl, setApiUrl] = useState('https://api.apiyi.com/v1');
@@ -90,15 +92,15 @@ export const DeepResearchTool = ({ files = [], selectedIds, onGenerateSuccess }:
       alert('请输入研究主题，或选择至少一个文件作为上下文。');
       return;
     }
-    if (!apiKey.trim()) {
+    if (userApiConfigRequired && !apiKey.trim()) {
       alert('请输入 API Key');
       return;
     }
-    if (mode === 'web' && !searchApiKey.trim()) {
+    if (mode === 'web' && userApiConfigRequired && !searchApiKey.trim()) {
       alert('Web 模式需要 Search API Key');
       return;
     }
-    if (mode === 'web' && searchProvider === 'google_cse' && !googleCseId.trim()) {
+    if (mode === 'web' && userApiConfigRequired && searchProvider === 'google_cse' && !googleCseId.trim()) {
       alert('Google CSE 需要填写 cx (Search Engine ID)');
       return;
     }
@@ -119,18 +121,22 @@ export const DeepResearchTool = ({ files = [], selectedIds, onGenerateSuccess }:
           mode,
           topic: topic.trim(),
           file_paths: filePaths,
-          api_url: apiUrl,
-          api_key: apiKey,
-          model,
           language,
           email: user.email,
           user_id: user.id,
           search_provider: searchProvider,
-          search_api_key: searchApiKey,
           search_engine: searchEngine,
           search_num: searchNum,
-          google_cse_id: googleCseId,
-          brave_summarizer: braveSummarizer
+          brave_summarizer: braveSummarizer,
+          ...(userApiConfigRequired
+            ? {
+                api_url: apiUrl,
+                api_key: apiKey,
+                model,
+                search_api_key: searchApiKey,
+                google_cse_id: googleCseId,
+              }
+            : {})
         })
       });
 
@@ -223,39 +229,47 @@ export const DeepResearchTool = ({ files = [], selectedIds, onGenerateSuccess }:
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">API URL</label>
-          <select
-            value={apiUrl}
-            onChange={e => setApiUrl(e.target.value)}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-emerald-500"
-          >
-            {[apiUrl, ...API_URL_OPTIONS].filter((v, i, a) => a.indexOf(v) === i).map((url: string) => (
-              <option key={url} value={url}>{url}</option>
-            ))}
-          </select>
-        </div>
+        {userApiConfigRequired ? (
+          <>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">API URL</label>
+              <select
+                value={apiUrl}
+                onChange={e => setApiUrl(e.target.value)}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-emerald-500"
+              >
+                {[apiUrl, ...API_URL_OPTIONS].filter((v, i, a) => a.indexOf(v) === i).map((url: string) => (
+                  <option key={url} value={url}>{url}</option>
+                ))}
+              </select>
+            </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">API Key</label>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={e => setApiKey(e.target.value)}
-            placeholder="sk-..."
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-emerald-500 font-mono"
-          />
-        </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">API Key</label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={e => setApiKey(e.target.value)}
+                placeholder="sk-..."
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-emerald-500 font-mono"
+              />
+            </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">模型</label>
-          <input
-            type="text"
-            value={model}
-            onChange={e => setModel(e.target.value)}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-emerald-500"
-          />
-        </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">模型</label>
+              <input
+                type="text"
+                value={model}
+                onChange={e => setModel(e.target.value)}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-emerald-500"
+              />
+            </div>
+          </>
+        ) : (
+          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-200/80">
+            Free 模式下由后端统一选择深度研究模型、搜索凭证与接口配置。
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <button
@@ -304,17 +318,19 @@ export const DeepResearchTool = ({ files = [], selectedIds, onGenerateSuccess }:
                 <option value="brave">Brave Search</option>
               </select>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-300">Search API Key</label>
-              <input
-                type="password"
-                value={searchApiKey}
-                onChange={e => setSearchApiKey(e.target.value)}
-                placeholder="search_api_key"
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-emerald-500 font-mono"
-              />
-            </div>
-            {searchProvider === 'google_cse' && (
+            {userApiConfigRequired && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">Search API Key</label>
+                <input
+                  type="password"
+                  value={searchApiKey}
+                  onChange={e => setSearchApiKey(e.target.value)}
+                  placeholder="search_api_key"
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-emerald-500 font-mono"
+                />
+              </div>
+            )}
+            {userApiConfigRequired && searchProvider === 'google_cse' && (
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-300">Google CSE ID (cx)</label>
                 <input

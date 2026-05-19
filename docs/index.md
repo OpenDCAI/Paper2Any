@@ -67,8 +67,7 @@
 cp fastapi_app/.env.example fastapi_app/.env
 cp frontend-workflow/.env.example frontend-workflow/.env
 
-bash deploy/start.sh
-bash deploy/start_frontend.sh
+bash deploy/start_nv.sh
 ```
 
 默认访问地址：

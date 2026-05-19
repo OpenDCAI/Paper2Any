@@ -111,6 +111,8 @@ async def _post_raw(
                  for part in content.get("parts", []):
                      if "inline_data" in part:
                          part["inline_data"]["data"] = " ...[base64]... "
+                     if "inlineData" in part:
+                         part["inlineData"]["data"] = " ...[base64]... "
                          
         log.info(f"Payload Preview: {json.dumps(debug_payload, ensure_ascii=False)}")
     except Exception:

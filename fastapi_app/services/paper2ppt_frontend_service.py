@@ -30,6 +30,7 @@ from fastapi_app.schemas import (
 from fastapi_app.services.managed_api_service import (
     resolve_image_generation_credentials,
     resolve_llm_credentials,
+    resolve_model_name,
 )
 from fastapi_app.utils import _from_outputs_url, _to_outputs_url, resolve_outputs_path
 
@@ -189,7 +190,11 @@ class Paper2PPTFrontendService:
             pagecontent=pagecontent,
             chat_api_url=resolved_chat_api_url,
             api_key=resolved_api_key,
-            model=req.model,
+            model=resolve_model_name(
+                req.model,
+                managed_default=settings.PAPER2PPT_CONTENT_MODEL,
+                fallback_default=settings.PAPER2PPT_DEFAULT_MODEL,
+            ),
             language=req.language,
             style=req.style,
         )
@@ -205,12 +210,20 @@ class Paper2PPTFrontendService:
                 slide_index=req.page_id,
                 chat_api_url=resolved_chat_api_url,
                 api_key=resolved_api_key,
-                model=req.model,
+                model=resolve_model_name(
+                    req.model,
+                    managed_default=settings.PAPER2PPT_CONTENT_MODEL,
+                    fallback_default=settings.PAPER2PPT_DEFAULT_MODEL,
+                ),
                 language=req.language,
                 style=req.style,
                 include_images=req.include_images,
                 image_style=req.image_style,
-                image_model=req.image_model,
+                image_model=resolve_model_name(
+                    req.image_model,
+                    managed_default=settings.PAPER2PPT_IMAGE_GEN_MODEL,
+                    fallback_default=settings.PAPER2PPT_DEFAULT_IMAGE_MODEL,
+                ),
                 image_api_url=resolved_image_api_url,
                 image_api_key=resolved_image_api_key,
                 edit_prompt=req.edit_prompt,
@@ -268,12 +281,20 @@ class Paper2PPTFrontendService:
                 slide_index=index,
                 chat_api_url=resolved_chat_api_url,
                 api_key=resolved_api_key,
-                model=req.model,
+                model=resolve_model_name(
+                    req.model,
+                    managed_default=settings.PAPER2PPT_CONTENT_MODEL,
+                    fallback_default=settings.PAPER2PPT_DEFAULT_MODEL,
+                ),
                 language=req.language,
                 style=req.style,
                 include_images=req.include_images,
                 image_style=req.image_style,
-                image_model=req.image_model,
+                image_model=resolve_model_name(
+                    req.image_model,
+                    managed_default=settings.PAPER2PPT_IMAGE_GEN_MODEL,
+                    fallback_default=settings.PAPER2PPT_DEFAULT_IMAGE_MODEL,
+                ),
                 image_api_url=resolved_image_api_url,
                 image_api_key=resolved_image_api_key,
                 edit_prompt=None,
@@ -943,16 +964,12 @@ class Paper2PPTFrontendService:
             "sci_fi": "restrained sci-fi research visual with clean lighting",
             "flat_infographic": "flat infographic-style illustration with simple shapes",
         }
-        key_points = [
-            str(item).strip()
-            for item in (outline_item.get("key_points") or [])
-            if str(item).strip()
-        ][:4]
+        key_points = self._normalize_outline_points(outline_item.get("key_points"), limit=4, item_limit=120)
         palette = theme.get("palette") or {}
         return (
             "Create one supporting image for an academic presentation slide. "
-            f"Page topic: {str(outline_item.get('title') or f'Slide {slide_index + 1}').strip()}. "
-            f"Layout intent: {str(outline_item.get('layout_description') or '').strip()}. "
+            f"Page topic: {self._clean_text_content(outline_item.get('title'), f'Slide {slide_index + 1}', 220)}. "
+            f"Layout intent: {self._clean_text_content(outline_item.get('layout_description'), '', 220)}. "
             f"Key points: {'; '.join(key_points) if key_points else 'keep it concise and presentation-friendly'}. "
             f"Visual style: {style_map.get(image_style, image_style or 'academic illustration')}. "
             f"Preferred palette anchors: background {palette.get('bg', '#0b1020')}, accent {palette.get('accent', '#f59e0b')}, text contrast {palette.get('text', '#e2e8f0')}. "
@@ -1242,6 +1259,7 @@ Schema:
 {
   "theme_name": "short id",
   "visual_mood": "one sentence",
+  "style_family": "modern | business | academic | creative",
   "palette": {
     "bg": "#0b1020",
     "panel": "rgba(15,23,42,0.92)",
@@ -1280,6 +1298,7 @@ Requirements:
 6. The theme_lock must be concrete enough to prevent per-slide drift during later regeneration.
 7. If style_prompt contains explicit color or material directions, translate them into the palette instead of ignoring them.
 8. Do not default to cyan/teal accents unless the style_prompt clearly asks for them.
+9. style_family must be one of modern, business, academic, creative and should match the tone implied by style_prompt.
 """.strip()
 
         user_payload = {
@@ -3513,13 +3532,9 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                     "type": field_type,
                 }
                 if field_type == "list":
-                    entry["items"] = [
-                        str(item).strip()
-                        for item in (field.get("items") or [])
-                        if str(item).strip()
-                    ][:5]
+                    entry["items"] = self._normalize_outline_points(field.get("items"), limit=5, item_limit=140)
                 else:
-                    entry["value"] = str(field.get("value") or "").strip()[:280]
+                    entry["value"] = self._clean_text_content(field.get("value"), "", 280)
                 summarized_fields.append(entry)
 
         visual_assets = slide.get("visual_assets") or slide.get("visualAssets") or []
@@ -3720,11 +3735,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
         slide: Dict[str, Any],
         local_layout_issues: List[str],
     ) -> Dict[str, Any]:
-        issues = [
-            str(item).strip()
-            for item in (payload.get("issues") or [])
-            if str(item).strip()
-        ]
+        issues = self._normalize_outline_points(payload.get("issues"), limit=12, item_limit=220)
         combined_issues: List[str] = []
         for issue in [*local_layout_issues, *issues]:
             if issue and issue not in combined_issues:
@@ -3761,11 +3772,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
     ) -> List[Dict[str, Any]]:
         normalized: List[Dict[str, Any]] = []
         seen_keys: set[str] = set()
-        outline_points = [
-            str(item).strip()
-            for item in (outline_item.get("key_points") or [])
-            if str(item).strip()
-        ]
+        outline_points = self._normalize_outline_points(outline_item.get("key_points"), limit=6, item_limit=120)
 
         if isinstance(raw_fields, list):
             for raw_field in raw_fields:
@@ -3819,7 +3826,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                     "key": "title",
                     "label": "Title",
                     "type": "text",
-                    "value": str(outline_item.get("title") or f"Slide {slide_index + 1}"),
+                    "value": self._clean_text_content(outline_item.get("title"), f"Slide {slide_index + 1}", 220),
                     "items": [],
                 }
             )
@@ -3846,6 +3853,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
         return normalized
 
     def _build_fallback_theme(self, *, language: str, style: str) -> Dict[str, Any]:
+        style_family = self._infer_style_family(style)
         footer_text = "Paper2Any Frontend PPT"
         section_label_template = (
             "第 {page_num:02d}/{slide_count:02d} 页"
@@ -3859,9 +3867,11 @@ If there are any meaningful problems, set passed=false and provide a concrete re
             )
         )
         palette = self._resolve_palette_from_style(style)
+        family_rules = self._build_family_rules(style_family)
         return {
             "theme_name": "scholarly_signal",
             "visual_mood": visual_mood,
+            "style_family": style_family,
             "palette": palette,
             "typography": {
                 "title_font_stack": 'Georgia, "Times New Roman", serif',
@@ -3871,6 +3881,108 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                 "summary_size": 26,
                 "body_size": 24,
             },
+            "layout_rules": family_rules["layout_rules"],
+            "component_rules": family_rules["component_rules"],
+            "theme_lock": {
+                "must_keep": [
+                    "Use only the deck palette colors for fills, borders, and emphasis.",
+                    "Keep the same serif title style and sans body style across the deck.",
+                    family_rules["must_keep"],
+                ],
+                "preferred_layout_patterns": family_rules["preferred_layout_patterns"],
+                "component_signature": family_rules["component_signature"],
+                "avoid": [
+                    "Do not introduce unrelated bright color families.",
+                    "Do not use more than two main columns.",
+                    family_rules["avoid"],
+                ],
+            },
+            "footer_text": footer_text,
+            "section_label_template": section_label_template,
+        }
+
+    def _infer_style_family(self, style: str) -> str:
+        style_text = (style or "").strip().lower()
+        if any(keyword in style_text for keyword in ("academic", "report", "paper", "research", "严谨", "学术", "报告")):
+            return "academic"
+        if any(keyword in style_text for keyword in ("business", "brand", "corporate", "executive", "商务", "商业", "品牌")):
+            return "business"
+        if any(keyword in style_text for keyword in ("creative", "illustration", "warm", "friendly", "playful", "soft", "创意", "插画", "柔和")):
+            return "creative"
+        return "modern"
+
+    def _build_family_rules(self, style_family: str) -> Dict[str, Any]:
+        family = (style_family or "modern").strip().lower()
+        if family == "academic":
+            return {
+                "layout_rules": [
+                    "Keep generous white or paper-like breathing room and stable reading rhythm.",
+                    "Prefer section, bullets, two-column, and comparison layouts over showy hero frames.",
+                    "Use image_focus only for genuinely visual pages.",
+                    "Reserve a quiet footer for provenance or page identity.",
+                ],
+                "component_rules": [
+                    "Use restrained panels, subtle dividers, and report-like hierarchy.",
+                    "Keep decoration secondary to text structure and evidence density.",
+                    "Avoid billboard marketing blocks or exaggerated hero cards.",
+                ],
+                "preferred_layout_patterns": [
+                    "section_break",
+                    "split_report_grid",
+                    "comparison_columns",
+                    "timeline_overview",
+                ],
+                "component_signature": "Refined report-style panels, paper-like spacing, and calm academic hierarchy.",
+                "must_keep": "Keep the visual language rigorous, airy, and report-like rather than glossy.",
+                "avoid": "Do not use neon glow, oversized promo badges, or playful sticker motifs.",
+            }
+        if family == "business":
+            return {
+                "layout_rules": [
+                    "Favor crisp comparison, KPI-card, and executive-summary patterns.",
+                    "Use strong alignment and clear block grouping with moderate density.",
+                    "Keep image_focus to showcase slides only.",
+                    "Prefer horizontal momentum and strong title anchoring.",
+                ],
+                "component_rules": [
+                    "Use sharp, decisive cards with stronger contrast and cleaner edges.",
+                    "Accent color should be used sparingly for strategic emphasis.",
+                    "Make hierarchy feel presentation-room ready rather than article-like.",
+                ],
+                "preferred_layout_patterns": [
+                    "executive_hero",
+                    "split_insight_grid",
+                    "kpi_cards",
+                    "decision_comparison",
+                ],
+                "component_signature": "Crisp executive cards, strong title anchors, and controlled business contrast.",
+                "must_keep": "Keep the deck polished, decisive, and boardroom-oriented.",
+                "avoid": "Do not use whimsical illustration accents or soft scrapbook styling.",
+            }
+        if family == "creative":
+            return {
+                "layout_rules": [
+                    "Allow more asymmetry, softer framing, and stronger hero moments.",
+                    "Alternate between image_focus, section, cards, and timeline layouts to keep the deck lively.",
+                    "Use comparison and two-column layouts only when the content clearly calls for them.",
+                    "Let accent shapes support the narrative without overpowering text.",
+                ],
+                "component_rules": [
+                    "Use soft panels, expressive color accents, and warmer visual transitions.",
+                    "Preserve readability, but allow more character in backgrounds and separators.",
+                    "Favor friendly, presentation-forward composition over report density.",
+                ],
+                "preferred_layout_patterns": [
+                    "hero_spotlight",
+                    "soft_cards",
+                    "story_timeline",
+                    "image_caption_feature",
+                ],
+                "component_signature": "Warm expressive panels, softer geometry, and more atmospheric deck motion.",
+                "must_keep": "Keep the deck warm, expressive, and visibly more playful than academic or business presets.",
+                "avoid": "Do not collapse the deck back into a uniform report grid on every page.",
+            }
+        return {
             "layout_rules": [
                 "Keep 72px+ safe margins around major content.",
                 "Prefer one dominant text area plus one supporting card or metrics block.",
@@ -3878,31 +3990,19 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                 "Reserve a quiet footer area for page identity or takeaway.",
             ],
             "component_rules": [
-                "Use rounded cards with subtle borders and a restrained glow.",
+                "Use refined rounded cards with controlled glow and layered depth.",
                 "Use one accent color only for emphasis, not for large fills.",
                 "Keep text hierarchy clear with title, summary, and supporting bullets.",
             ],
-            "theme_lock": {
-                "must_keep": [
-                    "Use only the deck palette colors for fills, borders, and emphasis.",
-                    "Keep the same serif title style and sans body style across the deck.",
-                    "Keep rounded translucent cards and a quiet footer treatment.",
-                ],
-                "preferred_layout_patterns": [
-                    "hero_with_side_card",
-                    "split_insight_grid",
-                    "stacked_cards",
-                    "timeline_overview",
-                ],
-                "component_signature": "Rounded refined cards, restrained accent usage, thin borders, and quiet academic spacing.",
-                "avoid": [
-                    "Do not introduce unrelated bright color families.",
-                    "Do not use more than two main columns.",
-                    "Do not use oversized billboard titles or poster-like full-bleed blocks.",
-                ],
-            },
-            "footer_text": footer_text,
-            "section_label_template": section_label_template,
+            "preferred_layout_patterns": [
+                "hero_with_side_card",
+                "split_insight_grid",
+                "stacked_cards",
+                "timeline_overview",
+            ],
+            "component_signature": "Modern layered cards, restrained glow, and polished presentation spacing.",
+            "must_keep": "Keep the deck sleek, layered, and contemporary without drifting into plain report style.",
+            "avoid": "Do not flatten everything into plain white report blocks unless the prompt explicitly asks for that.",
         }
 
     def _resolve_palette_from_style(self, style: str) -> Dict[str, str]:
@@ -4024,28 +4124,27 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                 return default
             return max(min_value, min(max_value, parsed))
 
+        def _clean_style_family(value: Any, default: str) -> str:
+            candidate = str(value or "").strip().lower()
+            if candidate in {"modern", "business", "academic", "creative"}:
+                return candidate
+            return default
+
         def _clean_list(value: Any, defaults: List[str], limit: int = 6) -> List[str]:
             if isinstance(value, list):
-                cleaned = [str(item).strip() for item in value if str(item).strip()]
+                cleaned = self._normalize_outline_points(value, limit=limit, item_limit=140)
                 if cleaned:
                     return cleaned[:limit]
             return defaults[:limit]
 
-        layout_rules = [
-            str(item).strip()
-            for item in (payload.get("layout_rules") or [])
-            if str(item).strip()
-        ][:6]
-        component_rules = [
-            str(item).strip()
-            for item in (payload.get("component_rules") or [])
-            if str(item).strip()
-        ][:6]
+        layout_rules = self._normalize_outline_points(payload.get("layout_rules"), limit=6, item_limit=180)
+        component_rules = self._normalize_outline_points(payload.get("component_rules"), limit=6, item_limit=180)
 
         return {
             "style_prompt": str(style or "").strip(),
             "theme_name": _clean_text(payload.get("theme_name"), fallback["theme_name"]),
             "visual_mood": _clean_text(payload.get("visual_mood"), fallback["visual_mood"]),
+            "style_family": _clean_style_family(payload.get("style_family"), fallback["style_family"]),
             "palette": {
                 "bg": _clean_color(palette_raw.get("bg"), fallback["palette"]["bg"]),
                 "panel": _clean_color(palette_raw.get("panel"), fallback["palette"]["panel"]),
@@ -4121,25 +4220,25 @@ If there are any meaningful problems, set passed=false and provide a concrete re
         theme_lock = theme.get("theme_lock")
         if isinstance(theme_lock, dict):
             return {
-                "must_keep": [
-                    str(item).strip()
-                    for item in (theme_lock.get("must_keep") or [])
-                    if str(item).strip()
-                ] or fallback["theme_lock"]["must_keep"],
-                "preferred_layout_patterns": [
-                    str(item).strip()
-                    for item in (theme_lock.get("preferred_layout_patterns") or [])
-                    if str(item).strip()
-                ] or fallback["theme_lock"]["preferred_layout_patterns"],
+                "must_keep": self._normalize_outline_points(
+                    theme_lock.get("must_keep"),
+                    limit=8,
+                    item_limit=180,
+                ) or fallback["theme_lock"]["must_keep"],
+                "preferred_layout_patterns": self._normalize_outline_points(
+                    theme_lock.get("preferred_layout_patterns"),
+                    limit=8,
+                    item_limit=180,
+                ) or fallback["theme_lock"]["preferred_layout_patterns"],
                 "component_signature": str(
                     theme_lock.get("component_signature")
                     or fallback["theme_lock"]["component_signature"]
                 ).strip(),
-                "avoid": [
-                    str(item).strip()
-                    for item in (theme_lock.get("avoid") or [])
-                    if str(item).strip()
-                ] or fallback["theme_lock"]["avoid"],
+                "avoid": self._normalize_outline_points(
+                    theme_lock.get("avoid"),
+                    limit=8,
+                    item_limit=180,
+                ) or fallback["theme_lock"]["avoid"],
             }
         return fallback["theme_lock"]
 
@@ -4150,6 +4249,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
         return {
             "theme_name": str(theme.get("theme_name") or "deck_theme").strip(),
             "visual_mood": str(theme.get("visual_mood") or "").strip(),
+            "style_family": str(theme.get("style_family") or "modern").strip(),
             "palette_anchor": {
                 "bg": str(palette.get("bg") or "").strip(),
                 "primary": str(palette.get("primary") or "").strip(),
@@ -4406,14 +4506,17 @@ If there are any meaningful problems, set passed=false and provide a concrete re
         return {
             "page_num": int(slide.get("page_num") or 0),
             "title": str(slide.get("title") or "").strip(),
+            "layout_type": str(slide.get("layout_type") or slide.get("layoutType") or "").strip(),
             "field_keys": [
                 str(field.get("key") or "").strip()
                 for field in editable_fields
                 if isinstance(field, dict) and str(field.get("key") or "").strip()
             ][:10],
-            "html_outline": self._extract_html_outline(html_template),
-            "component_classes": self._extract_component_classes(html_template, css_code),
-            "css_selectors": self._extract_css_selectors(css_code),
+            "visual_asset_keys": [
+                str(asset.get("key") or "").strip()
+                for asset in (slide.get("visual_assets") or [])
+                if isinstance(asset, dict) and str(asset.get("key") or "").strip()
+            ][:4],
         }
 
     def _extract_html_outline(self, html_template: str, limit: int = 12) -> List[str]:
@@ -4470,6 +4573,42 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                 break
         return cleaned
 
+    def _choose_fallback_layout_type(
+        self,
+        *,
+        outline_item: Dict[str, Any],
+        slide_index: int,
+        theme: Dict[str, Any],
+        visual_assets: Sequence[Dict[str, Any]],
+    ) -> str:
+        style_family = str(theme.get("style_family") or "modern").strip().lower()
+        layout_hint = str(outline_item.get("layout_description") or "").lower()
+        title = str(outline_item.get("title") or "").lower()
+        key_points = self._normalize_outline_points(outline_item.get("key_points"), limit=6, item_limit=120)
+        bullet_count = len(key_points)
+
+        if slide_index == 0:
+            return "cover"
+        if any(keyword in title for keyword in ("overview", "agenda", "outline", "introduction", "background", "summary")):
+            return "section"
+        if any(keyword in layout_hint for keyword in ("compare", "contrast", "trade-off", "versus", "vs", "对比", "比较")):
+            return "comparison"
+        if any(keyword in layout_hint for keyword in ("timeline", "process", "workflow", "loop", "pipeline", "流程", "时间线")):
+            return "timeline"
+        if any(keyword in layout_hint for keyword in ("card", "grid", "domain", "application", "industry", "module", "模块", "领域")):
+            return "cards_2x2"
+        if bullet_count >= 5 and style_family in {"business", "modern"}:
+            return "two_column"
+        if visual_assets and style_family in {"creative", "modern"} and slide_index % 3 == 1:
+            return "image_focus"
+        if bullet_count >= 4 and style_family == "academic":
+            return "bullets"
+        if style_family == "business":
+            return "two_column"
+        if style_family == "creative":
+            return "cards_2x2"
+        return "bullets"
+
     def _build_fallback_slide(
         self,
         *,
@@ -4479,8 +4618,6 @@ If there are any meaningful problems, set passed=false and provide a concrete re
         theme: Dict[str, Any],
         visual_assets: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
-        palette = theme.get("palette") or self._build_fallback_theme(language="zh", style="")["palette"]
-        typography = theme.get("typography") or {}
         visual_assets = (visual_assets or [])[:_MAX_INLINE_VISUAL_ASSETS]
         has_visual = bool(visual_assets)
         has_multi_visual = len(visual_assets) > 1
@@ -4846,13 +4983,9 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                 if field is None:
                     return ""
                 if str(field.get("type") or "") == "list":
-                    raw_value = " • ".join(
-                        str(item).strip()
-                        for item in (field.get("items") or [])
-                        if str(item).strip()
-                    )
+                    raw_value = " • ".join(self._normalize_outline_points(field.get("items"), limit=12, item_limit=180))
                 else:
-                    raw_value = str(field.get("value") or "")
+                    raw_value = self._extract_outline_text(field.get("value"))
                 return html.escape(" ".join(raw_value.split()), quote=True)
 
             next_value = re.sub(r"\{\{field:([a-zA-Z0-9_]+)\}\}", _replace_field, next_value)

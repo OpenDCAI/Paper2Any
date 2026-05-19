@@ -7,8 +7,7 @@ pdf2ppt_with_sam 工作流封装。
 - 调用 dataflow_agent.workflow.run_workflow("pdf2ppt_with_sam", state)
 - 输出：生成的 PPT 路径
 
-当前直接复用 Paper2FigureState / Paper2FigureRequest，
-逻辑与 tests/test_pdf2ppt.py 中保持一致。
+当前直接复用 Paper2FigureState / Paper2FigureRequest。
 """
 
 from pathlib import Path

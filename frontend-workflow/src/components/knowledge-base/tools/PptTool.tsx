@@ -5,6 +5,7 @@ import { KnowledgeFile } from '../types';
 import { getApiSettings } from '../../../services/apiSettingsService';
 import { backendFetch } from '../../../services/backendClient';
 import { useAuthStore } from '../../../stores/authStore';
+import { useRuntimeBilling } from '../../../hooks/useRuntimeBilling';
 
 interface PptToolProps {
   files: KnowledgeFile[];
@@ -14,6 +15,7 @@ interface PptToolProps {
 
 export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps) => {
   const { user } = useAuthStore();
+  const { userApiConfigRequired } = useRuntimeBilling();
   const [pptGenerating, setPptGenerating] = useState(false);
   const [pptParams, setPptParams] = useState({
     api_key: '',
@@ -62,7 +64,7 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
       return;
     }
 
-    if (!pptParams.api_key) {
+    if (userApiConfigRequired && !pptParams.api_key) {
       alert('请输入 API Key');
       return;
     }
@@ -102,13 +104,17 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
           need_embedding: needEmbedding,
           user_id: user.id,
           email: user.email,
-          api_url: pptParams.api_url,
-          api_key: pptParams.api_key,
           style: getStyleDescription(pptParams.style_preset),
           language: pptParams.language,
           page_count: pptParams.page_count,
-          model: pptParams.model,
-          gen_fig_model: pptParams.gen_fig_model
+          ...(userApiConfigRequired
+            ? {
+                api_url: pptParams.api_url,
+                api_key: pptParams.api_key,
+                model: pptParams.model,
+                gen_fig_model: pptParams.gen_fig_model,
+              }
+            : {})
         })
       });
 
@@ -166,16 +172,43 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
 
         {/* Configuration */}
         <div className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300">API Key</label>
-            <input 
-              type="password" 
-              value={pptParams.api_key}
-              onChange={e => setPptParams({...pptParams, api_key: e.target.value})}
-              placeholder="sk-..."
-              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-purple-500 font-mono"
-            />
-          </div>
+          {userApiConfigRequired ? (
+            <>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">API Key</label>
+                <input 
+                  type="password" 
+                  value={pptParams.api_key}
+                  onChange={e => setPptParams({...pptParams, api_key: e.target.value})}
+                  placeholder="sk-..."
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-purple-500 font-mono"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">API URL</label>
+                <select 
+                  value={pptParams.api_url} 
+                  onChange={e => {
+                    const val = e.target.value;
+                    setPptParams(prev => ({
+                      ...prev, 
+                      api_url: val,
+                      gen_fig_model: val.includes('123.129.219.111') ? 'gemini-3-pro-image-preview' : prev.gen_fig_model
+                    }));
+                  }}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-purple-500"
+                >
+                  {API_URL_OPTIONS.map((url: string) => (
+                    <option key={url} value={url}>{url}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 px-3 py-2 text-xs text-purple-200/80">
+              Free 模式下由后端统一选择 PPT 生成使用的文本与生图模型。
+            </div>
+          )}
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-300">主题 / Query（可为空）</label>
@@ -198,27 +231,6 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
             需要向量入库并基于检索生成大纲
           </label>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300">API URL</label>
-            <select 
-              value={pptParams.api_url} 
-              onChange={e => {
-                const val = e.target.value;
-                setPptParams(prev => ({
-                  ...prev, 
-                  api_url: val,
-                  // Auto-switch gen model if using specific endpoint
-                  gen_fig_model: val.includes('123.129.219.111') ? 'gemini-3-pro-image-preview' : prev.gen_fig_model
-                }));
-              }}
-              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-purple-500"
-            >
-              {API_URL_OPTIONS.map((url: string) => (
-                <option key={url} value={url}>{url}</option>
-              ))}
-            </select>
-          </div>
-
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-300">Model</label>
@@ -226,7 +238,8 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
                 <select 
                   value={pptParams.model} 
                   onChange={e => setPptParams({...pptParams, model: e.target.value})}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-purple-500"
+                  disabled={!userApiConfigRequired}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-purple-500 disabled:opacity-50"
                 >
                   <option value="gpt-5.1">gpt-5.1</option>
                   <option value="gpt-5.2">gpt-5.2</option>
@@ -237,7 +250,8 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
                   value={pptParams.model} 
                   onChange={e => setPptParams({...pptParams, model: e.target.value})}
                   placeholder="自定义模型"
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-purple-500"
+                  disabled={!userApiConfigRequired}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-purple-500 disabled:opacity-50"
                 />
               </div>
             </div>
@@ -246,7 +260,7 @@ export const PptTool = ({ files, selectedIds, onGenerateSuccess }: PptToolProps)
               <select
                 value={pptParams.gen_fig_model}
                 onChange={e => setPptParams({...pptParams, gen_fig_model: e.target.value})}
-                disabled={pptParams.api_url === 'http://123.129.219.111:3000/v1'}
+                disabled={!userApiConfigRequired || pptParams.api_url === 'http://123.129.219.111:3000/v1'}
                 className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-purple-500 disabled:opacity-50"
               >
                 <option value="gemini-2.5-flash-image">Gemini 2.5</option>

@@ -6,6 +6,7 @@ import { getApiSettings } from '../../../services/apiSettingsService';
 import { backendFetch } from '../../../services/backendClient';
 import { getSecureAssetUrl, openSecureAsset } from '../../../services/secureAssetService';
 import { KnowledgeBaseEntry } from '../types';
+import { useRuntimeBilling } from '../../../hooks/useRuntimeBilling';
 
 interface SearchResult {
   score: number;
@@ -32,6 +33,7 @@ interface SearchToolProps {
 
 export const SearchTool = ({ files = [], selectedIds = new Set(), knowledgeBases = [] }: SearchToolProps) => {
   const { user } = useAuthStore();
+  const { userApiConfigRequired } = useRuntimeBilling();
   const [query, setQuery] = useState('');
   const [topK, setTopK] = useState(5);
   const [apiKey, setApiKey] = useState('');
@@ -153,10 +155,14 @@ export const SearchTool = ({ files = [], selectedIds = new Set(), knowledgeBases
           query: query.trim(),
           top_k: topK,
           email: user?.email || null,
-          api_url: apiUrl,
-          api_key: apiKey,
-          model_name: modelName,
-          file_ids: selectedFileIds.length > 0 ? selectedFileIds : null
+          file_ids: selectedFileIds.length > 0 ? selectedFileIds : null,
+          ...(userApiConfigRequired
+            ? {
+                api_url: apiUrl,
+                api_key: apiKey,
+                model_name: modelName,
+              }
+            : {})
         })
       });
       if (!res.ok) {
@@ -213,7 +219,8 @@ export const SearchTool = ({ files = [], selectedIds = new Set(), knowledgeBases
               type="text"
               value={modelName}
               onChange={e => setModelName(e.target.value)}
-              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-blue-500"
+              disabled={!userApiConfigRequired}
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-blue-500 disabled:opacity-50"
             />
           </div>
         </div>
@@ -236,29 +243,37 @@ export const SearchTool = ({ files = [], selectedIds = new Set(), knowledgeBases
           </select>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">API URL</label>
-          <select
-            value={apiUrl}
-            onChange={e => setApiUrl(e.target.value)}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-blue-500"
-          >
-            {[apiUrl, ...API_URL_OPTIONS].filter((v, i, a) => a.indexOf(v) === i).map((url: string) => (
-              <option key={url} value={url}>{url}</option>
-            ))}
-          </select>
-        </div>
+        {userApiConfigRequired ? (
+          <>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">API URL</label>
+              <select
+                value={apiUrl}
+                onChange={e => setApiUrl(e.target.value)}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-blue-500"
+              >
+                {[apiUrl, ...API_URL_OPTIONS].filter((v, i, a) => a.indexOf(v) === i).map((url: string) => (
+                  <option key={url} value={url}>{url}</option>
+                ))}
+              </select>
+            </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">API Key</label>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={e => setApiKey(e.target.value)}
-            placeholder="sk-..."
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-blue-500 font-mono"
-          />
-        </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">API Key</label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={e => setApiKey(e.target.value)}
+                placeholder="sk-..."
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-blue-500 font-mono"
+              />
+            </div>
+          </>
+        ) : (
+          <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-xs text-blue-200/80">
+            Free 模式下由后端统一选择向量检索使用的嵌入模型与接口配置。
+          </div>
+        )}
       </div>
 
       <div className="mt-6">

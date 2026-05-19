@@ -8,6 +8,16 @@
 
 ## 1. 四类配置文件
 
+## 0. 推荐先决定 simple 还是 advanced
+
+- **Simple 模式**：`fastapi_app/.env.simple.example` + `frontend-workflow/.env.simple.example`
+- **Advanced 模式**：`fastapi_app/.env.example` + `frontend-workflow/.env.example`
+
+建议：
+
+- 只想尽快跑起来：先用 simple
+- 需要每个 workflow 分开配 provider / model：再切 advanced
+
 | 文件 | 作用 | 不该放什么 |
 | --- | --- | --- |
 | `fastapi_app/.env` | 后端业务配置 | 不要放机器部署参数 |
@@ -90,11 +100,11 @@
 
 ## 6. 推荐的配置顺序
 
-1. 先复制三个模板：
+1. 先复制三个模板（simple 模式推荐）：
 
 ```bash
-cp fastapi_app/.env.example fastapi_app/.env
-cp frontend-workflow/.env.example frontend-workflow/.env
+cp fastapi_app/.env.simple.example fastapi_app/.env
+cp frontend-workflow/.env.simple.example frontend-workflow/.env
 cp deploy/profiles/nv.env.example deploy/profiles/nv.env
 ```
 

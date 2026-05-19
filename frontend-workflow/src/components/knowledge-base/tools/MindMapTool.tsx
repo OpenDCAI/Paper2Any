@@ -6,6 +6,7 @@ import { MermaidPreview } from './MermaidPreview';
 import { getApiSettings } from '../../../services/apiSettingsService';
 import { backendFetch } from '../../../services/backendClient';
 import { useAuthStore } from '../../../stores/authStore';
+import { useRuntimeBilling } from '../../../hooks/useRuntimeBilling';
 
 interface MindMapToolProps {
   files: KnowledgeFile[];
@@ -15,6 +16,7 @@ interface MindMapToolProps {
 
 export const MindMapTool = ({ files = [], selectedIds, onGenerateSuccess }: MindMapToolProps) => {
   const { user } = useAuthStore();
+  const { userApiConfigRequired } = useRuntimeBilling();
   const [mindmapGenerating, setMindmapGenerating] = useState(false);
   const [generatedMermaidCode, setGeneratedMermaidCode] = useState('');
   const [showPreview, setShowPreview] = useState(false);
@@ -49,7 +51,7 @@ export const MindMapTool = ({ files = [], selectedIds, onGenerateSuccess }: Mind
       return;
     }
 
-    if (!mindmapParams.api_key) {
+    if (userApiConfigRequired && !mindmapParams.api_key) {
       alert('请输入 API Key');
       return;
     }
@@ -75,12 +77,16 @@ export const MindMapTool = ({ files = [], selectedIds, onGenerateSuccess }: Mind
           file_paths: filePaths,
           user_id: user.id,
           email: user.email,
-          api_url: mindmapParams.api_url,
-          api_key: mindmapParams.api_key,
-          model: mindmapParams.model,
           mindmap_style: mindmapParams.mindmap_style,
           max_depth: mindmapParams.max_depth,
-          language: mindmapParams.language
+          language: mindmapParams.language,
+          ...(userApiConfigRequired
+            ? {
+                api_url: mindmapParams.api_url,
+                api_key: mindmapParams.api_key,
+                model: mindmapParams.model,
+              }
+            : {})
         })
       });
 
@@ -148,29 +154,37 @@ export const MindMapTool = ({ files = [], selectedIds, onGenerateSuccess }: Mind
 
         {/* Configuration */}
         <div className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300">API Key</label>
-            <input
-              type="password"
-              value={mindmapParams.api_key}
-              onChange={e => setMindmapParams({...mindmapParams, api_key: e.target.value})}
-              placeholder="sk-..."
-              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-cyan-500 font-mono"
-            />
-          </div>
+          {userApiConfigRequired ? (
+            <>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">API Key</label>
+                <input
+                  type="password"
+                  value={mindmapParams.api_key}
+                  onChange={e => setMindmapParams({...mindmapParams, api_key: e.target.value})}
+                  placeholder="sk-..."
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-cyan-500 font-mono"
+                />
+              </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300">API URL</label>
-            <select
-              value={mindmapParams.api_url}
-              onChange={e => setMindmapParams({...mindmapParams, api_url: e.target.value})}
-              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-cyan-500"
-            >
-              {API_URL_OPTIONS.map((url: string) => (
-                <option key={url} value={url}>{url}</option>
-              ))}
-            </select>
-          </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300">API URL</label>
+                <select
+                  value={mindmapParams.api_url}
+                  onChange={e => setMindmapParams({...mindmapParams, api_url: e.target.value})}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-cyan-500"
+                >
+                  {API_URL_OPTIONS.map((url: string) => (
+                    <option key={url} value={url}>{url}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-xs text-cyan-200/80">
+              Free 模式下由后端统一选择思维导图模型与接口配置。
+            </div>
+          )}
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-300">LLM Model</label>
@@ -178,7 +192,8 @@ export const MindMapTool = ({ files = [], selectedIds, onGenerateSuccess }: Mind
               <select
                 value={mindmapParams.model}
                 onChange={e => setMindmapParams({...mindmapParams, model: e.target.value})}
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-cyan-500"
+                disabled={!userApiConfigRequired}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-cyan-500 disabled:opacity-50"
               >
                 <option value="gpt-5.1">gpt-5.1</option>
                 <option value="gpt-5.2">gpt-5.2</option>
@@ -189,7 +204,8 @@ export const MindMapTool = ({ files = [], selectedIds, onGenerateSuccess }: Mind
                 value={mindmapParams.model}
                 onChange={e => setMindmapParams({...mindmapParams, model: e.target.value})}
                 placeholder="自定义模型"
-                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-cyan-500"
+                disabled={!userApiConfigRequired}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-cyan-500 disabled:opacity-50"
               />
             </div>
           </div>

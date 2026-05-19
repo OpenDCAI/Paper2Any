@@ -34,9 +34,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi_app.config import settings
 from fastapi_app.routers import account
 from fastapi_app.routers import paper2video
-from fastapi_app.routers import paper2any, paper2citation, paper2ppt, paper2poster
-from fastapi_app.routers import pdf2ppt, image2ppt, kb, kb_embedding, files
+from fastapi_app.routers import paper2any, paper2citation, paper2figure, paper2ppt, paper2poster
+from fastapi_app.routers import pdf2ppt, image2ppt, kb, kb_workflows, kb_embedding, files
 from fastapi_app.routers import image2drawio
+from fastapi_app.routers import image_playground
 from fastapi_app.routers import mindmap
 from fastapi_app.routers import paper2drawio
 from fastapi_app.routers import paper2rebuttal
@@ -86,6 +87,7 @@ def create_app() -> FastAPI:
     # 路由挂载
     # Paper2Graph / System
     app.include_router(paper2any.router, prefix="/api/v1", tags=["paper2any"])
+    app.include_router(paper2figure.router, prefix="/api/v1", tags=["paper2figure"])
     app.include_router(account.router, prefix="/api/v1", tags=["account"])
     # Paper2PPT
     app.include_router(paper2ppt.router, prefix="/api/v1", tags=["paper2ppt"])
@@ -101,10 +103,13 @@ def create_app() -> FastAPI:
     app.include_router(image2ppt.router, prefix="/api/v1", tags=["image2ppt"])
     # Image2DrawIO
     app.include_router(image2drawio.router, prefix="/api/v1", tags=["image2drawio"])
+    # Image Playground
+    app.include_router(image_playground.router, prefix="/api/v1", tags=["image_playground"])
     # MindMap
     app.include_router(mindmap.router, prefix="/api/v1", tags=["mindmap"])
     # 知识库接口
     app.include_router(kb.router, prefix="/api/v1", tags=["Knowledge Base"])
+    app.include_router(kb_workflows.router, prefix="/api/v1", tags=["Knowledge Base Workflows"])
     app.include_router(kb_embedding.router, prefix="/api/v1", tags=["Knowledge Base Embedding"])
     # 文件管理接口
     app.include_router(files.router, prefix="/api/v1", tags=["Files"])

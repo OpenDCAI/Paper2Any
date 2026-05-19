@@ -35,6 +35,7 @@ FIGURE_WORKFLOW_TYPES = {"paper2figure", "paper2fig", "paper2tec", "paper2exp"}
 PDF_WORKFLOW_TYPES = {"paper2ppt", "pdf2ppt", "image2ppt", "ppt2polish", "paper2beamer"}
 DRAWIO_WORKFLOW_TYPES = {"paper2drawio", "paper2drawio_export", "image2drawio"}
 POSTER_WORKFLOW_TYPES = {"paper2poster"}
+IMAGE_WORKFLOW_TYPES = {"image_playground"}
 REBUTTAL_SUFFIXES = {".md", ".txt", ".json", ".zip"}
 FIGURE_PREFIXES = ("fig_", "technical_route", "exp_")
 FILE_ACCESS_TOKEN_VERSION = 1
@@ -182,6 +183,9 @@ def _should_include_history_file(path: Path, workflow_type: str, rel_parts: tupl
 
     if workflow_type in DRAWIO_WORKFLOW_TYPES:
         return suffix == ".drawio" or (suffix in {".png", ".svg"} and len(rel_parts) == 3)
+
+    if workflow_type in IMAGE_WORKFLOW_TYPES:
+        return suffix in {".png", ".jpg", ".jpeg", ".webp"} and len(rel_parts) == 3
 
     if suffix == ".pdf":
         return filename.startswith("paper2ppt") or workflow_type in PDF_WORKFLOW_TYPES

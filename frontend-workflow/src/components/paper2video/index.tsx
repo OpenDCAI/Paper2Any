@@ -5,6 +5,7 @@ import { getApiSettings, saveApiSettings } from '../../services/apiSettingsServi
 import { checkQuota, recordUsage } from '../../services/quotaService';
 import { backendFetch } from '../../services/backendClient';
 import { useRuntimeBilling } from '../../hooks/useRuntimeBilling';
+import { appendManagedApiConfig, appendManagedModel } from '../../utils/runtimeBillingForm';
 import { Step, ScriptPage } from './types';
 import {
   MAX_FILE_SIZE,
@@ -230,15 +231,12 @@ const Paper2VideoPage = () => {
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('email', user?.id || user?.email || '');
-      if (userApiConfigRequired) {
-        formData.append('api_key', apiKey.trim());
-        formData.append('chat_api_url', scriptApiUrl.trim());
-      }
-      formData.append('model', scriptModel);
-      formData.append('tts_model', ttsModel);
+      appendManagedApiConfig(formData, userApiConfigRequired, scriptApiUrl, apiKey);
+      appendManagedModel(formData, userApiConfigRequired, 'model', scriptModel);
+      appendManagedModel(formData, userApiConfigRequired, 'tts_model', ttsModel);
       formData.append('tts_voice_name', ttsVoiceName.trim() || 'longanyang');
       formData.append('language', language);
-      formData.append('talking_model', TALKING_MODEL_DEFAULT);
+      appendManagedModel(formData, userApiConfigRequired, 'talking_model', TALKING_MODEL_DEFAULT);
       if (useAvatar === 'yes') {
         if (avatarFile) formData.append('avatar', avatarFile);
         else if (avatarPreset) formData.append('avatar_preset', avatarPreset);

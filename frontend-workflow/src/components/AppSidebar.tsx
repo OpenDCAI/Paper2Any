@@ -4,6 +4,7 @@ import {
   Home,
   X,
   Sparkles,
+  Flame,
   Presentation,
   FileText,
   MonitorSmartphone,
@@ -29,6 +30,7 @@ interface NavigationItem {
   tooltipKey: string;
   icon: any;
   gradient: string;
+  hot?: boolean;
 }
 
 interface AppSidebarProps {
@@ -101,6 +103,14 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
       tooltipKey: t('app.navTooltip.paper2figure'),
       icon: Sparkles,
       gradient: 'from-primary-500 to-primary-600'
+    },
+    {
+      id: 'image-playground',
+      labelKey: t('app.nav.imagePlayground'),
+      tooltipKey: t('app.navTooltip.imagePlayground'),
+      icon: Flame,
+      gradient: 'from-orange-500 to-rose-500',
+      hot: true,
     },
     {
       id: 'mindmap',
@@ -278,6 +288,11 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
                   >
                     <Icon size={22} className={isActive ? 'drop-shadow-lg' : ''} />
                     <span className="text-sm font-medium flex-1 text-left">{item.labelKey}</span>
+                    {item.hot && (
+                      <span className="rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                        HOT
+                      </span>
+                    )}
                     {hasSubmenu && (
                       <ChevronRight size={16} className="text-white/60 group-hover:text-white transition-colors" />
                     )}

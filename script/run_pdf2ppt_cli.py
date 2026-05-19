@@ -20,21 +20,21 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from script.cli_env import load_project_env
+from script.cli_env import (
+    find_output_artifacts,
+    load_project_env,
+    resolve_cli_image_credentials,
+    resolve_cli_text_credentials,
+)
 from dataflow_agent.logger import get_logger
-from dataflow_agent.state import Paper2FigureState, Paper2FigureRequest
-from dataflow_agent.workflow import run_workflow
+from fastapi_app.config import settings
+from fastapi_app.schemas import Paper2PPTRequest, Paper2PPTResponse
+from fastapi_app.workflow_adapters.wa_pdf2ppt import run_pdf2ppt_wf_api
 from dataflow_agent.utils import get_project_root
 
 load_project_env()
 
 log = get_logger(__name__)
-
-
-def _state_get(state, key: str, default=None):
-    if isinstance(state, dict):
-        return state.get(key, default)
-    return getattr(state, key, default)
 
 
 def parse_args():
@@ -85,15 +85,35 @@ Environment Variables:
     )
 
     parser.add_argument(
+        "--image-api-url",
+        help="Image generation API URL (default: from env DF_IMAGE_API_URL)"
+    )
+
+    parser.add_argument(
+        "--image-api-key",
+        help="Image generation API key (default: from env DF_IMAGE_API_KEY)"
+    )
+
+    parser.add_argument(
+        "--ocr-api-url",
+        help="OCR/VLM API URL (default: from env PAPER2DRAWIO_OCR_API_URL)"
+    )
+
+    parser.add_argument(
+        "--ocr-api-key",
+        help="OCR/VLM API key (default: from env PAPER2DRAWIO_OCR_API_KEY)"
+    )
+
+    parser.add_argument(
         "--model",
-        default="gpt-4o",
-        help="Text model name (default: gpt-4o)"
+        default=settings.PDF2PPT_DEFAULT_MODEL,
+        help=f"Text model name (default: {settings.PDF2PPT_DEFAULT_MODEL})"
     )
 
     parser.add_argument(
         "--gen-fig-model",
-        default="gemini-2.5-flash-image-preview",
-        help="Image generation model (default: gemini-2.5-flash-image-preview)"
+        default=settings.PDF2PPT_DEFAULT_IMAGE_MODEL,
+        help=f"Image generation model (default: {settings.PDF2PPT_DEFAULT_IMAGE_MODEL})"
     )
 
     parser.add_argument(
@@ -150,77 +170,87 @@ def create_output_dir(args) -> Path:
     return output_dir
 
 
-async def run_pdf2ppt_workflow(args, input_path: Path, output_dir: Path):
-    """Execute PDF2PPT workflow"""
+async def run_pdf2ppt_workflow(args, input_path: Path, output_dir: Path) -> Paper2PPTResponse:
+    """Execute PDF2PPT workflow via the backend workflow adapter."""
 
-    # Get API configuration with priority: CLI args > Environment variables > Defaults
-    api_url = args.api_url or os.getenv("DF_API_URL", "https://api.openai.com/v1")
-    api_key = args.api_key or os.getenv("DF_API_KEY", "")
+    if args.ocr_api_url:
+        os.environ["PAPER2DRAWIO_OCR_API_URL"] = args.ocr_api_url
+    if args.ocr_api_key:
+        os.environ["PAPER2DRAWIO_OCR_API_KEY"] = args.ocr_api_key
 
-    # Validate API key if AI edit is enabled
-    if args.use_ai_edit and not api_key:
-        raise ValueError("API key is required when --use-ai-edit is enabled. "
-                        "Provide via --api-key or DF_API_KEY environment variable.")
+    api_url, api_key = resolve_cli_text_credentials(args.api_url, args.api_key)
+    image_api_url, image_api_key = resolve_cli_image_credentials(
+        args.image_api_url,
+        args.image_api_key,
+        fallback_url=api_url,
+        fallback_key=api_key,
+    )
 
-    # Build request
-    req = Paper2FigureRequest(
+    if args.use_ai_edit and not image_api_key:
+        raise ValueError(
+            "Image API key is required when --use-ai-edit is enabled. "
+            "Provide via --image-api-key/DF_IMAGE_API_KEY or reuse a compatible DF_API_KEY."
+        )
+
+    req = Paper2PPTRequest(
         chat_api_url=api_url,
         api_key=api_key,
         chat_api_key=api_key,
+        image_api_url=image_api_url,
+        image_api_key=image_api_key,
         model=args.model,
         gen_fig_model=args.gen_fig_model,
         language=args.language,
         style=args.style,
         page_count=args.page_count,
+        input_type="PDF",
+        input_content=str(input_path),
+        email="cli_pdf2ppt@paper2any.local",
+        credential_scope="pdf2ppt",
         use_ai_edit=args.use_ai_edit,
     )
-
-    # Build state
-    state = Paper2FigureState(
-        request=req,
-        messages=[],
-        result_path=str(output_dir),
-    )
-
-    # Set PDF file path
-    state.pdf_file = str(input_path)
-
-    # Select workflow based on use_ai_edit flag
-    workflow_name = "pdf2ppt_qwenvl" if args.use_ai_edit else "pdf2ppt_parallel"
 
     log.info("%s", "=" * 60)
     log.info("PDF2PPT Workflow Starting")
     log.info("%s", "=" * 60)
     log.info("Input PDF: %s", input_path)
     log.info("Output Directory: %s", output_dir)
-    log.info("Workflow: %s", workflow_name)
+    log.info("Workflow: pdf2ppt_qwenvl via workflow adapter")
     log.info("AI Enhancement: %s", "Enabled" if args.use_ai_edit else "Disabled")
     log.info("Style: %s", args.style)
     log.info("Language: %s", args.language)
     log.info("%s", "=" * 60)
 
-    # Run workflow
-    final_state = await run_workflow(workflow_name, state)
+    final_resp = await run_pdf2ppt_wf_api(req, result_path=output_dir)
+    if not final_resp.success:
+        raise RuntimeError("PDF2PPT workflow failed")
 
-    return final_state
+    artifact_root = Path(final_resp.result_path or output_dir)
+    artifact_candidates = []
+    for value in [final_resp.ppt_pptx_path, final_resp.ppt_pdf_path]:
+        if value:
+            p = Path(value)
+            if p.exists():
+                artifact_candidates.append(p.resolve())
+    artifact_candidates.extend(find_output_artifacts(artifact_root, ("*.pptx", "*.pdf")))
+    if not artifact_candidates:
+        raise RuntimeError(
+            f"PDF2PPT workflow finished without final PPT/PDF artifacts under {artifact_root}"
+        )
+    return final_resp
 
 
-def print_results(final_state: Paper2FigureState, output_dir: Path):
+def print_results(final_state: Paper2PPTResponse, output_dir: Path):
     """Print workflow results"""
     log.info("%s", "=" * 60)
     log.info("PDF2PPT Workflow Completed Successfully")
     log.info("%s", "=" * 60)
     log.info("Output Directory: %s", output_dir)
 
-    ppt_path = _state_get(final_state, "ppt_path", None)
-    if ppt_path and os.path.exists(ppt_path):
-        log.info("PPT File: %s", ppt_path)
-    else:
-        ppt_candidates = sorted(output_dir.rglob("*.pptx")) + sorted(output_dir.rglob("*.ppt"))
-        if ppt_candidates:
-            log.info("PPT File: %s", ppt_candidates[0])
-        else:
-            log.warning("PPT file not found in output")
+    if final_state.ppt_pptx_path and Path(final_state.ppt_pptx_path).exists():
+        log.info("PPT File: %s", final_state.ppt_pptx_path)
+    if final_state.ppt_pdf_path and Path(final_state.ppt_pdf_path).exists():
+        log.info("PDF File: %s", final_state.ppt_pdf_path)
 
     log.info("%s", "=" * 60)
 

@@ -35,6 +35,18 @@
 
 ## 1. 配置文件职责
 
+## 0. 先决定用哪套 `.env`
+
+现在推荐先做这个选择：
+
+- **粗粒度模式**：`fastapi_app/.env.simple.example` + `frontend-workflow/.env.simple.example`
+- **细粒度模式**：`fastapi_app/.env.example` + `frontend-workflow/.env.example`
+
+建议：
+
+- 大多数部署直接先用粗粒度模式
+- 只有需要逐个 workflow 控模型/provider 时，再切细粒度模式
+
 这个项目现在只保留三类配置文件，各管各的，不要重复写同一套 URL / key。
 
 ### `fastapi_app/.env`
@@ -297,6 +309,10 @@ bash deploy/stop_stack.sh
 ### 仅启动后端
 
 ```bash
+set -a
+source deploy/profiles/nv.env
+set +a
+
 bash deploy/start.sh
 ```
 

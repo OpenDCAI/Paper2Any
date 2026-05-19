@@ -17,6 +17,41 @@ from dataflow_agent.workflow import run_workflow
 log = get_logger(__name__)
 
 
+def _resolve_existing_output_path(path_value: str) -> str:
+    raw = (path_value or "").strip()
+    if not raw:
+        return ""
+
+    candidate = Path(raw).expanduser()
+    if not candidate.is_absolute():
+        candidate = (Path(__file__).resolve().parent.parent / candidate).resolve()
+
+    return str(candidate) if candidate.is_file() else ""
+
+
+def _build_worker_result(output_pptx_path: str, output_png_path: str, errors: list[str]) -> dict:
+    resolved_pptx_path = _resolve_existing_output_path(output_pptx_path)
+    resolved_png_path = _resolve_existing_output_path(output_png_path)
+
+    normalized_errors = [str(err).strip() for err in (errors or []) if str(err).strip()]
+    if output_pptx_path and not resolved_pptx_path:
+        normalized_errors.append(f"Poster PPTX output missing on disk: {output_pptx_path}")
+    if output_png_path and not resolved_png_path:
+        normalized_errors.append(f"Poster PNG output missing on disk: {output_png_path}")
+
+    success = bool(resolved_pptx_path)
+    message = "Poster generated successfully" if success else (
+        "; ".join(normalized_errors) if normalized_errors else "Poster generation failed"
+    )
+    return {
+        "success": success,
+        "message": message,
+        "output_pptx_path": resolved_pptx_path,
+        "output_png_path": resolved_png_path,
+        "errors": normalized_errors,
+    }
+
+
 async def _run_workflow(in_data: dict) -> dict:
     api_key = (in_data.get("api_key") or "").strip()
     api_url = (in_data.get("chat_api_url") or "").strip()
@@ -59,15 +94,7 @@ async def _run_workflow(in_data: dict) -> dict:
         output_png_path = getattr(final_state, "output_png_path", "") or ""
         errors = getattr(final_state, "errors", []) or []
 
-    success = bool(output_pptx_path)
-    message = "Poster generated successfully" if success else ("; ".join(errors) if errors else "Poster generation failed")
-    return {
-        "success": success,
-        "message": message,
-        "output_pptx_path": output_pptx_path,
-        "output_png_path": output_png_path,
-        "errors": errors,
-    }
+    return _build_worker_result(output_pptx_path, output_png_path, errors)
 
 
 def main() -> int:

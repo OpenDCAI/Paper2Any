@@ -405,9 +405,9 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
       if (userApiConfigRequired) {
         formData.append('chat_api_url', llmApiUrl.trim());
         formData.append('api_key', apiKey.trim());
+        formData.append('gen_fig_model', DEFAULT_IMAGE2DRAWIO_GEN_FIG_MODEL);
+        formData.append('vlm_model', DEFAULT_IMAGE2DRAWIO_VLM_MODEL);
       }
-      formData.append('gen_fig_model', DEFAULT_IMAGE2DRAWIO_GEN_FIG_MODEL);
-      formData.append('vlm_model', DEFAULT_IMAGE2DRAWIO_VLM_MODEL);
       formData.append('email', user?.id || user?.email || '');
 
       const res = await backendFetch('/api/v1/image2drawio/generate', {
@@ -616,7 +616,9 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
       }
 
       const formData = new FormData();
-      formData.append('img_gen_model_name', model);
+      if (userApiConfigRequired) {
+        formData.append('img_gen_model_name', model);
+      }
       if (userApiConfigRequired) {
         formData.append('chat_api_url', llmApiUrl.trim());
         formData.append('api_key', apiKey.trim());
@@ -648,7 +650,9 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
       try {
         setIsValidating(true);
         setError(null);
-        await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || "deepseek-v3.2");
+        if (userApiConfigRequired) {
+          await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || "deepseek-v3.2");
+        }
         setIsValidating(false);
 
         setIsLoading(true);
@@ -774,7 +778,9 @@ const Paper2FigurePage: React.FC<Paper2FigurePageProps> = ({
     // 当前 UploadMode 仅支持 'file' | 'text'，无需图片输入
     
     const formData = new FormData();
-    formData.append('img_gen_model_name', model);
+    if (userApiConfigRequired) {
+      formData.append('img_gen_model_name', model);
+    }
     if (userApiConfigRequired) {
       formData.append('chat_api_url', llmApiUrl.trim());
       formData.append('api_key', apiKey.trim());

@@ -385,6 +385,8 @@ class Paper2FigureState(MainState):
     edit_page_num: int = -1
     # 二次编辑提示词（用于 edit_page_num 对应页）
     edit_page_prompt: str = ""
+    # 局部编辑遮罩图路径（可选）
+    edit_mask_path: str = ""
     # PPT/PDF 转图片时的渲染 DPI（None 表示默认）
     render_dpi: Optional[int] = None
     # 批量生成出来的页面图片路径（0-based 对齐 pagecontent）

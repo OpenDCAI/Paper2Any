@@ -15,10 +15,11 @@ from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Request
 from dataflow_agent.agentroles import create_agent
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import MainRequest, MainState
+from fastapi_app.config import settings
 from fastapi_app.dependencies import AuthUser, get_optional_user, is_auth_configured
 from fastapi_app.config.pricing import estimate_mindmap_points
 from fastapi_app.services.billing_service import BillingService
-from fastapi_app.services.managed_api_service import resolve_llm_credentials
+from fastapi_app.services.managed_api_service import resolve_llm_credentials, resolve_model_name
 from fastapi_app.utils import _to_outputs_url, get_outputs_root, resolve_outputs_path
 
 router = APIRouter(prefix="/mindmap", tags=["mindmap"])
@@ -326,6 +327,11 @@ async def generate_mindmap(
         raise HTTPException(status_code=400, detail="Please provide at least one file or some text content")
 
     resolved_api_url, resolved_api_key = resolve_llm_credentials(chat_api_url, api_key, scope="kb")
+    resolved_model = resolve_model_name(
+        model,
+        managed_default=settings.MINDMAP_DEFAULT_MODEL,
+        fallback_default="gpt-4o",
+    )
     owner = _owner_slug(user)
     run_id = f"{int(time.time())}_{uuid.uuid4().hex[:8]}"
     run_dir = (_mindmap_root_for_user(user) / run_id).resolve()
@@ -353,7 +359,7 @@ async def generate_mindmap(
         text_blocks=parsed_files,
         chat_api_url=resolved_api_url,
         api_key=resolved_api_key,
-        model=(model or "gpt-5.4").strip() or "gpt-5.4",
+        model=resolved_model,
         max_depth=max(2, min(int(max_depth or 3), 6)),
         language=(language or "zh").strip() or "zh",
         style=(mindmap_style or "default").strip() or "default",
@@ -371,7 +377,7 @@ async def generate_mindmap(
         "owner": owner,
         "style": (mindmap_style or "default").strip() or "default",
         "language": (language or "zh").strip() or "zh",
-        "model": (model or "gpt-5.4").strip() or "gpt-5.4",
+        "model": resolved_model,
         "source_count": len(local_paths),
         "estimated_points": charge_info["points"],
         "billing": charge_info,

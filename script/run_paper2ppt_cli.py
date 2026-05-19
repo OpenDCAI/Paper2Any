@@ -20,11 +20,20 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from script.cli_env import load_project_env
+from script.cli_env import (
+    find_output_artifacts,
+    load_project_env,
+    resolve_cli_image_credentials,
+    resolve_cli_text_credentials,
+)
 from dataflow_agent.logger import get_logger
-from dataflow_agent.state import Paper2FigureState, Paper2FigureRequest
-from dataflow_agent.workflow import run_workflow
 from dataflow_agent.utils import get_project_root
+from fastapi_app.config import settings
+from fastapi_app.schemas import Paper2PPTRequest, Paper2PPTResponse
+from fastapi_app.workflow_adapters.wa_paper2ppt import (
+    run_paper2page_content_wf_api,
+    run_paper2ppt_wf_api,
+)
 
 load_project_env()
 
@@ -85,15 +94,25 @@ Environment Variables:
     )
 
     parser.add_argument(
+        "--image-api-url",
+        help="Image generation API URL (default: from env DF_IMAGE_API_URL)"
+    )
+
+    parser.add_argument(
+        "--image-api-key",
+        help="Image generation API key (default: from env DF_IMAGE_API_KEY)"
+    )
+
+    parser.add_argument(
         "--model",
-        default="gpt-5.1",
-        help="Text model name (default: gpt-5.1)"
+        default=settings.PAPER2PPT_OUTLINE_MODEL,
+        help=f"Text/outline model name (default: {settings.PAPER2PPT_OUTLINE_MODEL})"
     )
 
     parser.add_argument(
         "--gen-fig-model",
-        default="gemini-2.5-flash-image-preview",
-        help="Image generation model (default: gemini-2.5-flash-image-preview)"
+        default=settings.PAPER2PPT_IMAGE_GEN_MODEL,
+        help=f"Image generation model (default: {settings.PAPER2PPT_IMAGE_GEN_MODEL})"
     )
 
     parser.add_argument(
@@ -189,45 +208,39 @@ def create_output_dir(args) -> Path:
     return output_dir
 
 
-async def run_paper2ppt_workflow(args, input_content: str, input_type: str, output_dir: Path):
-    """Execute Paper2PPT workflow (2-step process)"""
+async def run_paper2ppt_workflow(args, input_content: str, input_type: str, output_dir: Path) -> Paper2PPTResponse:
+    """Execute Paper2PPT workflow via the same adapters used by the backend API."""
 
     # Get API configuration
-    api_url = args.api_url or os.getenv("DF_API_URL", "https://api.openai.com/v1")
-    api_key = args.api_key or os.getenv("DF_API_KEY", "")
+    api_url, api_key = resolve_cli_text_credentials(args.api_url, args.api_key)
+    image_api_url, image_api_key = resolve_cli_image_credentials(
+        args.image_api_url,
+        args.image_api_key,
+        fallback_url=api_url,
+        fallback_key=api_key,
+    )
 
     if not api_key:
         raise ValueError("API key is required. Provide via --api-key or DF_API_KEY environment variable.")
 
-    # Build request
-    req = Paper2FigureRequest(
+    req = Paper2PPTRequest(
         chat_api_url=api_url,
         api_key=api_key,
         chat_api_key=api_key,
+        image_api_url=image_api_url,
+        image_api_key=image_api_key,
         model=args.model,
         gen_fig_model=args.gen_fig_model,
         language=args.language,
         style=args.style,
         page_count=args.page_count,
         input_type=input_type,
-        all_edited_down=True,  # Directly generate final PPT
-    )
-
-    # Build state
-    state = Paper2FigureState(
-        request=req,
-        messages=[],
-        agent_results={},
-        result_path=str(output_dir),
+        input_content=input_content,
         aspect_ratio=args.aspect_ratio,
+        use_long_paper=bool(args.use_long_paper),
+        email="cli_paper2ppt@paper2any.local",
+        credential_scope="paper2ppt",
     )
-
-    # Set input based on type
-    if input_type == "PDF":
-        state.paper_file = input_content
-    else:
-        # For TEXT, TOPIC, or PPTX
-        state.paper_file = input_content
 
     log.info("%s", "=" * 60)
     log.info("Paper2PPT Workflow Starting (2-Step Process)")
@@ -245,29 +258,56 @@ async def run_paper2ppt_workflow(args, input_content: str, input_type: str, outp
     log.info("%s", "=" * 60)
 
     # Step 1: Generate page content (outline)
-    workflow_name_step1 = "paper2page_content_for_long_paper" if args.use_long_paper else "paper2page_content"
     log.info("Step 1/2: Generating page content outline...")
-    log.info("Workflow: %s", workflow_name_step1)
-
-    state = await run_workflow(workflow_name_step1, state)
+    pagecontent_resp = await run_paper2page_content_wf_api(req, result_path=output_dir)
+    if not pagecontent_resp.success:
+        raise RuntimeError("Paper2PPT page-content stage failed")
 
     log.info("Step 1 completed: Page content generated")
-    pagecontent_len = len(_state_get(state, "pagecontent", []) or [])
+    pagecontent_len = len(pagecontent_resp.pagecontent or [])
     log.info("Generated %s pages", pagecontent_len)
 
     # Step 2: Generate PPT from page content
-    workflow_name_step2 = "paper2ppt_parallel_consistent_style"
-    log.info("Step 2/2: Generating PPT slides...")
-    log.info("Workflow: %s", workflow_name_step2)
+    log.info("Step 2/3: Generating PPT slides...")
+    generate_resp = await run_paper2ppt_wf_api(
+        req=req,
+        pagecontent=pagecontent_resp.pagecontent or [],
+        result_path=pagecontent_resp.result_path or str(output_dir),
+        get_down=None,
+    )
+    if not generate_resp.success:
+        raise RuntimeError("Paper2PPT generation stage failed")
 
-    state = await run_workflow(workflow_name_step2, state)
+    # Step 3: Finalize export (PPTX/PDF)
+    log.info("Step 3/3: Finalizing PPT/PDF export...")
+    finalize_req = req.model_copy(update={"all_edited_down": True})
+    final_resp = await run_paper2ppt_wf_api(
+        req=finalize_req,
+        pagecontent=pagecontent_resp.pagecontent or [],
+        result_path=generate_resp.result_path or pagecontent_resp.result_path or str(output_dir),
+        get_down=None,
+    )
+    if not final_resp.success:
+        raise RuntimeError("Paper2PPT finalize stage failed")
+
+    artifact_root = Path(final_resp.result_path or generate_resp.result_path or output_dir)
+    artifact_candidates = []
+    for value in [final_resp.ppt_pptx_path, final_resp.ppt_pdf_path]:
+        if value:
+            p = Path(value)
+            if p.exists():
+                artifact_candidates.append(p.resolve())
+    artifact_candidates.extend(find_output_artifacts(artifact_root, ("*.pptx", "*.pdf")))
+    if not artifact_candidates:
+        raise RuntimeError(
+            f"Paper2PPT workflow finished without final PPT/PDF artifacts under {artifact_root}"
+        )
 
     log.info("Step 2 completed: PPT generated")
+    return final_resp
 
-    return state
 
-
-def print_results(final_state: Paper2FigureState, output_dir: Path):
+def print_results(final_state: Paper2PPTResponse, output_dir: Path):
     """Print workflow results"""
     log.info("%s", "=" * 60)
     log.info("Paper2PPT Workflow Completed Successfully")
@@ -275,17 +315,17 @@ def print_results(final_state: Paper2FigureState, output_dir: Path):
     log.info("Output Directory: %s", output_dir)
 
     # Check for PPT PDF file
-    ppt_pdf_path = _state_get(final_state, "ppt_pdf_path", None)
+    ppt_pdf_path = final_state.ppt_pdf_path
     if ppt_pdf_path and os.path.exists(ppt_pdf_path):
         log.info("PPT PDF File: %s", ppt_pdf_path)
 
     # Check for editable PPTX file
-    ppt_pptx_path = _state_get(final_state, "ppt_pptx_path", None)
+    ppt_pptx_path = final_state.ppt_pptx_path
     if ppt_pptx_path and os.path.exists(ppt_pptx_path):
         log.info("PPT PPTX File: %s", ppt_pptx_path)
 
     # Check for page content JSON
-    pagecontent = _state_get(final_state, "pagecontent", None)
+    pagecontent = final_state.pagecontent
     if pagecontent:
         log.info("Page Content: %s pages generated", len(pagecontent))
 

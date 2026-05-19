@@ -19,6 +19,7 @@ import ManagedApiNotice from './ManagedApiNotice';
 import MindMapNodeCard from './mindmap/MindMapNodeCard';
 import { DEFAULT_LLM_API_URL } from '../config/api';
 import { useRuntimeBilling } from '../hooks/useRuntimeBilling';
+import { appendManagedApiConfig, appendManagedModel } from '../utils/runtimeBillingForm';
 import { useAuthStore } from '../stores/authStore';
 import { getApiSettings, saveApiSettings } from '../services/apiSettingsService';
 import { backendFetch, normalizeBackendAssetUrl } from '../services/backendClient';
@@ -167,14 +168,11 @@ export default function MindMapPage() {
       }
 
       const formData = new FormData();
-      formData.append('model', model);
+      appendManagedModel(formData, userApiConfigRequired, 'model', model);
       formData.append('mindmap_style', mindmapStyle);
       formData.append('max_depth', String(maxDepth));
       formData.append('language', language);
-      if (userApiConfigRequired) {
-        formData.append('chat_api_url', apiUrl.trim());
-        formData.append('api_key', apiKey.trim());
-      }
+      appendManagedApiConfig(formData, userApiConfigRequired, apiUrl, apiKey);
       if (textContent.trim()) {
         formData.append('text', textContent.trim());
       }
@@ -538,6 +536,7 @@ export default function MindMapPage() {
                 <select
                   value={model}
                   onChange={(event) => setModel(event.target.value)}
+                  disabled={!userApiConfigRequired}
                   className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/35"
                 >
                   {MINDMAP_MODELS.map((item) => (
@@ -546,6 +545,9 @@ export default function MindMapPage() {
                     </option>
                   ))}
                 </select>
+                {!userApiConfigRequired ? (
+                  <p className="mt-2 text-[11px] leading-5 text-emerald-100/70">Free 模式下由后端统一选择思维导图模型。</p>
+                ) : null}
               </div>
 
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">

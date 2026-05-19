@@ -3,8 +3,9 @@ import {
   FileText, Sparkles, Loader2, MessageSquare, RefreshCw,
   ArrowLeft, CheckCircle2, AlertCircle, Plus, Trash2, Pencil, Save, X
 } from 'lucide-react';
-import { SlideOutline, GenerateResult, Step } from './types';
+import { SlideOutline, GenerateResult, MaskSelectionSpec, Step } from './types';
 import VersionHistory from './VersionHistory';
+import MaskSelectionEditor from './MaskSelectionEditor';
 
 interface GenerateStepProps {
   outlineData: SlideOutline[];
@@ -15,6 +16,8 @@ interface GenerateStepProps {
   taskMessage?: string;
   slidePrompt: string;
   setSlidePrompt: (prompt: string) => void;
+  slideMaskSelection: MaskSelectionSpec | null;
+  setSlideMaskSelection: (selection: MaskSelectionSpec | null) => void;
   saveCurrentSlideEdits: (layoutDescription: string, keyPoints: string[]) => void;
   handleRegenerateSlideFromOutline: () => void;
   handleRegenerateSlide: () => void;
@@ -33,6 +36,8 @@ const GenerateStep: React.FC<GenerateStepProps> = ({
   taskMessage,
   slidePrompt,
   setSlidePrompt,
+  slideMaskSelection,
+  setSlideMaskSelection,
   saveCurrentSlideEdits,
   handleRegenerateSlideFromOutline,
   handleRegenerateSlide,
@@ -234,10 +239,10 @@ const GenerateStep: React.FC<GenerateStepProps> = ({
           <h4 className="text-sm text-gray-400 mb-3 flex items-center justify-center gap-2">
             <Sparkles size={14} className="text-purple-400" /> AI 生成结果
           </h4>
-          <div className="rounded-lg overflow-hidden border border-purple-500/30 aspect-[16/9] bg-gradient-to-br from-purple-500/10 to-pink-500/10 flex items-center justify-center">
+          <div className="rounded-lg overflow-hidden border border-purple-500/30 bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-3">
             {isGenerating ? (
-              <div className="text-center">
-                <Loader2 size={40} className="text-purple-400 animate-spin mx-auto mb-3" />
+              <div className="aspect-[16/9] flex flex-col items-center justify-center text-center">
+                <Loader2 size={40} className="text-purple-400 animate-spin mb-3" />
                 <p className="text-base text-purple-300">
                   {processingCount === generateResults.length
                     ? '正在批量生成所有页面...'
@@ -256,13 +261,15 @@ const GenerateStep: React.FC<GenerateStepProps> = ({
                 </p>
               </div>
             ) : currentResult?.afterImage ? (
-              <img
-                src={currentResult.afterImagePreview || currentResult.afterImage}
+              <MaskSelectionEditor
+                imageUrl={currentResult.afterImagePreview || currentResult.afterImage}
                 alt="Generated"
-                className="w-full h-full object-contain"
+                value={slideMaskSelection}
+                onChange={setSlideMaskSelection}
+                disabled={isGenerating || isEditingSlideMeta}
               />
             ) : (
-              <div className="text-center">
+              <div className="aspect-[16/9] flex flex-col items-center justify-center text-center">
                 <FileText size={32} className="text-gray-500 mx-auto mb-2" />
                 <span className="text-gray-500">等待生成</span>
               </div>
@@ -308,6 +315,11 @@ const GenerateStep: React.FC<GenerateStepProps> = ({
             <RefreshCw size={14} /> 按提示微调
           </button>
         </div>
+        {slideMaskSelection ? (
+          <p className="mt-3 text-xs text-cyan-200/90">
+            已启用局部遮罩编辑，本次会优先修改选中区域并尽量保持其它区域不变。
+          </p>
+        ) : null}
         {isEditingSlideMeta ? (
           <p className="mt-3 text-xs text-amber-300">当前正在编辑页面内容，请先选择保存或舍弃更改，再重新生成或切换页面。</p>
         ) : null}

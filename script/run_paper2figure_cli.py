@@ -20,11 +20,17 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from script.cli_env import load_project_env
+from script.cli_env import (
+    find_output_artifacts,
+    load_project_env,
+    resolve_cli_image_credentials,
+    resolve_cli_text_credentials,
+)
 from dataflow_agent.logger import get_logger
 from dataflow_agent.state import Paper2FigureState, Paper2FigureRequest
 from dataflow_agent.workflow import run_workflow
 from dataflow_agent.utils import get_project_root
+from fastapi_app.config import settings
 
 load_project_env()
 
@@ -100,15 +106,25 @@ Environment Variables:
     )
 
     parser.add_argument(
+        "--image-api-url",
+        help="Image generation API URL (default: from env DF_IMAGE_API_URL)"
+    )
+
+    parser.add_argument(
+        "--image-api-key",
+        help="Image generation API key (default: from env DF_IMAGE_API_KEY)"
+    )
+
+    parser.add_argument(
         "--model",
-        default="gpt-4o",
-        help="Text model name (default: gpt-4o)"
+        default=settings.PAPER2FIGURE_DEFAULT_MODEL,
+        help=f"Text model name (default: {settings.PAPER2FIGURE_DEFAULT_MODEL})"
     )
 
     parser.add_argument(
         "--gen-fig-model",
-        default="gemini-2.5-flash-image-preview",
-        help="Image generation model (default: gemini-2.5-flash-image-preview)"
+        default=settings.PAPER2FIGURE_DEFAULT_IMAGE_MODEL,
+        help=f"Image generation model (default: {settings.PAPER2FIGURE_DEFAULT_IMAGE_MODEL})"
     )
 
     parser.add_argument(
@@ -207,8 +223,13 @@ async def run_paper2figure_workflow(args, input_content: str, input_type: str, o
     """Execute Paper2Figure workflow"""
 
     # Get API configuration
-    api_url = args.api_url or os.getenv("DF_API_URL", "https://api.openai.com/v1")
-    api_key = args.api_key or os.getenv("DF_API_KEY", "")
+    api_url, api_key = resolve_cli_text_credentials(args.api_url, args.api_key)
+    image_api_url, image_api_key = resolve_cli_image_credentials(
+        args.image_api_url,
+        args.image_api_key,
+        fallback_url=api_url,
+        fallback_key=api_key,
+    )
 
     if not api_key:
         raise ValueError("API key is required. Provide via --api-key or DF_API_KEY environment variable.")
@@ -218,6 +239,8 @@ async def run_paper2figure_workflow(args, input_content: str, input_type: str, o
         chat_api_url=api_url,
         api_key=api_key,
         chat_api_key=api_key,
+        image_api_url=image_api_url,
+        image_api_key=image_api_key,
         model=args.model,
         technical_model=args.model,
         gen_fig_model=args.gen_fig_model,
@@ -267,6 +290,17 @@ async def run_paper2figure_workflow(args, input_content: str, input_type: str, o
 
     # Run workflow
     final_state = await run_workflow(workflow_name, state)
+
+    artifact_patterns = {
+        "tech_route": ("*.svg", "*.png"),
+        "model_arch": ("*.png", "*.jpg", "*.jpeg", "*.webp"),
+        "exp_data": ("*.pptx", "*.png", "*.svg"),
+    }
+    artifacts = find_output_artifacts(output_dir, artifact_patterns[args.graph_type])
+    if not artifacts:
+        raise RuntimeError(
+            f"Paper2Figure finished without expected {args.graph_type} artifacts under {output_dir}"
+        )
 
     return final_state
 

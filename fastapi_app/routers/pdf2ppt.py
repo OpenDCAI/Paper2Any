@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 
 from dataflow_agent.logger import get_logger
 from fastapi_app.config import settings
+from fastapi_app.services.managed_api_service import resolve_model_name
 
 log = get_logger(__name__)
 
@@ -59,8 +60,14 @@ async def generate_pdf2ppt(
         api_key=api_key,
         email=email,
         use_ai_edit=use_ai_edit,
-        model=model,
-        gen_fig_model=gen_fig_model,
+        model=resolve_model_name(
+            model,
+            managed_default=settings.PDF2PPT_DEFAULT_MODEL,
+        ),
+        gen_fig_model=resolve_model_name(
+            gen_fig_model,
+            managed_default=settings.PDF2PPT_DEFAULT_IMAGE_MODEL,
+        ),
         language=language,
         style=style,
         page_count=page_count,

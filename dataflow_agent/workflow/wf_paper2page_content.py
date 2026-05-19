@@ -20,6 +20,23 @@ from dataflow_agent.toolkits.multimodaltool.mineru_tool import (
 
 log = get_logger(__name__)
 
+
+def _resolve_outline_model(state: Paper2FigureState) -> str | None:
+    request = getattr(state, "request", None)
+    request_model = str(getattr(request, "model", "") or "").strip()
+    if request_model:
+        return request_model
+
+    explicit_outline_model = str(getattr(request, "outline_model", "") or "").strip()
+    if explicit_outline_model:
+        return explicit_outline_model
+
+    configured_outline_model = os.getenv("PAPER2PPT_OUTLINE_MODEL", "").strip()
+    if configured_outline_model:
+        return configured_outline_model
+
+    return None
+
 def _ensure_result_path(state: Paper2FigureState) -> str:
     """
     参考 wf_paper2figure_with_sam.py 的做法：
@@ -256,6 +273,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         """
         agent = create_react_agent(
             name="outline_agent",
+            model_name=_resolve_outline_model(state),
             temperature=0.1,
             max_retries=5,
             parser_type="json",
@@ -269,6 +287,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         """
         agent = create_react_agent(
             name="outline_refine_agent",
+            model_name=_resolve_outline_model(state),
             parser_type="json",
             max_retries=5
         )
@@ -282,6 +301,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         log.info("[paper2page_content] Entering deep_research_agent...")
         agent = create_simple_agent(
             name="deep_research_agent",
+            model_name=_resolve_outline_model(state),
             temperature=0.7,
             parser_type="text", # 直接输出长文本
         )

@@ -19,6 +19,7 @@ _SCOPE_TO_SETTING_NAMES: dict[str, tuple[str, str]] = {
     "kb": ("KB_MANAGED_API_URL", "KB_MANAGED_API_KEY"),
     "kb_deepresearch": ("KB_DEEPRESEARCH_MANAGED_API_URL", "KB_DEEPRESEARCH_MANAGED_API_KEY"),
     "paper2rebuttal": ("PAPER2REBUTTAL_MANAGED_API_URL", "PAPER2REBUTTAL_MANAGED_API_KEY"),
+    "image_playground": ("IMAGE_PLAYGROUND_MANAGED_API_URL", "IMAGE_PLAYGROUND_MANAGED_API_KEY"),
 }
 _SCOPE_TO_IMAGE_SETTING_NAMES: dict[str, tuple[str, str]] = {
     scope: (
@@ -38,6 +39,10 @@ def _normalize_api_url(value: str | None) -> str:
 
 
 def _normalize_api_key(value: str | None) -> str:
+    return (value or "").strip()
+
+
+def _normalize_model_name(value: str | None) -> str:
     return (value or "").strip()
 
 
@@ -222,6 +227,27 @@ def resolve_image_generation_credentials(
     return _normalize_api_url(chat_api_url), _normalize_api_key(api_key)
 
 
+def resolve_model_name(
+    requested_model: str | None,
+    *,
+    managed_default: str | None,
+    fallback_default: str | None = None,
+) -> str:
+    """
+    Resolve a workflow model name under the current billing mode.
+
+    In free/managed mode we intentionally ignore any client-provided model and
+    always use the backend-managed default from .env. In paid mode we still
+    respect the client model and only fall back when it is empty.
+    """
+    managed_value = _normalize_model_name(managed_default)
+    fallback_value = _normalize_model_name(fallback_default)
+    if is_free_billing_mode():
+        return managed_value or fallback_value
+    requested_value = _normalize_model_name(requested_model)
+    return requested_value or managed_value or fallback_value
+
+
 def get_runtime_billing_config() -> dict:
     pricing = get_pricing_config()
     managed_api_url, managed_api_key = _get_any_configured_managed_llm_credentials()
@@ -229,6 +255,7 @@ def get_runtime_billing_config() -> dict:
     return {
         "billing_mode": get_billing_mode(),
         "user_api_config_required": is_user_api_config_required(),
+        "model_selection_locked": is_free_billing_mode(),
         "managed_api_enabled": bool(managed_api_url and managed_api_key),
         "managed_api_url": managed_api_url,
         "server_side_billing_enforced": True,

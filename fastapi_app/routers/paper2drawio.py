@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from dataflow_agent.logger import get_logger
 from fastapi_app.config.settings import settings
+from fastapi_app.services.managed_api_service import resolve_model_name
 
 log = get_logger(__name__)
 router = APIRouter(prefix="/paper2drawio", tags=["paper2drawio"])
@@ -24,7 +25,7 @@ class ChatRequest(BaseModel):
     chat_history: List[Dict[str, str]] = []
     chat_api_url: str = ""
     api_key: str = ""
-    model: str = "gpt-4o"
+    model: str = settings.PAPER2DRAWIO_DEFAULT_MODEL
 
 
 class ExportRequest(BaseModel):
@@ -80,13 +81,19 @@ async def generate_diagram(
         request=request,
         chat_api_url=chat_api_url,
         api_key=api_key,
-        model=model or settings.PAPER2DRAWIO_DEFAULT_MODEL,
+        model=resolve_model_name(
+            model,
+            managed_default=settings.PAPER2DRAWIO_DEFAULT_MODEL,
+        ),
         enable_vlm_validation=(
             enable_vlm_validation
             if enable_vlm_validation is not None
             else settings.PAPER2DRAWIO_ENABLE_VLM_VALIDATION
         ),
-        vlm_model=vlm_model or settings.PAPER2DRAWIO_VLM_MODEL,
+        vlm_model=resolve_model_name(
+            vlm_model,
+            managed_default=settings.PAPER2DRAWIO_VLM_MODEL,
+        ),
         vlm_validation_max_retries=vlm_validation_max_retries,
         input_type=input_type,
         diagram_type=diagram_type,
@@ -116,7 +123,10 @@ async def chat_edit_diagram(
         chat_history=body.chat_history,
         chat_api_url=body.chat_api_url,
         api_key=body.api_key,
-        model=body.model,
+        model=resolve_model_name(
+            body.model,
+            managed_default=settings.PAPER2DRAWIO_DEFAULT_MODEL,
+        ),
     )
 
 

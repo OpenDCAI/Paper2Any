@@ -303,10 +303,138 @@ class ApiYiGeminiProvider(AIProviderStrategy):
                 raise RuntimeError("candidates is empty")
             content = candidates[0].get("content", {})
             parts = content.get("parts", [])
-            inline_data = parts[0].get("inlineData", {})
-            return inline_data.get("data")
+            if not parts:
+                raise RuntimeError("parts is empty")
+            for part in parts:
+                inline_data = part.get("inlineData", {})
+                b64 = inline_data.get("data")
+                if b64:
+                    return b64
+            raise RuntimeError("inlineData.data is empty")
         except Exception as e:
             log.error(f"Failed to parse APIYI Gemini response: {e}")
+            log.error(f"Response preview: {str(data)[:500]}")
+            raise
+
+
+class IkunCodeGeminiProvider(AIProviderStrategy):
+    """
+    IKunCode 上的 Gemini 图像生成接口。
+    与 APIYI 同为 Google Native 风格，但字段命名遵循 IKunCode 文档：
+    - image_size
+    - inlineData / mimeType
+    """
+
+    def match(self, api_url: str, model: str) -> bool:
+        return (
+            detect_provider(api_url) is Provider.IKUNCODE
+            and (is_gemini_3_pro(model) or is_gemini_31_flash(model))
+        )
+
+    def _get_base_url(self, api_url: str) -> str:
+        base = api_url.rstrip("/")
+        if base.endswith("/v1beta"):
+            return base
+        if base.endswith("/v1"):
+            return f"{base[:-3]}/v1beta"
+        return f"{base}/v1beta"
+
+    def _image_config(self, aspect_ratio: str, resolution: str) -> Dict[str, Any]:
+        return {
+            "aspectRatio": aspect_ratio,
+            "image_size": resolution,
+        }
+
+    def build_generation_request(self, api_url: str, model: str, prompt: str, **kwargs) -> Tuple[str, Dict[str, Any], bool]:
+        base = self._get_base_url(api_url)
+        aspect_ratio = kwargs.get("aspect_ratio", "16:9")
+        resolution = kwargs.get("resolution", "2K")
+        url = f"{base}/models/{model}:generateContent"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "responseModalities": ["IMAGE"],
+                "imageConfig": self._image_config(aspect_ratio, resolution),
+            },
+        }
+        return url, payload, False
+
+    def build_edit_request(self, api_url: str, model: str, prompt: str, image_b64: str, **kwargs) -> Tuple[str, Dict[str, Any], bool]:
+        base = self._get_base_url(api_url)
+        aspect_ratio = kwargs.get("aspect_ratio", "16:9")
+        resolution = kwargs.get("resolution", "2K")
+        fmt = kwargs.get("image_fmt", "png")
+        url = f"{base}/models/{model}:generateContent"
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "inlineData": {
+                                "mimeType": f"image/{fmt}",
+                                "data": image_b64,
+                            }
+                        },
+                        {"text": prompt},
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "responseModalities": ["IMAGE"],
+                "imageConfig": self._image_config(aspect_ratio, resolution),
+            },
+        }
+        return url, payload, False
+
+    def build_multi_image_edit_request(
+        self,
+        api_url: str,
+        model: str,
+        prompt: str,
+        image_b64_list: List[Tuple[str, str]],
+        **kwargs
+    ) -> Tuple[str, Dict[str, Any], bool]:
+        base = self._get_base_url(api_url)
+        aspect_ratio = kwargs.get("aspect_ratio", "16:9")
+        resolution = kwargs.get("resolution", "2K")
+        parts: List[Dict[str, Any]] = []
+        for b64, fmt in image_b64_list:
+            parts.append(
+                {
+                    "inlineData": {
+                        "mimeType": f"image/{fmt}",
+                        "data": b64,
+                    }
+                }
+            )
+        parts.append({"text": prompt})
+        url = f"{base}/models/{model}:generateContent"
+        payload = {
+            "contents": [{"parts": parts}],
+            "generationConfig": {
+                "responseModalities": ["IMAGE"],
+                "imageConfig": self._image_config(aspect_ratio, resolution),
+            },
+        }
+        return url, payload, False
+
+    def parse_generation_response(self, data: Dict[str, Any]) -> str:
+        try:
+            candidates = data.get("candidates", [])
+            if not candidates:
+                raise RuntimeError("candidates is empty")
+            content = candidates[0].get("content", {})
+            parts = content.get("parts", [])
+            if not parts:
+                raise RuntimeError("parts is empty")
+            for part in parts:
+                inline_data = part.get("inlineData", {})
+                b64 = inline_data.get("data")
+                if b64:
+                    return b64
+            raise RuntimeError("inlineData.data is empty")
+        except Exception as e:
+            log.error(f"Failed to parse IKunCode Gemini response: {e}")
             log.error(f"Response preview: {str(data)[:500]}")
             raise
 
@@ -580,12 +708,47 @@ class ApiYiSeeDreamProvider(AIProviderStrategy):
         raise RuntimeError(f"Failed to parse SeeDream response: {str(data)[:200]}")
 
 
+class ApiYiGPTImageAllProvider(AIProviderStrategy):
+    """
+    APIYI GPT-Image-2-All 特殊适配。
+    该模型不接受 size / quality / n 等字段，b64_json 可能带 data URL 前缀。
+    """
+
+    def match(self, api_url: str, model: str) -> bool:
+        return model.lower() == "gpt-image-2-all"
+
+    def build_generation_request(self, api_url: str, model: str, prompt: str, **kwargs) -> Tuple[str, Dict[str, Any], bool]:
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "response_format": kwargs.get("response_format", "b64_json"),
+        }
+        return f"{api_url.rstrip('/')}/images/generations", payload, False
+
+    def parse_generation_response(self, data: Dict[str, Any]) -> str:
+        if "data" in data and len(data["data"]) > 0:
+            item = data["data"][0]
+            if "b64_json" in item:
+                b64_string = str(item["b64_json"]).strip()
+                if b64_string.startswith("data:"):
+                    comma_index = b64_string.find(",")
+                    if comma_index != -1:
+                        b64_string = b64_string[comma_index + 1 :]
+                padding_needed = (4 - len(b64_string) % 4) % 4
+                if padding_needed > 0:
+                    b64_string += "=" * padding_needed
+                return b64_string
+            if "url" in item:
+                return item["url"]
+        raise RuntimeError(f"Failed to parse GPT-Image-2-All response: {str(data)[:200]}")
+
+
 class ApiYiGPTImageProvider(AIProviderStrategy):
     """
     APIYI GPT-Image 系列模型支持 (兼容 OpenAI Image API)
     """
     def match(self, api_url: str, model: str) -> bool:
-        return model.lower().startswith("gpt-image")
+        return model.lower().startswith("gpt-image") and model.lower() != "gpt-image-2-all"
 
     def build_generation_request(self, api_url: str, model: str, prompt: str, **kwargs) -> Tuple[str, Dict[str, Any], bool]:
         url = f"{api_url.rstrip('/')}/images/generations"
@@ -1226,8 +1389,10 @@ class ComflyProvider(AIProviderStrategy):
 
 # 注册顺序
 STRATEGIES = [
+    IkunCodeGeminiProvider(),
     ApiYiGeminiProvider(),
     ApiYiSeeDreamProvider(),
+    ApiYiGPTImageAllProvider(),
     ApiYiGPTImageProvider(),
     Local123GeminiProvider(),
     OpenAIDalleProvider(),

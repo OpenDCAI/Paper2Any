@@ -43,8 +43,7 @@ cd ..
 ### 最小启动方式
 
 ```bash
-bash deploy/start.sh
-bash deploy/start_frontend.sh
+bash deploy/start_nv.sh
 ```
 
 如果你的改动依赖本地模型服务，再继续使用：

@@ -59,6 +59,39 @@ English | [中文](README_CN.md)
 ## 🔥 News
 
 > [!TIP]
+> 🆕 <strong>2026-04-24 · Image Model Playground Upgrade</strong><br>
+> Added a new <strong>Image Model Playground</strong> page for managed image generation across Nano Banana 2 / Nano Banana Pro / Image 2 / Image 2 All.<br>
+> The workflow now supports language control, model-specific generation options, <strong>batch generation (1 / 2 / 4 / 8 / 16)</strong>, compressed thumbnail previews, and one-click batch download.
+
+> [!TIP]
+> 🆕 <strong>2026-04-15 · 2026 Paper Updates</strong><br>
+> Two Paper2Any-related papers are now listed in the 2026 cycle:<br>
+> <a href="https://arxiv.org/abs/2511.18036" target="_blank"><strong>Paper2SysArch: Structure-Constrained System Architecture Generation from Scientific Papers</strong></a> · <strong>CVPR 2026 Findings</strong><br>
+> <a href="https://arxiv.org/abs/2602.09809" target="_blank"><strong>SciFlow-Bench: Evaluating Structure-Aware Scientific Diagram Generation via Inverse Parsing</strong></a> · <strong>ACL 2026 Main</strong>
+>
+> <details>
+> <summary><strong>BibTeX</strong></summary>
+>
+> ```bibtex
+> @article{guo2025paper2sysarch,
+>   title   = {Paper2SysArch: Structure-Constrained System Architecture Generation from Scientific Papers},
+>   author  = {Guo, Ziyi and Liu, Zhou and Zhang, Wentao},
+>   journal = {arXiv preprint arXiv:2511.18036},
+>   year    = {2025},
+>   note    = {CVPR 2026 Findings}
+> }
+>
+> @article{zhang2026sciflowbench,
+>   title   = {SciFlow-Bench: Evaluating Structure-Aware Scientific Diagram Generation via Inverse Parsing},
+>   author  = {Zhang, Tong and Lin, Honglin and Liu, Zhou and Chen, Chong and Zhang, Wentao},
+>   journal = {arXiv preprint arXiv:2602.09809},
+>   year    = {2026},
+>   note    = {ACL 2026 Main}
+> }
+> ```
+> </details>
+
+> [!TIP]
 > 🆕 <strong>2026-03-28 · Editable PPT Showcase Refresh</strong><br>
 > Added two new <strong>editable PPT</strong> showcase screenshots for the frontend-deck workflow:<br>
 > a generated multi-slide gallery view and the canvas editing workspace with deck theme lock.
@@ -111,6 +144,7 @@ Paper2Any currently includes the following sub-capabilities:
 - **📝 Paper2Rebuttal**: Draft structured rebuttals and revision responses with claims-to-evidence grounding.
 - **🖼️ PDF2PPT - Layout-Preserving Conversion**: Accurate layout retention for PDF → editable PPTX.
 - **🖼️ Image2PPT - Image to Slides**: Convert images or screenshots into structured slides.
+- **🔥 Image Model Playground**: Directly call backend-managed image models with prompt templates, language control, batch generation, compressed previews, and zip download.
 - **🎨 PPTPolish - Smart Beautification**: AI-based layout optimization and style transfer.
 - **🎬 Paper2Video**: Generate video scripts and narration assets.
 - **🖼️ Paper2Poster - Academic Poster**: Turn paper PDFs into poster-ready layouts with configurable sections, logos, and export assets.
@@ -354,6 +388,27 @@ Paper2Any currently includes the following sub-capabilities:
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![pip](https://img.shields.io/badge/pip-latest-3776AB?style=flat-square&logo=pypi&logoColor=white)
 
+### `.env` Modes
+
+Paper2Any now supports two configuration styles:
+
+- **Simple mode**: use `*.env.simple.example`. Recommended for most self-hosted users.
+- **Advanced mode**: use `*.env.example`. Use this only when you need workflow-specific model/provider overrides.
+
+Quick choice:
+
+```bash
+cp fastapi_app/.env.simple.example fastapi_app/.env
+cp frontend-workflow/.env.simple.example frontend-workflow/.env
+```
+
+If you need fine-grained workflow overrides instead:
+
+```bash
+cp fastapi_app/.env.example fastapi_app/.env
+cp frontend-workflow/.env.example frontend-workflow/.env
+```
+
 <details>
 <summary><strong>🐳 Docker (Recommended) — Deployment & Updates</strong></summary>
 
@@ -363,8 +418,8 @@ git clone https://github.com/OpenDCAI/Paper2Any.git
 cd Paper2Any
 
 # 2. Configure environment variables
-cp fastapi_app/.env.example fastapi_app/.env
-cp frontend-workflow/.env.example frontend-workflow/.env
+cp fastapi_app/.env.simple.example fastapi_app/.env
+cp frontend-workflow/.env.simple.example frontend-workflow/.env
 cp deploy/docker.env.example deploy/docker.env
 ```
 
@@ -375,12 +430,21 @@ cp deploy/docker.env.example deploy/docker.env
 # Internal API auth key. Must match frontend VITE_API_KEY.
 BACKEND_API_KEY=your-backend-api-key
 
-# Required: Your LLM API URL (replace with your own)
-DEFAULT_LLM_API_URL=https://api.openai.com/v1/
+# Recommended: let backend own all workflow model choices
+APP_BILLING_MODE=free
+PAPER2ANY_CONFIG_MODE=simple
+
+# Required: unified text entry
+SIMPLE_TEXT_API_URL=https://your-text-gateway/v1
+SIMPLE_TEXT_API_KEY=your_text_key
+
+# Optional but recommended: unified image entry
+SIMPLE_IMAGE_API_URL=https://your-image-gateway
+SIMPLE_IMAGE_API_KEY=your_image_key
 
 # Optional: DrawIO OCR / VLM service
-PAPER2DRAWIO_OCR_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-PAPER2DRAWIO_OCR_API_KEY=your_dashscope_key
+SIMPLE_OCR_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+SIMPLE_OCR_API_KEY=your_dashscope_key
 
 # Optional: MinerU official remote API
 MINERU_API_BASE_URL=https://mineru.net/api/v4
@@ -402,6 +466,10 @@ VITE_API_KEY=your-backend-api-key
 
 # Usually keep VITE_API_BASE_URL empty in Docker, because nginx proxies /api and /outputs
 VITE_API_BASE_URL=
+
+# Frontend display defaults only
+VITE_DEFAULT_LLM_API_URL=https://your-text-gateway/v1
+VITE_DEFAULT_LLM_MODEL=gpt-4o
 
 # Optional: Supabase (keep consistent with backend)
 # VITE_SUPABASE_URL=https://your-project-id.supabase.co
@@ -598,16 +666,15 @@ VITE_LLM_API_URLS=https://api.apiyi.com/v1,http://b.apiyi.com:16888/v1,http://12
 ```bash
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-SUPABASE_JWT_SECRET=your-jwt-secret
 ```
 
 ##### Running Without Supabase
 
 If you skip Supabase configuration:
 - ✅ All core features work normally
-- ✅ CLI scripts work without any configuration
-- ❌ No user authentication or quotas
+- ✅ CLI scripts do not require Supabase
+- ❌ No user authentication
+- ❌ No cloud account features such as points, redeem, invite, and history
 - ❌ No cloud file storage
 
 </details>
@@ -719,18 +786,8 @@ pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
 **Paper2Any - Paper Workflow Web Frontend (Recommended)**
 
 ```bash
-# Configure local backend runtime (single source of truth)
-# Edit deploy/app_config.sh:
-#   APP_PORT=8000
-#   APP_WORKERS=2
-
-# Start backend API
-./deploy/start.sh
-
-# Start frontend (new terminal)
-cd frontend-workflow
-npm install
-npm run dev
+# Recommended one-click entrypoint on NVIDIA machines
+bash deploy/start_nv.sh
 ```
 
 Default local addresses:
@@ -738,12 +795,15 @@ Default local addresses:
 - Backend health: http://127.0.0.1:8000/health
 
 Useful local deploy commands:
-- Start backend: `./deploy/start.sh`
+- Start full stack (recommended): `bash deploy/start_nv.sh`
+- Start backend only after loading a deploy profile:
+  `set -a && source deploy/profiles/nv.env && set +a && bash deploy/start.sh`
 - Stop backend: `./deploy/stop.sh`
 - Restart backend: `./deploy/restart.sh`
 
 Notes:
-- `deploy/start.sh` and `deploy/stop.sh` both read the same runtime config from `deploy/app_config.sh`.
+- `deploy/start.sh` reads `deploy/app_config.sh`, but it does not load `deploy/profiles/*.env` by itself.
+- `deploy/start_nv.sh` is the safe one-click entrypoint because it loads `deploy/profiles/nv.env`, prepares local models, starts model servers, then starts backend and frontend.
 - If you change `APP_PORT`, update the frontend proxy target in `frontend-workflow/vite.config.ts` as well.
 
 **Configure Frontend Proxy**
@@ -793,15 +853,8 @@ vllm serve opendatalab/MinerU2.5-2509-1.2B `
 #### 🎨 Web Frontend (Recommended)
 
 ```bash
-# Configure deploy/app_config.sh first if you want to change the local port/workers
-
-# Start backend API
-./deploy/start.sh
-
-# Start frontend (new terminal)
-cd frontend-workflow
-npm install
-npm run dev
+# Recommended one-click entrypoint on NVIDIA machines
+bash deploy/start_nv.sh
 ```
 
 Visit `http://localhost:3000`.

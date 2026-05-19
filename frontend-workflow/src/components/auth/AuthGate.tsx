@@ -19,6 +19,17 @@ interface Props {
   children: React.ReactNode;
 }
 
+function isE2EAuthBypassed(): boolean {
+  if (!import.meta.env.DEV || typeof window === "undefined") {
+    return false;
+  }
+  try {
+    return window.localStorage.getItem("paper2any_e2e_bypass_auth") === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function AuthGate({ children }: Props) {
   const {
     user,
@@ -31,6 +42,10 @@ export function AuthGate({ children }: Props) {
 
   // Skip auth when Supabase is not configured
   if (!isSupabaseConfigured()) {
+    return <>{children}</>;
+  }
+
+  if (isE2EAuthBypassed()) {
     return <>{children}</>;
   }
 

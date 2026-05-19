@@ -4,6 +4,7 @@ import { ChatMessage, KnowledgeFile } from '../types';
 import { apiFetch } from '../../../config/api';
 import { getApiSettings } from '../../../services/apiSettingsService';
 import { useAuthStore } from '../../../stores/authStore';
+import { useRuntimeBilling } from '../../../hooks/useRuntimeBilling';
 
 interface ChatToolProps {
   files: KnowledgeFile[];
@@ -139,6 +140,7 @@ const AnalysisDetail = ({ filename, analysis }: { filename: string, analysis: st
 
 export const ChatTool = ({ files, selectedIds }: ChatToolProps) => {
   const { user } = useAuthStore();
+  const { userApiConfigRequired } = useRuntimeBilling();
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
@@ -207,8 +209,12 @@ export const ChatTool = ({ files, selectedIds }: ChatToolProps) => {
               files: selectedFiles,
               query: userMsg.content,
               history: history,
-              api_url: apiUrl?.trim() || undefined,
-              api_key: apiKey?.trim() || undefined
+              ...(userApiConfigRequired
+                ? {
+                    api_url: apiUrl?.trim() || undefined,
+                    api_key: apiKey?.trim() || undefined,
+                  }
+                : {})
           })
       });
 

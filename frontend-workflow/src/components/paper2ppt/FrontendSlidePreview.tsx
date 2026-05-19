@@ -7,6 +7,7 @@ import {
   FrontendSlide,
 } from './types';
 import { buildFrontendSlideMarkup } from './frontendSlideUtils';
+import { DESIGN_HEIGHT, DESIGN_WIDTH } from './structuredSlideModel';
 
 interface FrontendSlidePreviewProps {
   slide: FrontendSlide;
@@ -65,8 +66,6 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
   onHoverBlock,
   onLayoutIrChange,
 }) => {
-  const DESIGN_WIDTH = 1600;
-  const DESIGN_HEIGHT = 900;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const [scale, setScale] = useState(1);
@@ -81,7 +80,7 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
   }, [onLayoutIrChange]);
 
   useEffect(() => {
-    if (mode !== 'responsive' || !containerRef.current) {
+    if (!containerRef.current) {
       return undefined;
     }
 
@@ -95,11 +94,8 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
     updateScale();
     const observer = new ResizeObserver(() => updateScale());
     observer.observe(node);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [mode]);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     setInlineEditor(null);
@@ -249,7 +245,6 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
 
   const persistInlineEdit = (editor: InlineEditorState | null) => {
     if (!editor) return;
-
     const nextValue = editor.value;
     if (editor.fieldType === 'list') {
       if (typeof editor.itemIndex === 'number') {
@@ -273,9 +268,7 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
   };
 
   const openImagePicker = (imageKey: string) => {
-    if (!imageKey || !inlineEditEnabled || mode !== 'responsive') {
-      return;
-    }
+    if (!imageKey || !inlineEditEnabled) return;
     setPendingImageKey(imageKey);
     imageInputRef.current?.click();
   };
@@ -357,14 +350,12 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
     const imageKey = pendingImageKey;
     event.target.value = '';
     setPendingImageKey(null);
-    if (!file || !imageKey) {
-      return;
-    }
+    if (!file || !imageKey) return;
     await onReplaceImage?.(imageKey, file);
   };
 
   const handleEditableClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!inlineEditEnabled || mode !== 'responsive' || !containerRef.current) {
+    if (!inlineEditEnabled || !containerRef.current) {
       return;
     }
 
@@ -387,9 +378,7 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
     if (imageNode) {
       event.preventDefault();
       event.stopPropagation();
-      if (inlineEditor) {
-        persistInlineEdit(inlineEditor);
-      }
+      if (inlineEditor) persistInlineEdit(inlineEditor);
       setInlineEditor(null);
       const imageKey = imageNode.dataset.imageKey || '';
       onSelectBlock?.(imageKey);
@@ -399,9 +388,7 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
 
     const editableNode = target.closest('[data-edit-key]') as HTMLElement | null;
     if (!editableNode) {
-      if (inlineEditor) {
-        persistInlineEdit(inlineEditor);
-      }
+      if (inlineEditor) persistInlineEdit(inlineEditor);
       setInlineEditor(null);
       if (!blockNode && !zoneNode) {
         onSelectBlock?.(null);
@@ -417,12 +404,8 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
     const itemIndexRaw = editableNode.dataset.editIndex;
     const itemIndex = itemIndexRaw !== undefined ? Number.parseInt(itemIndexRaw, 10) : undefined;
     const field = slide.editableFields.find((item) => item.key === fieldKey);
-    if (!field) {
-      return;
-    }
-    if (inlineEditor) {
-      persistInlineEdit(inlineEditor);
-    }
+    if (!field) return;
+    if (inlineEditor) persistInlineEdit(inlineEditor);
 
     const containerRect = containerRef.current.getBoundingClientRect();
     const targetRect = editableNode.getBoundingClientRect();

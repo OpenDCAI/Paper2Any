@@ -30,6 +30,7 @@ import {
   Step,
   SlideOutline,
   GenerateResult,
+  MaskSelectionSpec,
   UploadMode,
   StyleMode,
   StylePreset,
@@ -115,6 +116,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isReviewingFrontendSlide, setIsReviewingFrontendSlide] = useState(false);
   const [slidePrompt, setSlidePrompt] = useState('');
+  const [slideMaskSelection, setSlideMaskSelection] = useState<MaskSelectionSpec | null>(null);
   const [generateTaskMessage, setGenerateTaskMessage] = useState('');
   
   // Step 4: 完成状态
@@ -2114,6 +2116,11 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       themeName: String(theme.theme_name || theme.themeName || 'locked_deck_theme'),
       stylePrompt: String(theme.style_prompt || theme.stylePrompt || ''),
       visualMood: String(theme.visual_mood || theme.visualMood || ''),
+      styleFamily: (
+        ['modern', 'business', 'academic', 'creative'].includes(String(theme.style_family || theme.styleFamily))
+          ? String(theme.style_family || theme.styleFamily)
+          : 'modern'
+      ) as FrontendDeckTheme['styleFamily'],
       footerText: String(theme.footer_text || theme.footerText || ''),
       sectionLabelTemplate: String(theme.section_label_template || theme.sectionLabelTemplate || ''),
       palette,
@@ -5012,6 +5019,8 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
                 taskMessage={generateTaskMessage}
                 slidePrompt={slidePrompt}
                 setSlidePrompt={setSlidePrompt}
+                slideMaskSelection={slideMaskSelection}
+                setSlideMaskSelection={setSlideMaskSelection}
                 saveCurrentSlideEdits={saveCurrentSlideEdits}
                 handleRegenerateSlideFromOutline={handleRegenerateSlideFromOutline}
                 handleRegenerateSlide={handleRegenerateSlide}
@@ -5073,17 +5082,23 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
           }}
         >
           {frontendSlides.map((slide, index) => (
-            <FrontendSlidePreview
+            <div
               key={`${slide.slideId}-capture`}
-              slide={slide}
-              deckTheme={frontendDeckTheme}
-              mode="capture"
-              className="mb-4"
-              captureRef={(node) => {
+              ref={(node) => {
                 frontendCaptureRefs.current[index] = node;
               }}
-              onLayoutIrChange={(layoutIr) => updateFrontendLayoutIr(index, layoutIr)}
-            />
+              className="mb-4"
+              style={{
+                width: '1600px',
+                height: '900px',
+              }}
+            >
+              <FrontendSlidePreview
+                slide={slide}
+                deckTheme={frontendDeckTheme}
+                onLayoutIrChange={(layoutIr) => updateFrontendLayoutIr(index, layoutIr)}
+              />
+            </div>
           ))}
         </div>
       )}

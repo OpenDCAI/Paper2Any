@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Iterable
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -48,3 +49,38 @@ def load_project_env() -> None:
         return
 
     _load_env_manually(ENV_FILE)
+
+
+def resolve_cli_text_credentials(api_url: str | None, api_key: str | None) -> tuple[str, str]:
+    return (
+        api_url or os.getenv("DF_API_URL", "https://api.openai.com/v1"),
+        api_key or os.getenv("DF_API_KEY", ""),
+    )
+
+
+def resolve_cli_image_credentials(
+    image_api_url: str | None,
+    image_api_key: str | None,
+    *,
+    fallback_url: str | None = None,
+    fallback_key: str | None = None,
+) -> tuple[str, str]:
+    return (
+        image_api_url or os.getenv("DF_IMAGE_API_URL", "") or fallback_url or os.getenv("DF_API_URL", "https://api.openai.com/v1"),
+        image_api_key or os.getenv("DF_IMAGE_API_KEY", "") or fallback_key or os.getenv("DF_API_KEY", ""),
+    )
+
+
+def find_output_artifacts(base_dir: Path, patterns: Iterable[str]) -> list[Path]:
+    found: list[Path] = []
+    for pattern in patterns:
+        found.extend(sorted(base_dir.rglob(pattern)))
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for path in found:
+        resolved = str(path.resolve())
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        unique.append(path.resolve())
+    return unique

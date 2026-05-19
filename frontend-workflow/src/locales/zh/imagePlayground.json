@@ -1,0 +1,92 @@
+{
+  "hero": {
+    "badge": "HOT IMAGE LAB",
+    "title": "生图模型体验",
+    "description": "直接消耗点数调用后端托管生图模型。你只需要选模型、套模板、补充论文内容和要求，然后直接出图。"
+  },
+  "meta": {
+    "cost": "每次生成消耗 {{count}} 点",
+    "saved": "生成结果已保存到历史文件"
+  },
+  "managedNotice": "本页允许直接切换平台托管生图模型，无需手动配置 API URL / API Key。每次生成都会按页面规则消耗点数。",
+  "models": {
+    "title": "模型",
+    "gemini31": "Nano Banana 2",
+    "gemini31Desc": "速度更快，适合大多数科研插图与信息图。",
+    "geminiPro": "Nano Banana Pro",
+    "geminiProDesc": "细节更稳，适合更复杂的科研视觉稿。",
+    "gptImage2": "Image 2",
+    "gptImage2Desc": "OpenAI 风格生图，结构稳定，适合标准视觉生成。",
+    "gptImage2All": "Image 2 All",
+    "gptImage2AllDesc": "轻量快速版本，适合高频体验与 prompt 试错。"
+  },
+  "controls": {
+    "textLanguage": "图中文字语言",
+    "batchCount": "批量生成数量",
+    "batchOption": "{{count}} 张",
+    "aspectRatio": "图片比例",
+    "resolution": "分辨率",
+    "size": "尺寸",
+    "quality": "画质",
+    "gptImage2AllNotice": "Image 2 All 当前不支持比例、分辨率、size、quality 这些可调参数，所以这里不会展示这些控件。",
+    "languageOptions": {
+      "en": "英文",
+      "zh": "中文"
+    },
+    "qualityOptions": {
+      "auto": "自动",
+      "low": "低",
+      "medium": "中",
+      "high": "高"
+    }
+  },
+  "templates": {
+    "title": "模板",
+    "research": "科研绘图通用",
+    "researchDesc": "适合方法图、流程图、信息图、结果摘要页。",
+    "cs": "计算机论文图",
+    "csDesc": "适合模型结构、系统框架、算法流程和模块关系图。",
+    "bio": "生物 / 医学论文图",
+    "bioDesc": "适合机制图、实验流程、细胞通路和医学信息图。"
+  },
+  "chips": {
+    "title": "候选提示词",
+    "method": "方法总览图",
+    "model": "模型结构图",
+    "pipeline": "实验流程图",
+    "result": "结果摘要信息图",
+    "cover": "论文封面视觉"
+  },
+  "inputs": {
+    "paperContent": "论文内容 / 主题描述",
+    "paperPlaceholder": "输入论文方法、摘要、主题，或你想画出来的内容。",
+    "extra": "补充要求",
+    "extraPlaceholder": "补充配色、风格、布局、文字密度、是否留白等要求。",
+    "preview": "实际发送提示词预览",
+    "apiUrl": "API URL",
+    "apiKey": "API Key"
+  },
+  "actions": {
+    "generate": "开始生成 ({{count}}点)",
+    "generateBatch": "开始生成 {{images}} 张 ({{count}}点)",
+    "generating": "正在生成 {{count}} 张...",
+    "copyPrompt": "复制提示词",
+    "download": "下载图片",
+    "downloadAll": "全部下载"
+  },
+  "result": {
+    "title": "结果预览",
+    "empty": "生成完成后，缩略图会显示在这里。",
+    "summary": "已生成 {{success}} / {{total}} 张",
+    "partial": "本批次成功 {{success}} 张，失败 {{failed}} 张。",
+    "loadingTitle": "正在并发生成 {{count}} 张图片...",
+    "loadingDesc": "后端会并发请求上游模型。最终只对成功生成的图片扣点。"
+  },
+  "errors": {
+    "loginRequired": "请先登录后继续使用。",
+    "promptRequired": "请先填写论文内容或主题描述。",
+    "apiRequired": "当前为用户自配 API 模式，请填写 API URL 和 API Key。",
+    "copyFailed": "复制失败，请稍后重试。",
+    "requestFailed": "图片生成请求失败"
+  }
+}

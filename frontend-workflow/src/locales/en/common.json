@@ -11,6 +11,7 @@
     "nav": {
       "home": "Overview",
       "paper2figure": "Research Figure Generator",
+      "imagePlayground": "Image Model Playground",
       "mindmap": "Mind Map",
       "paper2drawio": "Diagram Generator (DrawIO)",
       "paper2ppt": "Paper2PPT",
@@ -35,6 +36,7 @@
     "navTooltip": {
       "home": "See all workflows, preview examples, and jump straight into the right tool from a single landing page",
       "paper2figure": "Generate research figures from papers, including model architecture diagrams, technical roadmaps, and experimental data charts in editable PPTX format",
+      "imagePlayground": "Directly test backend-managed image models with prompt-driven generation for rapid research-visual exploration",
       "mindmap": "Upload papers, lecture notes, or paste raw text to generate a standalone tree-structured mind map, then keep refining nodes and branches inside the same page",
       "paper2drawio": "Convert images to editable DrawIO diagrams, supporting flowcharts, architecture diagrams, and more",
       "paper2ppt": "Upload paper PDFs or enter topics, AI intelligently analyzes content and generates beautiful academic presentation slides",

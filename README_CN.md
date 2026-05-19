@@ -59,6 +59,39 @@
 ## 🔥 News
 
 > [!TIP]
+> 🆕 <strong>2026-04-24 · 生图模型体验页升级</strong><br>
+> 新增独立的 <strong>生图模型体验</strong> 页面，可直接调用平台托管的 Nano Banana 2 / Nano Banana Pro / Image 2 / Image 2 All。<br>
+> 现在支持图中文字语言控制、模型专属参数、<strong>批量生图（1 / 2 / 4 / 8 / 16）</strong>、压缩缩略图预览，以及一键打包下载。
+
+> [!TIP]
+> 🆕 <strong>2026-04-15 · 2026 论文进展</strong><br>
+> 两篇与 Paper2Any 相关的论文已进入 2026 会议信息流：<br>
+> <a href="https://arxiv.org/abs/2511.18036" target="_blank"><strong>Paper2SysArch: Structure-Constrained System Architecture Generation from Scientific Papers</strong></a> · <strong>CVPR 2026 Findings</strong><br>
+> <a href="https://arxiv.org/abs/2602.09809" target="_blank"><strong>SciFlow-Bench: Evaluating Structure-Aware Scientific Diagram Generation via Inverse Parsing</strong></a> · <strong>ACL 2026 Main</strong>
+>
+> <details>
+> <summary><strong>BibTeX</strong></summary>
+>
+> ```bibtex
+> @article{guo2025paper2sysarch,
+>   title   = {Paper2SysArch: Structure-Constrained System Architecture Generation from Scientific Papers},
+>   author  = {Guo, Ziyi and Liu, Zhou and Zhang, Wentao},
+>   journal = {arXiv preprint arXiv:2511.18036},
+>   year    = {2025},
+>   note    = {CVPR 2026 Findings}
+> }
+>
+> @article{zhang2026sciflowbench,
+>   title   = {SciFlow-Bench: Evaluating Structure-Aware Scientific Diagram Generation via Inverse Parsing},
+>   author  = {Zhang, Tong and Lin, Honglin and Liu, Zhou and Chen, Chong and Zhang, Wentao},
+>   journal = {arXiv preprint arXiv:2602.09809},
+>   year    = {2026},
+>   note    = {ACL 2026 Main}
+> }
+> ```
+> </details>
+
+> [!TIP]
 > 🆕 <strong>2026-03-28 · 可编辑版 PPT 展示更新</strong><br>
 > 新增两张 <strong>可编辑版 PPT</strong> 工作流展示图：<br>
 > 一张用于展示多页生成后的 deck 总览，一张用于展示带主题锁定与画布编辑的编辑工作区。
@@ -103,6 +136,7 @@ Paper2Any 当前包含以下几个子能力：
 - **📝 Paper2Rebuttal**：自动生成结构化反驳草稿与修改建议，辅助审稿意见回复。
 - **🖼️ PDF2PPT - 版式保留转换**：精准保留版式的 PDF → 可编辑 PPTX。
 - **🖼️ Image2PPT - 图片转 PPT**：将图片或截图快速转换为结构化幻灯片。
+- **🔥 生图模型体验**：直接调用后端托管生图模型，支持提示词模板、图中文字语言控制、批量生图、压缩缩略图预览与整批下载。
 - **🎨 PPTPolish 智能美化**：基于 AI 的排版优化与风格迁移。
 - **🎬 Paper2Video**：生成讲解视频脚本与配音素材。
 - **🖼️ Paper2Poster - 论文转海报**：将论文 PDF 自动整理为学术海报，支持版式参数、Logo 注入与导出。
@@ -345,6 +379,27 @@ Paper2Any 当前包含以下几个子能力：
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![pip](https://img.shields.io/badge/pip-latest-3776AB?style=flat-square&logo=pypi&logoColor=white)
 
+### `.env` 配置模式
+
+现在有两套配置方式：
+
+- **粗粒度模式**：使用 `*.env.simple.example`。推荐大多数自部署用户直接用这套。
+- **细粒度模式**：使用 `*.env.example`。只有需要逐个 workflow 覆盖模型和 provider 时再用。
+
+推荐起步：
+
+```bash
+cp fastapi_app/.env.simple.example fastapi_app/.env
+cp frontend-workflow/.env.simple.example frontend-workflow/.env
+```
+
+如果确实需要细粒度覆盖，再改成：
+
+```bash
+cp fastapi_app/.env.example fastapi_app/.env
+cp frontend-workflow/.env.example frontend-workflow/.env
+```
+
 <details>
 <summary><strong>🐳 Docker 快速启动（推荐）— 部署与更新</strong></summary>
 
@@ -354,8 +409,8 @@ git clone https://github.com/OpenDCAI/Paper2Any.git
 cd Paper2Any
 
 # 2. 配置环境变量
-cp fastapi_app/.env.example fastapi_app/.env
-cp frontend-workflow/.env.example frontend-workflow/.env
+cp fastapi_app/.env.simple.example fastapi_app/.env
+cp frontend-workflow/.env.simple.example frontend-workflow/.env
 cp deploy/docker.env.example deploy/docker.env
 ```
 
@@ -366,12 +421,21 @@ cp deploy/docker.env.example deploy/docker.env
 # 内部接口鉴权 key，必须与前端 VITE_API_KEY 一致
 BACKEND_API_KEY=your-backend-api-key
 
-# 必填：你的 LLM API 地址（替换为你自己的）
-DEFAULT_LLM_API_URL=https://api.openai.com/v1/
+# 推荐：由后端统一决定 workflow 使用的模型
+APP_BILLING_MODE=free
+PAPER2ANY_CONFIG_MODE=simple
+
+# 必填：统一文本入口
+SIMPLE_TEXT_API_URL=https://your-text-gateway/v1
+SIMPLE_TEXT_API_KEY=your_text_key
+
+# 可选但推荐：统一生图入口
+SIMPLE_IMAGE_API_URL=https://your-image-gateway
+SIMPLE_IMAGE_API_KEY=your_image_key
 
 # 可选：DrawIO OCR / VLM 服务
-PAPER2DRAWIO_OCR_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-PAPER2DRAWIO_OCR_API_KEY=your_dashscope_key
+SIMPLE_OCR_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+SIMPLE_OCR_API_KEY=your_dashscope_key
 
 # 可选：MinerU 官方远端 API
 MINERU_API_BASE_URL=https://mineru.net/api/v4
@@ -393,6 +457,10 @@ VITE_API_KEY=your-backend-api-key
 
 # Docker 下通常保持为空，由 nginx 反代 /api 和 /outputs
 VITE_API_BASE_URL=
+
+# 前端只负责展示默认值，不控制后端真实模型
+VITE_DEFAULT_LLM_API_URL=https://your-text-gateway/v1
+VITE_DEFAULT_LLM_MODEL=gpt-4o
 
 # 可选：Supabase（与后端保持一致）
 # VITE_SUPABASE_URL=https://your-project-id.supabase.co
@@ -585,16 +653,15 @@ VITE_LLM_API_URLS=https://api.apiyi.com/v1,http://b.apiyi.com:16888/v1,http://12
 ```bash
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-SUPABASE_JWT_SECRET=your-jwt-secret
 ```
 
 ##### 不配置 Supabase 的情况
 
 如果跳过 Supabase 配置：
 - ✅ 所有核心功能正常工作
-- ✅ CLI 脚本无需任何配置即可使用
-- ❌ 无用户认证或配额限制
+- ✅ CLI 脚本不依赖 Supabase
+- ❌ 无用户认证
+- ❌ 无账户积分、兑换码、邀请码、历史文件等账号能力
 - ❌ 无云文件存储
 
 </details>
@@ -706,18 +773,8 @@ pip install vllm-0.11.0+cu124-cp312-cp312-win_amd64.whl
 **Paper2Any - 论文工作流 Web 前端（推荐）**
 
 ```bash
-# 本地后端运行配置统一在 deploy/app_config.sh 中维护
-# 可在该文件中修改：
-#   APP_PORT=8000
-#   APP_WORKERS=2
-
-# 启动后端 API
-./deploy/start.sh
-
-# 启动前端（新终端）
-cd frontend-workflow
-npm install
-npm run dev
+# NVIDIA 机器推荐直接使用一键入口
+bash deploy/start_nv.sh
 ```
 
 本地默认访问地址：
@@ -725,12 +782,15 @@ npm run dev
 - 后端健康检查：http://127.0.0.1:8000/health
 
 本地部署常用命令：
-- 启动后端：`./deploy/start.sh`
+- 推荐启动整套：`bash deploy/start_nv.sh`
+- 仅启动后端（需先加载 profile）：
+  `set -a && source deploy/profiles/nv.env && set +a && bash deploy/start.sh`
 - 停止后端：`./deploy/stop.sh`
 - 重启后端：`./deploy/restart.sh`
 
 说明：
-- `deploy/start.sh` 和 `deploy/stop.sh` 都会读取同一个 `deploy/app_config.sh`，端口不再分别写死。
+- `deploy/start.sh` 会读取 `deploy/app_config.sh`，但不会自动加载 `deploy/profiles/*.env`。
+- `deploy/start_nv.sh` 才是当前最稳妥的一键入口：它会加载 `deploy/profiles/nv.env`、准备本地模型、启动模型服务，再启动后端和前端。
 - 如果修改了 `APP_PORT`，也要同步更新 `frontend-workflow/vite.config.ts` 里的前端代理地址。
 
 **配置前端代理**
@@ -779,15 +839,8 @@ vllm serve opendatalab/MinerU2.5-2509-1.2B `
 #### 🎨 Web 前端（推荐）
 
 ```bash
-# 如需修改本地端口或 worker 数，请先编辑 deploy/app_config.sh
-
-# 启动后端 API
-./deploy/start.sh
-
-# 启动前端（新终端）
-cd frontend-workflow
-npm install
-npm run dev
+# NVIDIA 机器推荐直接使用一键入口
+bash deploy/start_nv.sh
 ```
 
 访问 `http://localhost:3000`。

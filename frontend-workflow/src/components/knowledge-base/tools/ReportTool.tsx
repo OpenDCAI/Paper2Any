@@ -7,6 +7,7 @@ import { getApiSettings } from '../../../services/apiSettingsService';
 import { backendFetch } from '../../../services/backendClient';
 import { useAuthStore } from '../../../stores/authStore';
 import { MarkdownViewerModal } from './MarkdownViewerModal';
+import { useRuntimeBilling } from '../../../hooks/useRuntimeBilling';
 
 interface ReportToolProps {
   files: KnowledgeFile[];
@@ -16,6 +17,7 @@ interface ReportToolProps {
 
 export const ReportTool = ({ files = [], selectedIds, onGenerateSuccess }: ReportToolProps) => {
   const { user } = useAuthStore();
+  const { userApiConfigRequired } = useRuntimeBilling();
   const [apiUrl, setApiUrl] = useState('https://api.apiyi.com/v1');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-5.1');
@@ -46,7 +48,7 @@ export const ReportTool = ({ files = [], selectedIds, onGenerateSuccess }: Repor
       alert('请先登录后再生成报告。');
       return;
     }
-    if (!apiKey.trim()) {
+    if (userApiConfigRequired && !apiKey.trim()) {
       alert('请输入 API Key');
       return;
     }
@@ -67,14 +69,18 @@ export const ReportTool = ({ files = [], selectedIds, onGenerateSuccess }: Repor
         },
         body: JSON.stringify({
           file_paths: filePaths,
-          api_url: apiUrl,
-          api_key: apiKey,
-          model,
           language,
           report_style: style,
           length,
           email: user.email,
-          user_id: user.id
+          user_id: user.id,
+          ...(userApiConfigRequired
+            ? {
+                api_url: apiUrl,
+                api_key: apiKey,
+                model,
+              }
+            : {})
         })
       });
 
@@ -131,39 +137,47 @@ export const ReportTool = ({ files = [], selectedIds, onGenerateSuccess }: Repor
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">API URL</label>
-          <select
-            value={apiUrl}
-            onChange={e => setApiUrl(e.target.value)}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-fuchsia-500"
-          >
-            {[apiUrl, ...API_URL_OPTIONS].filter((v, i, a) => a.indexOf(v) === i).map((url: string) => (
-              <option key={url} value={url}>{url}</option>
-            ))}
-          </select>
-        </div>
+        {userApiConfigRequired ? (
+          <>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">API URL</label>
+              <select
+                value={apiUrl}
+                onChange={e => setApiUrl(e.target.value)}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-fuchsia-500"
+              >
+                {[apiUrl, ...API_URL_OPTIONS].filter((v, i, a) => a.indexOf(v) === i).map((url: string) => (
+                  <option key={url} value={url}>{url}</option>
+                ))}
+              </select>
+            </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">API Key</label>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={e => setApiKey(e.target.value)}
-            placeholder="sk-..."
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-fuchsia-500 font-mono"
-          />
-        </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">API Key</label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={e => setApiKey(e.target.value)}
+                placeholder="sk-..."
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-fuchsia-500 font-mono"
+              />
+            </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">模型</label>
-          <input
-            type="text"
-            value={model}
-            onChange={e => setModel(e.target.value)}
-            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-fuchsia-500"
-          />
-        </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">模型</label>
+              <input
+                type="text"
+                value={model}
+                onChange={e => setModel(e.target.value)}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-gray-200 outline-none focus:border-fuchsia-500"
+              />
+            </div>
+          </>
+        ) : (
+          <div className="rounded-lg border border-fuchsia-500/20 bg-fuchsia-500/5 px-3 py-2 text-xs text-fuchsia-200/80">
+            Free 模式下由后端统一选择报告生成模型与接口配置。
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <button

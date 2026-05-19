@@ -4,6 +4,9 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
+from fastapi_app.config import settings
+from fastapi_app.services.managed_api_service import resolve_model_name
+
 router = APIRouter()
 
 
@@ -33,8 +36,16 @@ async def generate_paper2poster(
         paper_file=paper_file,
         chat_api_url=chat_api_url,
         api_key=api_key,
-        model=model,
-        vision_model=vision_model,
+        model=resolve_model_name(
+            model,
+            managed_default=settings.PAPER2POSTER_DEFAULT_MODEL,
+            fallback_default="gpt-4o",
+        ),
+        vision_model=resolve_model_name(
+            vision_model,
+            managed_default=settings.PAPER2POSTER_VISION_MODEL,
+            fallback_default="gpt-4o",
+        ),
         poster_width=poster_width,
         poster_height=poster_height,
         logo_file=logo_file,

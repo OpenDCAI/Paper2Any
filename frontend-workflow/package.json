@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "export:structured-ppt": "tsx scripts/run_paper2ppt_structured_export_cli.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.89.0",
@@ -31,6 +32,7 @@
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.3.6",
+    "tsx": "^4.20.6",
     "typescript": "^5.2.2",
     "vite": "^5.0.8"
   }
