@@ -55,6 +55,8 @@ const PREFERRED_FIELD_KEYS: Record<string, string> = {
   eyebrow: 'eyebrow',
 };
 
+const SYSTEM_PAGE_LABEL_RE = /^(?:slide\s*)?\d{1,3}\s*\/\s*\d{1,3}$|^第\s*\d{1,3}\s*\/\s*\d{1,3}\s*页$/i;
+
 const escapeHtml = (value: string) =>
   value
     .replace(/&/g, '&amp;')
@@ -98,6 +100,24 @@ const resolveTextRef = (slide: FrontendSlide, rawRef: unknown, fallback = '') =>
   if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean).join(' • ');
   if (typeof value === 'string' || typeof value === 'number') return String(value);
   return fallback;
+};
+
+const isSystemPageLabel = (value: unknown) =>
+  SYSTEM_PAGE_LABEL_RE.test(String(value || '').trim());
+
+const getSystemPageLabel = (slide: FrontendSlide) => {
+  const value = resolveTextRef(slide, 'eyebrow', '');
+  return isSystemPageLabel(value) ? value.trim() : '';
+};
+
+const renderFixedPageLabel = (slide: FrontendSlide) => {
+  const label = getSystemPageLabel(slide);
+  return label ? `<div class="schema-fixed-page-label">${formatTextValue(label)}</div>` : '';
+};
+
+const appendFixedPageLabel = (markup: string, slide: FrontendSlide) => {
+  const label = renderFixedPageLabel(slide);
+  return label ? markup.replace(/<\/div>\s*$/, `${label}</div>`) : markup;
 };
 
 const resolveListRef = (slide: FrontendSlide, rawRef: unknown, fallback: string[] = []) => {
@@ -343,6 +363,12 @@ const buildCanvasStyleAttr = (style: Record<string, unknown>) => {
   push('color');
   push('borderColor', 'border-color');
   push('borderWidth', 'border-width', 'px');
+  if (style.borderColor || style.borderWidth) {
+    if (style.borderColor && style.borderWidth === undefined) {
+      rules.push('border-width:1px');
+    }
+    rules.push('border-style:solid');
+  }
   push('radius', 'border-radius', 'px');
   push('padding', 'padding', 'px');
   push('fontFamily', 'font-family');
@@ -750,6 +776,7 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null, visualSpec?: Front
   const resolved = resolveCanvasVisualTheme(theme, visualSpec);
   return `
 .slide-root.schema-root {
+  position: relative;
   --schema-bg: ${resolved.palette.bg};
   --schema-panel: ${resolved.palette.panel};
   --schema-primary: ${resolved.palette.primary};
@@ -772,9 +799,9 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null, visualSpec?: Front
   width: 100%;
   height: 100%;
   background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--schema-secondary) 22%, transparent) 0%, transparent 28%),
-    radial-gradient(circle at bottom left, color-mix(in srgb, var(--schema-accent) 18%, transparent) 0%, transparent 34%),
-    linear-gradient(180deg, color-mix(in srgb, var(--schema-bg) 88%, #020617 12%), var(--schema-bg));
+    radial-gradient(circle at top right, rgba(148, 163, 184, 0.16) 0%, transparent 28%),
+    radial-gradient(circle at bottom left, rgba(194, 165, 106, 0.14) 0%, transparent 34%),
+    var(--schema-bg);
   color: var(--schema-text);
   overflow: hidden;
 }
@@ -794,6 +821,23 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null, visualSpec?: Front
     linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px);
   background-size: 52px 52px;
 }
+.schema-fixed-page-label {
+  position: absolute;
+  right: 44px;
+  bottom: 30px;
+  z-index: 20;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: var(--schema-muted);
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  font-family: var(--schema-body-font);
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
 .schema-header {
   display: flex;
   flex-direction: column;
@@ -803,8 +847,8 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null, visualSpec?: Front
   align-self: flex-start;
   padding: 8px 14px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--schema-secondary) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--schema-primary) 38%, transparent);
+  background: rgba(148, 163, 184, 0.14);
+  border: 1px solid rgba(148, 163, 184, 0.28);
   color: var(--schema-primary);
   font-size: var(--schema-eyebrow-size);
   font-weight: 700;
@@ -816,7 +860,7 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null, visualSpec?: Front
   font-family: var(--schema-title-font);
   font-size: var(--schema-title-size);
   line-height: 1.02;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
 }
 .schema-summary {
   margin: 0;
@@ -843,7 +887,7 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null, visualSpec?: Front
 .schema-image-card,
 .schema-table-card {
   background: var(--schema-panel);
-  border: 1px solid color-mix(in srgb, var(--schema-primary) 22%, transparent);
+  border: 1px solid rgba(148, 163, 184, 0.24);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
   border-radius: var(--schema-card-radius);
   backdrop-filter: blur(10px);
@@ -928,14 +972,14 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null, visualSpec?: Front
 }
 .schema-table th,
 .schema-table td {
-  border: 1px solid color-mix(in srgb, var(--schema-primary) 22%, transparent);
+  border: 1px solid rgba(148, 163, 184, 0.24);
   padding: 10px 12px;
   text-align: left;
   vertical-align: top;
   color: var(--schema-text);
 }
 .schema-table th {
-  background: color-mix(in srgb, var(--schema-primary) 14%, transparent);
+  background: rgba(148, 163, 184, 0.14);
   color: var(--schema-primary);
   font-weight: 800;
 }
@@ -984,10 +1028,10 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null, visualSpec?: Front
   justify-content: center;
   min-height: 120px;
   padding: 18px;
-  border: 1px dashed color-mix(in srgb, var(--schema-primary) 34%, transparent);
+  border: 1px dashed rgba(148, 163, 184, 0.34);
   border-radius: 18px;
   color: var(--schema-muted);
-  background: color-mix(in srgb, var(--schema-panel) 72%, transparent);
+  background: var(--schema-panel);
   font-family: var(--schema-body-font);
   font-size: 18px;
 }
@@ -1012,17 +1056,17 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null, visualSpec?: Front
   font-family: var(--schema-title-font);
   font-size: calc(var(--schema-title-size) * 0.72);
   line-height: 1.16;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   border-radius: 32px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--schema-primary) 14%, transparent), color-mix(in srgb, var(--schema-accent) 10%, transparent));
-  border: 1px solid color-mix(in srgb, var(--schema-primary) 26%, transparent);
+  background: rgba(148, 163, 184, 0.14);
+  border: 1px solid rgba(148, 163, 184, 0.26);
   color: var(--schema-text);
 }
 .schema-stat-value {
   font-family: var(--schema-title-font);
   font-size: calc(var(--schema-title-size) * 0.72);
   line-height: 1;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
 }
 .schema-stat-label {
   margin-top: 10px;
@@ -1038,7 +1082,7 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null, visualSpec?: Front
   min-width: 220px;
   padding: 13px 18px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--schema-accent) 36%, transparent);
+  border: 1px solid rgba(194, 165, 106, 0.36);
   color: var(--schema-accent);
   background: rgba(7, 16, 29, 0.68);
   font-size: calc(var(--schema-eyebrow-size) - 2px);
@@ -1084,13 +1128,13 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null, visualSpec?: Front
   margin-top: 6px;
   border-radius: 999px;
   background: linear-gradient(135deg, var(--schema-primary), var(--schema-accent));
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--schema-primary) 18%, transparent);
+  box-shadow: 0 0 0 6px rgba(148, 163, 184, 0.18);
 }
 .schema-timeline-copy {
   padding: 14px 16px;
   border-radius: 20px;
-  background: color-mix(in srgb, var(--schema-panel) 86%, transparent);
-  border: 1px solid color-mix(in srgb, var(--schema-primary) 18%, transparent);
+  background: var(--schema-panel);
+  border: 1px solid rgba(148, 163, 184, 0.18);
   font-family: var(--schema-body-font);
   font-size: calc(var(--schema-body-size) - 2px);
   line-height: 1.35;
@@ -1116,8 +1160,8 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null, visualSpec?: Front
 .schema-surface {
   padding: 20px 22px;
   border-radius: 24px;
-  background: color-mix(in srgb, var(--schema-panel) 92%, transparent);
-  border: 1px solid color-mix(in srgb, var(--schema-primary) 18%, transparent);
+  background: var(--schema-panel);
+  border: 1px solid rgba(148, 163, 184, 0.18);
 }
 .slide-root .ppt-inline-editable {
   cursor: text;
@@ -1230,7 +1274,7 @@ const buildSchemaSlideContext = (slide: FrontendSlide) => {
 
 const renderHeader = (slide: FrontendSlide, context: ReturnType<typeof buildSchemaSlideContext>) => `
   <div class="schema-header">
-    ${context.eyebrow ? renderTextBlock(slide, context.eyebrow, 'schema-eyebrow', 'div') : ''}
+    ${context.eyebrow && !isSystemPageLabel(context.eyebrow.content) ? renderTextBlock(slide, context.eyebrow, 'schema-eyebrow', 'div') : ''}
     ${context.title ? renderTextBlock(slide, context.title, 'schema-title', 'h1') : `<h1 class="schema-title">${escapeHtml(slide.title)}</h1>`}
     ${context.summary ? renderTextBlock(slide, context.summary, 'schema-summary') : ''}
   </div>
@@ -1283,6 +1327,7 @@ const renderCanvasComponent = (slide: FrontendSlide, node: FrontendCanvasNode) =
   if (component === 'text' || component === 'quote' || component === 'callout') {
     const ref = props.text_ref || props.textRef || props.ref;
     const value = resolveTextRef(slide, ref, String(props.text || ''));
+    if (String(ref || '').trim() === 'eyebrow' && isSystemPageLabel(value)) return '';
     if (!value.trim()) return renderCanvasPlaceholder(node, 'Missing text reference');
     const field = ref ? buildFieldMap(slide).get(String(ref)) : undefined;
     const className = component === 'quote' ? 'schema-quote' : component === 'callout' ? 'schema-callout' : 'schema-canvas-text';
@@ -1349,7 +1394,9 @@ const renderCanvasNode = (slide: FrontendSlide, node: FrontendCanvasNode): strin
   }
   const children = (node.children || []).map((child) => renderCanvasNode(slide, child)).filter(Boolean).join('');
   if (!children) return '';
-  const style = buildCanvasStyle(node);
+  const layoutStyle = buildCanvasStyle(node);
+  const visualStyle = buildCanvasStyleAttr(getCanvasNodeVisualStyle(slide, node, 'container'));
+  const style = [layoutStyle, visualStyle].filter(Boolean).join(';');
   const styleAttr = style ? ` style="${escapeHtml(style)}"` : '';
   return `
 <div class="schema-canvas-container" data-block-id="${escapeHtml(node.id)}" data-block-role="container" data-canvas-node-id="${escapeHtml(node.id)}"${styleAttr}>
@@ -1365,6 +1412,7 @@ const renderCanvasSlide = (slide: FrontendSlide) => `
       ${slide.root ? renderCanvasNode(slide, slide.root) : ''}
     </div>
     ${!slide.root ? renderCanvasPlaceholder({ type: 'component', id: 'missing_root', component: 'placeholder' }, 'Missing canvas root') : ''}
+    ${renderFixedPageLabel(slide)}
   </div>
 </div>
 `.trim();
@@ -1694,5 +1742,5 @@ export const buildSchemaSlideMarkup = (slide: FrontendSlide, theme?: FrontendDec
   }
   const templateKey = pickSchemaTemplateKey(slide);
   const renderer = TEMPLATE_RENDERERS[templateKey] || TEMPLATE_RENDERERS.text_focus;
-  return `<style>${buildSchemaBaseCss(theme)}</style>${renderer(slide, theme)}`;
+  return `<style>${buildSchemaBaseCss(theme)}</style>${appendFixedPageLabel(renderer(slide, theme), slide)}`;
 };

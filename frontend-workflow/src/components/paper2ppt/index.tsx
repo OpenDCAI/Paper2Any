@@ -1846,6 +1846,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       : undefined;
     return {
       themeName: String(theme.theme_name || theme.themeName || 'locked_deck_theme'),
+      stylePrompt: String(theme.style_prompt || theme.stylePrompt || ''),
       visualMood: String(theme.visual_mood || theme.visualMood || ''),
       footerText: String(theme.footer_text || theme.footerText || ''),
       sectionLabelTemplate: String(theme.section_label_template || theme.sectionLabelTemplate || ''),
@@ -2194,7 +2195,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     });
 
   const getEffectiveStylePrompt = (mode: PptGenerationMode = pptMode) =>
-    globalPrompt || getStyleDescription(stylePreset, mode);
+    globalPrompt || (mode === 'frontend' ? '' : getStyleDescription(stylePreset));
 
   const getFrontendGenerationCostPerPage = () => (frontendIncludeImages ? 2 : 1);
 
@@ -2528,17 +2529,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setReferenceImagePreview(null);
   };
 
-  const getStyleDescription = (preset: string, mode: PptGenerationMode = pptMode): string => {
-    if (mode === 'frontend') {
-      const frontendStyles: Record<string, string> = {
-        modern: '暖白或象牙白背景，深石墨文字，赤陶强调色，克制的 keynote 学术汇报风，禁止青色玻璃拟态。',
-        business: '午夜蓝或深海军蓝底色，冰灰文字，电蓝小面积强调，专业研究组汇报风，避免默认青绿色主调。',
-        academic: '纸感米白背景，墨黑正文，酒红重点标注，像学术讲义与答辩 deck 的结合，禁止赛博青蓝。',
-        creative: '森林绿或深橄榄主色，沙金点缀，奶油白底，组件统一且有高级研究报告气质，避免默认 cyan accent。',
-      };
-      return frontendStyles[preset] || frontendStyles.modern;
-    }
-
+  const getStyleDescription = (preset: string): string => {
     const imageStyles: Record<string, string> = {
       modern: '现代简约风格，使用干净的线条和充足的留白',
       business: '商务专业风格，稳重大气，适合企业演示',

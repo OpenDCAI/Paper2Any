@@ -14,6 +14,7 @@ const DESIGN_WIDTH = 1600;
 const DESIGN_HEIGHT = 900;
 const SLIDE_WIDTH_IN = 13.333;
 const SLIDE_HEIGHT_IN = 7.5;
+const POINTS_PER_CSS_PX = (SLIDE_HEIGHT_IN * 72) / DESIGN_HEIGHT;
 
 const DEFAULT_PALETTE = {
   bg: '#0b1020',
@@ -47,6 +48,8 @@ type ResolvedTheme = {
 };
 
 type ComputedStyleMap = Record<string, unknown>;
+
+const SYSTEM_PAGE_LABEL_RE = /^(?:slide\s*)?\d{1,3}\s*\/\s*\d{1,3}$|^第\s*\d{1,3}\s*\/\s*\d{1,3}\s*页$/i;
 
 type ResolvedCanvasVisualTheme = ResolvedTheme & {
   surface: {
@@ -146,7 +149,7 @@ const pxToIn = (value: number, axis: 'x' | 'y') =>
   (value / (axis === 'x' ? DESIGN_WIDTH : DESIGN_HEIGHT)) *
   (axis === 'x' ? SLIDE_WIDTH_IN : SLIDE_HEIGHT_IN);
 
-const pxToPt = (value: number) => value * 0.75;
+const pxToPt = (value: number) => value * POINTS_PER_CSS_PX;
 
 const parseCssPx = (value: unknown, fallback = 0) => {
   const parsed = Number.parseFloat(String(value || ''));
@@ -271,6 +274,14 @@ const resolveTextRef = (
     return String(value);
   }
   return fallback;
+};
+
+const isSystemPageLabel = (value: unknown) =>
+  SYSTEM_PAGE_LABEL_RE.test(String(value || '').trim());
+
+const getSystemPageLabel = (slide: FrontendSlide) => {
+  const value = resolveTextRef(slide, 'eyebrow', '');
+  return isSystemPageLabel(value) ? value.trim() : '';
 };
 
 const resolveListRef = (slide: FrontendSlide, ref: unknown, fallback: string[] = []) => {
@@ -462,10 +473,11 @@ const estimateCanvasNodeHeight = (
   }
 
   const style = node.style || {};
+  const visualStyle = getCanvasNodeVisualStyle(slide, node, 'container');
   const direction = style.direction === 'row' || style.direction === 'grid' ? style.direction : 'column';
   const gap = clampNumber(toFiniteNumber(style.gap, theme.layout.contentGap), 0, 72);
   const padding = clampNumber(
-    toFiniteNumber(style.padding, node.id === 'root' ? theme.layout.safeMargin : theme.surface.cardPadding),
+    toFiniteNumber(visualStyle.padding, toFiniteNumber(style.padding, node.id === 'root' ? theme.layout.safeMargin : theme.surface.cardPadding)),
     0,
     96,
   );
@@ -564,6 +576,64 @@ const buildComputedStyleForComponent = (
   };
 };
 
+const buildComputedStyleForContainer = (
+  node: FrontendCanvasNode,
+  theme: ResolvedCanvasVisualTheme,
+  visualStyle: FrontendCanvasVisualStyle,
+): ComputedStyleMap => {
+  const nodeStyle = node.style || {};
+  const padding = typeof visualStyle.padding === 'number'
+    ? visualStyle.padding
+    : clampNumber(toFiniteNumber(nodeStyle.padding, node.id === 'root' ? theme.layout.safeMargin : 0), 0, 96);
+  const borderColor = visualStyle.borderColor || 'transparent';
+  const borderWidth = typeof visualStyle.borderWidth === 'number' ? visualStyle.borderWidth : 0;
+  const textAlign = visualStyle.textAlign || 'left';
+  const alignItems = nodeStyle.align === 'center'
+    ? 'center'
+    : nodeStyle.align === 'end'
+      ? 'flex-end'
+      : nodeStyle.align === 'stretch'
+        ? 'stretch'
+        : 'flex-start';
+  const justifyContent = nodeStyle.justify === 'center'
+    ? 'center'
+    : nodeStyle.justify === 'end'
+      ? 'flex-end'
+      : nodeStyle.justify === 'between'
+        ? 'space-between'
+        : nodeStyle.justify === 'around'
+          ? 'space-around'
+          : 'flex-start';
+  return {
+    fontFamily: visualStyle.fontFamily || theme.typography.bodyFontStack,
+    fontSize: `${visualStyle.fontSize || theme.typography.bodySize}px`,
+    fontWeight: String(visualStyle.fontWeight || 400),
+    fontStyle: visualStyle.fontStyle || 'normal',
+    lineHeight: `${visualStyle.lineHeight || Math.round((visualStyle.fontSize || theme.typography.bodySize) * 1.28)}px`,
+    color: visualStyle.color || theme.palette.text,
+    backgroundColor: visualStyle.fill || 'transparent',
+    borderColor,
+    borderTopColor: borderColor,
+    borderRightColor: borderColor,
+    borderBottomColor: borderColor,
+    borderLeftColor: borderColor,
+    borderTopWidth: `${borderWidth}px`,
+    borderRightWidth: `${borderWidth}px`,
+    borderBottomWidth: `${borderWidth}px`,
+    borderLeftWidth: `${borderWidth}px`,
+    paddingTop: `${padding}px`,
+    paddingRight: `${padding}px`,
+    paddingBottom: `${padding}px`,
+    paddingLeft: `${padding}px`,
+    textAlign,
+    verticalAlign: justifyContent === 'center' ? 'middle' : justifyContent === 'flex-end' ? 'bottom' : 'top',
+    display: nodeStyle.direction === 'grid' ? 'grid' : 'flex',
+    alignItems,
+    justifyContent,
+    opacity: visualStyle.opacity !== undefined ? visualStyle.opacity : 1,
+  };
+};
+
 const buildFallbackLayoutNodes = (
   slide: FrontendSlide,
   theme: ResolvedCanvasVisualTheme,
@@ -597,10 +667,23 @@ const buildFallbackLayoutNodes = (
 
     const children = (node.children || []).filter(Boolean);
     const style = node.style || {};
+    const visualStyle = getCanvasNodeVisualStyle(slide, node, 'container');
+    layoutNodes.push({
+      nodeId: node.id,
+      type: 'container',
+      box: {
+        x: Math.round(box.x),
+        y: Math.round(box.y),
+        w: Math.round(box.w),
+        h: Math.round(box.h),
+      },
+      computedStyle: buildComputedStyleForContainer(node, theme, visualStyle),
+      overflow: false,
+    });
     const direction = style.direction === 'row' || style.direction === 'grid' ? style.direction : 'column';
     const gap = clampNumber(toFiniteNumber(style.gap, theme.layout.contentGap), 0, 72);
     const padding = clampNumber(
-      toFiniteNumber(style.padding, node.id === 'root' ? theme.layout.safeMargin : theme.surface.cardPadding),
+      toFiniteNumber(visualStyle.padding, toFiniteNumber(style.padding, node.id === 'root' ? theme.layout.safeMargin : theme.surface.cardPadding)),
       0,
       96,
     );
@@ -729,6 +812,61 @@ const addPanelShape = (
   });
 };
 
+const renderCanvasContainerFrame = (
+  pptSlide: PptxGenJS.Slide,
+  pptx: PptxGenJS,
+  layoutNode: FrontendLayoutIRNode,
+  theme: ResolvedTheme,
+) => {
+  const box = toPptBox(layoutNode);
+  const background = styleValue(layoutNode, 'backgroundColor');
+  const borderWidth = Math.max(
+    parseCssPx(styleValue(layoutNode, 'borderTopWidth'), 0),
+    parseCssPx(styleValue(layoutNode, 'borderRightWidth'), 0),
+    parseCssPx(styleValue(layoutNode, 'borderBottomWidth'), 0),
+    parseCssPx(styleValue(layoutNode, 'borderLeftWidth'), 0),
+  );
+  const hasBackground = Boolean(background && background !== 'transparent' && background !== 'rgba(0, 0, 0, 0)');
+  const hasBorder = borderWidth > 0;
+  if (!hasBackground && !hasBorder) return;
+  pptSlide.addShape(pptx.ShapeType.roundRect, {
+    ...box,
+    rectRadius: 0.04,
+    fill: {
+      color: hasBackground ? toHexColor(background, theme.palette.panel) : toHexColor(theme.palette.panel, '#0F172A'),
+      transparency: hasBackground ? 8 : 100,
+    },
+    line: {
+      color: hasBorder ? colorFromStyle(layoutNode, 'borderColor', theme.palette.primary) : toHexColor(theme.palette.primary, '#7DD3FC'),
+      transparency: hasBorder ? 35 : 100,
+      width: Math.max(0.2, Math.min(3, pxToPt(borderWidth))),
+    },
+  });
+};
+
+const renderFixedPageLabel = (
+  pptSlide: PptxGenJS.Slide,
+  label: string,
+  theme: ResolvedTheme,
+) => {
+  if (!label.trim()) return;
+  pptSlide.addText(label.trim(), {
+    x: SLIDE_WIDTH_IN - 1.32,
+    y: SLIDE_HEIGHT_IN - 0.42,
+    w: 1.06,
+    h: 0.18,
+    margin: [0, 2, 0, 2],
+    fontFace: firstFont(theme.typography.bodyFontStack, 'Arial'),
+    fontSize: 7.5,
+    bold: true,
+    color: toHexColor(theme.palette.muted, '#94A3B8'),
+    align: 'right',
+    valign: 'middle',
+    breakLine: false,
+    fit: 'shrink',
+  });
+};
+
 const addText = (
   slide: PptxGenJS.Slide,
   text: string,
@@ -840,12 +978,16 @@ const renderCanvasComponent = async (
   const primaryColor = toHexColor(theme.palette.primary, '#7DD3FC');
   const accentColor = toHexColor(theme.palette.accent, '#F59E0B');
   const panelColor = toHexColor(theme.palette.panel, '#0F172A');
+  const rawTextRef = props.text_ref || props.textRef || props.ref;
+  if (String(rawTextRef || '').trim() === 'eyebrow' && isSystemPageLabel(resolveTextRef(sourceSlide, rawTextRef, String(props.text || props.content || '')))) {
+    return;
+  }
 
   if (component === 'heading') {
     const fontSize = fontSizeFromStyle(layoutNode, theme.typography.titleSize);
     addText(
       pptSlide,
-      resolveTextRef(sourceSlide, props.text_ref || props.textRef || props.ref, String(props.text || sourceSlide.title || 'Untitled')),
+      resolveTextRef(sourceSlide, rawTextRef, String(props.text || sourceSlide.title || 'Untitled')),
       insetBoxForText(box),
       {
         fontFace: fontFaceFromStyle(layoutNode, titleFont),
@@ -939,7 +1081,7 @@ const renderCanvasComponent = async (
     return;
   }
 
-  const value = resolveTextRef(sourceSlide, props.text_ref || props.textRef || props.ref, String(props.text || props.content || ''));
+  const value = resolveTextRef(sourceSlide, rawTextRef, String(props.text || props.content || ''));
   if (component === 'quote' || component === 'callout') {
     addPanelShape(pptSlide, pptx, box, panelColor, component === 'quote' ? primaryColor : accentColor, 14);
   }
@@ -985,18 +1127,24 @@ export const buildCanvasSlidesPptxBlob = async (
     const nodeMap = new Map<string, FrontendCanvasNode>();
     walkCanvasNodes(sourceSlide.root, nodeMap);
     const measuredLayoutNodes = (sourceSlide.layoutIr?.nodes || [])
-      .filter((item) => item.type === 'component' && nodeMap.has(item.nodeId));
+      .filter((item) => nodeMap.has(item.nodeId));
     const measuredIds = new Set(measuredLayoutNodes.map((item) => item.nodeId));
     const fallbackLayoutNodes = buildFallbackLayoutNodes(sourceSlide, slideTheme)
-      .filter((item) => item.type === 'component' && nodeMap.has(item.nodeId) && !measuredIds.has(item.nodeId));
+      .filter((item) => nodeMap.has(item.nodeId) && !measuredIds.has(item.nodeId));
     const layoutNodes = [...measuredLayoutNodes, ...fallbackLayoutNodes];
     const assets = buildAssetMap(sourceSlide);
 
+    for (const layoutNode of layoutNodes.filter((item) => item.type === 'container')) {
+      renderCanvasContainerFrame(pptSlide, pptx, layoutNode, slideTheme);
+    }
+
     for (const layoutNode of layoutNodes) {
+      if (layoutNode.type !== 'component') continue;
       const node = nodeMap.get(layoutNode.nodeId);
       if (!node) continue;
       await renderCanvasComponent(pptSlide, pptx, sourceSlide, node, layoutNode, slideTheme, assets);
     }
+    renderFixedPageLabel(pptSlide, getSystemPageLabel(sourceSlide), slideTheme);
   }
 
   const output = await pptx.write({ outputType: 'blob', compression: true });

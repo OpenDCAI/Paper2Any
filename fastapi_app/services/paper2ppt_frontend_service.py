@@ -75,6 +75,15 @@ _ALLOWED_LAYOUT_ZONES = {"header", "main", "aside", "footer", "full", "left", "r
 _ALLOWED_WIDTH_HINTS = {"full", "wide", "half", "third", "narrow", "auto"}
 _ALLOWED_SIDE_HINTS = {"left", "right", "center", "auto"}
 _ALLOWED_EMPHASIS_HINTS = {"high", "medium", "low"}
+_COVER_INTENT_RE = re.compile(
+    r"(封面|标题页|cover|title\s*slide|title\s*page|汇报人|presenter|仅保留标题|居中排版)",
+    re.IGNORECASE,
+)
+_LAYOUT_INSTRUCTION_RE = re.compile(
+    r"(整页|页面|布局|排版|置于|放置|居中|左右|上下|留出|大面积空白|不放置|不放|图表|说明|正文|"
+    r"layout|place|position|center|left|right|top|bottom|blank|do not|without)",
+    re.IGNORECASE,
+)
 _SUPPORTED_SCHEMA_TEMPLATE_KEYS = (
     "title_cover",
     "section_divider",
@@ -123,6 +132,22 @@ _PREVIEW_SMALL_FILE_BYTES = 900 * 1024
 _PREVIEW_JPEG_QUALITY = 82
 _PIL_RESAMPLING = getattr(Image, "Resampling", Image)
 _PIL_LANCZOS = _PIL_RESAMPLING.LANCZOS
+
+
+def _format_exception_for_log(exc: BaseException) -> str:
+    text = str(exc).strip()
+    status_code = getattr(exc, "status_code", None)
+    detail = getattr(exc, "detail", None)
+    if status_code is not None or detail:
+        parts = [exc.__class__.__name__]
+        if status_code is not None:
+            parts.append(f"status_code={status_code}")
+        if detail:
+            parts.append(f"detail={detail}")
+        elif text:
+            parts.append(text)
+        return " ".join(parts)
+    return text or repr(exc)
 
 
 class Paper2PPTFrontendService:
@@ -558,15 +583,16 @@ class Paper2PPTFrontendService:
             normalized["_raw_ai_payload"] = raw_payload
             return normalized
         except Exception as exc:  # noqa: BLE001
+            error_message = _format_exception_for_log(exc)
             log.warning(
                 "[Paper2PPTFrontendService] Falling back to default slide for page %s: %s",
                 slide_index,
-                exc,
+                error_message,
             )
             fallback_slide["generation_note"] = (
-                f"Fallback template used because frontend code generation failed: {exc}"
+                f"Fallback template used because frontend code generation failed: {error_message}"
             )
-            fallback_slide["_raw_ai_payload"] = {"error": str(exc), "fallback": True}
+            fallback_slide["_raw_ai_payload"] = {"error": error_message, "fallback": True}
             return fallback_slide
 
     async def _call_llm_json(
@@ -666,7 +692,7 @@ class Paper2PPTFrontendService:
         language: str,
         style: str,
     ) -> Dict[str, Any]:
-        existing_theme = self._load_deck_theme(slides_dir)
+        existing_theme = self._load_deck_theme(slides_dir, language=language, style=style, require_style_match=True)
         if existing_theme is not None:
             return existing_theme
 
@@ -680,7 +706,10 @@ class Paper2PPTFrontendService:
                 style=style,
             )
         except Exception as exc:  # noqa: BLE001
-            log.warning("[Paper2PPTFrontendService] Failed to generate deck theme: %s", exc)
+            log.warning(
+                "[Paper2PPTFrontendService] Failed to generate deck theme: %s",
+                _format_exception_for_log(exc),
+            )
             theme = self._build_fallback_theme(language=language, style=style)
 
         self._write_deck_theme(slides_dir, theme)
@@ -1366,6 +1395,244 @@ Requirements:
             "rows": normalized_rows,
         }
 
+    def _is_cover_slide_intent(self, outline_item: Dict[str, Any], slide_index: int) -> bool:
+        title = str(outline_item.get("title") or "").strip()
+        layout_description = str(outline_item.get("layout_description") or "").strip()
+        key_points = [
+            str(item).strip()
+            for item in (outline_item.get("key_points") or [])
+            if str(item).strip()
+        ]
+        text = " ".join([title, layout_description, *key_points])
+        return bool(_COVER_INTENT_RE.search(text)) or (slide_index == 0 and not key_points)
+
+    def _is_layout_instruction_text(self, value: Any, outline_item: Dict[str, Any]) -> bool:
+        text = str(value or "").strip()
+        if not text:
+            return False
+        layout_description = str(outline_item.get("layout_description") or "").strip()
+        if layout_description and text == layout_description:
+            return True
+        if len(text) >= 36 and _LAYOUT_INSTRUCTION_RE.search(text):
+            return True
+        return False
+
+    def _remove_layout_instruction_content(
+        self,
+        *,
+        content: Dict[str, Any],
+        outline_item: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        cleaned = dict(content)
+        for key in list(cleaned.keys()):
+            if key == "assets":
+                continue
+            value = cleaned.get(key)
+            if isinstance(value, str) and self._is_layout_instruction_text(value, outline_item):
+                cleaned.pop(key, None)
+            elif isinstance(value, list):
+                filtered = [
+                    item
+                    for item in value
+                    if not self._is_layout_instruction_text(item, outline_item)
+                ]
+                if filtered:
+                    cleaned[key] = filtered
+                else:
+                    cleaned.pop(key, None)
+        return cleaned
+
+    def _layout_instruction_content_keys(
+        self,
+        *,
+        content: Dict[str, Any],
+        outline_item: Dict[str, Any],
+    ) -> set[str]:
+        keys: set[str] = set()
+        for key, value in content.items():
+            normalized_key = self._slugify(key)
+            if not normalized_key or normalized_key == "assets":
+                continue
+            if isinstance(value, str) and self._is_layout_instruction_text(value, outline_item):
+                keys.add(normalized_key)
+            elif isinstance(value, list) and value and all(
+                self._is_layout_instruction_text(item, outline_item)
+                for item in value
+            ):
+                keys.add(normalized_key)
+        return keys
+
+    def _prune_canvas_refs(
+        self,
+        node: Any,
+        *,
+        removed_keys: set[str],
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(node, dict):
+            return None
+        normalized = dict(node)
+        if str(normalized.get("type") or "") == "component":
+            props = normalized.get("props") if isinstance(normalized.get("props"), dict) else {}
+            for prop_name, raw_ref in props.items():
+                if prop_name in {"asset_ref", "assetRef"}:
+                    continue
+                if prop_name.endswith("_ref") or prop_name.endswith("Ref") or prop_name == "ref":
+                    if self._slugify(raw_ref) in removed_keys:
+                        return None
+
+        children = normalized.get("children")
+        if isinstance(children, list):
+            normalized["children"] = [
+                child
+                for child in (
+                    self._prune_canvas_refs(child, removed_keys=removed_keys)
+                    for child in children
+                )
+                if child is not None
+            ]
+        return normalized
+
+    def _build_cover_canvas_root(self, *, has_presenter: bool) -> Dict[str, Any]:
+        header_children: List[Dict[str, Any]] = [
+            {
+                "type": "component",
+                "id": "title",
+                "component": "heading",
+                "props": {"text_ref": "title"},
+            },
+        ]
+        if has_presenter:
+            header_children.append(
+                {
+                    "type": "component",
+                    "id": "presenter",
+                    "component": "text",
+                    "props": {"text_ref": "presenter"},
+                }
+            )
+
+        return {
+            "type": "container",
+            "id": "root",
+            "style": {
+                "direction": "column",
+                "gap": 20,
+                "padding": 0,
+                "align": "center",
+                "justify": "center",
+            },
+            "children": [
+                {
+                    "type": "container",
+                    "id": "cover_stack",
+                    "style": {
+                        "direction": "column",
+                        "gap": 24,
+                        "align": "center",
+                        "justify": "center",
+                    },
+                    "children": header_children,
+                }
+            ],
+        }
+
+    def _apply_cover_slide_contract(
+        self,
+        *,
+        slide: Dict[str, Any],
+        outline_item: Dict[str, Any],
+        slide_index: int,
+        slide_count: int,
+        theme: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if not self._is_cover_slide_intent(outline_item, slide_index):
+            return slide
+
+        normalized = dict(slide)
+        raw_content = normalized.get("content") if isinstance(normalized.get("content"), dict) else {}
+        title = str(raw_content.get("title") or normalized.get("title") or outline_item.get("title") or f"Slide {slide_index + 1}").strip()
+        presenter = str(raw_content.get("presenter") or raw_content.get("author") or raw_content.get("speaker") or "").strip()
+        if not presenter:
+            match = re.search(r"(汇报人[:：]\s*[^\n\r]+|Presenter[:：]\s*[^\n\r]+)", title, flags=re.IGNORECASE)
+            if match:
+                presenter = match.group(1).strip()
+                title = title.replace(match.group(1), "").strip()
+        if not presenter:
+            presenter = "汇报人：XXX"
+
+        section_template = str(theme.get("section_label_template") or "Slide {page_num:02d}/{slide_count:02d}")
+        try:
+            eyebrow = section_template.format(page_num=slide_index + 1, slide_count=slide_count)
+        except Exception:  # noqa: BLE001
+            eyebrow = f"Slide {slide_index + 1:02d}/{slide_count:02d}"
+
+        assets = raw_content.get("assets") if isinstance(raw_content.get("assets"), dict) else {}
+        normalized["template_key"] = "title_cover"
+        normalized["layout_family"] = "title_cover"
+        normalized["layout_mode"] = "fixed"
+        normalized["content"] = {
+            "eyebrow": str(raw_content.get("eyebrow") or eyebrow),
+            "title": title or f"Slide {slide_index + 1}",
+            "presenter": presenter,
+            "assets": assets,
+        }
+        normalized["root"] = self._build_cover_canvas_root(has_presenter=bool(presenter))
+        normalized["blocks"] = []
+        normalized["editable_fields"] = [
+            {
+                "key": "eyebrow",
+                "label": "Eyebrow",
+                "type": "text",
+                "value": normalized["content"]["eyebrow"],
+                "items": [],
+            },
+            {
+                "key": "title",
+                "label": "Title",
+                "type": "text",
+                "value": normalized["content"]["title"],
+                "items": [],
+            },
+            {
+                "key": "presenter",
+                "label": "Presenter",
+                "type": "text",
+                "value": normalized["content"]["presenter"],
+                "items": [],
+            },
+        ]
+        visual_spec = normalized.get("visual_spec") if isinstance(normalized.get("visual_spec"), dict) else {}
+        visual_spec = dict(visual_spec)
+        node_styles = dict(visual_spec.get("node_styles") or visual_spec.get("nodeStyles") or {})
+        palette = theme.get("palette") if isinstance(theme.get("palette"), dict) else {}
+        typography = theme.get("typography") if isinstance(theme.get("typography"), dict) else {}
+        node_styles.update(
+            {
+                "cover_stack": {
+                    "text_align": "center",
+                },
+                "eyebrow": {
+                    "text_align": "center",
+                    "font_size": 20,
+                    "color": palette.get("primary", ""),
+                },
+                "title": {
+                    "text_align": "center",
+                    "font_size": min(64, max(44, int(typography.get("title_size") or 56))),
+                    "font_weight": 700,
+                },
+                "presenter": {
+                    "text_align": "center",
+                    "font_size": max(22, int(typography.get("summary_size") or 26)),
+                    "color": palette.get("muted", ""),
+                },
+            }
+        )
+        visual_spec["node_styles"] = node_styles
+        normalized["visual_spec"] = visual_spec
+        normalized["generation_note"] = "Cover slide normalized from layout intent."
+        return normalized
+
     def _default_zone_for_block(
         self,
         *,
@@ -1507,7 +1774,6 @@ Requirements:
             for item in (outline_item.get("key_points") or [])
             if str(item).strip()
         ]
-        layout_description = str(outline_item.get("layout_description") or "").strip()
         available_asset_keys = [
             self._slugify(asset.get("key") or "")
             for asset in visual_assets
@@ -1674,7 +1940,7 @@ Requirements:
                 }
             )
 
-        if (layout_description or outline_points) and not any(
+        if outline_points and not any(
             str(block.get("role") or "") in {"summary", "body"}
             for block in normalized
         ):
@@ -1683,7 +1949,7 @@ Requirements:
                     "id": "summary",
                     "type": "text",
                     "role": "summary",
-                    "content": outline_points[0] if outline_points else layout_description,
+                    "content": outline_points[0],
                     "items": [],
                     "asset_key": "",
                     "layout": self._normalize_layout_hint(
@@ -2066,9 +2332,9 @@ Requirements:
         except Exception:  # noqa: BLE001
             return None
         if min_value is not None:
-            parsed = max(min_value, parsed)
+            parsed = max(float(min_value), parsed)
         if max_value is not None:
-            parsed = min(max_value, parsed)
+            parsed = min(float(max_value), parsed)
         return int(parsed) if parsed.is_integer() else parsed
 
     def _normalize_canvas_visual_style(self, raw_style: Any) -> Dict[str, Any]:
@@ -2425,6 +2691,9 @@ Requirements:
             if not isinstance(block, dict):
                 continue
             block_id = self._slugify(block.get("id") or block.get("role") or "") or "block"
+            role = self._slugify(block.get("role") or "")
+            if role == "eyebrow":
+                continue
             layout = block.get("layout") if isinstance(block.get("layout"), dict) else {}
             zone = str(layout.get("zone") or "main").strip().lower()
             side = str(layout.get("preferred_side") or layout.get("preferredSide") or "").strip().lower()
@@ -2613,6 +2882,7 @@ Requirements:
         *,
         slide: Dict[str, Any],
         visual_assets: Sequence[Dict[str, Any]],
+        outline_item: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         normalized = dict(slide)
         derived_content = self._build_canvas_content(slide=normalized, visual_assets=visual_assets)
@@ -2633,6 +2903,23 @@ Requirements:
                 **(derived_content.get("assets") if isinstance(derived_content.get("assets"), dict) else {}),
                 **(content.get("assets") if isinstance(content.get("assets"), dict) else {}),
             }
+
+        if outline_item is not None:
+            removed_keys = self._layout_instruction_content_keys(content=content, outline_item=outline_item)
+            if removed_keys:
+                content = self._remove_layout_instruction_content(content=content, outline_item=outline_item)
+                if isinstance(normalized.get("root"), dict):
+                    normalized["root"] = self._prune_canvas_refs(normalized["root"], removed_keys=removed_keys)
+                blocks = normalized.get("blocks")
+                if isinstance(blocks, list):
+                    normalized["blocks"] = [
+                        block
+                        for block in blocks
+                        if not (
+                            isinstance(block, dict)
+                            and self._slugify(block.get("role") or block.get("id") or "") in removed_keys
+                        )
+                    ]
 
         blocks = normalized.get("blocks") or []
         if not isinstance(normalized.get("root"), dict):
@@ -2776,7 +3063,7 @@ Requirements:
             for item in (outline_item.get("key_points") or [])
             if str(item).strip()
         ][:4]
-        summary = key_points[0] if key_points else str(outline_item.get("layout_description") or "").strip()
+        summary = key_points[0] if key_points else ""
         takeaway = key_points[-1] if key_points else "Refine the narrative in the editor"
         section_template = str(theme.get("section_label_template") or "Slide {page_num:02d}/{slide_count:02d}")
         try:
@@ -2815,22 +3102,26 @@ Requirements:
                     has_visual_assets=has_visual,
                 ),
             },
-            {
-                "id": "summary",
-                "type": "text",
-                "role": "summary",
-                "content": summary,
-                "items": [],
-                "asset_key": "",
-                "layout": self._normalize_layout_hint(
-                    {"zone": "main", "span": 7 if has_visual else 12, "preferred_width": "wide"},
-                    block_type="text",
-                    role="summary",
-                    order=3,
-                    has_visual_assets=has_visual,
-                ),
-            },
         ]
+
+        if summary:
+            blocks.append(
+                {
+                    "id": "summary",
+                    "type": "text",
+                    "role": "summary",
+                    "content": summary,
+                    "items": [],
+                    "asset_key": "",
+                    "layout": self._normalize_layout_hint(
+                        {"zone": "main", "span": 7 if has_visual else 12, "preferred_width": "wide"},
+                        block_type="text",
+                        role="summary",
+                        order=3,
+                        has_visual_assets=has_visual,
+                    ),
+                }
+            )
 
         if key_points:
             blocks.append(
@@ -3002,7 +3293,14 @@ Requirements:
             "generation_note": str(payload.get("generation_note") or "Normalized from legacy html/css slide payload."),
             "status": "done",
         }
-        return self._normalize_canvas_schema(slide=slide, visual_assets=visual_assets)
+        slide = self._apply_cover_slide_contract(
+            slide=slide,
+            outline_item=outline_item,
+            slide_index=slide_index,
+            slide_count=slide_count,
+            theme=theme,
+        )
+        return self._normalize_canvas_schema(slide=slide, visual_assets=visual_assets, outline_item=outline_item)
 
     def _build_messages(
         self,
@@ -3073,9 +3371,11 @@ Hard requirements:
 11. Use the supplied deck theme so every page belongs to the same presentation family.
 12. Treat theme_lock as non-negotiable. Do not invent a new palette family, typography system, or unrelated component language.
 13. Prefer 4-8 meaningful visible components. Avoid over-fragmentation and repeated content.
-14. Keep titles within 2 lines, and keep body content concise enough for a readable academic slide.
-15. If reference deck slides are provided, preserve their Canvas component grammar, layout family, and visual_spec language.
-16. Browser layout measurement will produce layout_ir later; do not output layout_ir.
+14. layout_description is layout intent only. Never copy it or paraphrase it into content, summary, bullets, notes, footer, or any visible text.
+15. For cover/title pages, include only essential visible fields such as eyebrow, title, presenter/author, and optional date. Do not invent summary, takeaway, bullets, or footer copy unless the outline explicitly provides it as content.
+16. Keep titles within 2 lines, and keep body content concise enough for a readable academic slide.
+17. If reference deck slides are provided, preserve their Canvas component grammar, layout family, and visual_spec language.
+18. Browser layout measurement will produce layout_ir later; do not output layout_ir.
 """.strip()
 
         outline_payload = {
@@ -3318,7 +3618,14 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                 slide["constraints"] = payload["constraints"]
             if isinstance(payload.get("editable_map"), dict):
                 slide["editable_map"] = payload["editable_map"]
-            return self._normalize_canvas_schema(slide=slide, visual_assets=visual_assets)
+            slide = self._apply_cover_slide_contract(
+                slide=slide,
+                outline_item=outline_item,
+                slide_index=slide_index,
+                slide_count=slide_count,
+                theme=theme,
+            )
+            return self._normalize_canvas_schema(slide=slide, visual_assets=visual_assets, outline_item=outline_item)
 
         if raw_blocks is None:
             return self._normalize_legacy_slide_payload(
@@ -3397,7 +3704,14 @@ If there are any meaningful problems, set passed=false and provide a concrete re
             slide["constraints"] = payload["constraints"]
         if isinstance(payload.get("editable_map"), dict):
             slide["editable_map"] = payload["editable_map"]
-        return self._normalize_canvas_schema(slide=slide, visual_assets=visual_assets)
+        slide = self._apply_cover_slide_contract(
+            slide=slide,
+            outline_item=outline_item,
+            slide_index=slide_index,
+            slide_count=slide_count,
+            theme=theme,
+        )
+        return self._normalize_canvas_schema(slide=slide, visual_assets=visual_assets, outline_item=outline_item)
 
     def _normalize_review_payload(
         self,
@@ -3469,9 +3783,12 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                         str(item).strip()
                         for item in (raw_field.get("items") or [])
                         if str(item).strip()
+                        and not self._is_layout_instruction_text(item, outline_item)
                     ]
                     if not items:
                         items = outline_points[:4]
+                    if not items:
+                        continue
                     normalized.append(
                         {
                             "key": key,
@@ -3483,6 +3800,8 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                     )
                 else:
                     value = str(raw_field.get("value") or "").strip()
+                    if self._is_layout_instruction_text(value, outline_item):
+                        continue
                     normalized.append(
                         {
                             "key": key,
@@ -3510,9 +3829,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                     "key": "summary",
                     "label": "Summary",
                     "type": "textarea",
-                    "value": str(
-                        (outline_points[0] if outline_points else outline_item.get("layout_description") or "")
-                    ).strip(),
+                    "value": str(outline_points[0] if outline_points else "").strip(),
                     "items": [],
                 }
             )
@@ -3726,6 +4043,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
         ][:6]
 
         return {
+            "style_prompt": str(style or "").strip(),
             "theme_name": _clean_text(payload.get("theme_name"), fallback["theme_name"]),
             "visual_mood": _clean_text(payload.get("visual_mood"), fallback["visual_mood"]),
             "palette": {
@@ -4171,7 +4489,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
             for item in (outline_item.get("key_points") or [])
             if str(item).strip()
         ][:4]
-        summary = key_points[0] if key_points else str(outline_item.get("layout_description") or "").strip()
+        summary = key_points[0] if key_points else ""
         takeaway = key_points[-1] if key_points else "Refine the narrative in the editor"
         section_template = str(theme.get("section_label_template") or "Slide {page_num:02d}/{slide_count:02d}")
         try:
@@ -4290,7 +4608,7 @@ If there are any meaningful problems, set passed=false and provide a concrete re
   max-width: 880px;
   font-size: {int(typography.get("title_size") or 56)}px;
   line-height: 1.04;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   font-family: {typography.get("title_font_stack") or 'Georgia, "Times New Roman", serif'};
 }}
 .summary {{
@@ -4487,7 +4805,14 @@ If there are any meaningful problems, set passed=false and provide a concrete re
             "generation_note": "Built-in fallback template",
             "status": "done",
         }
-        return self._normalize_canvas_schema(slide=slide, visual_assets=visual_assets)
+        slide = self._apply_cover_slide_contract(
+            slide=slide,
+            outline_item=outline_item,
+            slide_index=slide_index,
+            slide_count=slide_count,
+            theme=theme,
+        )
+        return self._normalize_canvas_schema(slide=slide, visual_assets=visual_assets, outline_item=outline_item)
 
     def _sanitize_html_template(self, html_template: str) -> str:
         cleaned = re.sub(r"<\s*/?\s*(html|head|body)\b[^>]*>", "", html_template, flags=re.IGNORECASE)
@@ -4586,7 +4911,14 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                 return field["value"]
         return ""
 
-    def _load_deck_theme(self, slides_dir: Path) -> Optional[Dict[str, Any]]:
+    def _load_deck_theme(
+        self,
+        slides_dir: Path,
+        *,
+        language: str = "zh",
+        style: str = "",
+        require_style_match: bool = False,
+    ) -> Optional[Dict[str, Any]]:
         theme_path = slides_dir / _THEME_FILENAME
         if not theme_path.exists():
             return None
@@ -4596,7 +4928,13 @@ If there are any meaningful problems, set passed=false and provide a concrete re
             return None
         if not isinstance(payload, dict):
             return None
-        return self._normalize_theme_payload(payload, language="zh", style="")
+        if require_style_match:
+            cached_style = str(payload.get("style_prompt") or payload.get("stylePrompt") or "").strip()
+            requested_style = str(style or "").strip()
+            if cached_style != requested_style:
+                return None
+        normalized = self._normalize_theme_payload(payload, language=language, style=style)
+        return normalized
 
     def _write_deck_theme(self, slides_dir: Path, theme: Dict[str, Any]) -> None:
         (slides_dir / _THEME_FILENAME).write_text(

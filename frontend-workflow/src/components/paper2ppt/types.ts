@@ -320,6 +320,7 @@ export interface FrontendThemeLock {
 
 export interface FrontendDeckTheme {
   themeName: string;
+  stylePrompt?: string;
   visualMood: string;
   footerText: string;
   sectionLabelTemplate: string;
