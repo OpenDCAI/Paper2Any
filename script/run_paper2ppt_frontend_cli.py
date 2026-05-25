@@ -60,6 +60,7 @@ Examples:
     parser.add_argument("--page-count", type=int, default=8, help="Target page count")
     parser.add_argument("--use-long-paper", action="store_true", help="Force long-paper outline workflow")
     parser.add_argument("--include-images", action="store_true", help="Generate/reuse supporting images for editable slides")
+    parser.add_argument("--image-mode", choices=["none", "paper", "generated", "hybrid"], default="", help="Image source mode for editable slides")
     parser.add_argument("--image-style", default="academic_illustration", help="Image style prompt")
     parser.add_argument("--export-pptx", action="store_true", help="Also export editable PPTX using the frontend PptxGenJS exporter")
     parser.add_argument("--asset-base-url", default="http://127.0.0.1:8000", help="Base URL for /outputs assets during PPTX export")
@@ -157,6 +158,7 @@ async def run_frontend_workflow(args, input_content: str, input_type: str, outpu
         language=args.language,
         style=args.style,
         include_images=args.include_images,
+        image_mode=args.image_mode or ("hybrid" if args.include_images else "none"),
         image_style=args.image_style,
         image_model=args.image_model,
     )

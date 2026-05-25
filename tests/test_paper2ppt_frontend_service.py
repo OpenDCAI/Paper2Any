@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import sys
+import asyncio
 from pathlib import Path
 
 from fastapi import HTTPException
+from PIL import Image
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -30,6 +32,10 @@ def _collect_canvas_refs(node: dict) -> set[str]:
         if isinstance(child, dict):
             refs.update(_collect_canvas_refs(child))
     return refs
+
+
+def _run(coro):
+    return asyncio.run(coro)
 
 
 def test_build_messages_requests_canvas_schema():
@@ -239,3 +245,130 @@ def test_normalize_template_key_aligns_with_supported_frontend_templates():
         ],
         visual_assets=[],
     ) == "metrics_dashboard"
+
+
+def test_prepare_visual_assets_prefers_paper_asset_in_hybrid_mode(tmp_path: Path):
+    service = Paper2PPTFrontendService()
+    image_dir = tmp_path / "input" / "auto" / "images"
+    image_dir.mkdir(parents=True)
+    image_path = image_dir / "figure_1.png"
+    Image.new("RGB", (64, 36), color=(40, 90, 140)).save(image_path)
+
+    assets = _run(
+        service._prepare_visual_assets(
+            base_dir=tmp_path,
+            outline_item={"title": "Method", "asset_ref": "images/figure_1.png"},
+            slide_index=0,
+            include_images=True,
+            image_mode="hybrid",
+            image_style="academic_illustration",
+            image_model=None,
+            image_api_url="",
+            image_api_key="",
+            chat_api_url="",
+            api_key="",
+            model="",
+            theme=_build_theme(service),
+            current_slide=None,
+        )
+    )
+
+    assert len(assets) == 1
+    assert assets[0]["source_type"] == "paper_asset"
+    assert assets[0]["storage_path"] == str(image_path.resolve())
+    assert assets[0]["key"] == "main_visual"
+
+
+def test_prepare_visual_assets_generated_mode_skips_paper_asset(tmp_path: Path, monkeypatch):
+    service = Paper2PPTFrontendService()
+    image_dir = tmp_path / "input" / "auto" / "images"
+    image_dir.mkdir(parents=True)
+    Image.new("RGB", (64, 36), color=(40, 90, 140)).save(image_dir / "figure_1.png")
+
+    async def fake_generate_visual_asset(**kwargs):
+        return {
+            "key": "main_visual",
+            "label": "Generated",
+            "src": "/tmp/generated.png",
+            "alt": "generated",
+            "source_type": "generated",
+            "storage_path": "/tmp/generated.png",
+        }
+
+    monkeypatch.setattr(service, "_generate_visual_asset", fake_generate_visual_asset)
+
+    assets = _run(
+        service._prepare_visual_assets(
+            base_dir=tmp_path,
+            outline_item={"title": "Method", "asset_ref": "images/figure_1.png"},
+            slide_index=0,
+            include_images=True,
+            image_mode="generated",
+            image_style="academic_illustration",
+            image_model=None,
+            image_api_url="http://image-api.test/v1",
+            image_api_key="key",
+            chat_api_url="",
+            api_key="",
+            model="",
+            theme=_build_theme(service),
+            current_slide=None,
+        )
+    )
+
+    assert len(assets) == 1
+    assert assets[0]["source_type"] == "generated"
+    assert assets[0]["label"] == "Generated"
+
+
+def test_prepare_visual_assets_hybrid_falls_back_to_generated_placeholder_without_key(tmp_path: Path):
+    service = Paper2PPTFrontendService()
+
+    assets = _run(
+        service._prepare_visual_assets(
+            base_dir=tmp_path,
+            outline_item={"title": "No figure slide", "key_points": ["Explain the idea"]},
+            slide_index=2,
+            include_images=True,
+            image_mode="hybrid",
+            image_style="academic_illustration",
+            image_model=None,
+            image_api_url="",
+            image_api_key="",
+            chat_api_url="",
+            api_key="",
+            model="",
+            theme=_build_theme(service),
+            current_slide=None,
+        )
+    )
+
+    assert len(assets) == 1
+    assert assets[0]["source_type"] == "generated"
+    assert assets[0]["storage_path"] == ""
+    assert "Create one supporting image" in assets[0]["prompt"]
+
+
+def test_prepare_visual_assets_none_mode_returns_no_assets(tmp_path: Path):
+    service = Paper2PPTFrontendService()
+
+    assets = _run(
+        service._prepare_visual_assets(
+            base_dir=tmp_path,
+            outline_item={"title": "Text only", "asset_ref": "images/figure_1.png"},
+            slide_index=0,
+            include_images=False,
+            image_mode="none",
+            image_style="academic_illustration",
+            image_model=None,
+            image_api_url="",
+            image_api_key="",
+            chat_api_url="",
+            api_key="",
+            model="",
+            theme=_build_theme(service),
+            current_slide=None,
+        )
+    )
+
+    assert assets == []

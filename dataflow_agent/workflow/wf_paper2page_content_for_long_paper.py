@@ -21,6 +21,11 @@ from dataflow_agent.utils_markdown_sections import (
     get_safe_outline_input_budget,
     is_probably_english,
 )
+from dataflow_agent.utils_paper_visuals import (
+    build_markdown_image_catalog,
+    enrich_pagecontent_with_visual_assets,
+    format_image_catalog_for_prompt,
+)
 
 from dataflow_agent.toolkits.multimodaltool.mineru_tool import run_mineru_pdf_extract_http
 
@@ -325,6 +330,11 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
             "is_first": idx == 0,
             "is_last": idx == total - 1,
         }
+
+    @builder.pre_tool("paper_visual_catalog", "long_paper_outline_agent")
+    def _get_paper_visual_catalog(state: Paper2FigureState):
+        return format_image_catalog_for_prompt(getattr(state, "paper_visual_catalog", []) or [])
+
     @builder.pre_tool("generation_round", "topic_writer")
     def _get_generation_round(state: Paper2FigureState):
         """提供 topic 生成轮次信息"""
@@ -365,6 +375,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         state.minueru_output = state.minueru_output or ""
         state.text_content = state.text_content or ""
         state.pagecontent = state.pagecontent or []
+        state.paper_visual_catalog = state.paper_visual_catalog or []
         state.long_text = getattr(state, "long_text", "") or ""
         state.markdown_sections = getattr(state, "markdown_sections", []) or []
         state.current_section_titles = getattr(state, "current_section_titles", []) or []
@@ -433,6 +444,8 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         state.long_text = md
         state.minueru_output = md
         state.mineru_root = str(auto_dir)
+        state.paper_visual_catalog = build_markdown_image_catalog(md, auto_dir)
+        log.info(f"[long_paper] extracted paper visual catalog: {len(state.paper_visual_catalog)} images")
         state.markdown_sections = extract_markdown_sections(md)
         
         return state
@@ -771,7 +784,10 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:
         if len(all_pages) != target_pages:
             log.warning(f"[long_paper] 最终页数 {len(all_pages)} 与目标 {target_pages} 不完全一致")
         
-        state.pagecontent = all_pages
+        state.pagecontent = enrich_pagecontent_with_visual_assets(
+            all_pages,
+            getattr(state, "paper_visual_catalog", []) or [],
+        )
         log.info(f"[long_paper] 并行处理完成，最终生成 {len(all_pages)} 页 pagecontent")
         
         return state

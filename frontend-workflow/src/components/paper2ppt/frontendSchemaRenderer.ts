@@ -435,14 +435,22 @@ const renderVisualAsset = (
   const previewSrc = (asset?.previewSrc || asset?.src || '').trim();
   const originalSrc = (asset?.originalSrc || previewSrc || '').trim();
   const sourceLabel = asset?.sourceType === 'paper_asset' ? '论文图表' : asset?.sourceType === 'upload' ? '用户上传' : 'AI 配图';
+  const isPaperAsset = asset?.sourceType === 'paper_asset';
+  const isGeneratedAsset = asset?.sourceType === 'generated';
+  const useTransparentFrame = isPaperAsset || isGeneratedAsset;
   const safeAssetKey = escapeHtml(assetKey || asset?.key || 'main_visual');
   const safeLabel = escapeHtml(asset?.label || label || assetKey || 'Image');
   const safeAlt = escapeHtml(asset?.alt || safeLabel || 'Slide image');
-  const resolvedImageFit = imageFit === 'contain' || imageFit === 'fill' ? imageFit : 'cover';
+  const resolvedImageFit = useTransparentFrame
+    ? 'contain'
+    : imageFit === 'contain' || imageFit === 'fill'
+      ? imageFit
+      : 'cover';
+  const sourceClass = useTransparentFrame ? ' ppt-managed-image-transparent' : '';
 
   if (!previewSrc) {
     return `
-<div class="ppt-managed-image" data-image-key="${safeAssetKey}" data-image-label="${safeLabel}">
+<div class="ppt-managed-image${sourceClass}" data-image-key="${safeAssetKey}" data-image-label="${safeLabel}">
   <div class="ppt-managed-image-frame ppt-managed-image-frame-empty">
     <div class="ppt-managed-image-empty-text">点击上传图片</div>
   </div>
@@ -452,7 +460,7 @@ const renderVisualAsset = (
   }
 
   return `
-<div class="ppt-managed-image" data-image-key="${safeAssetKey}" data-image-label="${safeLabel}">
+<div class="ppt-managed-image${sourceClass}" data-image-key="${safeAssetKey}" data-image-label="${safeLabel}">
   <div class="ppt-managed-image-frame">
     <img src="${escapeHtml(previewSrc)}" data-preview-src="${escapeHtml(previewSrc)}" data-original-src="${escapeHtml(originalSrc)}" alt="${safeAlt}" class="ppt-managed-image-el" style="object-fit:${escapeHtml(resolvedImageFit)};object-position:center;" />
   </div>
@@ -1211,6 +1219,27 @@ const buildSchemaBaseCss = (theme?: FrontendDeckTheme | null, visualSpec?: Front
   height: 100%;
   object-fit: cover;
 }
+.schema-transparent-figure-card {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.slide-root .ppt-managed-image-transparent .ppt-managed-image-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border-color: transparent;
+}
+.slide-root .ppt-managed-image-transparent .ppt-managed-image-el {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain !important;
+}
+
 .slide-root .ppt-managed-image-badge {
   position: absolute;
   left: 12px;
@@ -1369,7 +1398,9 @@ const renderCanvasComponent = (slide: FrontendSlide, node: FrontendCanvasNode) =
       || ref
       || node.id,
     );
-    return `<div class="schema-canvas-component schema-visual-card" ${attrs}${style}>${renderVisualAsset(buildAssetMap(slide).get(assetKey), assetKey, String(props.label || 'Figure'), visualStyle.imageFit)}</div>`;
+    const asset = buildAssetMap(slide).get(assetKey);
+    const cardClass = `schema-canvas-component schema-visual-card${asset?.sourceType === 'paper_asset' || asset?.sourceType === 'generated' ? ' schema-transparent-figure-card' : ''}`;
+    return `<div class="${cardClass}" ${attrs}${style}>${renderVisualAsset(asset, assetKey, String(props.label || 'Figure'), visualStyle.imageFit)}</div>`;
   }
 
   if (component === 'stat') {

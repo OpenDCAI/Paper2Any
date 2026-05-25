@@ -13,6 +13,11 @@ from dataflow_agent.workflow.registry import register
 from dataflow_agent.agentroles import create_react_agent, create_simple_agent
 from dataflow_agent.logger import get_logger
 from dataflow_agent.utils import get_project_root
+from dataflow_agent.utils_paper_visuals import (
+    build_markdown_image_catalog,
+    enrich_pagecontent_with_visual_assets,
+    format_image_catalog_for_prompt,
+)
 
 from dataflow_agent.toolkits.multimodaltool.mineru_tool import (
     run_mineru_pdf_extract_http,
@@ -84,6 +89,10 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
     def _get_text_content(state: Paper2FigureState):
         return state.text_content or ""
 
+    @builder.pre_tool("paper_visual_catalog", "outline_agent")
+    def _get_paper_visual_catalog(state: Paper2FigureState):
+        return format_image_catalog_for_prompt(getattr(state, "paper_visual_catalog", []) or [])
+
     @builder.pre_tool("outline_feedback", "outline_refine_agent")
     def _get_outline_feedback(state: Paper2FigureState):
         return state.outline_feedback or ""
@@ -113,6 +122,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         state.minueru_output = state.minueru_output or ""
         state.text_content = state.text_content or ""
         state.pagecontent = state.pagecontent or []
+        state.paper_visual_catalog = state.paper_visual_catalog or []
         state.outline_feedback = state.outline_feedback or ""
         return state
 
@@ -175,6 +185,8 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         state.minueru_output = md
         # 记录 MinerU 输出根目录 = 实际承载 md 与 images 的 auto 目录
         state.mineru_root = str(auto_dir)
+        state.paper_visual_catalog = build_markdown_image_catalog(md, auto_dir)
+        log.info(f"[paper2page_content] extracted paper visual catalog: {len(state.paper_visual_catalog)} images")
         log.info(f"[paper2page_content] minueru_output : {state.minueru_output[:100]} ")
         return state
 
@@ -281,6 +293,13 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         state = await agent.execute(state=state)
         return state
 
+    def enrich_outline_visual_assets(state: Paper2FigureState) -> Paper2FigureState:
+        state.pagecontent = enrich_pagecontent_with_visual_assets(
+            state.pagecontent or [],
+            getattr(state, "paper_visual_catalog", []) or [],
+        )
+        return state
+
     async def outline_refine_agent(state: Paper2FigureState) -> Paper2FigureState:
         """
         outline_refine_agent: refine existing outline based on user feedback.
@@ -340,6 +359,7 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         "ppt_to_images": ppt_to_images,
         "deep_research_agent": deep_research_agent,
         "outline_agent": outline_agent,
+        "enrich_outline_visual_assets": enrich_outline_visual_assets,
         "outline_refine_agent": outline_refine_agent,
         "_end_": lambda state: state,
     }
@@ -350,7 +370,8 @@ def create_paper2page_content_graph() -> GenericGraphBuilder:  # noqa: N802
         ("deep_research_agent", "outline_agent"),
         ("ppt_to_images", "_end_"),
         ("outline_refine_agent", "_end_"),
-        ("outline_agent", "_end_"),
+        ("outline_agent", "enrich_outline_visual_assets"),
+        ("enrich_outline_visual_assets", "_end_"),
     ]
 
     builder.add_nodes(nodes).add_edges(edges).add_conditional_edge("_start_", _route_input)

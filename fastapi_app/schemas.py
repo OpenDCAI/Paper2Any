@@ -297,6 +297,7 @@ class FrontendPPTGenerationRequest(BaseModel):
     result_path: str
     pagecontent: str
     include_images: bool = False
+    image_mode: Optional[Literal["none", "paper", "generated", "hybrid"]] = None
     image_style: str = "academic_illustration"
     image_model: Optional[str] = None
     page_id: Optional[int] = None

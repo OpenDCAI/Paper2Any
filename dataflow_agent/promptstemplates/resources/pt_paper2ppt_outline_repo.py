@@ -24,6 +24,9 @@ class Paper2PPTOutline:
 {text_content}
 {minueru_output}
 
+论文图片 catalog（仅允许从这里选择图片）：
+{paper_visual_catalog}
+
 约束条件：
 1. 目标 PPT 页数：{page_count} 页。
 2. 第一页必须是封面，只保留主题和汇报人，不要额外正文。
@@ -31,6 +34,8 @@ class Paper2PPTOutline:
 4. 输出语言必须严格使用 {language}。
 5. 每一页只能给出该页需要的摘要和要点，禁止把长段论文原文复制进单页。
 6. `key_points` 必须是 `List<String>`，每个元素都是一句简洁要点。
+7. 如果某页适合使用论文原图，请只从“论文图片 catalog”中选择真实存在的 `ref` 写入 `asset_ref`；禁止编造图片路径。
+8. 封面、目录、致谢页通常不要使用论文图片，`asset_ref` 填 null。
 
 输出格式要求（JSON Array）：
 [

@@ -337,7 +337,7 @@ const buildAssetMap = (slide: FrontendSlide) => {
         previewSrc: existing?.previewSrc || (raw.preview_src ? String(raw.preview_src) : raw.previewSrc ? String(raw.previewSrc) : undefined),
         originalSrc: existing?.originalSrc || (raw.original_src ? String(raw.original_src) : raw.originalSrc ? String(raw.originalSrc) : undefined),
         alt: existing?.alt || String(raw.alt || raw.label || assetKey),
-        sourceType: existing?.sourceType || 'upload',
+        sourceType: existing?.sourceType || (raw.source_type === 'paper_asset' || raw.sourceType === 'paper_asset' ? 'paper_asset' : raw.source_type === 'generated' || raw.sourceType === 'generated' ? 'generated' : 'upload'),
       });
     });
   }
@@ -796,6 +796,36 @@ const resolveImageData = async (asset: FrontendVisualAsset | undefined) => {
   return blobToDataUrl(await response.blob());
 };
 
+const getImageDimensions = (dataUrl: string) =>
+  new Promise<{ width: number; height: number }>((resolve) => {
+    if (typeof Image === 'undefined' || !dataUrl) {
+      resolve({ width: 0, height: 0 });
+      return;
+    }
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth || image.width || 0, height: image.naturalHeight || image.height || 0 });
+    image.onerror = () => resolve({ width: 0, height: 0 });
+    image.src = dataUrl;
+  });
+
+const fitImageInsideBox = async (dataUrl: string, box: PptBox): Promise<PptBox> => {
+  const dimensions = await getImageDimensions(dataUrl);
+  if (!dimensions.width || !dimensions.height || !box.w || !box.h) {
+    return box;
+  }
+  const imageRatio = dimensions.width / dimensions.height;
+  const boxRatio = box.w / box.h;
+  if (!Number.isFinite(imageRatio) || imageRatio <= 0 || !Number.isFinite(boxRatio) || boxRatio <= 0) {
+    return box;
+  }
+  if (imageRatio > boxRatio) {
+    const fittedHeight = box.w / imageRatio;
+    return { ...box, y: box.y + (box.h - fittedHeight) / 2, h: fittedHeight };
+  }
+  const fittedWidth = box.h * imageRatio;
+  return { ...box, x: box.x + (box.w - fittedWidth) / 2, w: fittedWidth };
+};
+
 const addPanelShape = (
   slide: PptxGenJS.Slide,
   pptx: PptxGenJS,
@@ -1017,23 +1047,41 @@ const renderCanvasComponent = async (
   if (component === 'figure') {
     const assetRef = String(props.asset_ref || props.assetRef || props.asset_key || props.assetKey || props.ref || '').trim();
     const asset = assets.get(assetRef) || assets.get(String(props.asset_key || props.assetKey || ''));
-    const imageFit = visualStyle.imageFit === 'contain' || visualStyle.imageFit === 'fill'
-      ? visualStyle.imageFit
-      : 'cover';
-    addPanelShape(pptSlide, pptx, box, panelColor, primaryColor, 18);
+    const isPaperAsset = asset?.sourceType === 'paper_asset';
+    const isGeneratedAsset = asset?.sourceType === 'generated';
+    const useTransparentImage = isPaperAsset || isGeneratedAsset;
+    const imageFit = useTransparentImage
+      ? 'contain'
+      : visualStyle.imageFit === 'contain' || visualStyle.imageFit === 'fill'
+        ? visualStyle.imageFit
+        : 'cover';
+    if (!useTransparentImage) {
+      addPanelShape(pptSlide, pptx, box, panelColor, primaryColor, 18);
+    }
     try {
       const data = await resolveImageData(asset);
       if (data) {
-        pptSlide.addImage({
-          data,
-          ...box,
-          sizing: {
-            type: imageFit === 'contain' ? 'contain' : 'cover',
-            w: box.w,
-            h: box.h,
-          },
-          altText: asset?.alt || asset?.label || assetRef || 'Slide image',
-        });
+        if (useTransparentImage || imageFit === 'contain') {
+          const fittedBox = await fitImageInsideBox(data, box);
+          pptSlide.addImage({
+            data,
+            ...fittedBox,
+            altText: asset?.alt || asset?.label || assetRef || 'Slide image',
+          });
+        } else {
+          pptSlide.addImage({
+            data,
+            ...box,
+            sizing: {
+              type: 'cover',
+              x: box.x,
+              y: box.y,
+              w: box.w,
+              h: box.h,
+            },
+            altText: asset?.alt || asset?.label || assetRef || 'Slide image',
+          });
+        }
       }
     } catch {
       const fontSize = fontSizeFromStyle(layoutNode, 18);

@@ -688,6 +688,8 @@ class Paper2PPTService:
                 if not value or not isinstance(value, str):
                     continue
                 local_path = self._try_resolve_output_file(value)
+                if not local_path and base_dir is not None:
+                    local_path = self._try_resolve_result_relative_file(base_dir, value)
                 if not local_path:
                     continue
                 item[key] = _to_outputs_url(local_path, request)
@@ -713,6 +715,31 @@ class Paper2PPTService:
             )
         except HTTPException:
             return ""
+
+    def _try_resolve_result_relative_file(self, base_dir: Path, value: str) -> str:
+        raw = str(value or "").strip()
+        if not raw:
+            return ""
+        candidate = Path(raw).expanduser()
+        if candidate.is_absolute():
+            search_paths = [candidate]
+        else:
+            search_paths = [
+                base_dir / candidate,
+                base_dir / "input" / candidate,
+                base_dir / "input" / "auto" / candidate,
+                base_dir / "input" / "auto" / "images" / candidate.name,
+            ]
+        base_resolved = base_dir.resolve()
+        for path in search_paths:
+            try:
+                resolved = path.resolve()
+                resolved.relative_to(base_resolved)
+            except (OSError, ValueError):
+                continue
+            if resolved.exists() and resolved.is_file():
+                return str(resolved)
+        return ""
 
     def _ensure_preview_asset(
         self,

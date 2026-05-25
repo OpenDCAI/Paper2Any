@@ -91,6 +91,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   const [pageCount, setPageCount] = useState(6);
   const [useLongPaper, setUseLongPaper] = useState(false);
   const [frontendIncludeImages, setFrontendIncludeImages] = useState(false);
+  const [frontendImageMode, setFrontendImageMode] = useState<'paper' | 'generated' | 'hybrid'>('hybrid');
   const [frontendAutoReviewEnabled, setFrontendAutoReviewEnabled] = useState(false);
   const [frontendImageStyle, setFrontendImageStyle] = useState('academic_illustration');
   const [progress, setProgress] = useState(0);
@@ -349,6 +350,9 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
         if (saved.pageCount) setPageCount(saved.pageCount);
         if (saved.useLongPaper !== undefined) setUseLongPaper(saved.useLongPaper);
         if (saved.frontendIncludeImages !== undefined) setFrontendIncludeImages(Boolean(saved.frontendIncludeImages));
+        if (['paper', 'generated', 'hybrid'].includes(saved.frontendImageMode)) {
+          setFrontendImageMode(saved.frontendImageMode);
+        }
         if (saved.frontendAutoReviewEnabled !== undefined) {
           setFrontendAutoReviewEnabled(Boolean(saved.frontendAutoReviewEnabled));
         }
@@ -391,6 +395,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       pageCount,
       useLongPaper,
       frontendIncludeImages,
+      frontendImageMode,
       frontendAutoReviewEnabled,
       frontendImageStyle,
       llmApiUrl,
@@ -409,7 +414,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     }
   }, [
     pptMode, uploadMode, textContent, styleMode, stylePreset, globalPrompt,
-    pageCount, useLongPaper, frontendIncludeImages, frontendAutoReviewEnabled, frontendImageStyle, llmApiUrl, apiKey,
+    pageCount, useLongPaper, frontendIncludeImages, frontendImageMode, frontendAutoReviewEnabled, frontendImageStyle, llmApiUrl, apiKey,
     model, genFigModel, language, user?.id
   ]);
 
@@ -2423,6 +2428,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
         layout_description: slide.layout_description,
         key_points: slide.key_points,
         asset_ref: slide.asset_ref,
+        visual_assets: slide.visual_assets || [],
       })),
     );
 
@@ -2506,6 +2512,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     formData.append('email', user?.id || user?.email || '');
     formData.append('result_path', resultPathValue);
     formData.append('include_images', String(frontendIncludeImages));
+    formData.append('image_mode', frontendIncludeImages ? frontendImageMode : 'none');
     formData.append('image_style', frontendImageStyle);
     formData.append('image_model', genFigModel);
     formData.append('page_id', String(slideIndex));
@@ -2965,6 +2972,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
         layout_description: item.layout_description || '',
         key_points: item.key_points || [],
         asset_ref: item.asset_ref || null,
+        visual_assets: item.visual_assets || [],
       }));
       
       window.clearInterval(progressInterval);
@@ -3152,6 +3160,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
         layout_description: item.layout_description || '',
         key_points: item.key_points || [],
         asset_ref: item.asset_ref || null,
+        visual_assets: item.visual_assets || [],
       }));
 
       setOutlineData(refinedSlides);
@@ -3814,6 +3823,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath || '');
       formData.append('include_images', String(frontendIncludeImages));
+      formData.append('image_mode', frontendIncludeImages ? frontendImageMode : 'none');
       formData.append('image_style', frontendImageStyle);
       formData.append('image_model', genFigModel);
       formData.append('pagecontent', buildFrontendPagecontentPayload());
@@ -4929,6 +4939,8 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
               useLongPaper={useLongPaper} setUseLongPaper={setUseLongPaper}
               frontendIncludeImages={frontendIncludeImages}
               setFrontendIncludeImages={setFrontendIncludeImages}
+              frontendImageMode={frontendImageMode}
+              setFrontendImageMode={setFrontendImageMode}
               frontendAutoReviewEnabled={frontendAutoReviewEnabled}
               setFrontendAutoReviewEnabled={setFrontendAutoReviewEnabled}
               frontendImageStyle={frontendImageStyle}
