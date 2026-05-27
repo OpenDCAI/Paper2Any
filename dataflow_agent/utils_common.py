@@ -500,7 +500,11 @@ def build_output_directory(image_path: Path) -> Path:
 import asyncio
 from pathlib import Path
 from PIL import Image
-from mineru_vl_utils import MinerUClient
+
+try:
+    from mineru_vl_utils import MinerUClient
+except ImportError:
+    MinerUClient = None
 
 
 # -----------------------------
