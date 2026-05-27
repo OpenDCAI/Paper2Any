@@ -38,6 +38,8 @@ EXCLUDED_PATHS = {
     "/openapi.json",
     "/redoc",
     "/api/v1/files/stream",
+    "/api/v1/files/onlyoffice/config",
+    "/api/v1/files/onlyoffice/callback",
 }
 
 # Path prefixes that don't require API key
@@ -143,6 +145,8 @@ _RATE_LIMIT_LOCK = Lock()
 
 
 def _should_check_api_key(path: str) -> bool:
+    if path.startswith("/api/v1/files/onlyoffice/download/") and path.endswith(".pptx"):
+        return False
     return path.startswith("/api/") or path.startswith("/paper2video/")
 
 

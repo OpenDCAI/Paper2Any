@@ -2,8 +2,10 @@ import React from 'react';
 import {
   AlertCircle,
   CheckCircle2,
+  FileCode2,
   Download,
   Loader2,
+  MonitorPlay,
   RotateCcw,
   Sparkles,
 } from 'lucide-react';
@@ -14,12 +16,19 @@ interface FrontendCompleteStepProps {
   slides: FrontendSlide[];
   deckTheme?: FrontendDeckTheme | null;
   downloadUrl: string | null;
+  htmlEditablePptxUrl: string | null;
   pdfPreviewUrl: string | null;
   isGeneratingFinal: boolean;
+  isGeneratingHtmlPptx: boolean;
   taskMessage?: string;
+  htmlTaskMessage?: string;
   handleGenerateFinal: () => void;
   handleDownloadPptx: () => void;
   handleDownloadPdf: () => void;
+  handleGenerateHtmlPptx: () => void;
+  handleDownloadHtmlPptx: () => void;
+  handleOpenOnlyOffice: () => void;
+  isOnlyOfficeLoading: boolean;
   handleReset: () => void;
   error: string | null;
 }
@@ -28,12 +37,19 @@ const FrontendCompleteStep: React.FC<FrontendCompleteStepProps> = ({
   slides,
   deckTheme,
   downloadUrl,
+  htmlEditablePptxUrl,
   pdfPreviewUrl,
   isGeneratingFinal,
+  isGeneratingHtmlPptx,
   taskMessage,
+  htmlTaskMessage,
   handleGenerateFinal,
   handleDownloadPptx,
   handleDownloadPdf,
+  handleGenerateHtmlPptx,
+  handleDownloadHtmlPptx,
+  handleOpenOnlyOffice,
+  isOnlyOfficeLoading,
   handleReset,
   error,
 }) => {
@@ -113,6 +129,77 @@ const FrontendCompleteStep: React.FC<FrontendCompleteStepProps> = ({
           </button>
         </div>
       )}
+
+      <div className="glass rounded-xl border border-white/10 p-6 mt-6">
+        <div className="mb-4 flex items-center gap-2">
+          <FileCode2 size={18} className="text-cyan-300" />
+          <h3 className="text-white font-semibold">HTML 转可编辑 PPTX</h3>
+        </div>
+
+        {!htmlEditablePptxUrl ? (
+          <div className="text-center">
+            <button
+              onClick={handleGenerateHtmlPptx}
+              disabled={isGeneratingHtmlPptx}
+              className="px-8 py-3 rounded-lg bg-gradient-to-r from-fuchsia-500 to-cyan-500 text-white font-semibold flex items-center justify-center gap-2 mx-auto transition-all"
+            >
+              {isGeneratingHtmlPptx ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" /> 正在导出 HTML 可编辑 PPTX...
+                </>
+              ) : (
+                <>
+                  <FileCode2 size={18} /> 导出 HTML 可编辑 PPTX
+                </>
+              )}
+            </button>
+            <p className="text-xs text-gray-500 mt-3">
+              先把当前 HTML 结果转换为可编辑 PPTX，再打开 ONLYOFFICE 继续编辑。
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4 text-center">
+            <div className="flex flex-wrap gap-4 justify-center">
+              <button
+                onClick={handleDownloadHtmlPptx}
+                className="px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold flex items-center gap-2 transition-all"
+              >
+                <Download size={18} /> 下载 HTML 可编辑 PPTX
+              </button>
+              <button
+                onClick={handleOpenOnlyOffice}
+                disabled={isOnlyOfficeLoading}
+                className="px-6 py-3 rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-semibold flex items-center gap-2 transition-all disabled:opacity-60"
+              >
+                {isOnlyOfficeLoading ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" /> 打开在线编辑器...
+                  </>
+                ) : (
+                  <>
+                    <MonitorPlay size={18} /> 在线编辑 PPTX
+                  </>
+                )}
+              </button>
+            </div>
+
+            <button
+              onClick={handleGenerateHtmlPptx}
+              disabled={isGeneratingHtmlPptx}
+              className="text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              <Sparkles size={14} className="inline mr-1" />
+              {isGeneratingHtmlPptx ? '重新导出中...' : '重新导出 HTML 可编辑 PPTX'}
+            </button>
+          </div>
+        )}
+
+        {isGeneratingHtmlPptx && htmlTaskMessage && (
+          <div className="mt-4 text-sm text-fuchsia-200 bg-fuchsia-500/10 border border-fuchsia-500/30 rounded-lg px-4 py-3 text-center">
+            {htmlTaskMessage}
+          </div>
+        )}
+      </div>
 
       {isGeneratingFinal && taskMessage && (
         <div className="mt-4 text-sm text-cyan-200 bg-cyan-500/10 border border-cyan-500/30 rounded-lg px-4 py-3 text-center">

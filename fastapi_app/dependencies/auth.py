@@ -130,3 +130,16 @@ async def get_optional_user(authorization: Optional[str] = Header(None)) -> Opti
         return await get_current_user(authorization)
     except HTTPException:
         return None
+
+
+async def get_current_user_or_system(authorization: Optional[str] = Header(None)) -> AuthUser:
+    """
+    Return the authenticated user when Supabase is configured.
+
+    In local development deployments without Supabase auth, fall back to a
+    synthetic system user so file upload/history flows can still operate.
+    """
+    supabase = get_supabase_client()
+    if not supabase:
+        return AuthUser(user_id="system", email=None, phone=None, is_anonymous=True)
+    return await get_current_user(authorization)

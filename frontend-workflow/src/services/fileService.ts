@@ -4,7 +4,7 @@
  * Uploads files to Storage and saves metadata to user_files table.
  */
 
-import { supabase } from "../lib/supabase";
+import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import { backendFetch } from "./backendClient";
 
 export interface FileRecord {
@@ -59,8 +59,10 @@ export async function uploadAndSaveFile(
   workflowType: string
 ): Promise<FileRecord | null> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
+    const session = isSupabaseConfigured()
+      ? (await supabase.auth.getSession()).data.session
+      : null;
+    if (isSupabaseConfigured() && !session?.access_token) {
       console.warn("[fileService] Skipping file upload because user is not authenticated");
       return null;
     }
@@ -112,8 +114,10 @@ export async function uploadAndSaveFile(
  */
 export async function getFileRecords(): Promise<FileRecord[]> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
+    const session = isSupabaseConfigured()
+      ? (await supabase.auth.getSession()).data.session
+      : null;
+    if (isSupabaseConfigured() && !session?.access_token) {
       console.warn("[fileService] Skipping history request because user is not authenticated");
       return [];
     }

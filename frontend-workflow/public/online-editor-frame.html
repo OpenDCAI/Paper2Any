@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      html,
+      body,
+      #editor {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #fff;
+      }
+
+      #status {
+        position: fixed;
+        left: 12px;
+        top: 12px;
+        z-index: 2;
+        max-width: min(720px, calc(100% - 24px));
+        max-height: 160px;
+        overflow: auto;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        padding: 7px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(148, 163, 184, 0.38);
+        background: rgba(255, 255, 255, 0.94);
+        color: #334155;
+        font: 12px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="status">正在加载在线编辑器...</div>
+    <div id="editor"></div>
+    <script>
+      const FRAME_VERSION = 'v2';
+      const statusEl = document.getElementById('status');
+      let activeSessionId = '';
+      let activeEditor = null;
+      let activeInitSignature = '';
+      let pendingInitSignature = '';
+
+      const postParentMessage = (message) => {
+        try {
+          parent.postMessage(message, window.location.origin);
+        } catch {}
+      };
+
+      const notify = (type, payload) => {
+        if (!activeSessionId) return;
+        postParentMessage({
+          source: 'paper2any-online-editor',
+          sessionId: activeSessionId,
+          frameVersion: FRAME_VERSION,
+          type,
+          payload,
+        });
+      };
+
+      const showError = (message, config) => {
+        statusEl.textContent = message || '在线编辑器加载失败';
+        statusEl.style.color = '#991b1b';
+        statusEl.style.borderColor = 'rgba(239, 68, 68, 0.32)';
+        statusEl.style.background = '#fff7f7';
+        notify('error', { message: statusEl.textContent });
+      };
+
+      const loadScript = (src) => new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[data-online-editor-script="true"]');
+        if (existing && window.DocsAPI && window.DocsAPI.DocEditor) {
+          resolve();
+          return;
+        }
+        const script = document.createElement('script');
+        script.dataset.onlineEditorScript = 'true';
+        script.src = src;
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('在线编辑脚本加载失败'));
+        document.body.appendChild(script);
+      });
+
+      const clearOnlyOfficeRuntimeCache = async () => {
+        const tasks = [];
+        if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
+          tasks.push(
+            navigator.serviceWorker.getRegistrations()
+              .then((registrations) => Promise.all(
+                registrations
+                  .filter((registration) => {
+                    const scope = registration.scope || '';
+                    return scope.includes('/onlyoffice/') || scope.includes('/onlyoffice');
+                  })
+                  .map((registration) => registration.unregister()),
+              )),
+          );
+        }
+        if ('caches' in window && window.caches.keys) {
+          tasks.push(
+            window.caches.keys()
+              .then((keys) => Promise.all(
+                keys
+                  .filter((key) => key.toLowerCase().includes('onlyoffice'))
+                  .map((key) => window.caches.delete(key)),
+              )),
+          );
+        }
+        await Promise.allSettled(tasks);
+      };
+
+      window.onerror = (message, source, lineno, colno, error) => {
+        showError(String(message || (error && error.message) || '在线编辑器脚本错误'));
+      };
+
+      window.onunhandledrejection = (event) => {
+        const reason = event.reason || {};
+        showError(String(reason.message || reason || '在线编辑器加载失败'));
+      };
+
+      window.addEventListener('message', async (event) => {
+        if (event.origin !== window.location.origin) return;
+        const data = event.data || {};
+        if (data.source !== 'paper2any-online-editor-init') return;
+
+        const payload = data.payload || {};
+        const documentKey = payload.config && payload.config.document ? payload.config.document.key || '' : '';
+        const initSignature = `${data.sessionId || ''}:${documentKey}`;
+        if (!data.sessionId || !payload.config || !documentKey) return;
+        if (initSignature === activeInitSignature || initSignature === pendingInitSignature) return;
+
+        pendingInitSignature = initSignature;
+        activeSessionId = data.sessionId || '';
+        const config = {
+          ...(payload.config || {}),
+          width: '100%',
+          height: '100%',
+        };
+
+        statusEl.style.display = 'block';
+        statusEl.style.color = '#334155';
+        statusEl.style.borderColor = 'rgba(148, 163, 184, 0.38)';
+        statusEl.style.background = 'rgba(255, 255, 255, 0.94)';
+        statusEl.textContent = '正在打开文档...';
+
+        try {
+          if (activeEditor && typeof activeEditor.destroyEditor === 'function') {
+            activeEditor.destroyEditor();
+          }
+        } catch {}
+
+        try {
+          await clearOnlyOfficeRuntimeCache();
+          await loadScript(payload.script_url || '');
+          if (!window.DocsAPI || !window.DocsAPI.DocEditor) {
+            showError('在线编辑服务不可用', config);
+            return;
+          }
+          const nextConfig = {
+            ...config,
+            events: {
+              ...(config.events || {}),
+              onAppReady: (editorEvent) => {
+                statusEl.textContent = '正在打开文档...';
+                notify('appReady', editorEvent);
+              },
+              onDocumentReady: (editorEvent) => {
+                statusEl.style.display = 'none';
+                notify('documentReady', editorEvent);
+              },
+              onError: (editorEvent) => {
+                const errorData = (editorEvent && editorEvent.data) || editorEvent || {};
+                const code = errorData.errorCode || errorData.code || '';
+                const description = errorData.errorDescription || errorData.description || errorData.message || '';
+                showError([code ? '错误码 ' + code : '', description].filter(Boolean).join('：') || '在线编辑器加载文档失败', config);
+              },
+            },
+          };
+          activeEditor = new window.DocsAPI.DocEditor('editor', nextConfig);
+          activeInitSignature = initSignature;
+          pendingInitSignature = '';
+        } catch (error) {
+          pendingInitSignature = '';
+          showError(error && error.message ? error.message : '在线编辑器初始化失败', config);
+        }
+      });
+
+      postParentMessage({ source: 'paper2any-online-editor', type: 'frameReady', frameVersion: FRAME_VERSION, payload: { frameVersion: FRAME_VERSION } });
+    </script>
+  </body>
+</html>

@@ -14,6 +14,7 @@
 pdfplumber
 mineru-vl-utils
 PyPDF2
+pypdf>=5.0.0
 kornia
 timm
 lmdb>=1.4.1

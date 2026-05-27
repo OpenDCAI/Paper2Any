@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ChangeEvent, useRef } from 'react';
+import React, { useState, useEffect, ChangeEvent, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { uploadAndSaveFile } from '../../services/fileService';
 import { DEFAULT_LLM_API_URL } from '../../config/api';
@@ -41,8 +41,18 @@ import FrontendGenerateStep from './FrontendGenerateStep';
 import FrontendCompleteStep from './FrontendCompleteStep';
 import { validateStructuredSlide, buildStructuredSlideRepairPrompt } from './structuredSlideModel';
 import { exportStructuredSlidesToPptx } from './exportStructuredSlides';
+import { buildHtmlDeckArtifact } from './htmlDeckArtifact';
+import { exportHtmlDeckToPptx } from './html2pptxExport';
 
 const MANAGED_CREDENTIAL_SCOPE = 'paper2ppt';
+const ONLINE_EDITOR_FRAME_VERSION = 'v2';
+
+type OnlyOfficeEditorPayload = {
+  enabled: boolean;
+  reason?: string;
+  script_url?: string;
+  config?: Record<string, any>;
+};
 
 export interface Paper2PptPageProps {
   initialMode?: PptGenerationMode;
@@ -106,8 +116,18 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   // Step 4: 完成状态
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [htmlEditablePptxUrl, setHtmlEditablePptxUrl] = useState<string | null>(null);
+  const [htmlEditablePptxPath, setHtmlEditablePptxPath] = useState<string | null>(null);
+  const [isGeneratingHtmlPptx, setIsGeneratingHtmlPptx] = useState(false);
+  const [htmlTaskMessage, setHtmlTaskMessage] = useState('');
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [finalTaskMessage, setFinalTaskMessage] = useState('');
+  const [onlyOfficeLoading, setOnlyOfficeLoading] = useState(false);
+  const [onlyOfficeError, setOnlyOfficeError] = useState('');
+  const [onlyOfficeConfig, setOnlyOfficeConfig] = useState<OnlyOfficeEditorPayload | null>(null);
+  const [onlyOfficeModalOpen, setOnlyOfficeModalOpen] = useState(false);
+  const [onlyOfficeSessionId, setOnlyOfficeSessionId] = useState('');
+  const onlyOfficeFrameRef = useRef<HTMLIFrameElement | null>(null);
 
   // 通用状态
   const [error, setError] = useState<string | null>(null);
@@ -928,11 +948,60 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
   const uploadGeneratedResultBlob = async (blob: Blob, fileName: string) => {
     try {
-      await uploadAndSaveFile(blob, fileName, 'paper2ppt');
+      return await uploadAndSaveFile(blob, fileName, 'paper2ppt');
     } catch (e) {
       console.error('[Paper2PptPage] Failed to upload generated blob:', e);
+      return null;
     }
   };
+
+  const postOnlyOfficeFrameConfig = useCallback(() => {
+    if (!onlyOfficeSessionId || !onlyOfficeConfig?.enabled) {
+      return;
+    }
+    const targetWindow = onlyOfficeFrameRef.current?.contentWindow;
+    if (!targetWindow) {
+      return;
+    }
+
+    targetWindow.postMessage(
+      {
+        source: 'paper2any-online-editor-init',
+        sessionId: onlyOfficeSessionId,
+        payload: onlyOfficeConfig,
+      },
+      window.location.origin,
+    );
+  }, [onlyOfficeConfig, onlyOfficeSessionId]);
+
+  useEffect(() => {
+    if (!onlyOfficeSessionId) {
+      return undefined;
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+      const data = event.data || {};
+      if (data.source !== 'paper2any-online-editor') {
+        return;
+      }
+      if (data.type === 'frameReady') {
+        postOnlyOfficeFrameConfig();
+        return;
+      }
+      if (data.sessionId !== onlyOfficeSessionId) {
+        return;
+      }
+      if (data.type === 'error') {
+        setOnlyOfficeError(data.payload?.message || '在线编辑器加载失败');
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [onlyOfficeSessionId, postOnlyOfficeFrameConfig]);
 
   // ============== Step 1: 上传处理 ==============
   const validateDocFile = (file: File): boolean => {
@@ -2443,6 +2512,138 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     }
   };
 
+  const getExportStem = () => {
+    const rawName = resultPath ? (resultPath.split('/').pop() || 'paper2ppt') : 'paper2ppt';
+    return rawName.replace(/\.[^.]+$/, '') || 'paper2ppt';
+  };
+
+  const handleGenerateHtmlPptx = async () => {
+    if (frontendSlides.length === 0) {
+      setError('当前没有可导出的前端页面');
+      return;
+    }
+
+    setIsGeneratingHtmlPptx(true);
+    setHtmlTaskMessage('正在整理 HTML 原稿...');
+    setOnlyOfficeError('');
+    setOnlyOfficeConfig(null);
+    setOnlyOfficeModalOpen(false);
+    setOnlyOfficeSessionId('');
+    setError(null);
+
+    try {
+      const invalidSlides = frontendSlides
+        .map((slide, index) => ({ index, validation: validateStructuredSlide(slide) }))
+        .filter((item) => !item.validation.ok);
+      if (invalidSlides.length > 0) {
+        const first = invalidSlides[0];
+        throw new Error(`第 ${first.index + 1} 页仍不满足结构导出要求：${first.validation.issues.join('；')}`);
+      }
+
+      const stem = getExportStem();
+      const htmlArtifact = buildHtmlDeckArtifact(frontendSlides, frontendDeckTheme);
+      setHtmlTaskMessage('HTML 原稿已整理完成，正在上传到结果列表...');
+      const htmlUpload = await uploadGeneratedResultBlob(
+        new Blob([htmlArtifact], { type: 'text/html;charset=utf-8' }),
+        `${stem}_html_deck.html`,
+      );
+      if (!htmlUpload) {
+        throw new Error('HTML 原稿上传失败，请稍后重试');
+      }
+
+      setHtmlTaskMessage('HTML 原稿已保存，正在调用 html2pptx 转换...');
+      const pptxBlob = await exportHtmlDeckToPptx({
+        slides: frontendSlides,
+        deckTheme: frontendDeckTheme,
+        fileName: `${stem}_html_editable.pptx`,
+      });
+      setHtmlTaskMessage('PPTX 已生成，正在上传可编辑文件...');
+      const uploadRecord = await uploadGeneratedResultBlob(pptxBlob, `${stem}_html_editable.pptx`);
+      const backendPath = uploadRecord?.download_url || uploadRecord?.id || '';
+      if (!backendPath) {
+        throw new Error('PPTX 已生成，但上传失败，无法进入在线编辑');
+      }
+
+      if (htmlEditablePptxUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(htmlEditablePptxUrl);
+      }
+      setHtmlEditablePptxUrl(URL.createObjectURL(pptxBlob));
+      setHtmlEditablePptxPath(backendPath);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'HTML 可编辑 PPTX 导出失败';
+      setError(message);
+    } finally {
+      setHtmlTaskMessage('');
+      setIsGeneratingHtmlPptx(false);
+    }
+  };
+
+  const handleDownloadHtmlPptx = () => {
+    if (!htmlEditablePptxUrl) {
+      setError('HTML 可编辑 PPTX 尚未生成');
+      return;
+    }
+
+    try {
+      const a = document.createElement('a');
+      a.href = htmlEditablePptxUrl;
+      a.download = 'paper2ppt_html_editable.pptx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
+      setError(message);
+    }
+  };
+
+  const handleOpenOnlyOffice = async () => {
+    if (!htmlEditablePptxPath) {
+      setError('请先导出 HTML 可编辑 PPTX');
+      return;
+    }
+
+    setOnlyOfficeLoading(true);
+    setOnlyOfficeError('');
+    setError(null);
+
+    try {
+      const editorSessionId = `paper2any-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const params = new URLSearchParams({
+        path: htmlEditablePptxPath,
+        browser_base_url: window.location.origin,
+        editor_session_id: editorSessionId,
+      });
+      const response = await backendFetch(`/api/v1/files/onlyoffice/config?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error(await extractErrorMessage(response, '打开在线编辑器失败'));
+      }
+
+      const payload = (await response.json()) as OnlyOfficeEditorPayload;
+      if (!payload.enabled) {
+        const reason = payload.reason || '在线编辑服务未配置';
+        setOnlyOfficeConfig(null);
+        setOnlyOfficeModalOpen(false);
+        setOnlyOfficeError(reason);
+        setError(reason);
+        return;
+      }
+
+      setOnlyOfficeConfig(payload);
+      setOnlyOfficeError('');
+      setOnlyOfficeSessionId(editorSessionId);
+      setOnlyOfficeModalOpen(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '打开在线编辑器失败';
+      setOnlyOfficeConfig(null);
+      setOnlyOfficeModalOpen(false);
+      setOnlyOfficeError(message);
+      setError(message);
+    } finally {
+      setOnlyOfficeLoading(false);
+    }
+  };
+
   const handleGenerateFinal = async () => {
     if (pptMode === 'frontend') {
       await handleGenerateFrontendFinal();
@@ -2583,6 +2784,8 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setFrontendSlides([]);
     setFrontendDeckTheme(null);
     setDownloadUrl(null);
+    setHtmlEditablePptxUrl(null);
+    setHtmlEditablePptxPath(null);
     setPdfPreviewUrl(null);
     setResultPath(null);
     setError(null);
@@ -2590,9 +2793,18 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setProgressStatus('');
     setGenerateTaskMessage('');
     setFinalTaskMessage('');
+    setHtmlTaskMessage('');
+    setOnlyOfficeLoading(false);
+    setOnlyOfficeError('');
+    setOnlyOfficeConfig(null);
+    setOnlyOfficeModalOpen(false);
+    setOnlyOfficeSessionId('');
     setIsReviewingFrontendSlide(false);
     if (downloadUrl?.startsWith('blob:')) {
       URL.revokeObjectURL(downloadUrl);
+    }
+    if (htmlEditablePptxUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(htmlEditablePptxUrl);
     }
   };
 
@@ -2724,12 +2936,19 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
                 slides={frontendSlides}
                 deckTheme={frontendDeckTheme}
                 downloadUrl={downloadUrl}
+                htmlEditablePptxUrl={htmlEditablePptxUrl}
                 pdfPreviewUrl={pdfPreviewUrl}
                 isGeneratingFinal={isGeneratingFinal}
+                isGeneratingHtmlPptx={isGeneratingHtmlPptx}
                 taskMessage={finalTaskMessage}
+                htmlTaskMessage={htmlTaskMessage}
                 handleGenerateFinal={handleGenerateFinal}
                 handleDownloadPptx={handleDownloadPptx}
                 handleDownloadPdf={handleDownloadPdf}
+                handleGenerateHtmlPptx={handleGenerateHtmlPptx}
+                handleDownloadHtmlPptx={handleDownloadHtmlPptx}
+                handleOpenOnlyOffice={handleOpenOnlyOffice}
+                isOnlyOfficeLoading={onlyOfficeLoading}
                 handleReset={handleReset}
                 error={error}
               />
@@ -2755,6 +2974,58 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
           )}
         </div>
       </div>
+
+      {onlyOfficeModalOpen && onlyOfficeConfig?.enabled ? (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+            onClick={() => {
+              setOnlyOfficeModalOpen(false);
+              setOnlyOfficeSessionId('');
+            }}
+          />
+          <section
+            className="fixed inset-x-4 top-6 bottom-6 z-50 flex flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#060914] shadow-2xl md:inset-x-10"
+            role="dialog"
+            aria-modal="true"
+            aria-label="在线编辑 PPTX"
+          >
+            <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-4">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200/80">
+                  在线编辑
+                </div>
+                <h3 className="text-lg font-semibold text-white">ONLYOFFICE PPTX 编辑器</h3>
+              </div>
+              <button
+                type="button"
+                className="rounded-lg border border-white/15 px-3 py-2 text-sm text-gray-200 hover:bg-white/10"
+                onClick={() => {
+                  setOnlyOfficeModalOpen(false);
+                  setOnlyOfficeSessionId('');
+                }}
+              >
+                关闭
+              </button>
+            </div>
+            <div className="relative min-h-0 flex-1 bg-white">
+              {onlyOfficeError ? (
+                <div className="absolute left-4 top-4 z-10 max-w-xl rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {onlyOfficeError}
+                </div>
+              ) : null}
+              <iframe
+                key={onlyOfficeSessionId}
+                ref={onlyOfficeFrameRef}
+                title="在线编辑 PPTX"
+                className="h-full w-full border-0"
+                src={`/online-editor-frame.html?v=${ONLINE_EDITOR_FRAME_VERSION}&session=${encodeURIComponent(onlyOfficeSessionId)}`}
+                onLoad={postOnlyOfficeFrameConfig}
+              />
+            </div>
+          </section>
+        </>
+      ) : null}
 
       <style>{`
         @keyframes shimmer {
