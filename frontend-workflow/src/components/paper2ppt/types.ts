@@ -1,5 +1,6 @@
 export type Step = 'upload' | 'outline' | 'generate' | 'complete';
 export type PptGenerationMode = 'image' | 'frontend';
+export type FrontendImageMode = 'paper' | 'generated' | 'hybrid';
 
 export interface SlideOutline {
   id: string;
@@ -8,6 +9,7 @@ export interface SlideOutline {
   layout_description: string;
   key_points: string[];
   asset_ref: string | null;
+  visual_assets?: Array<Record<string, unknown>>;
   asset_ref_preview_path?: string;
   generated_img_path?: string;
   generated_img_preview_path?: string;

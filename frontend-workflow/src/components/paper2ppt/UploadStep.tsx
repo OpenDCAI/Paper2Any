@@ -11,7 +11,7 @@ import {
 import QRCodeTooltip from '../QRCodeTooltip';
 import ManagedApiNotice from '../ManagedApiNotice';
 import DemoCard from './DemoCard';
-import { PptGenerationMode, UploadMode, StyleMode, StylePreset } from './types';
+import { FrontendImageMode, PptGenerationMode, UploadMode, StyleMode, StylePreset } from './types';
 import { getManagedValidationText, isInsufficientPointsError } from '../../utils/pointsMessaging';
 
 interface UploadStepProps {
@@ -43,6 +43,8 @@ interface UploadStepProps {
   setUseLongPaper: (use: boolean) => void;
   frontendIncludeImages: boolean;
   setFrontendIncludeImages: (enabled: boolean) => void;
+  frontendImageMode: FrontendImageMode;
+  setFrontendImageMode: (mode: FrontendImageMode) => void;
   frontendAutoReviewEnabled: boolean;
   setFrontendAutoReviewEnabled: (enabled: boolean) => void;
   frontendImageStyle: string;
@@ -89,6 +91,8 @@ const UploadStep: React.FC<UploadStepProps> = ({
   useLongPaper, setUseLongPaper,
   frontendIncludeImages,
   setFrontendIncludeImages,
+  frontendImageMode,
+  setFrontendImageMode,
   frontendAutoReviewEnabled,
   setFrontendAutoReviewEnabled,
   frontendImageStyle,
@@ -690,6 +694,18 @@ const UploadStep: React.FC<UploadStepProps> = ({
                 </div>
                 {frontendIncludeImages && (
                   <div className="mt-4 grid grid-cols-1 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-300 mb-1">图像来源</label>
+                      <select
+                        value={frontendImageMode}
+                        onChange={(e) => setFrontendImageMode(e.target.value as FrontendImageMode)}
+                        className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-amber-500"
+                      >
+                        <option value="hybrid">优先论文图，缺失时 AI 生成</option>
+                        <option value="paper">仅使用论文原图</option>
+                        <option value="generated">仅 AI 生成图片</option>
+                      </select>
+                    </div>
                     <div>
                       <label className="block text-xs text-gray-300 mb-1">图像风格</label>
                       <select

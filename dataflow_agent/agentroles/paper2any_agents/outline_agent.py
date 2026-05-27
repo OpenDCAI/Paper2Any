@@ -60,6 +60,7 @@ class OutlineAgent(BaseAgent):
         return {
             "minueru_output": pre_tool_results.get("minueru_output", ""),
             "text_content": pre_tool_results.get("text_content", ""),
+            "paper_visual_catalog": pre_tool_results.get("paper_visual_catalog", ""),
             "page_count" : self.state.request.page_count,
             "language": self.state.request.language,
         }

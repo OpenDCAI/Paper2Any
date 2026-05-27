@@ -218,6 +218,7 @@ class Paper2PPTFrontendService:
                 language=req.language,
                 style=req.style,
                 include_images=req.include_images,
+                image_mode=req.image_mode,
                 image_style=req.image_style,
                 image_model=resolve_model_name(
                     req.image_model,
@@ -289,6 +290,7 @@ class Paper2PPTFrontendService:
                 language=req.language,
                 style=req.style,
                 include_images=req.include_images,
+                image_mode=req.image_mode,
                 image_style=req.image_style,
                 image_model=resolve_model_name(
                     req.image_model,
@@ -529,6 +531,7 @@ class Paper2PPTFrontendService:
         language: str,
         style: str,
         include_images: bool,
+        image_mode: Optional[str],
         image_style: str,
         image_model: Optional[str],
         image_api_url: str,
@@ -543,6 +546,7 @@ class Paper2PPTFrontendService:
             outline_item=outline_item,
             slide_index=slide_index,
             include_images=include_images,
+            image_mode=image_mode,
             image_style=image_style,
             image_model=image_model,
             image_api_url=image_api_url,
@@ -776,6 +780,7 @@ class Paper2PPTFrontendService:
         outline_item: Dict[str, Any],
         slide_index: int,
         include_images: bool,
+        image_mode: Optional[str],
         image_style: str,
         image_model: Optional[str],
         image_api_url: str,
@@ -795,10 +800,14 @@ class Paper2PPTFrontendService:
         if current_assets:
             return current_assets
 
-        if not include_images:
+        resolved_image_mode = self._resolve_image_mode(image_mode=image_mode, include_images=include_images)
+        if resolved_image_mode == "none":
             return []
 
-        asset_refs = self._collect_outline_asset_refs(outline_item)
+        if resolved_image_mode in {"paper", "hybrid"}:
+            asset_refs = self._collect_outline_asset_refs(outline_item)
+        else:
+            asset_refs = []
         if asset_refs:
             paper_assets = await self._resolve_outline_assets(
                 base_dir=base_dir,
@@ -812,6 +821,9 @@ class Paper2PPTFrontendService:
             )
             if paper_assets:
                 return paper_assets
+
+        if resolved_image_mode == "paper":
+            return []
 
         image_prompt = self._build_visual_asset_prompt(
             outline_item=outline_item,
@@ -844,6 +856,12 @@ class Paper2PPTFrontendService:
                 "style": image_style,
             }
         ]
+
+    def _resolve_image_mode(self, *, image_mode: str | None, include_images: bool) -> str:
+        normalized = str(image_mode or "").strip().lower()
+        if normalized in {"none", "paper", "generated", "hybrid"}:
+            return normalized
+        return "hybrid" if include_images else "none"
 
     async def _resolve_outline_assets(
         self,
@@ -974,6 +992,7 @@ class Paper2PPTFrontendService:
             f"Visual style: {style_map.get(image_style, image_style or 'academic illustration')}. "
             f"Preferred palette anchors: background {palette.get('bg', '#0b1020')}, accent {palette.get('accent', '#f59e0b')}, text contrast {palette.get('text', '#e2e8f0')}. "
             "The image must fit inside a 16:9 slide-side visual panel. "
+            "Generate the artwork edge-to-edge with no outer border, no gray padding, no framed mat, and no empty margins. "
             "Do not put any text, letters, labels, logos, equations, UI chrome, watermark, or slide-like layout in the image. "
             "Focus on one clear subject or scene that supports the slide narrative."
         )
@@ -4636,6 +4655,73 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                 break
         return cleaned
 
+    def _clean_text_content(self, value: Any, default: str = "", limit: int = 240) -> str:
+        if isinstance(value, (list, tuple)):
+            text = " ".join(str(item).strip() for item in value if str(item).strip())
+        elif isinstance(value, dict):
+            text = str(
+                value.get("text")
+                or value.get("content")
+                or value.get("title")
+                or value.get("value")
+                or ""
+            )
+        else:
+            text = str(value or "")
+
+        text = html.unescape(text)
+        text = re.sub(r"\s+", " ", text).strip()
+        if not text:
+            text = str(default or "").strip()
+        if limit > 0 and len(text) > limit:
+            text = text[: max(0, limit - 3)].rstrip() + "..."
+        return text
+
+    def _normalize_outline_points(
+        self,
+        value: Any,
+        *,
+        limit: int = 6,
+        item_limit: int = 160,
+    ) -> List[str]:
+        if value is None:
+            raw_items: Sequence[Any] = []
+        elif isinstance(value, (list, tuple)):
+            raw_items = value
+        elif isinstance(value, dict):
+            raw_items = list(value.values())
+        else:
+            text = str(value)
+            raw_items = re.split(r"(?:\r?\n)+|[;；]\s*|(?:^|\s)[\-•]\s+", text)
+
+        normalized: List[str] = []
+        seen = set()
+        for item in raw_items:
+            if isinstance(item, dict):
+                item = (
+                    item.get("text")
+                    or item.get("content")
+                    or item.get("title")
+                    or item.get("value")
+                    or item.get("label")
+                    or ""
+                )
+            elif isinstance(item, (list, tuple)):
+                item = " ".join(str(part).strip() for part in item if str(part).strip())
+
+            cleaned = self._clean_text_content(item, "", item_limit)
+            cleaned = re.sub(r"^\s*(?:[0-9]+[.)、]|[A-Za-z][.)])\s*", "", cleaned).strip()
+            if not cleaned:
+                continue
+            dedupe_key = cleaned.lower()
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            normalized.append(cleaned)
+            if len(normalized) >= limit:
+                break
+        return normalized
+
     def _choose_fallback_layout_type(
         self,
         *,
@@ -4714,6 +4800,18 @@ If there are any meaningful problems, set passed=false and provide a concrete re
                 f'        <div class="visual-shell visual-shell-{asset_index + 1}">{{{{image:{asset.get("key") or self._build_visual_asset_key(asset_index)}}}}}</div>'
                 for asset_index, asset in enumerate(visual_assets)
             )
+
+        fallback_theme = self._build_fallback_theme(language="zh", style="")
+        raw_palette = theme.get("palette") if isinstance(theme.get("palette"), dict) else {}
+        raw_typography = theme.get("typography") if isinstance(theme.get("typography"), dict) else {}
+        palette = {
+            **fallback_theme["palette"],
+            **{key: str(value).strip() for key, value in raw_palette.items() if str(value).strip()},
+        }
+        typography = {
+            **fallback_theme["typography"],
+            **{key: value for key, value in raw_typography.items() if value not in (None, "")},
+        }
 
         html_template = """
 <div class="slide-root">

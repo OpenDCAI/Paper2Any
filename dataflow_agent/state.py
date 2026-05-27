@@ -397,6 +397,7 @@ class Paper2FigureState(MainState):
     pagecontent: list[dict] = field(default_factory=list)
     minueru_output: str = ""
     mineru_root: str = ""
+    paper_visual_catalog: List[Dict[str, Any]] = field(default_factory=list)
     text_content: str = ""
     outline_feedback: str = ""
     # 生成的 PPT PDF 路径

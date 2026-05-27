@@ -181,7 +181,8 @@ def _consume_paper2ppt_frontend_charge(request: Request, req: FrontendPPTGenerat
     else:
         skip_count = len(_parse_page_index_list(req.skip_slides, max_count=pagecontent_count))
         pages_to_generate = max(0, pagecontent_count - skip_count)
-        per_page = 2 if bool(req.include_images) else 1
+        uses_images = bool(req.include_images) or str(req.image_mode or "").strip().lower() in {"paper", "generated", "hybrid"}
+        per_page = 2 if uses_images else 1
         amount = pages_to_generate * per_page
         if amount <= 0:
             return
@@ -197,6 +198,7 @@ def _consume_paper2ppt_frontend_charge(request: Request, req: FrontendPPTGenerat
         "model": str(req.model or "").strip(),
         "language": str(req.language or "").strip(),
         "include_images": bool(req.include_images),
+        "image_mode": str(req.image_mode or "").strip(),
         "image_style": str(req.image_style or "").strip(),
         "image_model": str(req.image_model or "").strip(),
         "skip_slides": _parse_page_index_list(req.skip_slides),
@@ -830,6 +832,7 @@ async def paper2ppt_frontend_generate(
     language: str = Form("zh"),
     style: str = Form(""),
     include_images: bool = Form(False),
+    image_mode: str = Form(""),
     image_style: str = Form("academic_illustration"),
     image_model: Optional[str] = Form(None),
     page_id: Optional[int] = Form(None),
@@ -853,6 +856,7 @@ async def paper2ppt_frontend_generate(
         language=language,
         style=style,
         include_images=include_images,
+        image_mode=image_mode or ("hybrid" if include_images else "none"),
         image_style=image_style,
         image_model=resolve_model_name(
             image_model,

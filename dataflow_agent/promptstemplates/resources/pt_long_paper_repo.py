@@ -35,6 +35,9 @@ class LongPaperOutlineAgent:
 **输入数据（当前文本片段）：**
 {current_chunk}
 
+**论文图片 catalog（仅允许从这里选择图片）：**
+{paper_visual_catalog}
+
 **任务要求：**
 1. **第一页必须是封面**：包含 PPT 主题（Title）和汇报人信息（Presenter）。不需要额外的内容。
 2. 后续页面开始进入正文介绍（如背景、引言、核心问题等）。
@@ -50,6 +53,7 @@ class LongPaperOutlineAgent:
 - `layout_description`: 详细的版面布局描述。
 - `key_points`: 一个包含多个关键要点的字符串列表（List<String>）。
 - `asset_ref`: 如果该页需要展示论文中的原图或表格，请提名或路径取其文件（例如 "Table_2", "images/architecture.png"），并且只能1 个 asset；如果不需要引用原图，请填 null。
+  如果引用论文原图，必须使用上方 catalog 中真实存在的 ref，禁止编造图片路径。
 
 示例结构：
 [
@@ -78,6 +82,9 @@ class LongPaperOutlineAgent:
 **输入数据（当前文本片段）：**
 {current_chunk}
 
+**论文图片 catalog（仅允许从这里选择图片）：**
+{paper_visual_catalog}
+
 **任务要求：**
 1. **直接生成正文内容**：不需要封面，也不要致谢。
 2. 承接上一批次的内容，继续展开当前的章节。
@@ -91,6 +98,7 @@ class LongPaperOutlineAgent:
 JSON 数组，每个对象代表一页PPT。
 结构字段：`title`, `layout_description`, `key_points`, `asset_ref`。
 - `asset_ref`: 如果该页需要展示论文中的原图或表格，请提名或路径取其文件（例如 "Table_2", "images/architecture.png"），并且只能1 个 asset；如果不需要引用原图，请填 null。
+  如果引用论文原图，必须使用上方 catalog 中真实存在的 ref，禁止编造图片路径。
 
 示例结构：
 [
@@ -119,6 +127,9 @@ JSON 数组，每个对象代表一页PPT。
 **输入数据（当前文本片段）：**
 {current_chunk}
 
+**论文图片 catalog（仅允许从这里选择图片）：**
+{paper_visual_catalog}
+
 **任务要求：**
 1. 生成剩余的正文内容（结论、未来展望等）。
 2. **最后一页必须是致谢（Thank You）**：简短的结束语。
@@ -131,6 +142,7 @@ JSON 数组，每个对象代表一页PPT。
 JSON 数组，每个对象代表一页PPT。
 结构字段：`title`, `layout_description`, `key_points`, `asset_ref`。
 - `asset_ref`: 如果该页需要展示论文中的原图或表格，请提名或路径取其文件（例如 "Table_2", "images/architecture.png"），并且只能1 个 asset；如果不需要引用原图，请填 null。
+  如果引用论文原图，必须使用上方 catalog 中真实存在的 ref，禁止编造图片路径。
 
 确保最后一页是致谢页。
 
