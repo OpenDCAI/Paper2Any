@@ -9,7 +9,6 @@ import { useAuthStore } from '../../stores/authStore';
 import { getApiSettings, saveApiSettings } from '../../services/apiSettingsService';
 import { backendFetch } from '../../services/backendClient';
 import { useRuntimeBilling } from '../../hooks/useRuntimeBilling';
-import { appendManagedApiConfig, appendManagedModel } from '../../utils/runtimeBillingForm';
 import {
   buildInsufficientPointsMessage,
   buildQuotaExhaustedMessage,
@@ -17,13 +16,21 @@ import {
 } from '../../utils/pointsMessaging';
 
 import {
+  FrontendBlockChild,
   FrontendDeckTheme,
+  FrontendEditableField,
+  FrontendCanvasNode,
+  FrontendCanvasVisualSpec,
+  FrontendCanvasVisualStyle,
   FrontendSlide,
-  MaskSelectionSpec,
+  FrontendSlideBlock,
+  FrontendTableData,
+  parseFrontendInsertZoneTarget,
   PptGenerationMode,
   Step,
   SlideOutline,
   GenerateResult,
+  MaskSelectionSpec,
   UploadMode,
   StyleMode,
   StylePreset,
@@ -43,6 +50,17 @@ import { validateStructuredSlide, buildStructuredSlideRepairPrompt } from './str
 import { exportStructuredSlidesToPptx } from './exportStructuredSlides';
 import { buildHtmlDeckArtifact } from './htmlDeckArtifact';
 import { exportHtmlDeckToPptx } from './html2pptxExport';
+import FrontendSlidePreview from './FrontendSlidePreview';
+import {
+  buildFrontendCodeRepairPrompt,
+  captureSlideToPngBlob,
+  inspectSlideLayout,
+  validateFrontendSlideCode,
+} from './frontendSlideUtils';
+import {
+  buildCanvasSlidesPptxBlob,
+  canExportCanvasSlidesToPptx,
+} from './canvasPptxExporter';
 
 const MANAGED_CREDENTIAL_SCOPE = 'paper2ppt';
 const ONLINE_EDITOR_FRAME_VERSION = 'v2';
@@ -140,6 +158,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   const [genFigModel, setGenFigModel] = useState(DEFAULT_PAPER2PPT_GEN_FIG_MODEL);
   const [language, setLanguage] = useState<'zh' | 'en'>('en');
   const [resultPath, setResultPath] = useState<string | null>(null);
+  const frontendCaptureRefs = useRef<Array<HTMLDivElement | null>>([]);
   const uploadSubmitGuardRef = useRef(false);
   const uploadSubmitGuardTimerRef = useRef<number | null>(null);
   const [isUploadSubmitLocked, setIsUploadSubmitLocked] = useState(false);
@@ -224,34 +243,6 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     return null;
   };
 
-  const extractOutlineText = (value: unknown): string => {
-    if (typeof value === 'string') return value.trim();
-    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-    if (Array.isArray(value)) {
-      return value.map((item) => extractOutlineText(item)).filter(Boolean).join(' ');
-    }
-    if (value && typeof value === 'object') {
-      const record = value as Record<string, unknown>;
-      for (const key of ['text', 'value', 'content', 'summary', 'title', 'label', 'body', 'description', 'reason', 'point']) {
-        const text = extractOutlineText(record[key]);
-        if (text) return text;
-      }
-      for (const item of Object.values(record)) {
-        const text = extractOutlineText(item);
-        if (text) return text;
-      }
-    }
-    return '';
-  };
-
-  const normalizeOutlinePoints = (value: unknown): string[] => {
-    const items = Array.isArray(value) ? value : [value];
-    return items
-      .map((item) => extractOutlineText(item))
-      .map((item) => item.replace(/\s+/g, ' ').trim())
-      .filter(Boolean);
-  };
-
   const extractErrorMessage = async (res: Response, fallback: string) => {
     if (res.status === 403) {
       return '邀请码不正确或已失效';
@@ -287,12 +278,6 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (pptMode === 'image' && currentStep === 'generate') {
-      setSlideMaskSelection(null);
-    }
-  }, [currentSlideIndex, currentStep, pptMode]);
 
   const releaseUploadSubmitGuard = (cooldownMs: number = 1200) => {
     if (uploadSubmitGuardTimerRef.current !== null) {
@@ -470,11 +455,10 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   };
 
   const submitPaper2PptTask = async (
-    endpoint: string,
     formData: FormData,
     workflowAmount?: number,
   ): Promise<Paper2PPTTaskResponse> => {
-    const res = await backendFetch(endpoint, {
+    const res = await backendFetch('/api/v1/paper2ppt/generate-task', {
       method: 'POST',
       headers: workflowAmount && workflowAmount > 0
         ? { 'X-Workflow-Amount': String(workflowAmount) }
@@ -547,87 +531,1490 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   const getPreviewPath = (item: any, key: string) =>
     String(item?.[`${key}_preview_path`] || item?.[`${key}PreviewPath`] || '').trim();
 
-  const normalizeLayoutData = (layoutData: any) => {
-    if (!layoutData || typeof layoutData !== 'object') {
-      return { type: 'bullets', titleKey: 'title' };
+  const SUPPORTED_SCHEMA_TEMPLATE_KEYS = new Set([
+    'title_cover',
+    'section_divider',
+    'text_focus',
+    'hero_visual',
+    'split_media',
+    'visual_compare',
+    'insight_grid',
+    'metrics_dashboard',
+    'timeline_overview',
+    'stacked_cards',
+    'quote_focus',
+    'dual_list',
+  ]);
+
+  const TEMPLATE_KEY_ALIASES: Record<string, string> = {
+    cover: 'title_cover',
+    cover_slide: 'title_cover',
+    title_slide: 'title_cover',
+    divider: 'section_divider',
+    section: 'section_divider',
+    section_break: 'section_divider',
+    text_only: 'text_focus',
+    text_heavy: 'text_focus',
+    hero: 'hero_visual',
+    single_visual: 'hero_visual',
+    media_split: 'split_media',
+    split_layout: 'split_media',
+    compare: 'visual_compare',
+    comparison: 'visual_compare',
+    image_compare: 'visual_compare',
+    grid: 'insight_grid',
+    card_grid: 'insight_grid',
+    dashboard: 'metrics_dashboard',
+    metrics: 'metrics_dashboard',
+    timeline: 'timeline_overview',
+    process_timeline: 'timeline_overview',
+    cards: 'stacked_cards',
+    card_stack: 'stacked_cards',
+    quote: 'quote_focus',
+    quote_slide: 'quote_focus',
+    two_lists: 'dual_list',
+    dual_column_list: 'dual_list',
+  };
+
+  const PREFERRED_SCHEMA_FIELD_KEYS: Record<string, string> = {
+    title: 'title',
+    summary: 'summary',
+    key_points: 'key_points',
+    takeaway: 'takeaway',
+    footer: 'footer',
+    eyebrow: 'eyebrow',
+  };
+
+  const AUTO_DELETE_EDITABLE_FIELD_PREFIXES = ['text_', 'callout_'];
+  const AUTO_DELETE_CANVAS_COMPONENTS = new Set(['text', 'callout', 'quote']);
+  const AUTO_DELETE_BLOCK_TYPES = new Set<FrontendSlideBlock['type']>(['text', 'callout', 'quote']);
+  const PROTECTED_EDITABLE_FIELD_KEYS = new Set([
+    ...Object.values(PREFERRED_SCHEMA_FIELD_KEYS),
+    'presenter',
+    'subtitle',
+  ]);
+
+  const normalizeStringList = (value: unknown): string[] =>
+    Array.isArray(value)
+      ? value.map((item) => String(item || '').trim()).filter(Boolean)
+      : [];
+
+  const normalizeTableRows = (value: unknown): string[][] =>
+    Array.isArray(value)
+      ? value
+          .map((row) =>
+            Array.isArray(row)
+              ? row.map((cell) => String(cell ?? '').trim())
+              : [],
+          )
+          .filter((row) => row.length > 0)
+      : [];
+
+  const normalizeSchemaTableData = (value: unknown): FrontendTableData | undefined => {
+    const source = (value && typeof value === 'object') ? value as Record<string, unknown> : {};
+    const headers = normalizeStringList(
+      source.headers
+      || source.columns
+      || source.cols,
+    );
+    const rows = normalizeTableRows(
+      source.rows
+      || source.data
+      || source.values,
+    );
+    const maxColumns = Math.max(headers.length, ...rows.map((row) => row.length), 0);
+    if (maxColumns === 0) {
+      return undefined;
     }
     return {
-      ...layoutData,
-      eyebrowKey: layoutData.eyebrow_key || layoutData.eyebrowKey,
-      titleKey: layoutData.title_key || layoutData.titleKey,
-      footerKey: layoutData.footer_key || layoutData.footerKey,
-      summaryKey: layoutData.summary_key || layoutData.summaryKey,
-      subtitleKey: layoutData.subtitle_key || layoutData.subtitleKey,
-      presenterKey: layoutData.presenter_key || layoutData.presenterKey,
-      quoteKey: layoutData.quote_key || layoutData.quoteKey,
-      bulletsKey: layoutData.bullets_key || layoutData.bulletsKey,
-      takeawayKey: layoutData.takeaway_key || layoutData.takeawayKey,
-      leftHeadingKey: layoutData.left_heading_key || layoutData.leftHeadingKey,
-      leftBodyKey: layoutData.left_body_key || layoutData.leftBodyKey,
-      leftPointsKey: layoutData.left_points_key || layoutData.leftPointsKey,
-      rightHeadingKey: layoutData.right_heading_key || layoutData.rightHeadingKey,
-      rightBodyKey: layoutData.right_body_key || layoutData.rightBodyKey,
-      rightPointsKey: layoutData.right_points_key || layoutData.rightPointsKey,
-      visualKey: layoutData.visual_key || layoutData.visualKey,
-      visualCaptionKey: layoutData.visual_caption_key || layoutData.visualCaptionKey,
-      leftTitleKey: layoutData.left_title_key || layoutData.leftTitleKey,
-      rightTitleKey: layoutData.right_title_key || layoutData.rightTitleKey,
-      cards: Array.isArray(layoutData.cards)
-        ? layoutData.cards.map((card: any) => ({
-            titleKey: card.title_key || card.titleKey,
-            bodyKey: card.body_key || card.bodyKey,
-          }))
-        : [],
-      timeline: Array.isArray(layoutData.timeline)
-        ? layoutData.timeline.map((item: any) => ({
-            labelKey: item.label_key || item.labelKey,
-            bodyKey: item.body_key || item.bodyKey,
-          }))
-        : [],
+      headers: Array.from({ length: maxColumns }, (_, index) => headers[index] || `列 ${index + 1}`),
+      rows: rows.length > 0
+        ? rows.map((row) => Array.from({ length: maxColumns }, (_, index) => row[index] || ''))
+        : [Array.from({ length: maxColumns }, () => '')],
     };
   };
 
-  const normalizeThemeLock = (themeLock: any) => ({
-    mustKeep: Array.isArray(themeLock?.must_keep || themeLock?.mustKeep)
-      ? (themeLock.must_keep || themeLock.mustKeep).map((item: unknown) => String(item || '')).filter(Boolean)
-      : [],
-    preferredLayoutPatterns: Array.isArray(themeLock?.preferred_layout_patterns || themeLock?.preferredLayoutPatterns)
-      ? (themeLock.preferred_layout_patterns || themeLock.preferredLayoutPatterns)
-          .map((item: unknown) => String(item || ''))
-          .filter(Boolean)
-      : [],
-    componentSignature: String(themeLock?.component_signature || themeLock?.componentSignature || ''),
-    avoid: Array.isArray(themeLock?.avoid)
-      ? themeLock.avoid.map((item: unknown) => String(item || '')).filter(Boolean)
-      : [],
+  const toFiniteNumber = (value: unknown, fallback: number) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : fallback;
+  };
+
+  const slugifySchemaToken = (value: unknown) =>
+    String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+  const normalizeSchemaTemplateKey = (value: unknown) => {
+    const candidate = slugifySchemaToken(value);
+    if (!candidate) {
+      return '';
+    }
+    if (SUPPORTED_SCHEMA_TEMPLATE_KEYS.has(candidate)) {
+      return candidate;
+    }
+    return TEMPLATE_KEY_ALIASES[candidate] || '';
+  };
+
+  const pickSchemaTemplateKeyFromBlocks = (
+    blocks: FrontendSlideBlock[],
+    visualAssetCount: number,
+  ) => {
+    const imageCount = blocks.filter((block) => block.type === 'image').length;
+    const listCount = blocks.filter((block) => block.type === 'list').length;
+    const statCount = blocks.filter((block) => block.type === 'stat').length;
+    const quoteCount = blocks.filter((block) => block.type === 'quote').length;
+
+    if (quoteCount > 0) return 'quote_focus';
+    if (imageCount >= 2) return 'visual_compare';
+    if (statCount >= 2) return 'metrics_dashboard';
+    if (listCount >= 2) return 'dual_list';
+    if (imageCount === 1 && listCount > 0) return 'split_media';
+    if (imageCount === 1 || visualAssetCount > 0) return 'hero_visual';
+    if (blocks.length <= 3) return 'section_divider';
+    if (blocks.length >= 6) return 'insight_grid';
+    return 'text_focus';
+  };
+
+  const normalizeSchemaLayoutMode = (value: unknown): FrontendSlide['layoutMode'] => {
+    const candidate = String(value || '').trim().toLowerCase();
+    if (candidate === 'fixed' || candidate === 'hybrid' || candidate === 'fluid') {
+      return candidate;
+    }
+    return 'fluid';
+  };
+
+  const normalizeSchemaBlockType = (value: unknown): FrontendSlideBlock['type'] => {
+    const candidate = String(value || '').trim().toLowerCase();
+    const aliases: Record<string, FrontendSlideBlock['type']> = {
+      paragraph: 'text',
+      textarea: 'text',
+      body: 'text',
+      bullets: 'list',
+      bullet_list: 'list',
+      points: 'list',
+      figure: 'image',
+      visual: 'image',
+      chart: 'image',
+      metric: 'stat',
+      number: 'stat',
+      note: 'callout',
+    };
+    const normalized = aliases[candidate] || candidate || 'text';
+    if (
+      normalized === 'text'
+      || normalized === 'list'
+      || normalized === 'image'
+      || normalized === 'quote'
+      || normalized === 'stat'
+      || normalized === 'callout'
+      || normalized === 'table'
+    ) {
+      return normalized;
+    }
+    return 'text';
+  };
+
+  const normalizeSchemaBlockLayout = (value: unknown, fallbackOrder: number): FrontendSlideBlock['layout'] => {
+    const layout = (value && typeof value === 'object') ? value as Record<string, unknown> : {};
+    const zoneCandidate = String(
+      layout.zone
+      || layout.slot
+      || layout.region
+      || layout.area
+      || 'main',
+    ).trim().toLowerCase();
+    const zone = (
+      zoneCandidate === 'header'
+      || zoneCandidate === 'main'
+      || zoneCandidate === 'aside'
+      || zoneCandidate === 'footer'
+      || zoneCandidate === 'full'
+      || zoneCandidate === 'left'
+      || zoneCandidate === 'right'
+    ) ? zoneCandidate : 'main';
+
+    const span = Math.max(1, Math.min(12, Math.round(toFiniteNumber(layout.span || layout.columns, zone === 'header' || zone === 'footer' || zone === 'full' ? 12 : 6))));
+    const order = Math.max(1, Math.round(toFiniteNumber(layout.order, fallbackOrder)));
+    const widthCandidate = String(
+      layout.preferred_width
+      || layout.preferredWidth
+      || layout.width
+      || '',
+    ).trim().toLowerCase();
+    const preferredWidth = (
+      widthCandidate === 'full'
+      || widthCandidate === 'wide'
+      || widthCandidate === 'half'
+      || widthCandidate === 'third'
+      || widthCandidate === 'narrow'
+      || widthCandidate === 'auto'
+    ) ? widthCandidate : span >= 12 ? 'full' : span >= 8 ? 'wide' : span >= 6 ? 'half' : span >= 4 ? 'third' : 'auto';
+
+    const sideCandidate = String(
+      layout.preferred_side
+      || layout.preferredSide
+      || layout.side
+      || '',
+    ).trim().toLowerCase();
+    const preferredSide = (
+      sideCandidate === 'left'
+      || sideCandidate === 'right'
+      || sideCandidate === 'center'
+      || sideCandidate === 'auto'
+    ) ? sideCandidate : zone === 'left' ? 'left' : zone === 'right' || zone === 'aside' ? 'right' : 'auto';
+
+    const emphasisCandidate = String(layout.emphasis || '').trim().toLowerCase();
+    const emphasis = (
+      emphasisCandidate === 'high'
+      || emphasisCandidate === 'medium'
+      || emphasisCandidate === 'low'
+    ) ? emphasisCandidate : 'medium';
+
+    return {
+      zone,
+      span,
+      order,
+      preferredWidth,
+      preferredSide,
+      emphasis,
+    };
+  };
+
+  const normalizeSchemaBlockChildren = (rawChildren: unknown): FrontendBlockChild[] => {
+    if (!Array.isArray(rawChildren)) {
+      return [];
+    }
+    const seenIds = new Set<string>();
+    const children: FrontendBlockChild[] = [];
+    rawChildren.forEach((rawChild, index) => {
+      if (!rawChild || typeof rawChild !== 'object') {
+        return;
+      }
+      const child = rawChild as Record<string, unknown>;
+      let id = slugifySchemaToken(
+        child.id
+        || child.key
+        || child.field_key
+        || child.fieldKey
+        || child.role
+        || `child_${index + 1}`,
+      ) || `child_${index + 1}`;
+      if (seenIds.has(id)) {
+        id = `${id}_${index + 1}`;
+      }
+      seenIds.add(id);
+
+      const type = normalizeSchemaBlockType(
+        child.type
+        || child.block_type
+        || child.blockType
+        || child.kind,
+      );
+      const role = slugifySchemaToken(
+        child.role
+        || child.semantic_role
+        || child.semanticRole
+        || id,
+      ) || id;
+      const items = normalizeStringList(child.items || child.bullets || child.points);
+      const content = String(
+        child.content
+        || child.text
+        || child.value
+        || child.body
+        || '',
+      ).trim();
+      const assetKey = type === 'image'
+        ? slugifySchemaToken(
+            child.asset_key
+            || child.assetKey
+            || child.image_key
+            || child.imageKey
+            || child.visual_key
+            || child.visualKey
+            || id,
+          ) || id
+        : undefined;
+      const tableData = type === 'table'
+        ? normalizeSchemaTableData(
+            child.table_data
+            || child.tableData
+            || child.table
+          )
+        : undefined;
+
+      if (type === 'table' && !tableData) {
+        return;
+      }
+      if (type !== 'image' && type !== 'list' && type !== 'table' && !content) {
+        return;
+      }
+      if (type === 'list' && items.length === 0 && !content) {
+        return;
+      }
+
+      children.push({
+        id,
+        type,
+        role,
+        content,
+        items: type === 'list' && items.length === 0 && content
+          ? content
+              .split(/\n+/)
+              .map((item) => item.replace(/^[\s\-•]+/, '').trim())
+              .filter(Boolean)
+          : items,
+        assetKey,
+        tableData,
+      });
+    });
+    return children;
+  };
+
+  const normalizeSchemaBlocks = (
+    rawBlocks: unknown,
+    visualAssets: Array<{ key: string }>,
+  ): FrontendSlideBlock[] => {
+    if (!Array.isArray(rawBlocks)) {
+      return [];
+    }
+
+    const availableAssetKeys = visualAssets
+      .map((asset) => slugifySchemaToken(asset.key) || String(asset.key || '').trim())
+      .filter(Boolean);
+    const usedBlockIds = new Set<string>();
+    const usedAssetKeys: string[] = [];
+
+    const pickAssetKey = (preferred: string, fallbackId: string) => {
+      const normalizedPreferred = slugifySchemaToken(preferred);
+      if (normalizedPreferred) {
+        return normalizedPreferred;
+      }
+      const nextUnused = availableAssetKeys.find((key) => !usedAssetKeys.includes(key));
+      return nextUnused || fallbackId;
+    };
+
+    const normalizedBlocks: FrontendSlideBlock[] = [];
+
+    rawBlocks.forEach((rawBlock, index) => {
+      if (!rawBlock || typeof rawBlock !== 'object') {
+        return;
+      }
+      const block = rawBlock as Record<string, unknown>;
+      const fallbackId = `block_${index + 1}`;
+      let id = slugifySchemaToken(
+        block.id
+        || block.key
+        || block.field_key
+        || block.fieldKey
+        || block.role
+        || fallbackId,
+      ) || fallbackId;
+      if (usedBlockIds.has(id)) {
+        id = `${id}_${index + 1}`;
+      }
+      usedBlockIds.add(id);
+
+      const type = normalizeSchemaBlockType(
+        block.type
+        || block.block_type
+        || block.blockType
+        || block.kind,
+      );
+      const role = slugifySchemaToken(
+        block.role
+        || block.semantic_role
+        || block.semanticRole
+        || id,
+      ) || id;
+
+      const items = normalizeStringList(
+        block.items
+        || block.bullets
+        || block.points,
+      );
+      const content = String(
+        block.content
+        || block.text
+        || block.value
+        || block.body
+        || '',
+      ).trim();
+
+      const normalizedItems = type === 'list' && items.length === 0 && content
+        ? content
+            .split(/\n+/)
+            .map((item) => item.replace(/^[\s\-•]+/, '').trim())
+            .filter(Boolean)
+        : items;
+
+      if (type === 'list' && normalizedItems.length === 0) {
+        return;
+      }
+
+      const tableData = type === 'table'
+        ? normalizeSchemaTableData(
+            block.table_data
+            || block.tableData
+            || block.table
+          )
+        : undefined;
+
+      if (type === 'table' && !tableData) {
+        return;
+      }
+      if (type !== 'image' && type !== 'table' && !content && normalizedItems.length === 0) {
+        return;
+      }
+
+      const assetKey = type === 'image'
+        ? pickAssetKey(
+            String(
+              block.asset_key
+              || block.assetKey
+              || block.image_key
+              || block.imageKey
+              || block.visual_key
+              || block.visualKey
+              || '',
+            ),
+            id,
+          )
+        : undefined;
+
+      if (assetKey && !usedAssetKeys.includes(assetKey)) {
+        usedAssetKeys.push(assetKey);
+      }
+
+      normalizedBlocks.push({
+        id,
+        type,
+        role,
+        content,
+        items: normalizedItems,
+        assetKey,
+        tableData,
+        children: normalizeSchemaBlockChildren(
+          block.children
+          || block.content_items
+          || block.contentItems
+          || block.elements,
+        ),
+        layout: normalizeSchemaBlockLayout(
+          block.layout
+          || block.layout_hint
+          || block.layoutHint,
+          index + 1,
+        ),
+      });
+    });
+
+    return normalizedBlocks
+      .sort((a, b) => a.layout.order - b.layout.order || a.id.localeCompare(b.id))
+      .map((block, index) => ({
+        ...block,
+        layout: {
+          ...block.layout,
+          order: index + 1,
+        },
+      }));
+  };
+
+  const getEditableFieldKeyForBlock = (slide: FrontendSlide, block: FrontendSlideBlock) => {
+    const fieldKeys = new Set(slide.editableFields.map((field) => field.key));
+    const candidates = [
+      PREFERRED_SCHEMA_FIELD_KEYS[block.role] || '',
+      block.role || '',
+      block.id || '',
+      slugifySchemaToken(block.role || ''),
+      slugifySchemaToken(block.id || ''),
+    ].filter(Boolean);
+    return candidates.find((candidate) => fieldKeys.has(candidate));
+  };
+
+  const buildIdleFrontendReview = (): NonNullable<FrontendSlide['review']> => ({
+    status: 'idle',
+    summary: '',
+    issues: [],
   });
 
-  const normalizeTypography = (typography: any) => ({
-    titleFontStack: String(typography?.title_font_stack || typography?.titleFontStack || ''),
-    bodyFontStack: String(typography?.body_font_stack || typography?.bodyFontStack || ''),
-    eyebrowSize: Number(typography?.eyebrow_size || typography?.eyebrowSize || 18),
-    titleSize: Number(typography?.title_size || typography?.titleSize || 56),
-    summarySize: Number(typography?.summary_size || typography?.summarySize || 26),
-    bodySize: Number(typography?.body_size || typography?.bodySize || 24),
+  const buildUniqueBlockId = (slide: FrontendSlide, prefix: string) => {
+    const base = slugifySchemaToken(prefix) || 'block';
+    const existingIds = new Set([
+      ...slide.blocks.map((block) => block.id),
+      ...slide.blocks.flatMap((block) => (block.children || []).map((child) => child.id)),
+      ...slide.editableFields.map((field) => field.key),
+      ...slide.visualAssets.map((asset) => asset.key),
+    ]);
+    let candidate = `${base}_${Date.now().toString(36)}`;
+    let counter = 1;
+    while (existingIds.has(candidate)) {
+      counter += 1;
+      candidate = `${base}_${Date.now().toString(36)}_${counter}`;
+    }
+    return candidate;
+  };
+
+  const buildUniqueChildId = (slide: FrontendSlide, prefix: string) => {
+    const base = slugifySchemaToken(prefix) || 'item';
+    const existingIds = new Set([
+      ...slide.blocks.map((block) => block.id),
+      ...slide.blocks.flatMap((block) => (block.children || []).map((child) => child.id)),
+      ...slide.editableFields.map((field) => field.key),
+      ...slide.visualAssets.map((asset) => asset.key),
+    ]);
+    let candidate = `${base}_${Date.now().toString(36)}`;
+    let counter = 1;
+    while (existingIds.has(candidate)) {
+      counter += 1;
+      candidate = `${base}_${Date.now().toString(36)}_${counter}`;
+    }
+    return candidate;
+  };
+
+  const collectCanvasNodeIds = (node?: FrontendCanvasNode): string[] => {
+    if (!node) return [];
+    return [
+      node.id,
+      ...(node.children || []).flatMap((child) => collectCanvasNodeIds(child)),
+    ].filter(Boolean);
+  };
+
+  const buildUniqueCanvasNodeId = (slide: FrontendSlide, prefix: string) => {
+    const base = slugifySchemaToken(prefix) || 'node';
+    const existingIds = new Set([
+      ...collectCanvasNodeIds(slide.root),
+      ...slide.blocks.map((block) => block.id),
+      ...slide.editableFields.map((field) => field.key),
+      ...slide.visualAssets.map((asset) => asset.key),
+    ]);
+    let candidate = `${base}_${Date.now().toString(36)}`;
+    let counter = 1;
+    while (existingIds.has(candidate)) {
+      counter += 1;
+      candidate = `${base}_${Date.now().toString(36)}_${counter}`;
+    }
+    return candidate;
+  };
+
+  const cloneTableData = (tableData: FrontendTableData): FrontendTableData => ({
+    headers: [...tableData.headers],
+    rows: tableData.rows.map((row) => [...row]),
   });
+
+  const normalizeContentTableData = (value: unknown): FrontendTableData | null => {
+    if (!value || typeof value !== 'object') return null;
+    const source = value as Record<string, unknown>;
+    const headers = Array.isArray(source.headers)
+      ? source.headers.map((item) => String(item ?? ''))
+      : Array.isArray(source.columns)
+        ? source.columns.map((item) => String(item ?? ''))
+        : [];
+    const rows = Array.isArray(source.rows)
+      ? source.rows
+          .filter((row): row is unknown[] => Array.isArray(row))
+          .map((row) => row.map((cell) => String(cell ?? '')))
+      : [];
+    if (headers.length === 0 && rows.length === 0) return null;
+    const maxCols = Math.max(headers.length, ...rows.map((row) => row.length), 1);
+    return {
+      headers: Array.from({ length: maxCols }, (_, index) => headers[index] || `列 ${index + 1}`),
+      rows: rows.length > 0
+        ? rows.map((row) => Array.from({ length: maxCols }, (_, index) => row[index] || ''))
+        : [Array.from({ length: maxCols }, () => '')],
+    };
+  };
+
+  const mergeTableCellFieldIntoGroups = (
+    groups: Record<string, FrontendTableData>,
+    fieldKey: string,
+    value: string,
+  ) => {
+    const match = /^(.+)_cell_(h|\d+)_(\d+)$/.exec(fieldKey);
+    if (!match) return false;
+    const ownerId = match[1];
+    const rowIndex = match[2] === 'h' ? 'h' : Number.parseInt(match[2], 10);
+    const colIndex = Number.parseInt(match[3], 10);
+    if (!Number.isFinite(colIndex) || (rowIndex !== 'h' && !Number.isFinite(rowIndex))) {
+      return true;
+    }
+    const tableData = groups[ownerId] || { headers: [], rows: [] };
+    if (rowIndex === 'h') {
+      while (tableData.headers.length <= colIndex) {
+        tableData.headers.push(`列 ${tableData.headers.length + 1}`);
+      }
+      tableData.headers[colIndex] = value;
+    } else {
+      while (tableData.rows.length <= rowIndex) {
+        tableData.rows.push([]);
+      }
+      while (tableData.rows[rowIndex].length <= colIndex) {
+        tableData.rows[rowIndex].push('');
+      }
+      tableData.rows[rowIndex][colIndex] = value;
+    }
+    groups[ownerId] = tableData;
+    return true;
+  };
+
+  const buildCanvasContentFromSlide = (slide: FrontendSlide): Record<string, unknown> => {
+    const content: Record<string, unknown> = {
+      ...(slide.content || {}),
+    };
+    Object.keys(content).forEach((key) => {
+      if (/^(.+)_cell_(h|\d+)_(\d+)$/.test(key)) {
+        delete content[key];
+      }
+    });
+    const tableFieldGroups: Record<string, FrontendTableData> = {};
+    slide.editableFields.forEach((field) => {
+      if (mergeTableCellFieldIntoGroups(tableFieldGroups, field.key, field.value)) {
+        return;
+      }
+      content[field.key] = field.type === 'list' ? [...field.items] : field.value;
+    });
+    slide.blocks.forEach((block) => {
+      if (block.type === 'table' && block.tableData) {
+        content[block.role || block.id] = cloneTableData(block.tableData);
+      } else if (block.type === 'list' && block.items.length > 0 && !(block.role in content)) {
+        content[block.role || block.id] = [...block.items];
+      } else if (block.content && !(block.role in content)) {
+        content[block.role || block.id] = block.content;
+      }
+    });
+    Object.entries(tableFieldGroups).forEach(([ownerId, tableData]) => {
+      content[ownerId] = {
+        ...(content[ownerId] && typeof content[ownerId] === 'object' ? content[ownerId] as Record<string, unknown> : {}),
+        ...cloneTableData(tableData),
+      };
+    });
+    content.assets = {
+      ...((content.assets && typeof content.assets === 'object') ? content.assets as Record<string, unknown> : {}),
+      ...Object.fromEntries(
+        slide.visualAssets.map((asset) => [
+          asset.key,
+          {
+            type: 'image',
+            asset_key: asset.key,
+            src: asset.src,
+            preview_src: asset.previewSrc || asset.src,
+            original_src: asset.originalSrc || asset.storagePath || asset.src,
+            alt: asset.alt,
+          },
+        ]),
+      ),
+    };
+    return content;
+  };
+
+  const buildCanvasRootFromSlide = (slide: FrontendSlide): FrontendCanvasNode => {
+    if (slide.root) return slide.root;
+    const headerNodes: FrontendCanvasNode[] = [];
+    const mainNodes: FrontendCanvasNode[] = [];
+    const asideNodes: FrontendCanvasNode[] = [];
+    const footerNodes: FrontendCanvasNode[] = [];
+    slide.blocks.forEach((block) => {
+      const component = block.role === 'title'
+        ? 'heading'
+        : block.type === 'list'
+          ? 'bullets'
+          : block.type === 'image'
+            ? 'figure'
+            : block.type === 'table'
+              ? 'table'
+              : block.type === 'stat'
+                ? 'stat'
+                : block.type === 'callout'
+                  ? 'callout'
+                  : 'text';
+      const props = component === 'bullets'
+        ? { items_ref: block.role || block.id }
+        : component === 'figure'
+          ? { asset_ref: block.assetKey || block.id, asset_key: block.assetKey || block.id }
+          : component === 'table'
+            ? { table_ref: block.role || block.id }
+            : { text_ref: block.role || block.id };
+      const node: FrontendCanvasNode = {
+        type: 'component',
+        id: block.id,
+        component,
+        props,
+      };
+      const zone = block.layout?.zone || 'main';
+      if (zone === 'header') headerNodes.push(node);
+      else if (zone === 'footer') footerNodes.push(node);
+      else if (zone === 'aside' || zone === 'right') asideNodes.push(node);
+      else mainNodes.push(node);
+    });
+    const mainChildren: FrontendCanvasNode[] = [
+      {
+        type: 'container',
+        id: 'main_left',
+        style: { direction: 'column', gap: 18, weight: 1, align: 'stretch' },
+        children: mainNodes,
+      },
+    ];
+    if (asideNodes.length > 0) {
+      mainChildren.push({
+        type: 'container',
+        id: 'main_right',
+        style: { direction: 'column', gap: 18, weight: 1, align: 'stretch' },
+        children: asideNodes,
+      });
+    }
+    return {
+      type: 'container',
+      id: 'root',
+      style: { direction: 'column', gap: 24, align: 'stretch' },
+      children: [
+        ...(headerNodes.length > 0 ? [{
+          type: 'container' as const,
+          id: 'header',
+          style: { direction: 'column' as const, gap: 12, align: 'stretch' as const },
+          children: headerNodes,
+        }] : []),
+        {
+          type: 'container',
+          id: 'main',
+          style: { direction: mainChildren.length > 1 ? 'row' : 'column', gap: 24, weight: 1, align: 'stretch' },
+          children: mainChildren,
+        },
+        ...(footerNodes.length > 0 ? [{
+          type: 'container' as const,
+          id: 'footer',
+          style: { direction: 'row' as const, gap: 16, align: 'end' as const, justify: 'between' as const },
+          children: footerNodes,
+        }] : []),
+      ],
+    };
+  };
+
+  const appendCanvasNodeToContainer = (
+    root: FrontendCanvasNode,
+    node: FrontendCanvasNode,
+    targetId?: string,
+  ): FrontendCanvasNode => {
+    let inserted = false;
+    const appendToFirstMain = (current: FrontendCanvasNode): FrontendCanvasNode => {
+      if ((current.id === 'main_left' || current.id === 'main' || current.id === 'root') && current.type === 'container') {
+        inserted = true;
+        return { ...current, children: [...(current.children || []), node] };
+      }
+      return {
+        ...current,
+        children: (current.children || []).map((child) => inserted ? child : appendToFirstMain(child)),
+      };
+    };
+    const visit = (current: FrontendCanvasNode): FrontendCanvasNode => {
+      const children = current.children || [];
+      if (targetId && current.id === targetId && current.type === 'container') {
+        inserted = true;
+        return { ...current, children: [...children, node] };
+      }
+      const targetIndex = targetId ? children.findIndex((child) => child.id === targetId) : -1;
+      if (targetIndex >= 0) {
+        const target = children[targetIndex];
+        inserted = true;
+        if (target.type === 'container') {
+          const nextTarget = { ...target, children: [...(target.children || []), node] };
+          return {
+            ...current,
+            children: children.map((child, index) => index === targetIndex ? nextTarget : child),
+          };
+        }
+        return {
+          ...current,
+          children: [
+            ...children.slice(0, targetIndex + 1),
+            node,
+            ...children.slice(targetIndex + 1),
+          ],
+        };
+      }
+      return {
+        ...current,
+        children: children.map((child) => inserted ? child : visit(child)),
+      };
+    };
+    const nextRoot = targetId ? visit(root) : root;
+    return inserted ? nextRoot : appendToFirstMain(nextRoot);
+  };
+
+  const insertCanvasNode = (
+    slide: FrontendSlide,
+    node: FrontendCanvasNode,
+    options: {
+      targetId?: string;
+      contentPatch?: Record<string, unknown>;
+      editableFields?: FrontendEditableField | FrontendEditableField[];
+      visualAssets?: FrontendSlide['visualAssets'];
+    } = {},
+  ): FrontendSlide => {
+    const editableFields = Array.isArray(options.editableFields)
+      ? options.editableFields
+      : options.editableFields
+        ? [options.editableFields]
+        : [];
+    const root = buildCanvasRootFromSlide(slide);
+    const targetId = parseFrontendInsertZoneTarget(options.targetId) ? undefined : options.targetId;
+    return {
+      ...slide,
+      renderEngine: 'canvas',
+      schemaVersion: slide.schemaVersion || 'ppt_canvas_schema_v1',
+      root: appendCanvasNodeToContainer(root, node, targetId),
+      content: {
+        ...buildCanvasContentFromSlide(slide),
+        ...(options.contentPatch || {}),
+      },
+      blocks: [],
+      editableFields: editableFields.length > 0
+        ? [...slide.editableFields, ...editableFields]
+        : slide.editableFields,
+      visualAssets: options.visualAssets || slide.visualAssets,
+      layoutIr: undefined,
+      generationNote: '当前页 Canvas 内容已手动编辑。',
+      review: buildIdleFrontendReview(),
+    };
+  };
+
+  const getDefaultInsertionBlockId = (slide: FrontendSlide) =>
+    slide.blocks.find((block) => ['main', 'aside', 'left', 'right', 'full'].includes(block.layout.zone))?.id
+    || slide.blocks[0]?.id
+    || '';
+
+  const blockToChild = (block: FrontendSlideBlock): FrontendBlockChild | null => {
+    if (block.type === 'image') {
+      return {
+        id: `${block.id}_content`,
+        type: 'image',
+        role: block.role,
+        content: '',
+        items: [],
+        assetKey: block.assetKey || block.id,
+      };
+    }
+    if (block.type === 'list') {
+      if (block.items.length === 0) {
+        return null;
+      }
+      return {
+        id: `${block.id}_content`,
+        type: 'list',
+        role: block.role,
+        content: '',
+        items: [...block.items],
+      };
+    }
+    if (block.type === 'table') {
+      if (!block.tableData) {
+        return null;
+      }
+      return {
+        id: `${block.id}_content`,
+        type: 'table',
+        role: block.role,
+        content: '',
+        items: [],
+        tableData: {
+          headers: [...block.tableData.headers],
+          rows: block.tableData.rows.map((row) => [...row]),
+        },
+      };
+    }
+    if (!block.content) {
+      return null;
+    }
+    return {
+      id: `${block.id}_content`,
+      type: block.type,
+      role: block.role,
+      content: block.content,
+      items: [],
+    };
+  };
+
+  const ensureBlockChildren = (block: FrontendSlideBlock): FrontendSlideBlock => {
+    if (block.children && block.children.length > 0) {
+      return block;
+    }
+    const legacyChild = blockToChild(block);
+    return {
+      ...block,
+      children: legacyChild ? [legacyChild] : [],
+    };
+  };
+
+  const insertChildIntoBlock = (
+    slide: FrontendSlide,
+    targetBlockId: string | undefined,
+    child: FrontendBlockChild,
+    editableField?: FrontendEditableField | FrontendEditableField[],
+  ): FrontendSlide => {
+    const fallbackBlockId = getDefaultInsertionBlockId(slide);
+    const resolvedBlockId = targetBlockId && slide.blocks.some((block) => block.id === targetBlockId)
+      ? targetBlockId
+      : fallbackBlockId;
+    if (!resolvedBlockId) {
+      return slide;
+    }
+
+    const editableFields = Array.isArray(editableField)
+      ? editableField
+      : editableField
+        ? [editableField]
+        : [];
+
+    return {
+      ...slide,
+      schemaVersion: slide.schemaVersion || 'frontend_slide_schema_v2',
+      layoutMode: slide.layoutMode || 'fluid',
+      blocks: slide.blocks.map((block) => {
+        if (block.id !== resolvedBlockId) {
+          return block;
+        }
+        const blockWithChildren = ensureBlockChildren(block);
+        return {
+          ...blockWithChildren,
+          children: [...(blockWithChildren.children || []), child],
+        };
+      }),
+      editableFields: editableFields.length > 0
+        ? [...slide.editableFields, ...editableFields]
+        : slide.editableFields,
+      generationNote: '当前页内容已手动编辑。',
+      review: buildIdleFrontendReview(),
+    };
+  };
+
+  const insertTopLevelBlockIntoZone = (
+    slide: FrontendSlide,
+    block: FrontendSlideBlock,
+    editableField?: FrontendEditableField | FrontendEditableField[],
+    visualAssets?: FrontendSlide['visualAssets'],
+  ): FrontendSlide => {
+    const editableFields = Array.isArray(editableField)
+      ? editableField
+      : editableField
+        ? [editableField]
+        : [];
+    return {
+      ...slide,
+      schemaVersion: slide.schemaVersion || 'frontend_slide_schema_v2',
+      layoutMode: slide.layoutMode || 'fluid',
+      blocks: [...slide.blocks, block],
+      editableFields: editableFields.length > 0
+        ? [...slide.editableFields, ...editableFields]
+        : slide.editableFields,
+      visualAssets: visualAssets || slide.visualAssets,
+      generationNote: '当前页内容已手动编辑。',
+      review: buildIdleFrontendReview(),
+    };
+  };
+
+  const buildInsertedBlockLayout = (
+    slide: FrontendSlide,
+    overrides: Partial<FrontendSlideBlock['layout']> = {},
+  ): FrontendSlideBlock['layout'] => ({
+    zone: 'main',
+    span: 6,
+    order: slide.blocks.length + 1,
+    preferredWidth: 'half',
+    preferredSide: 'auto',
+    emphasis: 'medium',
+    ...overrides,
+  });
+
+  const resolveTemplateAfterManualInsert = (
+    slide: FrontendSlide,
+    blocks: FrontendSlideBlock[],
+    visualAssetCount: number,
+    insertedType: FrontendSlideBlock['type'],
+  ) => {
+    const imageCount = blocks.filter((block) => block.type === 'image').length;
+    const nonImageCount = blocks.filter((block) => block.type !== 'image').length;
+    if (insertedType === 'image') {
+      const listCount = blocks.filter((block) => block.type === 'list').length;
+      if (imageCount >= 2) return 'visual_compare';
+      return listCount > 0 ? 'split_media' : 'hero_visual';
+    }
+    if (imageCount > 0) {
+      return imageCount >= 2 ? 'visual_compare' : 'split_media';
+    }
+    if (slide.templateKey === 'title_cover' || slide.templateKey === 'section_divider') {
+      return 'stacked_cards';
+    }
+    if (nonImageCount >= 5) {
+      return 'insight_grid';
+    }
+    return slide.templateKey || pickSchemaTemplateKeyFromBlocks(blocks, visualAssetCount);
+  };
+
+  const parseTableCellFieldKey = (fieldKey: string) => {
+    const match = /^(.+)_cell_(h|\d+)_(\d+)$/.exec(fieldKey);
+    if (!match) {
+      return null;
+    }
+    return {
+      ownerId: match[1],
+      row: match[2] === 'h' ? 'h' as const : Number.parseInt(match[2], 10),
+      col: Number.parseInt(match[3], 10),
+    };
+  };
+
+  const applyTableCellValue = <T extends FrontendSlideBlock | FrontendBlockChild>(
+    item: T,
+    fieldKey: string,
+    value: string,
+  ): T => {
+    const parsed = parseTableCellFieldKey(fieldKey);
+    if (!parsed || parsed.ownerId !== item.id || item.type !== 'table' || !item.tableData) {
+      return item;
+    }
+    const nextTableData: FrontendTableData = {
+      headers: [...item.tableData.headers],
+      rows: item.tableData.rows.map((row) => [...row]),
+    };
+    if (parsed.row === 'h') {
+      if (parsed.col >= 0 && parsed.col < nextTableData.headers.length) {
+        nextTableData.headers[parsed.col] = value;
+      }
+    } else if (
+      parsed.row >= 0
+      && parsed.row < nextTableData.rows.length
+      && parsed.col >= 0
+      && parsed.col < nextTableData.rows[parsed.row].length
+    ) {
+      nextTableData.rows[parsed.row][parsed.col] = value;
+    }
+    return {
+      ...item,
+      tableData: nextTableData,
+    };
+  };
+
+  const applyTableCellValueToCanvasContent = (
+    content: Record<string, unknown>,
+    fieldKey: string,
+    value: string,
+  ) => {
+    const parsed = parseTableCellFieldKey(fieldKey);
+    if (!parsed) {
+      return content;
+    }
+    const tableData = normalizeContentTableData(content[parsed.ownerId]) || { headers: [], rows: [] };
+    const nextTableData = cloneTableData(tableData);
+    const nextContent = { ...content };
+    delete nextContent[fieldKey];
+    if (parsed.row === 'h') {
+      while (nextTableData.headers.length <= parsed.col) {
+        nextTableData.headers.push(`列 ${nextTableData.headers.length + 1}`);
+      }
+      nextTableData.headers[parsed.col] = value;
+    } else {
+      while (nextTableData.rows.length <= parsed.row) {
+        nextTableData.rows.push([]);
+      }
+      while (nextTableData.rows[parsed.row].length <= parsed.col) {
+        nextTableData.rows[parsed.row].push('');
+      }
+      nextTableData.rows[parsed.row][parsed.col] = value;
+      while (nextTableData.headers.length <= parsed.col) {
+        nextTableData.headers.push(`列 ${nextTableData.headers.length + 1}`);
+      }
+    }
+    return {
+      ...nextContent,
+      [parsed.ownerId]: {
+        ...(content[parsed.ownerId] && typeof content[parsed.ownerId] === 'object'
+          ? content[parsed.ownerId] as Record<string, unknown>
+          : {}),
+        ...nextTableData,
+      },
+    };
+  };
+
+  const syncCanvasContentWithEditableField = (
+    slide: FrontendSlide,
+    field: FrontendEditableField,
+  ) => {
+    const content = { ...(slide.content || {}) };
+    const tableSyncedContent = applyTableCellValueToCanvasContent(content, field.key, field.value);
+    if (tableSyncedContent !== content) {
+      return tableSyncedContent;
+    }
+    return {
+      ...content,
+      [field.key]: field.type === 'list' ? [...field.items] : field.value,
+    };
+  };
+
+  const syncBlockWithEditableField = (
+    block: FrontendSlideBlock,
+    field: FrontendEditableField,
+  ): FrontendSlideBlock => {
+    const tableSyncedBlock = applyTableCellValue(block, field.key, field.value);
+    if (tableSyncedBlock !== block) {
+      return tableSyncedBlock;
+    }
+
+    if (field.type === 'list') {
+      if (block.type === 'list') {
+        return {
+          ...block,
+          content: '',
+          items: [...field.items],
+        };
+      }
+      return {
+        ...block,
+        content: field.items.join(' • '),
+        items: [...field.items],
+      };
+    }
+
+    if (block.type === 'list') {
+      return {
+        ...block,
+        content: field.value,
+        items: field.value ? [field.value] : [],
+      };
+    }
+
+    return {
+      ...block,
+      content: field.value,
+    };
+  };
+
+  const isGeneratedManualTextFieldKey = (fieldKey: string) =>
+    AUTO_DELETE_EDITABLE_FIELD_PREFIXES.some((prefix) => fieldKey.startsWith(prefix));
+
+  const getCanvasTextRef = (node: FrontendCanvasNode) => {
+    const props = node.props || {};
+    return String(props.text_ref || props.textRef || props.ref || '').trim();
+  };
+
+  const findAutoDeletableCanvasNode = (
+    node: FrontendCanvasNode | undefined,
+    fieldKey: string,
+  ): FrontendCanvasNode | undefined => {
+    if (!node) return undefined;
+    const component = String(node.component || node.props?.component || node.props?.kind || '').trim().toLowerCase();
+    if (
+      node.type === 'component'
+      && AUTO_DELETE_CANVAS_COMPONENTS.has(component)
+      && (node.id === fieldKey || getCanvasTextRef(node) === fieldKey)
+    ) {
+      return node;
+    }
+    return (node.children || [])
+      .map((child) => findAutoDeletableCanvasNode(child, fieldKey))
+      .find(Boolean);
+  };
+
+  const removeCanvasNodeByEditableField = (
+    node: FrontendCanvasNode,
+    fieldKey: string,
+  ): { node?: FrontendCanvasNode; removed: boolean } => {
+    const component = String(node.component || node.props?.component || node.props?.kind || '').trim().toLowerCase();
+    const matchedNode = findAutoDeletableCanvasNode(node, fieldKey);
+    if (
+      node.type === 'component'
+      && AUTO_DELETE_CANVAS_COMPONENTS.has(component)
+      && matchedNode?.id === node.id
+    ) {
+      return { removed: true };
+    }
+
+    let removed = false;
+    const nextChildren = (node.children || []).flatMap((child) => {
+      const result = removeCanvasNodeByEditableField(child, fieldKey);
+      if (result.removed) {
+        removed = true;
+      }
+      return result.node ? [result.node] : [];
+    });
+
+    return {
+      node: removed ? { ...node, children: nextChildren } : node,
+      removed,
+    };
+  };
+
+  const blockOwnsAutoDeletableField = (
+    slide: FrontendSlide,
+    block: FrontendSlideBlock,
+    fieldKey: string,
+  ) => AUTO_DELETE_BLOCK_TYPES.has(block.type)
+    && (getEditableFieldKeyForBlock(slide, block) === fieldKey || block.id === fieldKey || block.role === fieldKey);
+
+  const childOwnsAutoDeletableField = (
+    child: FrontendBlockChild,
+    fieldKey: string,
+  ) => AUTO_DELETE_BLOCK_TYPES.has(child.type)
+    && (child.id === fieldKey || child.role === fieldKey);
+
+  const shouldAutoDeleteEditableField = (
+    slide: FrontendSlide,
+    field: FrontendEditableField,
+  ) => {
+    if (field.autoDeleteOnEmpty) {
+      return true;
+    }
+    if (parseTableCellFieldKey(field.key)) {
+      return false;
+    }
+    if (PROTECTED_EDITABLE_FIELD_KEYS.has(field.key)) {
+      return false;
+    }
+    if (slide.renderEngine === 'canvas') {
+      const node = findAutoDeletableCanvasNode(buildCanvasRootFromSlide(slide), field.key);
+      return Boolean(node && (isGeneratedManualTextFieldKey(field.key) || getCanvasTextRef(node) === field.key));
+    }
+    return slide.blocks.some((block) =>
+      blockOwnsAutoDeletableField(slide, block, field.key)
+      || (block.children || []).some((child) => childOwnsAutoDeletableField(child, field.key)),
+    );
+  };
+
+  const canvasNodeUsesAsset = (node: FrontendCanvasNode, imageKey: string) => {
+    const props = node.props || {};
+    return node.id === imageKey
+      || String(props.asset_ref || props.assetRef || props.ref || '').trim() === imageKey
+      || String(props.asset_key || props.assetKey || '').trim() === imageKey;
+  };
+
+  const removeCanvasNodeByAssetKey = (
+    node: FrontendCanvasNode,
+    imageKey: string,
+  ): { node?: FrontendCanvasNode; removed: boolean } => {
+    const component = String(node.component || node.props?.component || node.props?.kind || '').trim().toLowerCase();
+    if (node.type === 'component' && component === 'figure' && canvasNodeUsesAsset(node, imageKey)) {
+      return { removed: true };
+    }
+
+    let removed = false;
+    const nextChildren = (node.children || []).flatMap((child) => {
+      const result = removeCanvasNodeByAssetKey(child, imageKey);
+      if (result.removed) {
+        removed = true;
+      }
+      return result.node ? [result.node] : [];
+    });
+
+    return {
+      node: removed ? { ...node, children: nextChildren } : node,
+      removed,
+    };
+  };
+
+  const removeFrontendImageContent = (
+    slide: FrontendSlide,
+    imageKey: string,
+  ): FrontendSlide => {
+    if (!imageKey || !slide.visualAssets.some((asset) => asset.key === imageKey)) {
+      return slide;
+    }
+
+    const nextVisualAssets = slide.visualAssets.filter((asset) => asset.key !== imageKey);
+    if (slide.renderEngine === 'canvas') {
+      const nextContent = { ...buildCanvasContentFromSlide(slide) };
+      const nextAssets = nextContent.assets && typeof nextContent.assets === 'object'
+        ? { ...(nextContent.assets as Record<string, unknown>) }
+        : {};
+      delete nextAssets[imageKey];
+      nextContent.assets = nextAssets;
+      const root = buildCanvasRootFromSlide(slide);
+      const removedRoot = removeCanvasNodeByAssetKey(root, imageKey);
+      return {
+        ...slide,
+        root: removedRoot.node || root,
+        content: nextContent,
+        visualAssets: nextVisualAssets,
+        layoutIr: undefined,
+        generationNote: '当前页已删除图片块。',
+        review: buildIdleFrontendReview(),
+      };
+    }
+
+    let removed = false;
+    const nextBlocks = slide.blocks.flatMap((block) => {
+      if (block.type === 'image' && (block.assetKey === imageKey || block.id === imageKey)) {
+        removed = true;
+        return [];
+      }
+      const children = block.children || [];
+      const nextChildren = children.filter((child) => {
+        const shouldRemove = child.type === 'image' && (child.assetKey === imageKey || child.id === imageKey);
+        if (shouldRemove) {
+          removed = true;
+        }
+        return !shouldRemove;
+      });
+      return nextChildren.length === children.length
+        ? [block]
+        : [{ ...block, children: nextChildren }];
+    });
+
+    return {
+      ...slide,
+      blocks: removed ? nextBlocks : slide.blocks,
+      visualAssets: nextVisualAssets,
+      layoutIr: undefined,
+      generationNote: '当前页已删除图片块。',
+      review: buildIdleFrontendReview(),
+    };
+  };
+
+  const removeFrontendEditableFieldContent = (
+    slide: FrontendSlide,
+    fieldKey: string,
+  ): FrontendSlide => {
+    const currentField = slide.editableFields.find((field) => field.key === fieldKey);
+    if (!currentField || !shouldAutoDeleteEditableField(slide, currentField)) {
+      return slide;
+    }
+
+    const isCanvasSlide = slide.renderEngine === 'canvas';
+    const matchedCanvasNode = isCanvasSlide
+      ? findAutoDeletableCanvasNode(buildCanvasRootFromSlide(slide), fieldKey)
+      : undefined;
+    const targetContentKey = isCanvasSlide
+      ? (matchedCanvasNode ? getCanvasTextRef(matchedCanvasNode) || fieldKey : fieldKey)
+      : fieldKey;
+    const nextEditableFields = slide.editableFields.filter((field) => field.key !== fieldKey);
+    const nextEditableMap = slide.editableMap ? { ...slide.editableMap } : undefined;
+    if (nextEditableMap) {
+      delete nextEditableMap[fieldKey];
+    }
+
+    if (isCanvasSlide) {
+      const nextContent = { ...buildCanvasContentFromSlide(slide) };
+      delete nextContent[targetContentKey];
+      const root = buildCanvasRootFromSlide(slide);
+      const removedRoot = removeCanvasNodeByEditableField(root, fieldKey);
+      if (!removedRoot.removed) {
+        return slide;
+      }
+      return {
+        ...slide,
+        root: removedRoot.node || root,
+        content: nextContent,
+        editableFields: nextEditableFields,
+        editableMap: nextEditableMap,
+        layoutIr: undefined,
+        generationNote: '当前页内容已手动编辑。',
+        review: buildIdleFrontendReview(),
+      };
+    }
+
+    let removed = false;
+    const nextBlocks = slide.blocks.flatMap((block) => {
+      if (blockOwnsAutoDeletableField(slide, block, fieldKey)) {
+        removed = true;
+        return [];
+      }
+      const children = block.children || [];
+      const nextChildren = children.filter((child) => {
+        const shouldRemove = childOwnsAutoDeletableField(child, fieldKey);
+        if (shouldRemove) {
+          removed = true;
+        }
+        return !shouldRemove;
+      });
+      return nextChildren.length === children.length
+        ? [block]
+        : [{ ...block, children: nextChildren }];
+    });
+
+    if (!removed) {
+      return slide;
+    }
+
+    return {
+      ...slide,
+      blocks: nextBlocks,
+      editableFields: nextEditableFields,
+      editableMap: nextEditableMap,
+      layoutIr: undefined,
+      generationNote: '当前页内容已手动编辑。',
+      review: buildIdleFrontendReview(),
+    };
+  };
+
+  const applyFrontendEditableFieldMutation = (
+    slide: FrontendSlide,
+    fieldKey: string,
+    updater: (field: FrontendEditableField) => FrontendEditableField,
+  ): FrontendSlide => {
+    const currentField = slide.editableFields.find((field) => field.key === fieldKey);
+    if (!currentField) {
+      return slide;
+    }
+    const nextMatchedField = updater(currentField);
+    const nextEditableFields = slide.editableFields.map((field) => {
+      if (field.key !== fieldKey) {
+        return field;
+      }
+      return nextMatchedField;
+    });
+    const isCanvasSlide = slide.renderEngine === 'canvas';
+
+    return {
+      ...slide,
+      title: fieldKey === 'title' ? nextMatchedField.value || slide.title : slide.title,
+      content: isCanvasSlide
+        ? syncCanvasContentWithEditableField(slide, nextMatchedField)
+        : slide.content,
+      blocks: slide.blocks.map((block) =>
+        getEditableFieldKeyForBlock(slide, block) === fieldKey
+          ? syncBlockWithEditableField(block, nextMatchedField)
+          : {
+              ...block,
+              children: (block.children || []).map((child) => {
+                const tableSyncedChild = applyTableCellValue(child, fieldKey, nextMatchedField.value);
+                if (tableSyncedChild !== child) {
+                  return tableSyncedChild;
+                }
+                if (child.id !== fieldKey && child.role !== fieldKey) {
+                  return child;
+                }
+                if (nextMatchedField.type === 'list') {
+                  return {
+                    ...child,
+                    content: '',
+                    items: [...nextMatchedField.items],
+                  };
+                }
+                return {
+                  ...child,
+                  content: nextMatchedField.value,
+                };
+              }),
+            },
+      ),
+      editableFields: nextEditableFields,
+      layoutIr: isCanvasSlide ? undefined : slide.layoutIr,
+      generationNote: '当前页内容已手动编辑。',
+      review: buildIdleFrontendReview(),
+    };
+  };
 
   const normalizeFrontendSlides = (slides: any[]): FrontendSlide[] =>
-    slides.map((slide: any, index: number) => ({
-      slideId: String(slide.slide_id || slide.slideId || index + 1),
-      pageNum: Number(slide.page_num || slide.pageNum || index + 1),
-      title: slide.title || `第 ${index + 1} 页`,
-      layoutType: slide.layout_type || slide.layoutType || 'bullets',
-      layoutData: normalizeLayoutData(slide.layout_data || slide.layoutData || {}),
-      editableFields: Array.isArray(slide.editable_fields || slide.editableFields)
+    slides.map((slide: any, index: number) => {
+      const editableFields = Array.isArray(slide.editable_fields || slide.editableFields)
         ? (slide.editable_fields || slide.editableFields).map((field: any) => ({
             key: String(field.key || ''),
             label: String(field.label || field.key || ''),
             type: field.type === 'list' || field.type === 'textarea' ? field.type : 'text',
             value: String(field.value || ''),
-            items: Array.isArray(field.items) ? field.items.map((item: any) => String(item || '')) : [],
+            items: normalizeStringList(field.items),
+            autoDeleteOnEmpty: Boolean(field.auto_delete_on_empty || field.autoDeleteOnEmpty),
           }))
-        : [],
-      visualAssets: Array.isArray(slide.visual_assets || slide.visualAssets)
+        : [];
+      const visualAssets = Array.isArray(slide.visual_assets || slide.visualAssets)
         ? (slide.visual_assets || slide.visualAssets).map((asset: any, assetIndex: number) => ({
             key: String(asset.key || `main_visual_${assetIndex + 1}`),
             label: String(asset.label || asset.key || `Image ${assetIndex + 1}`),
@@ -645,53 +2032,394 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
             prompt: asset.prompt || undefined,
             style: asset.style || undefined,
           }))
-        : [],
-      generationNote: slide.generation_note || slide.generationNote || '',
-      status: slide.status === 'processing' || slide.status === 'pending' ? slide.status : 'done',
-      review: {
-        status: 'idle',
-        summary: '',
-        issues: [],
-      },
-    }));
+        : [];
+      const blocks = normalizeSchemaBlocks(
+        slide.blocks
+        || slide.elements
+        || slide.content_blocks
+        || slide.contentBlocks,
+        visualAssets,
+      );
+      if (!blocks.some((block) => block.type === 'list')) {
+        const keyPointField = editableFields.find((field: FrontendEditableField) => field.key === 'key_points' && field.items.length > 0);
+        const contentKeyPoints = Array.isArray(slide.content?.key_points)
+          ? slide.content.key_points.map((item: unknown) => String(item || '').trim()).filter(Boolean)
+          : [];
+        const keyPointItems = keyPointField?.items?.length ? keyPointField.items : contentKeyPoints;
+        if (keyPointItems.length > 0) {
+          blocks.push({
+            id: 'key_points',
+            type: 'list',
+            role: 'key_points',
+            content: '',
+            items: keyPointItems,
+            layout: {
+              zone: visualAssets.length > 0 ? 'main' : 'full',
+              span: visualAssets.length > 0 ? 6 : 12,
+              order: blocks.length + 1,
+              preferredWidth: visualAssets.length > 0 ? 'wide' : 'full',
+              preferredSide: 'auto',
+              emphasis: 'medium',
+            },
+          });
+        }
+      }
+      const templateKey = normalizeSchemaTemplateKey(
+        slide.template_key
+        || slide.templateKey
+        || slide.layout_template
+        || slide.layoutTemplate,
+      ) || (blocks.length > 0 ? pickSchemaTemplateKeyFromBlocks(blocks, visualAssets.length) : '');
+      const rawRenderEngine = String(slide.render_engine || slide.renderEngine || '').trim().toLowerCase();
+      const renderEngine = rawRenderEngine === 'blocks' ? 'blocks' : 'canvas';
+      const visualSpec = normalizeCanvasVisualSpec(slide.visual_spec || slide.visualSpec);
+
+      return {
+        slideId: String(slide.slide_id || slide.slideId || index + 1),
+        pageNum: Number(slide.page_num || slide.pageNum || index + 1),
+        title: String(slide.title || `第 ${index + 1} 页`),
+        schemaVersion: String(slide.schema_version || slide.schemaVersion || '').trim() || undefined,
+        renderEngine,
+        templateKey: templateKey || undefined,
+        layoutMode: blocks.length > 0
+          ? normalizeSchemaLayoutMode(slide.layout_mode || slide.layoutMode)
+          : undefined,
+        blocks: renderEngine === 'canvas' ? [] : blocks,
+        layoutFamily: String(slide.layout_family || slide.layoutFamily || '').trim() || undefined,
+        root: (slide.root && typeof slide.root === 'object') ? slide.root : undefined,
+        content: (slide.content && typeof slide.content === 'object') ? slide.content : undefined,
+        visualSpec,
+        constraints: (slide.constraints && typeof slide.constraints === 'object') ? slide.constraints : undefined,
+        editableMap: (slide.editable_map || slide.editableMap) && typeof (slide.editable_map || slide.editableMap) === 'object'
+          ? (slide.editable_map || slide.editableMap)
+          : undefined,
+        canvasValidation: normalizeCanvasValidation(slide.canvas_validation || slide.canvasValidation),
+        layoutIr: (slide.layout_ir || slide.layoutIr) && typeof (slide.layout_ir || slide.layoutIr) === 'object'
+          ? (slide.layout_ir || slide.layoutIr)
+          : undefined,
+        htmlTemplate: slide.html_template || slide.htmlTemplate || '',
+        cssCode: slide.css_code || slide.cssCode || '',
+        editableFields,
+        visualAssets,
+        generationNote: slide.generation_note || slide.generationNote || '',
+        status: slide.status === 'processing' || slide.status === 'pending' ? slide.status : 'done',
+        review: buildIdleFrontendReview(),
+      };
+    });
 
   const normalizeFrontendDeckTheme = (theme: any): FrontendDeckTheme | null => {
     if (!theme || typeof theme !== 'object') {
       return null;
     }
-    const themeLock = theme.theme_lock || theme.themeLock || {};
+    const themeLockSource = theme.theme_lock || theme.themeLock;
+    const themeLock = typeof themeLockSource === 'object' && themeLockSource ? themeLockSource : {};
+    const palette = theme.palette && typeof theme.palette === 'object'
+      ? {
+          bg: String(theme.palette.bg || ''),
+          panel: String(theme.palette.panel || ''),
+          primary: String(theme.palette.primary || ''),
+          secondary: String(theme.palette.secondary || ''),
+          accent: String(theme.palette.accent || ''),
+          text: String(theme.palette.text || ''),
+          muted: String(theme.palette.muted || ''),
+        }
+      : undefined;
+    const typography = theme.typography && typeof theme.typography === 'object'
+      ? {
+          titleFontStack: String(theme.typography.title_font_stack || theme.typography.titleFontStack || ''),
+          bodyFontStack: String(theme.typography.body_font_stack || theme.typography.bodyFontStack || ''),
+          eyebrowSize: toFiniteNumber(theme.typography.eyebrow_size || theme.typography.eyebrowSize, 18),
+          titleSize: toFiniteNumber(theme.typography.title_size || theme.typography.titleSize, 56),
+          summarySize: toFiniteNumber(theme.typography.summary_size || theme.typography.summarySize, 26),
+          bodySize: toFiniteNumber(theme.typography.body_size || theme.typography.bodySize, 24),
+        }
+      : undefined;
     return {
       themeName: String(theme.theme_name || theme.themeName || 'locked_deck_theme'),
+      stylePrompt: String(theme.style_prompt || theme.stylePrompt || ''),
       visualMood: String(theme.visual_mood || theme.visualMood || ''),
-      styleFamily: String(theme.style_family || theme.styleFamily || 'modern') as FrontendDeckTheme['styleFamily'],
+      styleFamily: (
+        ['modern', 'business', 'academic', 'creative'].includes(String(theme.style_family || theme.styleFamily))
+          ? String(theme.style_family || theme.styleFamily)
+          : 'modern'
+      ) as FrontendDeckTheme['styleFamily'],
       footerText: String(theme.footer_text || theme.footerText || ''),
       sectionLabelTemplate: String(theme.section_label_template || theme.sectionLabelTemplate || ''),
-      palette: {
-        bg: String(theme.palette?.bg || '#0b1020'),
-        panel: String(theme.palette?.panel || 'rgba(15, 23, 42, 0.92)'),
-        primary: String(theme.palette?.primary || '#7dd3fc'),
-        secondary: String(theme.palette?.secondary || '#38bdf8'),
-        accent: String(theme.palette?.accent || '#f59e0b'),
-        text: String(theme.palette?.text || '#e2e8f0'),
-        muted: String(theme.palette?.muted || '#94a3b8'),
+      palette,
+      typography,
+      layoutRules: normalizeStringList(theme.layout_rules || theme.layoutRules),
+      componentRules: normalizeStringList(theme.component_rules || theme.componentRules),
+      themeLock: {
+        mustKeep: normalizeStringList(themeLock.must_keep || themeLock.mustKeep),
+        preferredLayoutPatterns: normalizeStringList(
+          themeLock.preferred_layout_patterns || themeLock.preferredLayoutPatterns,
+        ),
+        componentSignature: String(themeLock.component_signature || themeLock.componentSignature || ''),
+        avoid: normalizeStringList(themeLock.avoid),
       },
-      typography: normalizeTypography(theme.typography || {}),
-      themeLock: normalizeThemeLock(themeLock),
     };
+  };
+
+  const normalizeCanvasValidation = (value: any) => {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+    return {
+      ok: Boolean(value.ok),
+      usedRefs: normalizeStringList(value.used_refs || value.usedRefs),
+      definedContentKeys: normalizeStringList(value.defined_content_keys || value.definedContentKeys),
+      missingRefs: normalizeStringList(value.missing_refs || value.missingRefs),
+      orphanContentKeys: normalizeStringList(value.orphan_content_keys || value.orphanContentKeys),
+      emptyComponents: normalizeStringList(value.empty_components || value.emptyComponents),
+      issues: Array.isArray(value.issues)
+        ? value.issues
+            .filter((issue: any) => issue && typeof issue === 'object')
+            .map((issue: any) => ({
+              severity: issue.severity === 'error' || issue.severity === 'warning' || issue.severity === 'info'
+                ? issue.severity
+                : 'repairable',
+              code: String(issue.code || ''),
+              nodeId: issue.node_id || issue.nodeId ? String(issue.node_id || issue.nodeId) : undefined,
+              ref: issue.ref ? String(issue.ref) : undefined,
+              suggestedRef: issue.suggested_ref || issue.suggestedRef ? String(issue.suggested_ref || issue.suggestedRef) : undefined,
+              message: String(issue.message || issue.code || ''),
+            }))
+        : [],
+    };
+  };
+
+  const normalizeCanvasVisualStyle = (value: any): FrontendCanvasVisualStyle => {
+    if (!value || typeof value !== 'object') {
+      return {};
+    }
+    const source = value as Record<string, unknown>;
+    const textAlign = String(source.textAlign || source.text_align || '').trim().toLowerCase();
+    const fontStyle = String(source.fontStyle || source.font_style || '').trim().toLowerCase();
+    const imageFit = String(source.imageFit || source.image_fit || '').trim().toLowerCase();
+    const style: FrontendCanvasVisualStyle = {};
+    const fill = String(source.fill || source.background || source.backgroundColor || '').trim();
+    const color = String(source.color || source.textColor || source.text_color || '').trim();
+    const borderColor = String(source.borderColor || source.border_color || '').trim();
+    const fontFamily = String(source.fontFamily || source.font_family || '').trim();
+    if (fill) style.fill = fill;
+    if (color) style.color = color;
+    if (borderColor) style.borderColor = borderColor;
+    if (source.borderWidth !== undefined || source.border_width !== undefined) {
+      style.borderWidth = toFiniteNumber(source.borderWidth ?? source.border_width, 0);
+    }
+    if (source.radius !== undefined || source.borderRadius !== undefined || source.border_radius !== undefined) {
+      style.radius = toFiniteNumber(source.radius ?? source.borderRadius ?? source.border_radius, 0);
+    }
+    if (source.padding !== undefined) {
+      style.padding = toFiniteNumber(source.padding, 0);
+    }
+    if (fontFamily) style.fontFamily = fontFamily;
+    if (source.fontSize !== undefined || source.font_size !== undefined) {
+      style.fontSize = toFiniteNumber(source.fontSize ?? source.font_size, 0);
+    }
+    if (source.fontWeight !== undefined || source.font_weight !== undefined) {
+      const fontWeight = source.fontWeight ?? source.font_weight;
+      style.fontWeight = typeof fontWeight === 'number' || typeof fontWeight === 'string'
+        ? fontWeight
+        : String(fontWeight);
+    }
+    if (fontStyle === 'italic' || fontStyle === 'normal') {
+      style.fontStyle = fontStyle;
+    }
+    if (source.lineHeight !== undefined || source.line_height !== undefined) {
+      style.lineHeight = toFiniteNumber(source.lineHeight ?? source.line_height, 0);
+    }
+    if (textAlign === 'left' || textAlign === 'center' || textAlign === 'right' || textAlign === 'justify') {
+      style.textAlign = textAlign;
+    }
+    if (source.opacity !== undefined) {
+      style.opacity = toFiniteNumber(source.opacity, 1);
+    }
+    if (imageFit === 'contain' || imageFit === 'cover' || imageFit === 'fill') {
+      style.imageFit = imageFit;
+    }
+    if (source.emphasis === 'high' || source.emphasis === 'medium' || source.emphasis === 'low') {
+      style.emphasis = source.emphasis;
+    }
+    return style;
+  };
+
+  const normalizeCanvasVisualSpec = (value: any): FrontendCanvasVisualSpec | undefined => {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+    const source = value as Record<string, unknown>;
+    const spec: FrontendCanvasVisualSpec = {};
+
+    const paletteSource = source.palette && typeof source.palette === 'object'
+      ? source.palette as Record<string, unknown>
+      : undefined;
+    if (paletteSource) {
+      spec.palette = {
+        bg: String(paletteSource.bg || '').trim() || undefined,
+        panel: String(paletteSource.panel || '').trim() || undefined,
+        primary: String(paletteSource.primary || '').trim() || undefined,
+        secondary: String(paletteSource.secondary || '').trim() || undefined,
+        accent: String(paletteSource.accent || '').trim() || undefined,
+        text: String(paletteSource.text || '').trim() || undefined,
+        muted: String(paletteSource.muted || '').trim() || undefined,
+      };
+    }
+
+    const typographySource = source.typography && typeof source.typography === 'object'
+      ? source.typography as Record<string, unknown>
+      : undefined;
+    if (typographySource) {
+      spec.typography = {
+        titleFontStack: String(typographySource.titleFontStack || typographySource.title_font_stack || '').trim() || undefined,
+        bodyFontStack: String(typographySource.bodyFontStack || typographySource.body_font_stack || '').trim() || undefined,
+        eyebrowSize: typographySource.eyebrowSize !== undefined || typographySource.eyebrow_size !== undefined
+          ? toFiniteNumber(typographySource.eyebrowSize ?? typographySource.eyebrow_size, 18)
+          : undefined,
+        titleSize: typographySource.titleSize !== undefined || typographySource.title_size !== undefined
+          ? toFiniteNumber(typographySource.titleSize ?? typographySource.title_size, 56)
+          : undefined,
+        summarySize: typographySource.summarySize !== undefined || typographySource.summary_size !== undefined
+          ? toFiniteNumber(typographySource.summarySize ?? typographySource.summary_size, 26)
+          : undefined,
+        bodySize: typographySource.bodySize !== undefined || typographySource.body_size !== undefined
+          ? toFiniteNumber(typographySource.bodySize ?? typographySource.body_size, 24)
+          : undefined,
+      };
+    }
+
+    const surfaceSource = source.surface && typeof source.surface === 'object'
+      ? source.surface as Record<string, unknown>
+      : undefined;
+    if (surfaceSource) {
+      spec.surface = {
+        background: String(surfaceSource.background || '').trim() || undefined,
+        panel: String(surfaceSource.panel || '').trim() || undefined,
+        primary: String(surfaceSource.primary || '').trim() || undefined,
+        secondary: String(surfaceSource.secondary || '').trim() || undefined,
+        accent: String(surfaceSource.accent || '').trim() || undefined,
+        text: String(surfaceSource.text || '').trim() || undefined,
+        muted: String(surfaceSource.muted || '').trim() || undefined,
+        cardRadius: surfaceSource.cardRadius !== undefined || surfaceSource.card_radius !== undefined
+          ? toFiniteNumber(surfaceSource.cardRadius ?? surfaceSource.card_radius, 0)
+          : undefined,
+        cardPadding: surfaceSource.cardPadding !== undefined || surfaceSource.card_padding !== undefined
+          ? toFiniteNumber(surfaceSource.cardPadding ?? surfaceSource.card_padding, 0)
+          : undefined,
+        sectionGap: surfaceSource.sectionGap !== undefined || surfaceSource.section_gap !== undefined
+          ? toFiniteNumber(surfaceSource.sectionGap ?? surfaceSource.section_gap, 0)
+          : undefined,
+      };
+    }
+
+    const layoutSource = source.layout && typeof source.layout === 'object'
+      ? source.layout as Record<string, unknown>
+      : undefined;
+    if (layoutSource) {
+      spec.layout = {
+        safeMargin: layoutSource.safeMargin !== undefined || layoutSource.safe_margin !== undefined
+          ? toFiniteNumber(layoutSource.safeMargin ?? layoutSource.safe_margin, 72)
+          : undefined,
+        sectionGap: layoutSource.sectionGap !== undefined || layoutSource.section_gap !== undefined
+          ? toFiniteNumber(layoutSource.sectionGap ?? layoutSource.section_gap, 24)
+          : undefined,
+        contentGap: layoutSource.contentGap !== undefined || layoutSource.content_gap !== undefined
+          ? toFiniteNumber(layoutSource.contentGap ?? layoutSource.content_gap, 18)
+          : undefined,
+        maxColumns: layoutSource.maxColumns !== undefined || layoutSource.max_columns !== undefined
+          ? toFiniteNumber(layoutSource.maxColumns ?? layoutSource.max_columns, 0)
+          : undefined,
+      };
+    }
+
+    const nodeStylesSource = source.node_styles || source.nodeStyles;
+    if (nodeStylesSource && typeof nodeStylesSource === 'object') {
+      const nodeStyles = Object.fromEntries(
+        Object.entries(nodeStylesSource as Record<string, unknown>)
+          .map(([key, raw]) => [String(key), normalizeCanvasVisualStyle(raw)])
+          .filter(([, style]) => Object.keys(style as Record<string, unknown>).length > 0),
+      );
+      if (Object.keys(nodeStyles).length > 0) {
+        spec.nodeStyles = nodeStyles as FrontendCanvasVisualSpec['nodeStyles'];
+      }
+    }
+
+    const componentStylesSource = source.component_styles || source.componentStyles;
+    if (componentStylesSource && typeof componentStylesSource === 'object') {
+      const componentStyles = Object.fromEntries(
+        Object.entries(componentStylesSource as Record<string, unknown>)
+          .map(([key, raw]) => [String(key), normalizeCanvasVisualStyle(raw)])
+          .filter(([, style]) => Object.keys(style as Record<string, unknown>).length > 0),
+      );
+      if (Object.keys(componentStyles).length > 0) {
+        spec.componentStyles = componentStyles as FrontendCanvasVisualSpec['componentStyles'];
+      }
+    }
+
+    return Object.keys(spec).length > 0 ? spec : undefined;
   };
 
   const serializeFrontendSlide = (slide: FrontendSlide) => ({
     slide_id: slide.slideId,
     page_num: slide.pageNum,
     title: slide.title,
-    layout_type: slide.layoutType,
-    layout_data: slide.layoutData,
+    schema_version: slide.schemaVersion || '',
+    render_engine: slide.renderEngine || 'canvas',
+    template_key: slide.templateKey || '',
+    layout_mode: slide.layoutMode || '',
+    layout_family: slide.layoutFamily || '',
+    root: slide.root || undefined,
+    content: slide.content || undefined,
+    visual_spec: slide.visualSpec || undefined,
+    constraints: slide.constraints || undefined,
+    editable_map: slide.editableMap || undefined,
+    canvas_validation: slide.canvasValidation || undefined,
+    layout_ir: slide.layoutIr || undefined,
+    blocks: slide.blocks.map((block) => ({
+      id: block.id,
+      type: block.type,
+      role: block.role,
+      content: block.content,
+      items: block.items,
+      asset_key: block.assetKey || '',
+      table_data: block.tableData
+        ? {
+            headers: block.tableData.headers,
+            rows: block.tableData.rows,
+          }
+        : undefined,
+      children: (block.children || []).map((child) => ({
+        id: child.id,
+        type: child.type,
+        role: child.role,
+        content: child.content,
+        items: child.items,
+        asset_key: child.assetKey || '',
+        table_data: child.tableData
+          ? {
+              headers: child.tableData.headers,
+              rows: child.tableData.rows,
+            }
+          : undefined,
+      })),
+      layout: {
+        zone: block.layout.zone,
+        span: block.layout.span,
+        order: block.layout.order,
+        preferred_width: block.layout.preferredWidth,
+        preferred_side: block.layout.preferredSide,
+        emphasis: block.layout.emphasis,
+      },
+    })),
+    html_template: slide.htmlTemplate,
+    css_code: slide.cssCode,
     editable_fields: slide.editableFields.map((field) => ({
       key: field.key,
       label: field.label,
       type: field.type,
       value: field.value,
       items: field.items,
+      auto_delete_on_empty: Boolean(field.autoDeleteOnEmpty),
     })),
     visual_assets: slide.visualAssets.map((asset) => ({
       key: asset.key,
@@ -763,9 +2491,21 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     });
 
   const getEffectiveStylePrompt = (mode: PptGenerationMode = pptMode) =>
-    globalPrompt || getStyleDescription(stylePreset, mode);
+    globalPrompt || (mode === 'frontend' ? '' : getStyleDescription(stylePreset));
 
   const getFrontendGenerationCostPerPage = () => (frontendIncludeImages ? 2 : 1);
+
+  const waitForFrontendCaptureNodes = async (count: number, timeoutMs: number = 6000) => {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      const ready = Array.from({ length: count }).every((_, index) => Boolean(frontendCaptureRefs.current[index]));
+      if (ready) {
+        return true;
+      }
+      await sleep(80);
+    }
+    return false;
+  };
 
   const requestFrontendSlideGeneration = async ({
     slideIndex,
@@ -780,15 +2520,16 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   }) => {
     const formData = new FormData();
     formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-    appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
-    appendManagedModel(formData, userApiConfigRequired, 'model', model);
+    formData.append('chat_api_url', llmApiUrl.trim());
+    formData.append('api_key', apiKey.trim());
+    formData.append('model', model);
     formData.append('language', language);
     formData.append('style', getEffectiveStylePrompt('frontend'));
     formData.append('email', user?.id || user?.email || '');
     formData.append('result_path', resultPathValue);
     formData.append('include_images', String(frontendIncludeImages));
     formData.append('image_style', frontendImageStyle);
-    appendManagedModel(formData, userApiConfigRequired, 'image_model', genFigModel);
+    formData.append('image_model', genFigModel);
     formData.append('page_id', String(slideIndex));
     formData.append('edit_prompt', prompt.trim());
     formData.append('current_slide', JSON.stringify(serializeFrontendSlide(slideSnapshot)));
@@ -814,6 +2555,47 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     };
   };
 
+  const requestFrontendSlideReview = async ({
+    slide,
+    resultPathValue,
+    layoutIssues,
+    screenshot,
+  }: {
+    slide: FrontendSlide;
+    resultPathValue: string;
+    layoutIssues: string[];
+    screenshot: Blob;
+  }) => {
+    const formData = new FormData();
+    formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
+    formData.append('chat_api_url', llmApiUrl.trim());
+    formData.append('api_key', apiKey.trim());
+    formData.append('language', language);
+    formData.append('result_path', resultPathValue);
+    formData.append('slide', JSON.stringify(serializeFrontendSlide(slide)));
+    if (layoutIssues.length > 0) {
+      formData.append('layout_issues', JSON.stringify(layoutIssues));
+    }
+    const reviewMimeType = screenshot.type || 'image/jpeg';
+    const reviewExt = reviewMimeType === 'image/png' ? 'png' : 'jpg';
+    formData.append(
+      'screenshot',
+      new File([screenshot], `review_page_${String(slide.pageNum - 1).padStart(3, '0')}.${reviewExt}`, {
+        type: reviewMimeType,
+      }),
+    );
+
+    const res = await backendFetch('/api/v1/paper2ppt/frontend/review', {
+      method: 'POST',
+      headers: { 'X-Workflow-Amount': '1' },
+      body: formData,
+    });
+    if (!res.ok) {
+      throw new Error(await extractErrorMessage(res, '前端页面视觉检查失败'));
+    }
+    return res.json();
+  };
+
   const runWithConcurrency = async <T,>(
     items: T[],
     limit: number,
@@ -835,36 +2617,74 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     slideSnapshot: FrontendSlide,
     resultPathValue: string,
   ) => {
+    const node = frontendCaptureRefs.current[slideIndex];
+    if (!node) {
+      updateFrontendSlideReview(slideIndex, {
+        status: 'needs_repair',
+        summary: '首轮自动检查跳过：预览节点尚未就绪。',
+        issues: [],
+      });
+      return false;
+    }
+
     updateFrontendSlideReview(slideIndex, {
       status: 'repairing',
-      summary: '正在做结构检查...',
+      summary: '正在做首轮视觉检查...',
       issues: [],
     });
 
     try {
-      const validation = validateStructuredSlide(slideSnapshot);
-      if (validation.ok) {
+      await sleep(40);
+      const localLayoutCheck = inspectSlideLayout(node, 1600, 900);
+      const blob = await captureSlideToPngBlob(node, 1280, 720, {
+        mimeType: 'image/jpeg',
+        quality: 0.82,
+      });
+      const data = await requestFrontendSlideReview({
+        slide: slideSnapshot,
+        resultPathValue,
+        layoutIssues: localLayoutCheck.issues,
+        screenshot: blob,
+      });
+
+      const reviewIssues = Array.isArray(data.issues)
+        ? data.issues.map((item: unknown) => String(item || '').trim()).filter(Boolean)
+        : [];
+      const reviewSummary = typeof data.summary === 'string' && data.summary.trim()
+        ? data.summary.trim()
+        : (data.passed ? '首轮检查通过。' : '检测到需要修复的版式问题。');
+
+      if (data.passed) {
         updateFrontendSlideReview(slideIndex, {
           status: 'passed',
-          summary: '结构检查通过。',
-          issues: [],
+          summary: reviewSummary,
+          issues: reviewIssues,
         });
         return true;
       }
 
+      const repairPrompt = typeof data.repair_prompt === 'string' ? data.repair_prompt.trim() : '';
+      if (!repairPrompt) {
+        updateFrontendSlideReview(slideIndex, {
+          status: 'needs_repair',
+          summary: reviewSummary || '首轮检查发现问题，但没有收到修复指令。',
+          issues: reviewIssues,
+        });
+        return false;
+      }
+
       updateFrontendSlideReview(slideIndex, {
         status: 'repairing',
-        summary: '结构检查发现问题，正在自动修正...',
-        issues: validation.issues,
+        summary: '首轮检查发现版式问题，正在自动修正...',
+        issues: reviewIssues,
       });
 
       const { updatedSlide, nextTheme } = await requestFrontendSlideGeneration({
         slideIndex,
-        prompt: buildStructuredSlideRepairPrompt(slideSnapshot, validation),
+        prompt: repairPrompt,
         resultPathValue,
         slideSnapshot,
       });
-      const repairedValidation = validateStructuredSlide(updatedSlide);
 
       setFrontendSlides((prev) =>
         prev.map((slide, index) =>
@@ -872,11 +2692,9 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
             ? {
                 ...updatedSlide,
                 review: {
-                  status: repairedValidation.ok ? 'passed' : 'needs_repair',
-                  summary: repairedValidation.ok
-                    ? '结构检查已自动修正当前页。'
-                    : '自动修正后仍有结构问题，请继续精简内容。',
-                  issues: repairedValidation.issues,
+                  status: 'passed',
+                  summary: '首轮视觉检查已自动修正当前页。',
+                  issues: [],
                 },
               }
             : slide,
@@ -886,9 +2704,9 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       if (nextTheme) {
         setFrontendDeckTheme(nextTheme);
       }
-      return repairedValidation.ok;
+      return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : '首轮自动结构检查失败';
+      const message = err instanceof Error ? err.message : '首轮自动视觉检查失败';
       updateFrontendSlideReview(slideIndex, {
         status: 'needs_repair',
         summary: `首轮自动检查失败：${message}`,
@@ -906,19 +2724,25 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       return;
     }
 
-    setGenerateTaskMessage('首轮生成完成，正在并行做结构检查与自动调整...');
+    setGenerateTaskMessage('首轮生成完成，正在并行做视觉检查与自动调整...');
+    await sleep(180);
+    const ready = await waitForFrontendCaptureNodes(slides.length);
+    if (!ready) {
+      setError('前端页面已生成，但自动视觉检查未能拿到全部预览节点，请手动逐页检查。');
+      return;
+    }
 
     const reviewResults: boolean[] = new Array(slides.length).fill(false);
     let completed = 0;
     await runWithConcurrency(slides, 2, async (slide, index) => {
       reviewResults[index] = await autoReviewAndRepairFrontendSlide(index, slide, resultPathValue);
       completed += 1;
-      setGenerateTaskMessage(`首轮结构检查进行中（${completed}/${slides.length}）...`);
+      setGenerateTaskMessage(`首轮视觉检查进行中（${completed}/${slides.length}）...`);
     });
 
     const failedCount = reviewResults.filter((item) => !item).length;
     if (failedCount > 0) {
-      setError(`首轮自动结构检查已完成，但仍有 ${failedCount} 页需要你手动复查。`);
+      setError(`首轮自动视觉检查已完成，但仍有 ${failedCount} 页需要你手动复查。`);
     } else {
       setError(null);
     }
@@ -1058,17 +2882,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setReferenceImagePreview(null);
   };
 
-  const getStyleDescription = (preset: string, mode: PptGenerationMode = pptMode): string => {
-    if (mode === 'frontend') {
-      const frontendStyles: Record<string, string> = {
-        modern: '暖白或象牙白背景，深石墨文字，赤陶强调色，克制的 keynote 学术汇报风，禁止青色玻璃拟态。',
-        business: '午夜蓝或深海军蓝底色，冰灰文字，电蓝小面积强调，专业研究组汇报风，避免默认青绿色主调。',
-        academic: '纸感米白背景，墨黑正文，酒红重点标注，像学术讲义与答辩 deck 的结合，禁止赛博青蓝。',
-        creative: '森林绿或深橄榄主色，沙金点缀，奶油白底，组件统一且有高级研究报告气质，避免默认 cyan accent。',
-      };
-      return frontendStyles[preset] || frontendStyles.modern;
-    }
-
+  const getStyleDescription = (preset: string): string => {
     const imageStyles: Record<string, string> = {
       modern: '现代简约风格，使用干净的线条和充足的留白',
       business: '商务专业风格，稳重大气，适合企业演示',
@@ -1112,12 +2926,8 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       try {
         setIsValidating(true);
         setError(null);
-        if (userApiConfigRequired) {
-          await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || 'deepseek-v3.2');
-        }
-        setIsValidating(false);
+        await verifyLlmConnection(llmApiUrl, apiKey, import.meta.env.VITE_DEFAULT_LLM_MODEL || 'deepseek-v3.2');
       } catch (err) {
-        setIsValidating(false);
         const message = err instanceof Error ? err.message : 'API 验证失败';
         setError(message);
         return;
@@ -1128,16 +2938,17 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       setGenerateResults([]);
       setFrontendSlides([]);
       setFrontendDeckTheme(null);
-      setDownloadUrl(null);
+      frontendCaptureRefs.current = [];
+      setDownloadUrl((previousUrl) => {
+        if (previousUrl?.startsWith('blob:')) {
+          URL.revokeObjectURL(previousUrl);
+        }
+        return null;
+      });
       setPdfPreviewUrl(null);
       setResultPath(null);
       setProgress(0);
       setProgressStatus('正在初始化...');
-
-      if (uploadMode === 'text' && pageCount > 20 && textContent.trim().length < 200) {
-        setError(`当前为文本模式，输入内容仅 ${textContent.trim().length} 个字符，不足以稳定生成 ${pageCount} 页大纲。请补充更完整的正文，或改用 Topic 模式。`);
-        return;
-      }
 
       const requestStartedAt = Date.now();
       progressInterval = window.setInterval(() => {
@@ -1180,11 +2991,14 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       
       formData.append('email', user?.id || user?.email || '');
       formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
-      appendManagedModel(formData, userApiConfigRequired, 'model', model);
+      if (userApiConfigRequired) {
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+      }
+      formData.append('model', model);
       formData.append('language', language);
       formData.append('style', getEffectiveStylePrompt());
-      appendManagedModel(formData, userApiConfigRequired, 'gen_fig_model', genFigModel);
+      formData.append('gen_fig_model', genFigModel);
       formData.append('page_count', String(pageCount));
       formData.append('use_long_paper', String(useLongPaper));
 
@@ -1226,10 +3040,10 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       const convertedSlides: SlideOutline[] = data.pagecontent.map((item: any, index: number) => ({
         id: String(index + 1),
         pageNum: index + 1,
-        title: extractOutlineText(item.title) || `第 ${index + 1} 页`,
-        layout_description: extractOutlineText(item.layout_description) || '',
-        key_points: normalizeOutlinePoints(item.key_points),
-        asset_ref: extractOutlineText(item.asset_ref) || null,
+        title: item.title || `第 ${index + 1} 页`,
+        layout_description: item.layout_description || '',
+        key_points: item.key_points || [],
+        asset_ref: item.asset_ref || null,
       }));
       
       window.clearInterval(progressInterval);
@@ -1376,8 +3190,9 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       formData.append('outline_feedback', outlineFeedback.trim());
       formData.append('pagecontent', JSON.stringify(pagecontent));
       formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
-      appendManagedModel(formData, userApiConfigRequired, 'model', model);
+      formData.append('chat_api_url', llmApiUrl.trim());
+      formData.append('api_key', apiKey.trim());
+      formData.append('model', model);
       formData.append('language', language);
       formData.append('email', user?.email || '');
       formData.append('result_path', resultPath);
@@ -1412,10 +3227,10 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       const refinedSlides: SlideOutline[] = data.pagecontent.map((item: any, index: number) => ({
         id: String(index + 1),
         pageNum: index + 1,
-        title: extractOutlineText(item.title) || `第 ${index + 1} 页`,
-        layout_description: extractOutlineText(item.layout_description) || '',
-        key_points: normalizeOutlinePoints(item.key_points),
-        asset_ref: extractOutlineText(item.asset_ref) || null,
+        title: item.title || `第 ${index + 1} 页`,
+        layout_description: item.layout_description || '',
+        key_points: item.key_points || [],
+        asset_ref: item.asset_ref || null,
       }));
 
       setOutlineData(refinedSlides);
@@ -1430,23 +3245,14 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
   const updateFrontendFieldValue = (slideIndex: number, fieldKey: string, value: string) => {
     setFrontendSlides((prev) =>
-      prev.map((slide, idx) =>
-        idx === slideIndex
-          ? {
-              ...slide,
-              generationNote: '当前页内容已手动编辑。',
-              title: fieldKey === 'title' ? value : slide.title,
-              review: {
-                status: 'idle',
-                summary: '',
-                issues: [],
-              },
-              editableFields: slide.editableFields.map((field) =>
-                field.key === fieldKey ? { ...field, value } : field,
-              ),
-            }
-          : slide,
-      ),
+      prev.map((slide, idx) => {
+        if (idx !== slideIndex) return slide;
+        const field = slide.editableFields.find((item) => item.key === fieldKey);
+        if (field && value.trim() === '' && shouldAutoDeleteEditableField(slide, field)) {
+          return removeFrontendEditableFieldContent(slide, fieldKey);
+        }
+        return applyFrontendEditableFieldMutation(slide, fieldKey, (item) => ({ ...item, value }));
+      }),
     );
   };
 
@@ -1454,21 +3260,15 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setFrontendSlides((prev) =>
       prev.map((slide, idx) => {
         if (idx !== slideIndex) return slide;
-        return {
-          ...slide,
-          generationNote: '当前页内容已手动编辑。',
-          review: {
-            status: 'idle',
-            summary: '',
-            issues: [],
-          },
-          editableFields: slide.editableFields.map((field) => {
-            if (field.key !== fieldKey) return field;
-            const nextItems = [...field.items];
-            nextItems[itemIndex] = value;
-            return { ...field, items: nextItems };
-          }),
-        };
+        const field = slide.editableFields.find((item) => item.key === fieldKey);
+        if (field && value.trim() === '' && field.items.length <= 1 && shouldAutoDeleteEditableField(slide, field)) {
+          return removeFrontendEditableFieldContent(slide, fieldKey);
+        }
+        return applyFrontendEditableFieldMutation(slide, fieldKey, (item) => {
+          const nextItems = [...item.items];
+          nextItems[itemIndex] = value;
+          return { ...item, items: nextItems };
+        });
       }),
     );
   };
@@ -1477,18 +3277,10 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setFrontendSlides((prev) =>
       prev.map((slide, idx) => {
         if (idx !== slideIndex) return slide;
-        return {
-          ...slide,
-          generationNote: '当前页内容已手动编辑。',
-          review: {
-            status: 'idle',
-            summary: '',
-            issues: [],
-          },
-          editableFields: slide.editableFields.map((field) =>
-            field.key === fieldKey ? { ...field, items: [...field.items, ''] } : field,
-          ),
-        };
+        return applyFrontendEditableFieldMutation(slide, fieldKey, (field) => ({
+          ...field,
+          items: [...field.items, ''],
+        }));
       }),
     );
   };
@@ -1497,18 +3289,15 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setFrontendSlides((prev) =>
       prev.map((slide, idx) => {
         if (idx !== slideIndex) return slide;
-        return {
-          ...slide,
-          generationNote: '当前页内容已手动编辑。',
-          review: {
-            status: 'idle',
-            summary: '',
-            issues: [],
-          },
-          editableFields: slide.editableFields.map((field) =>
-            field.key === fieldKey ? { ...field, items } : field,
-          ),
-        };
+        const nextItems = items.map((item) => item.trim()).filter(Boolean);
+        const field = slide.editableFields.find((item) => item.key === fieldKey);
+        if (field && nextItems.length === 0 && shouldAutoDeleteEditableField(slide, field)) {
+          return removeFrontendEditableFieldContent(slide, fieldKey);
+        }
+        return applyFrontendEditableFieldMutation(slide, fieldKey, (item) => ({
+          ...item,
+          items: nextItems,
+        }));
       }),
     );
   };
@@ -1517,21 +3306,411 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setFrontendSlides((prev) =>
       prev.map((slide, idx) => {
         if (idx !== slideIndex) return slide;
+        return applyFrontendEditableFieldMutation(slide, fieldKey, (field) => ({
+          ...field,
+          items: field.items.filter((_, idx2) => idx2 !== itemIndex),
+        }));
+      }),
+    );
+  };
+
+  const updateFrontendLayoutIr = (slideIndex: number, layoutIr: FrontendSlide['layoutIr']) => {
+    if (!layoutIr) return;
+    setFrontendSlides((prev) =>
+      prev.map((slide, idx) => {
+        if (idx !== slideIndex) return slide;
+        const previous = slide.layoutIr ? JSON.stringify(slide.layoutIr) : '';
+        const next = JSON.stringify(layoutIr);
+        if (previous === next) return slide;
         return {
           ...slide,
-          generationNote: '当前页内容已手动编辑。',
-          review: {
-            status: 'idle',
-            summary: '',
-            issues: [],
-          },
-          editableFields: slide.editableFields.map((field) =>
-            field.key === fieldKey
-              ? { ...field, items: field.items.filter((_, idx2) => idx2 !== itemIndex) }
-              : field,
-          ),
+          layoutIr,
         };
       }),
+    );
+  };
+
+  const buildDefaultTableData = (): FrontendTableData => ({
+    headers: ['指标', '当前值', '说明'],
+    rows: [
+      ['样本量', 'N/A', '补充说明'],
+      ['效果', 'N/A', '补充说明'],
+    ],
+  });
+
+  const buildTableEditableFields = (tableId: string, tableData: FrontendTableData): FrontendEditableField[] => [
+    ...tableData.headers.map((header, colIndex) => ({
+      key: `${tableId}_cell_h_${colIndex}`,
+      label: `表头 ${colIndex + 1}`,
+      type: 'text' as const,
+      value: header,
+      items: [],
+    })),
+    ...tableData.rows.flatMap((row, rowIndex) =>
+      row.map((cell, colIndex) => ({
+        key: `${tableId}_cell_${rowIndex}_${colIndex}`,
+        label: `表格 R${rowIndex + 1}C${colIndex + 1}`,
+        type: 'text' as const,
+        value: cell,
+        items: [],
+      })),
+    ),
+  ];
+
+  const insertFrontendTableBlock = (slideIndex: number, targetBlockId?: string) => {
+    setFrontendSlides((prev) =>
+      prev.map((slide, idx) => {
+        if (idx !== slideIndex) return slide;
+        const tableData = buildDefaultTableData();
+        if (slide.renderEngine === 'canvas') {
+          const nodeId = buildUniqueCanvasNodeId(slide, 'table');
+          return insertCanvasNode(
+            slide,
+            {
+              type: 'component',
+              id: nodeId,
+              component: 'table',
+              props: { table_ref: nodeId },
+            },
+            {
+              targetId: targetBlockId,
+              contentPatch: {
+                [nodeId]: {
+                  headers: tableData.headers,
+                  rows: tableData.rows,
+                },
+              },
+              editableFields: buildTableEditableFields(nodeId, tableData),
+            },
+          );
+        }
+        const targetZone = parseFrontendInsertZoneTarget(targetBlockId);
+        if (targetZone) {
+          const blockId = buildUniqueBlockId(slide, 'table_block');
+          const block: FrontendSlideBlock = {
+            id: blockId,
+            type: 'table',
+            role: blockId,
+            content: '',
+            items: [],
+            tableData,
+            layout: buildInsertedBlockLayout(slide, {
+              zone: targetZone,
+              order: slide.blocks.length + 1,
+              preferredWidth: targetZone === 'full' ? 'full' : 'half',
+              preferredSide: targetZone === 'left' || targetZone === 'right' ? targetZone : 'auto',
+            }),
+          };
+          return insertTopLevelBlockIntoZone(
+            slide,
+            block,
+            buildTableEditableFields(blockId, tableData),
+          );
+        }
+        const childId = buildUniqueChildId(slide, 'table_item');
+        const child: FrontendBlockChild = {
+          id: childId,
+          type: 'table',
+          role: childId,
+          content: '',
+          items: [],
+          tableData,
+        };
+        return insertChildIntoBlock(
+          slide,
+          targetBlockId,
+          child,
+          buildTableEditableFields(childId, tableData),
+        );
+      }),
+    );
+  };
+
+  const insertFrontendTextBlock = (slideIndex: number, targetBlockId?: string) => {
+    setFrontendSlides((prev) =>
+      prev.map((slide, idx) => {
+        if (idx !== slideIndex) return slide;
+        if (slide.renderEngine === 'canvas') {
+          const nodeId = buildUniqueCanvasNodeId(slide, 'text');
+          const value = '新的文本块';
+          return insertCanvasNode(
+            slide,
+            {
+              type: 'component',
+              id: nodeId,
+              component: 'text',
+              props: { text_ref: nodeId },
+            },
+            {
+              targetId: targetBlockId,
+              contentPatch: { [nodeId]: value },
+              editableFields: {
+                key: nodeId,
+                label: '文本块',
+                type: 'textarea',
+                value,
+                items: [],
+                autoDeleteOnEmpty: true,
+              },
+            },
+          );
+        }
+        const targetZone = parseFrontendInsertZoneTarget(targetBlockId);
+        if (targetZone) {
+          const blockId = buildUniqueBlockId(slide, 'text_block');
+          const block: FrontendSlideBlock = {
+            id: blockId,
+            type: 'text',
+            role: blockId,
+            content: '新的文本块',
+            items: [],
+            layout: buildInsertedBlockLayout(slide, {
+              zone: targetZone,
+              order: slide.blocks.length + 1,
+              preferredSide: targetZone === 'left' || targetZone === 'right' ? targetZone : 'auto',
+            }),
+          };
+          return insertTopLevelBlockIntoZone(slide, block, {
+            key: blockId,
+            label: '文本块',
+            type: 'textarea',
+            value: block.content,
+            items: [],
+            autoDeleteOnEmpty: true,
+          });
+        }
+        const childId = buildUniqueChildId(slide, 'text_item');
+        const child: FrontendBlockChild = {
+          id: childId,
+          type: 'text',
+          role: childId,
+          content: '新的文本块',
+          items: [],
+        };
+        return insertChildIntoBlock(slide, targetBlockId, child, {
+          key: childId,
+          label: '文本块',
+          type: 'textarea',
+          value: child.content,
+          items: [],
+          autoDeleteOnEmpty: true,
+        });
+      }),
+    );
+  };
+
+  const insertFrontendCalloutBlock = (slideIndex: number, targetBlockId?: string) => {
+    setFrontendSlides((prev) =>
+      prev.map((slide, idx) => {
+        if (idx !== slideIndex) return slide;
+        if (slide.renderEngine === 'canvas') {
+          const nodeId = buildUniqueCanvasNodeId(slide, 'callout');
+          const value = '新的重点内容';
+          return insertCanvasNode(
+            slide,
+            {
+              type: 'component',
+              id: nodeId,
+              component: 'callout',
+              props: { text_ref: nodeId },
+            },
+            {
+              targetId: targetBlockId,
+              contentPatch: { [nodeId]: value },
+              editableFields: {
+                key: nodeId,
+                label: '重点内容',
+                type: 'textarea',
+                value,
+                items: [],
+                autoDeleteOnEmpty: true,
+              },
+            },
+          );
+        }
+        const targetZone = parseFrontendInsertZoneTarget(targetBlockId);
+        if (targetZone) {
+          const blockId = buildUniqueBlockId(slide, 'callout_block');
+          const block: FrontendSlideBlock = {
+            id: blockId,
+            type: 'callout',
+            role: blockId,
+            content: '新的重点内容',
+            items: [],
+            layout: buildInsertedBlockLayout(slide, {
+              zone: targetZone,
+              order: slide.blocks.length + 1,
+              preferredSide: targetZone === 'left' || targetZone === 'right' ? targetZone : 'auto',
+              emphasis: 'high',
+            }),
+          };
+          return insertTopLevelBlockIntoZone(slide, block, {
+            key: blockId,
+            label: '重点内容',
+            type: 'textarea',
+            value: block.content,
+            items: [],
+            autoDeleteOnEmpty: true,
+          });
+        }
+        const childId = buildUniqueChildId(slide, 'callout_item');
+        const child: FrontendBlockChild = {
+          id: childId,
+          type: 'callout',
+          role: childId,
+          content: '新的重点内容',
+          items: [],
+        };
+        return insertChildIntoBlock(slide, targetBlockId, child, {
+          key: childId,
+          label: '重点内容',
+          type: 'textarea',
+          value: child.content,
+          items: [],
+          autoDeleteOnEmpty: true,
+        });
+      }),
+    );
+  };
+
+  const insertFrontendImageBlock = async (slideIndex: number, file: File, targetBlockId?: string) => {
+    if (!resultPath) {
+      setError('缺少 result_path，请重新上传文件');
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setError('仅支持上传图片文件');
+      return;
+    }
+
+    const currentSlide = frontendSlides[slideIndex];
+    if (!currentSlide) {
+      setError('当前前端页面不存在');
+      return;
+    }
+
+    const assetKey = currentSlide.renderEngine === 'canvas'
+      ? buildUniqueCanvasNodeId(currentSlide, 'user_image')
+      : buildUniqueBlockId(currentSlide, 'user_image');
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('result_path', resultPath);
+      formData.append('asset_key', assetKey);
+      formData.append('file', file);
+
+      const res = await backendFetch('/api/v1/paper2ppt/frontend/upload-asset', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error(await extractErrorMessage(res, '图片上传失败'));
+      }
+
+      const data = await res.json();
+      if (!data.success || !data.asset) {
+        throw new Error(data.error || '图片上传失败');
+      }
+
+      setFrontendSlides((prev) =>
+        prev.map((slide, idx) => {
+          if (idx !== slideIndex) return slide;
+          const nextAsset = {
+            key: assetKey,
+            label: String(data.asset.label || data.asset.key || file.name || assetKey),
+            src: String(data.asset.src || ''),
+            previewSrc: String(data.asset.preview_src || data.asset.previewSrc || data.asset.src || ''),
+            originalSrc: String(data.asset.original_src || data.asset.originalSrc || data.asset.storage_path || data.asset.storagePath || data.asset.src || ''),
+            alt: String(data.asset.alt || file.name || assetKey),
+            sourceType: 'upload' as const,
+            storagePath: String(data.asset.storage_path || data.asset.storagePath || ''),
+            previewStoragePath: String(data.asset.preview_storage_path || data.asset.previewStoragePath || ''),
+            prompt: typeof data.asset.prompt === 'string' ? data.asset.prompt : undefined,
+            style: typeof data.asset.style === 'string' ? data.asset.style : undefined,
+          };
+          const child: FrontendBlockChild = {
+            id: assetKey,
+            type: 'image',
+            role: 'supporting_visual',
+            content: '',
+            items: [],
+            assetKey,
+          };
+          const visualAssets = [...slide.visualAssets, nextAsset];
+          if (slide.renderEngine === 'canvas') {
+            return insertCanvasNode(
+              slide,
+              {
+                type: 'component',
+                id: assetKey,
+                component: 'figure',
+                props: {
+                  asset_ref: assetKey,
+                  asset_key: assetKey,
+                  fit: 'contain',
+                },
+              },
+              {
+                targetId: targetBlockId,
+                visualAssets,
+                contentPatch: {
+                  assets: {
+                    ...(((slide.content?.assets && typeof slide.content.assets === 'object')
+                      ? slide.content.assets as Record<string, unknown>
+                      : {})),
+                    [assetKey]: {
+                      type: 'image',
+                      asset_key: assetKey,
+                      src: nextAsset.src,
+                      preview_src: nextAsset.previewSrc || nextAsset.src,
+                      original_src: nextAsset.originalSrc || nextAsset.storagePath || nextAsset.src,
+                      alt: nextAsset.alt,
+                    },
+                  },
+                },
+              },
+            );
+          }
+          const targetZone = parseFrontendInsertZoneTarget(targetBlockId);
+          if (targetZone) {
+            const block: FrontendSlideBlock = {
+              id: assetKey,
+              type: 'image',
+              role: 'supporting_visual',
+              content: '',
+              items: [],
+              assetKey,
+              layout: buildInsertedBlockLayout(slide, {
+                zone: targetZone,
+                order: slide.blocks.length + 1,
+                preferredSide: targetZone === 'left' || targetZone === 'right' ? targetZone : 'auto',
+              }),
+            };
+            return {
+              ...insertTopLevelBlockIntoZone(slide, block, undefined, visualAssets),
+              generationNote: '当前页已插入图片块。',
+            };
+          }
+          return {
+            ...insertChildIntoBlock(slide, targetBlockId, child),
+            visualAssets,
+            generationNote: '当前页已插入图片块。',
+          };
+        }),
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '图片上传失败';
+      setError(message);
+    }
+  };
+
+  const deleteFrontendVisualAsset = (slideIndex: number, imageKey: string) => {
+    setFrontendSlides((prev) =>
+      prev.map((slide, idx) =>
+        idx === slideIndex ? removeFrontendImageContent(slide, imageKey) : slide,
+      ),
     );
   };
 
@@ -1576,28 +3755,34 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       setFrontendSlides((prev) =>
         prev.map((slide, idx) => {
           if (idx !== slideIndex) return slide;
+          const normalizedAsset = {
+            key: imageKey,
+            label: String(data.asset.label || data.asset.key || imageKey),
+            src: String(data.asset.src || ''),
+            previewSrc: String(data.asset.preview_src || data.asset.previewSrc || data.asset.src || ''),
+            originalSrc: String(data.asset.original_src || data.asset.originalSrc || data.asset.storage_path || data.asset.storagePath || data.asset.src || ''),
+            alt: String(data.asset.alt || file.name || imageKey),
+            sourceType: 'upload' as const,
+            storagePath: String(data.asset.storage_path || data.asset.storagePath || ''),
+            previewStoragePath: String(data.asset.preview_storage_path || data.asset.previewStoragePath || ''),
+            prompt: typeof data.asset.prompt === 'string' ? data.asset.prompt : undefined,
+            style: typeof data.asset.style === 'string' ? data.asset.style : undefined,
+          };
+          const hasExistingAsset = slide.visualAssets.some((asset) => asset.key === imageKey);
           return {
             ...slide,
             generationNote: '当前页图片已替换为用户上传版本。',
-            review: {
-              status: 'idle',
-              summary: '',
-              issues: [],
-            },
-            visualAssets: slide.visualAssets.map((asset) =>
-              asset.key === imageKey
-                ? {
-                    ...asset,
-                    src: String(data.asset.src || asset.src || ''),
-                    previewSrc: String(data.asset.preview_src || data.asset.previewSrc || data.asset.src || asset.previewSrc || asset.src || ''),
-                    originalSrc: String(data.asset.original_src || data.asset.originalSrc || data.asset.storage_path || data.asset.storagePath || asset.originalSrc || asset.storagePath || asset.src || ''),
-                    alt: String(data.asset.alt || file.name || asset.alt || ''),
-                    sourceType: 'upload',
-                    storagePath: String(data.asset.storage_path || data.asset.storagePath || asset.storagePath || ''),
-                    previewStoragePath: String(data.asset.preview_storage_path || data.asset.previewStoragePath || asset.previewStoragePath || ''),
-                  }
-                : asset,
-            ),
+            review: buildIdleFrontendReview(),
+            visualAssets: hasExistingAsset
+              ? slide.visualAssets.map((asset) =>
+                  asset.key === imageKey
+                    ? {
+                        ...asset,
+                        ...normalizedAsset,
+                      }
+                    : asset,
+                )
+              : [...slide.visualAssets, normalizedAsset],
           };
         }),
       );
@@ -1607,37 +3792,45 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     }
   };
 
-  const buildPendingFrontendSlide = (slide: SlideOutline, index: number): FrontendSlide => ({
-    slideId: slide.id,
-    pageNum: index + 1,
-    title: slide.title,
-    layoutType: 'bullets',
-    layoutData: {
-      type: 'bullets',
-      eyebrowKey: 'eyebrow',
-      titleKey: 'title',
-      summaryKey: 'summary',
-      bulletsKey: 'bullets',
-      takeawayKey: 'takeaway',
-      footerKey: 'footer',
-    },
-    editableFields: [
-      { key: 'eyebrow', label: 'Eyebrow', type: 'text', value: `Slide ${String(index + 1).padStart(2, '0')}`, items: [] },
-      { key: 'title', label: 'Title', type: 'text', value: slide.title, items: [] },
-      { key: 'summary', label: 'Summary', type: 'textarea', value: slide.layout_description || '', items: [] },
-      { key: 'bullets', label: 'Bullets', type: 'list', value: '', items: slide.key_points.length > 0 ? [...slide.key_points] : [''] },
-      { key: 'takeaway', label: 'Takeaway', type: 'textarea', value: slide.key_points[0] || '', items: [] },
-      { key: 'footer', label: 'Footer', type: 'text', value: frontendDeckTheme?.footerText || 'Paper2Any Structured PPT', items: [] },
-    ],
-    visualAssets: [],
-    status: 'processing',
-    generationNote: '',
-    review: {
-      status: 'idle',
-      summary: '',
-      issues: [],
-    },
-  });
+  const applyFrontendCodeEdit = (slideIndex: number, htmlTemplate: string, cssCode: string) => {
+    const currentSlide = frontendSlides[slideIndex];
+    if (!currentSlide) {
+      setError('当前前端页面不存在');
+      return false;
+    }
+
+    const validation = validateFrontendSlideCode(currentSlide, htmlTemplate, cssCode);
+    if (!validation.ok) {
+      setError(validation.issues.join(' '));
+      return false;
+    }
+
+    setError(
+      validation.warnings.length > 0
+        ? `代码已应用，但请留意：${validation.warnings.join(' ')}`
+        : null,
+    );
+    setFrontendSlides((prev) =>
+      prev.map((slide, index) =>
+        index === slideIndex
+          ? {
+              ...slide,
+              htmlTemplate: validation.sanitizedHtml,
+              cssCode: validation.sanitizedCss,
+              generationNote: validation.warnings.length > 0
+                ? `本地代码已应用。${validation.warnings.join(' ')}`
+                : '本地代码已应用。',
+              review: {
+                status: 'idle',
+                summary: '',
+                issues: [],
+              },
+            }
+          : slide,
+      ),
+    );
+    return true;
+  };
 
   const handleConfirmFrontendOutline = async () => {
     const unchangedIndices = getUnchangedPageIndices(outlineData, confirmedOutlineSnapshot);
@@ -1659,7 +3852,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     if (skipSlides.length > 0) {
       setGenerateTaskMessage(`复用 ${skipSlides.length} 页未修改内容，重新生成 ${pagesToGenerate} 页可编辑版页面...`);
     } else {
-      setGenerateTaskMessage(frontendIncludeImages ? '正在生成结构化 slide 与配图...' : '正在生成结构化 slide...');
+      setGenerateTaskMessage(frontendIncludeImages ? '正在生成可编辑版页面代码与配图...' : '正在生成可编辑版页面代码...');
     }
     setError(null);
 
@@ -1668,22 +3861,40 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       if (skipSet.has(index) && index < frontendSlides.length && frontendSlides[index].status === 'done') {
         return { ...frontendSlides[index] };
       }
-      return buildPendingFrontendSlide(slide, index);
+      return {
+        slideId: slide.id,
+        pageNum: index + 1,
+        title: slide.title,
+        blocks: [],
+        htmlTemplate: '',
+        cssCode: '',
+        editableFields: [],
+        visualAssets: [],
+        status: 'processing',
+        generationNote: '',
+        review: {
+          status: 'idle',
+          summary: '',
+          issues: [],
+        },
+      };
     });
+    frontendCaptureRefs.current = [];
     setFrontendSlides(pendingSlides);
 
     try {
       const formData = new FormData();
       formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
-      appendManagedModel(formData, userApiConfigRequired, 'model', model);
+      formData.append('chat_api_url', llmApiUrl.trim());
+      formData.append('api_key', apiKey.trim());
+      formData.append('model', model);
       formData.append('language', language);
       formData.append('style', getEffectiveStylePrompt('frontend'));
       formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath || '');
       formData.append('include_images', String(frontendIncludeImages));
       formData.append('image_style', frontendImageStyle);
-      appendManagedModel(formData, userApiConfigRequired, 'image_model', genFigModel);
+      formData.append('image_model', genFigModel);
       formData.append('pagecontent', buildFrontendPagecontentPayload());
       if (skipSlides.length > 0) {
         formData.append('skip_slides', JSON.stringify(skipSlides));
@@ -1797,10 +4008,11 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       
       try {
         const formData = new FormData();
-        appendManagedModel(formData, userApiConfigRequired, 'img_gen_model_name', genFigModel);
+        formData.append('img_gen_model_name', genFigModel);
         formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-        appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
-        appendManagedModel(formData, userApiConfigRequired, 'model', model);
+        formData.append('chat_api_url', llmApiUrl.trim());
+        formData.append('api_key', apiKey.trim());
+        formData.append('model', model);
         formData.append('language', language);
         formData.append('style', getEffectiveStylePrompt());
         formData.append('aspect_ratio', '16:9');
@@ -1825,11 +4037,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
         }));
         formData.append('pagecontent', JSON.stringify(pagecontent));
 
-        const task = await submitPaper2PptTask(
-          '/api/v1/paper2ppt/slides/generate-task',
-          formData,
-          requiredPoints > 0 ? requiredPoints : undefined,
-        );
+        const task = await submitPaper2PptTask(formData, requiredPoints > 0 ? requiredPoints : undefined);
         if (skipPages.length > 0) {
           setGenerateTaskMessage(`复用 ${skipPages.length} 页，正在生成 ${pagesToGenerate} 页...`);
         } else {
@@ -2151,6 +4359,64 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     });
   };
 
+  const handleDebugFrontendCodeEdit = async (htmlTemplate: string, cssCode: string) => {
+    const targetIndex = currentSlideIndex;
+    const currentSlide = frontendSlides[targetIndex];
+    if (!currentSlide) {
+      setError('当前前端页面不存在');
+      return;
+    }
+
+    setError(null);
+    const validation = validateFrontendSlideCode(currentSlide, htmlTemplate, cssCode);
+    const draftSlide: FrontendSlide = {
+      ...currentSlide,
+      htmlTemplate: validation.sanitizedHtml,
+      cssCode: validation.sanitizedCss,
+    };
+
+    updateFrontendSlideReview(targetIndex, {
+      status: 'repairing',
+      summary: '正在检查并修正当前代码...',
+      issues: [...validation.issues, ...validation.warnings],
+    });
+
+    if (validation.ok) {
+      const applied = applyFrontendCodeEdit(targetIndex, htmlTemplate, cssCode);
+      if (applied) {
+        updateFrontendSlideReview(targetIndex, {
+          status: 'passed',
+          summary: '当前代码已通过本地校验并成功应用。',
+          issues: validation.warnings,
+        });
+      }
+      return;
+    }
+
+    const repaired = await regenerateFrontendSlideWithPrompt({
+      slideIndex: targetIndex,
+      prompt: buildFrontendCodeRepairPrompt(draftSlide, validation),
+      quotaAction: 'AI 调试当前前端代码',
+      quotaWarningMessage: 'AI 已调试当前代码，但 1 点扣费记录失败，请刷新余额确认。',
+      progressMessage: '本地校验发现代码问题，正在调用 AI 修正...',
+      slideOverride: draftSlide,
+    });
+
+    if (repaired) {
+      updateFrontendSlideReview(targetIndex, {
+        status: 'passed',
+        summary: 'AI 已根据代码问题完成修正。',
+        issues: [],
+      });
+    } else {
+      updateFrontendSlideReview(targetIndex, {
+        status: 'needs_repair',
+        summary: 'AI 调试未成功，请继续修改代码或重新生成当前页。',
+        issues: validation.issues,
+      });
+    }
+  };
+
   const handleReviewFrontendSlide = async () => {
     if (!resultPath) {
       setError('缺少 result_path，请重新上传文件');
@@ -2159,65 +4425,91 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
     const targetIndex = currentSlideIndex;
     const currentSlide = frontendSlides[targetIndex];
+    const node = frontendCaptureRefs.current[targetIndex];
 
     if (!currentSlide) {
       setError('当前前端页面不存在');
       return;
     }
+    if (!node) {
+      setError('当前页面尚未渲染完成，请稍后重试');
+      return;
+    }
 
-    setGenerateTaskMessage('当前页正在进行结构检查，请稍候，检查完成后“确认并继续”会自动恢复可点击状态。');
+    setGenerateTaskMessage('当前页正在进行视觉检查，请稍候，检查完成后“确认并继续”会自动恢复可点击状态。');
     setIsReviewingFrontendSlide(true);
     setError(null);
     updateFrontendSlideReview(targetIndex, {
       status: 'repairing',
-      summary: '正在检查当前页面的结构约束...',
+      summary: '正在检查当前页面的视觉版式...',
       issues: [],
     });
 
     try {
-      const validation = validateStructuredSlide(currentSlide);
-      if (validation.ok) {
+      await sleep(40);
+      const localLayoutCheck = inspectSlideLayout(node, 1600, 900);
+      const blob = await captureSlideToPngBlob(node, 1600, 900);
+      const data = await requestFrontendSlideReview({
+        slide: currentSlide,
+        resultPathValue: resultPath,
+        layoutIssues: localLayoutCheck.issues,
+        screenshot: blob,
+      });
+      const reviewIssues = Array.isArray(data.issues)
+        ? data.issues.map((item: unknown) => String(item || '').trim()).filter(Boolean)
+        : [];
+      const reviewSummary = typeof data.summary === 'string' && data.summary.trim()
+        ? data.summary.trim()
+        : (data.passed ? '未发现明显视觉问题。' : '检测到需要修复的版式问题。');
+
+      if (data.passed) {
         updateFrontendSlideReview(targetIndex, {
           status: 'passed',
-          summary: '当前页结构检查通过。',
-          issues: [],
+          summary: reviewSummary,
+          issues: reviewIssues,
         });
         return;
       }
 
       updateFrontendSlideReview(targetIndex, {
         status: 'needs_repair',
-        summary: '检测到需要修复的结构问题。',
-        issues: validation.issues,
+        summary: reviewSummary,
+        issues: reviewIssues,
       });
+
+      const repairPrompt = typeof data.repair_prompt === 'string' ? data.repair_prompt.trim() : '';
+      if (!repairPrompt) {
+        setError('视觉检查发现问题，但未返回可执行的修复指令');
+        return;
+      }
 
       const repaired = await regenerateFrontendSlideWithPrompt({
         slideIndex: targetIndex,
-        prompt: buildStructuredSlideRepairPrompt(currentSlide, validation),
-        quotaAction: '结构检查后修复当前前端页面',
-        quotaWarningMessage: '结构检查已触发自动修复，但 1 点扣费记录失败，请刷新余额确认。',
-        progressMessage: '结构检查发现问题，正在自动修复当前页面...',
+        prompt: repairPrompt,
+        quotaAction: '视觉检查后修复当前前端页面',
+        quotaWarningMessage: '视觉检查已触发自动修复，但 1 点扣费记录失败，请刷新余额确认。',
+        progressMessage: '视觉检查发现问题，正在自动修复当前页面...',
       });
 
       if (repaired) {
         updateFrontendSlideReview(targetIndex, {
           status: 'passed',
-          summary: '结构检查已完成，并根据问题自动修复当前页面。',
+          summary: '视觉检查已完成，并根据问题自动修复当前页面。',
           issues: [],
         });
       } else {
         updateFrontendSlideReview(targetIndex, {
           status: 'needs_repair',
-          summary: '结构检查发现问题，但自动修复失败，请根据提示词继续调整。',
-          issues: validation.issues,
+          summary: '视觉检查发现问题，但自动修复失败，请根据提示词继续调整。',
+          issues: reviewIssues,
         });
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : '前端页面结构检查失败';
+      const message = err instanceof Error ? err.message : '前端页面视觉检查失败';
       setError(message);
       updateFrontendSlideReview(targetIndex, {
         status: 'needs_repair',
-        summary: '结构检查失败，请稍后重试。',
+        summary: '视觉检查失败，请稍后重试。',
         issues: [],
       });
     } finally {
@@ -2248,15 +4540,18 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
     try {
       const formData = new FormData();
-      appendManagedModel(formData, userApiConfigRequired, 'img_gen_model_name', genFigModel);
+      formData.append('img_gen_model_name', genFigModel);
       formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
-      appendManagedModel(formData, userApiConfigRequired, 'model', model);
+      formData.append('chat_api_url', llmApiUrl.trim());
+      formData.append('api_key', apiKey.trim());
+      formData.append('model', model);
       formData.append('language', language);
       formData.append('style', getEffectiveStylePrompt());
       formData.append('aspect_ratio', '16:9');
       formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath);
+      formData.append('get_down', 'true');
+      formData.append('page_id', String(currentSlideIndex));
       formData.append('regenerate_from_outline', 'true');
 
       if (styleMode === 'reference' && referenceImage) {
@@ -2266,7 +4561,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
       formData.append('pagecontent', JSON.stringify(buildPagecontentForGeneration()));
 
-      const res = await backendFetch(`/api/v1/paper2ppt/slides/${currentSlideIndex}/edit`, {
+      const res = await backendFetch('/api/v1/paper2ppt/generate', {
         method: 'POST',
         headers: { 'X-Workflow-Amount': '1' },
         body: formData,
@@ -2367,19 +4662,19 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     
     try {
       const formData = new FormData();
-      appendManagedModel(formData, userApiConfigRequired, 'img_gen_model_name', genFigModel);
+      formData.append('img_gen_model_name', genFigModel);
       formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
-      appendManagedModel(formData, userApiConfigRequired, 'model', model);
+      formData.append('chat_api_url', llmApiUrl.trim());
+      formData.append('api_key', apiKey.trim());
+      formData.append('model', model);
       formData.append('language', language);
       formData.append('style', getEffectiveStylePrompt());
       formData.append('aspect_ratio', '16:9');
       formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath);
+      formData.append('get_down', 'true');
+      formData.append('page_id', String(currentSlideIndex));
       formData.append('edit_prompt', slidePrompt);
-      if (slideMaskSelection) {
-        formData.append('mask_spec', JSON.stringify(slideMaskSelection));
-      }
 
       // 如果用户选的是参考图模式，附加参考图，保留用户显式输入的风格提示词
       if (styleMode === 'reference' && referenceImage) {
@@ -2389,7 +4684,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
       formData.append('pagecontent', JSON.stringify(buildPagecontentForGeneration()));
 
-      const res = await backendFetch(`/api/v1/paper2ppt/slides/${currentSlideIndex}/edit`, {
+      const res = await backendFetch('/api/v1/paper2ppt/generate', {
         method: 'POST',
         body: formData,
       });
@@ -2429,7 +4724,6 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
         status: 'done',
       };
       setGenerateResults([...updatedResults]);
-      setSlideMaskSelection(null);
       setSlidePrompt('');
 
       // 获取更新的版本历史
@@ -2466,43 +4760,42 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
   // ============== Step 4: 完成处理 ==============
   const handleGenerateFrontendFinal = async () => {
+    if (!resultPath) {
+      setError('缺少 result_path');
+      return;
+    }
     if (frontendSlides.length === 0) {
       setError('当前没有可导出的前端页面');
       return;
     }
 
     setIsGeneratingFinal(true);
-    setFinalTaskMessage('正在生成真可编辑 PPTX...');
+    setFinalTaskMessage('正在准备可编辑 PPTX...');
     setError(null);
 
     try {
-      const invalidSlides = frontendSlides
-        .map((slide, index) => ({ index, validation: validateStructuredSlide(slide) }))
-        .filter((item) => !item.validation.ok);
-      if (invalidSlides.length > 0) {
-        const first = invalidSlides[0];
-        throw new Error(`第 ${first.index + 1} 页仍不满足结构导出要求：${first.validation.issues.join('；')}`);
+      setFinalTaskMessage('正在解析 Canvas 布局...');
+      await sleep(180);
+      const slidesForExport = normalizeFrontendSlides(
+        frontendSlides.map((slide) => serializeFrontendSlide(slide)),
+      );
+      if (canExportCanvasSlidesToPptx(slidesForExport)) {
+        setFinalTaskMessage('正在生成可编辑 PPTX...');
+        const pptxBlob = await buildCanvasSlidesPptxBlob(slidesForExport, frontendDeckTheme);
+        const objectUrl = URL.createObjectURL(pptxBlob);
+        setDownloadUrl((previousUrl) => {
+          if (previousUrl?.startsWith('blob:')) {
+            URL.revokeObjectURL(previousUrl);
+          }
+          return objectUrl;
+        });
+        setPdfPreviewUrl(null);
+        await uploadAndSaveFile(pptxBlob, 'paper2ppt_editable.pptx', 'paper2ppt');
+        setFinalTaskMessage('');
+        return;
       }
 
-      const fileName = resultPath
-        ? `${resultPath.split('/').pop() || 'paper2ppt'}_structured_editable.pptx`
-        : 'paper2ppt_structured_editable.pptx';
-      const exported = await exportStructuredSlidesToPptx({
-        slides: frontendSlides,
-        deckTheme: frontendDeckTheme,
-        fileName,
-      });
-      if (!('blob' in exported) || !exported.blob) {
-        throw new Error('前端导出未返回浏览器 Blob');
-      }
-      const { blob } = exported;
-      if (downloadUrl?.startsWith('blob:')) {
-        URL.revokeObjectURL(downloadUrl);
-      }
-      const objectUrl = URL.createObjectURL(blob);
-      setDownloadUrl(objectUrl);
-      setPdfPreviewUrl(null);
-      await uploadGeneratedResultBlob(blob, fileName);
+      throw new Error('当前页面不是完整 Canvas schema，已停止导出，避免生成图片型 PPTX。请重新生成或稍后重试。');
     } catch (err) {
       const message = err instanceof Error ? err.message : '可编辑版 PPT 导出失败';
       setError(message);
@@ -2660,15 +4953,19 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     
     try {
       const formData = new FormData();
-      appendManagedModel(formData, userApiConfigRequired, 'img_gen_model_name', genFigModel);
+      formData.append('img_gen_model_name', genFigModel);
       formData.append('credential_scope', MANAGED_CREDENTIAL_SCOPE);
-      appendManagedApiConfig(formData, userApiConfigRequired, llmApiUrl, apiKey);
-      appendManagedModel(formData, userApiConfigRequired, 'model', model);
+      formData.append('chat_api_url', llmApiUrl.trim());
+      formData.append('api_key', apiKey.trim());
+      formData.append('model', model);
       formData.append('language', language);
       formData.append('style', getEffectiveStylePrompt());
       formData.append('aspect_ratio', '16:9');
       formData.append('email', user?.id || user?.email || '');
       formData.append('result_path', resultPath);
+      formData.append('get_down', 'false');
+      formData.append('all_edited_down', 'true');
+
       // 如果用户选的是参考图模式，附加参考图，保留用户显式输入的风格提示词
       if (styleMode === 'reference' && referenceImage) {
         formData.append('reference_img', referenceImage);
@@ -2683,7 +4980,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       }));
       formData.append('pagecontent', JSON.stringify(pagecontent));
 
-      const task = await submitPaper2PptTask('/api/v1/paper2ppt/finalize-task', formData);
+      const task = await submitPaper2PptTask(formData);
       setFinalTaskMessage(task.message || '最终导出任务已提交');
 
       const data = await pollPaper2PptTask(task.task_id, (status) => {
@@ -2763,12 +5060,28 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     }
 
     try {
+      if (downloadUrl.startsWith('blob:')) {
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = 'paper2ppt_editable.pptx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+      const res = await fetch(downloadUrl);
+      if (!res.ok) {
+        throw new Error('下载失败');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = downloadUrl;
+      a.href = url;
       a.download = 'paper2ppt_editable.pptx';
       document.body.appendChild(a);
       a.click();
       a.remove();
+      URL.revokeObjectURL(url);
     } catch (err) {
       const message = err instanceof Error ? err.message : '服务器繁忙，请稍后再试';
       setError(message);
@@ -2783,7 +5096,12 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setGenerateResults([]);
     setFrontendSlides([]);
     setFrontendDeckTheme(null);
-    setDownloadUrl(null);
+    setDownloadUrl((previousUrl) => {
+      if (previousUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(previousUrl);
+      }
+      return null;
+    });
     setHtmlEditablePptxUrl(null);
     setHtmlEditablePptxPath(null);
     setPdfPreviewUrl(null);
@@ -2800,12 +5118,10 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
     setOnlyOfficeModalOpen(false);
     setOnlyOfficeSessionId('');
     setIsReviewingFrontendSlide(false);
-    if (downloadUrl?.startsWith('blob:')) {
-      URL.revokeObjectURL(downloadUrl);
-    }
     if (htmlEditablePptxUrl?.startsWith('blob:')) {
       URL.revokeObjectURL(htmlEditablePptxUrl);
     }
+    frontendCaptureRefs.current = [];
   };
 
   return (
@@ -2896,6 +5212,10 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
                 setSlidePrompt={setSlidePrompt}
                 handleRegenerateSlide={handleRegenerateSlide}
                 handleReviewSlide={handleReviewFrontendSlide}
+                applyCodeEdit={(htmlTemplate, cssCode) =>
+                  applyFrontendCodeEdit(currentSlideIndex, htmlTemplate, cssCode)
+                }
+                handleDebugCodeEdit={handleDebugFrontendCodeEdit}
                 handleConfirmSlide={handleConfirmSlide}
                 setCurrentStep={setCurrentStep}
                 error={error}
@@ -2903,9 +5223,13 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
                 updateFieldValue={updateFrontendFieldValue}
                 updateListItem={updateFrontendListItem}
                 replaceListItems={replaceFrontendListItems}
-                addListItem={addFrontendListItem}
-                removeListItem={removeFrontendListItem}
                 replaceVisualAsset={replaceFrontendVisualAsset}
+                deleteVisualAsset={deleteFrontendVisualAsset}
+                insertTextBlock={insertFrontendTextBlock}
+                insertCalloutBlock={insertFrontendCalloutBlock}
+                insertTableBlock={insertFrontendTableBlock}
+                insertImageBlock={insertFrontendImageBlock}
+                updateLayoutIr={updateFrontendLayoutIr}
               />
             ) : (
               <GenerateStep
@@ -3026,6 +5350,39 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
           </section>
         </>
       ) : null}
+
+      {pptMode === 'frontend' && frontendSlides.length > 0 && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            left: '-20000px',
+            top: 0,
+            width: '1600px',
+            pointerEvents: 'none',
+          }}
+        >
+          {frontendSlides.map((slide, index) => (
+            <div
+              key={`${slide.slideId}-capture`}
+              ref={(node) => {
+                frontendCaptureRefs.current[index] = node;
+              }}
+              className="mb-4"
+              style={{
+                width: '1600px',
+                height: '900px',
+              }}
+            >
+              <FrontendSlidePreview
+                slide={slide}
+                deckTheme={frontendDeckTheme}
+                onLayoutIrChange={(layoutIr) => updateFrontendLayoutIr(index, layoutIr)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       <style>{`
         @keyframes shimmer {

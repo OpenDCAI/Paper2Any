@@ -57,9 +57,89 @@ export interface FrontendEditableField {
   type: FrontendFieldType;
   value: string;
   items: string[];
+  autoDeleteOnEmpty?: boolean;
 }
 
 export type FrontendVisualAssetSource = 'generated' | 'paper_asset' | 'upload';
+
+export type FrontendLayoutZone =
+  | 'header'
+  | 'main'
+  | 'aside'
+  | 'footer'
+  | 'full'
+  | 'left'
+  | 'right';
+
+export type FrontendLayoutWidthHint = 'full' | 'wide' | 'half' | 'third' | 'narrow' | 'auto';
+export type FrontendLayoutSideHint = 'left' | 'right' | 'center' | 'auto';
+export type FrontendLayoutEmphasis = 'high' | 'medium' | 'low';
+export type FrontendLayoutMode = 'fluid' | 'hybrid' | 'fixed';
+export type FrontendSlideBlockType = 'text' | 'list' | 'image' | 'quote' | 'stat' | 'callout' | 'table';
+export type FrontendRenderEngine = 'blocks' | 'canvas';
+export type FrontendCanvasNodeType = 'container' | 'component';
+export type FrontendCanvasDirection = 'row' | 'column' | 'grid';
+export type FrontendCanvasComponentType =
+  | 'heading'
+  | 'text'
+  | 'bullets'
+  | 'quote'
+  | 'stat'
+  | 'callout'
+  | 'figure'
+  | 'table'
+  | 'placeholder';
+
+export const FRONTEND_INSERT_ZONE_TARGET_PREFIX = '__insert_zone__:';
+
+export const buildFrontendInsertZoneTarget = (zone: FrontendLayoutZone | string) =>
+  `${FRONTEND_INSERT_ZONE_TARGET_PREFIX}${zone}`;
+
+export const parseFrontendInsertZoneTarget = (target?: string | null): FrontendLayoutZone | null => {
+  if (!target?.startsWith(FRONTEND_INSERT_ZONE_TARGET_PREFIX)) {
+    return null;
+  }
+  const zone = target.slice(FRONTEND_INSERT_ZONE_TARGET_PREFIX.length);
+  return ['header', 'main', 'aside', 'footer', 'full', 'left', 'right'].includes(zone)
+    ? zone as FrontendLayoutZone
+    : null;
+};
+
+export interface FrontendBlockLayout {
+  zone: FrontendLayoutZone;
+  span: number;
+  order: number;
+  preferredWidth: FrontendLayoutWidthHint;
+  preferredSide: FrontendLayoutSideHint;
+  emphasis: FrontendLayoutEmphasis;
+}
+
+export interface FrontendTableData {
+  headers: string[];
+  rows: string[][];
+}
+
+export interface FrontendBlockChild {
+  id: string;
+  type: FrontendSlideBlockType;
+  role: string;
+  content: string;
+  items: string[];
+  assetKey?: string;
+  tableData?: FrontendTableData;
+}
+
+export interface FrontendSlideBlock {
+  id: string;
+  type: FrontendSlideBlockType;
+  role: string;
+  content: string;
+  items: string[];
+  assetKey?: string;
+  tableData?: FrontendTableData;
+  children?: FrontendBlockChild[];
+  layout: FrontendBlockLayout;
+}
 
 export interface FrontendVisualAsset {
   key: string;
@@ -73,6 +153,288 @@ export interface FrontendVisualAsset {
   previewStoragePath?: string;
   prompt?: string;
   style?: string;
+}
+
+export interface FrontendCanvasNodeStyle {
+  direction?: FrontendCanvasDirection;
+  gap?: number;
+  padding?: number;
+  weight?: number;
+  basis?: string | number;
+  align?: 'start' | 'center' | 'end' | 'stretch';
+  justify?: 'start' | 'center' | 'end' | 'between' | 'around';
+  wrap?: boolean;
+  columns?: number;
+  minWidth?: number;
+  maxWidth?: number;
+  variant?: string;
+  emphasis?: FrontendLayoutEmphasis;
+}
+
+export interface FrontendCanvasVisualStyle {
+  fill?: string;
+  color?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  radius?: number;
+  padding?: number;
+  fontFamily?: string;
+  fontSize?: number;
+  fontWeight?: number | string;
+  fontStyle?: 'normal' | 'italic';
+  lineHeight?: number;
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+  opacity?: number;
+  imageFit?: 'contain' | 'cover' | 'fill';
+  emphasis?: FrontendLayoutEmphasis;
+}
+
+export interface FrontendCanvasVisualSpec {
+  palette?: Partial<FrontendDeckPalette>;
+  typography?: Partial<FrontendDeckTypography>;
+  surface?: {
+    background?: string;
+    panel?: string;
+    primary?: string;
+    secondary?: string;
+    accent?: string;
+    text?: string;
+    muted?: string;
+    cardRadius?: number;
+    cardPadding?: number;
+    sectionGap?: number;
+  };
+  layout?: {
+    safeMargin?: number;
+    sectionGap?: number;
+    contentGap?: number;
+    maxColumns?: number;
+  };
+  nodeStyles?: Record<string, FrontendCanvasVisualStyle>;
+  componentStyles?: Partial<Record<FrontendCanvasComponentType, FrontendCanvasVisualStyle>>;
+}
+
+export interface FrontendCanvasNode {
+  type: FrontendCanvasNodeType;
+  id: string;
+  style?: FrontendCanvasNodeStyle;
+  component?: FrontendCanvasComponentType;
+  props?: Record<string, unknown>;
+  children?: FrontendCanvasNode[];
+}
+
+export interface FrontendCanvasContentAsset {
+  type: 'image';
+  src: string;
+  previewSrc?: string;
+  originalSrc?: string;
+  alt?: string;
+  assetKey?: string;
+}
+
+export interface FrontendCanvasValidationIssue {
+  severity: 'info' | 'repairable' | 'warning' | 'error';
+  code: string;
+  nodeId?: string;
+  ref?: string;
+  suggestedRef?: string;
+  message: string;
+}
+
+export interface FrontendCanvasValidation {
+  ok: boolean;
+  usedRefs: string[];
+  definedContentKeys: string[];
+  missingRefs: string[];
+  orphanContentKeys: string[];
+  emptyComponents: string[];
+  issues: FrontendCanvasValidationIssue[];
+}
+
+export interface FrontendLayoutIRNode {
+  nodeId: string;
+  type: FrontendCanvasNodeType;
+  component?: FrontendCanvasComponentType;
+  box: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  };
+  computedStyle?: Record<string, unknown>;
+  overflow?: boolean;
+}
+
+export interface FrontendLayoutIR {
+  schemaVersion: string;
+  slideId: string;
+  viewport: {
+    width: number;
+    height: number;
+    scale: number;
+  };
+  nodes: FrontendLayoutIRNode[];
+  overflowIssues?: string[];
+}
+
+export interface FrontendDeckPalette {
+  bg: string;
+  panel: string;
+  primary: string;
+  secondary: string;
+  accent: string;
+  text: string;
+  muted: string;
+}
+
+export interface FrontendDeckTypography {
+  titleFontStack: string;
+  bodyFontStack: string;
+  eyebrowSize: number;
+  titleSize: number;
+  summarySize: number;
+  bodySize: number;
+}
+
+export interface FrontendCanvasNodeStyle {
+  direction?: FrontendCanvasDirection;
+  gap?: number;
+  padding?: number;
+  weight?: number;
+  basis?: string | number;
+  align?: 'start' | 'center' | 'end' | 'stretch';
+  justify?: 'start' | 'center' | 'end' | 'between' | 'around';
+  wrap?: boolean;
+  columns?: number;
+  minWidth?: number;
+  maxWidth?: number;
+  variant?: string;
+  emphasis?: FrontendLayoutEmphasis;
+}
+
+export interface FrontendCanvasVisualStyle {
+  fill?: string;
+  color?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  radius?: number;
+  padding?: number;
+  fontFamily?: string;
+  fontSize?: number;
+  fontWeight?: number | string;
+  fontStyle?: 'normal' | 'italic';
+  lineHeight?: number;
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+  opacity?: number;
+  imageFit?: 'contain' | 'cover' | 'fill';
+  emphasis?: FrontendLayoutEmphasis;
+}
+
+export interface FrontendCanvasVisualSpec {
+  palette?: Partial<FrontendDeckPalette>;
+  typography?: Partial<FrontendDeckTypography>;
+  surface?: {
+    background?: string;
+    panel?: string;
+    primary?: string;
+    secondary?: string;
+    accent?: string;
+    text?: string;
+    muted?: string;
+    cardRadius?: number;
+    cardPadding?: number;
+    sectionGap?: number;
+  };
+  layout?: {
+    safeMargin?: number;
+    sectionGap?: number;
+    contentGap?: number;
+    maxColumns?: number;
+  };
+  nodeStyles?: Record<string, FrontendCanvasVisualStyle>;
+  componentStyles?: Partial<Record<FrontendCanvasComponentType, FrontendCanvasVisualStyle>>;
+}
+
+export interface FrontendCanvasNode {
+  type: FrontendCanvasNodeType;
+  id: string;
+  style?: FrontendCanvasNodeStyle;
+  component?: FrontendCanvasComponentType;
+  props?: Record<string, unknown>;
+  children?: FrontendCanvasNode[];
+}
+
+export interface FrontendCanvasContentAsset {
+  type: 'image';
+  src: string;
+  previewSrc?: string;
+  originalSrc?: string;
+  alt?: string;
+  assetKey?: string;
+}
+
+export interface FrontendCanvasValidationIssue {
+  severity: 'info' | 'repairable' | 'warning' | 'error';
+  code: string;
+  nodeId?: string;
+  ref?: string;
+  suggestedRef?: string;
+  message: string;
+}
+
+export interface FrontendCanvasValidation {
+  ok: boolean;
+  usedRefs: string[];
+  definedContentKeys: string[];
+  missingRefs: string[];
+  orphanContentKeys: string[];
+  emptyComponents: string[];
+  issues: FrontendCanvasValidationIssue[];
+}
+
+export interface FrontendLayoutIRNode {
+  nodeId: string;
+  type: FrontendCanvasNodeType;
+  component?: FrontendCanvasComponentType;
+  box: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  };
+  computedStyle?: Record<string, unknown>;
+  overflow?: boolean;
+}
+
+export interface FrontendLayoutIR {
+  schemaVersion: string;
+  slideId: string;
+  viewport: {
+    width: number;
+    height: number;
+    scale: number;
+  };
+  nodes: FrontendLayoutIRNode[];
+  overflowIssues?: string[];
+}
+
+export interface FrontendDeckPalette {
+  bg: string;
+  panel: string;
+  primary: string;
+  secondary: string;
+  accent: string;
+  text: string;
+  muted: string;
+}
+
+export interface FrontendDeckTypography {
+  titleFontStack: string;
+  bodyFontStack: string;
+  eyebrowSize: number;
+  titleSize: number;
+  summarySize: number;
+  bodySize: number;
 }
 
 export type StructuredSlideLayoutType =
@@ -168,10 +530,23 @@ export interface FrontendSlide {
   slideId: string;
   pageNum: number;
   title: string;
-  layoutType: StructuredSlideLayoutType;
-  layoutData: FrontendSlideLayoutData;
-  htmlTemplate?: string;
-  cssCode?: string;
+  layoutType?: StructuredSlideLayoutType;
+  layoutData?: FrontendSlideLayoutData;
+  schemaVersion?: string;
+  renderEngine?: FrontendRenderEngine;
+  templateKey?: string;
+  layoutMode?: FrontendLayoutMode;
+  blocks: FrontendSlideBlock[];
+  layoutFamily?: string;
+  root?: FrontendCanvasNode;
+  content?: Record<string, unknown>;
+  visualSpec?: FrontendCanvasVisualSpec;
+  constraints?: Record<string, unknown>;
+  editableMap?: Record<string, string>;
+  canvasValidation?: FrontendCanvasValidation;
+  layoutIr?: FrontendLayoutIR;
+  htmlTemplate: string;
+  cssCode: string;
   editableFields: FrontendEditableField[];
   visualAssets: FrontendVisualAsset[];
   generationNote?: string;
@@ -209,12 +584,15 @@ export type FrontendDeckStyleFamily = 'modern' | 'business' | 'academic' | 'crea
 
 export interface FrontendDeckTheme {
   themeName: string;
+  stylePrompt?: string;
   visualMood: string;
   styleFamily: FrontendDeckStyleFamily;
   footerText: string;
   sectionLabelTemplate: string;
-  palette: FrontendDeckPalette;
-  typography: FrontendDeckTypography;
+  palette?: FrontendDeckPalette;
+  typography?: FrontendDeckTypography;
+  layoutRules?: string[];
+  componentRules?: string[];
   themeLock: FrontendThemeLock;
 }
 

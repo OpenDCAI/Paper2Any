@@ -35,7 +35,7 @@ interface FrontendCompleteStepProps {
 
 const FrontendCompleteStep: React.FC<FrontendCompleteStepProps> = ({
   slides,
-  deckTheme,
+  deckTheme = null,
   downloadUrl,
   htmlEditablePptxUrl,
   pdfPreviewUrl,
@@ -72,7 +72,7 @@ const FrontendCompleteStep: React.FC<FrontendCompleteStepProps> = ({
             <div key={slide.slideId} className="space-y-2">
               <FrontendSlidePreview slide={slide} deckTheme={deckTheme} />
               <p className="text-xs text-gray-400">
-                第 {slide.pageNum} 页 · {slide.title} · {slide.layoutType}
+                第 {slide.pageNum} 页 · {slide.title}
               </p>
             </div>
           ))}
@@ -88,16 +88,16 @@ const FrontendCompleteStep: React.FC<FrontendCompleteStepProps> = ({
           >
             {isGeneratingFinal ? (
               <>
-                <Loader2 size={18} className="animate-spin" /> 正在生成真可编辑 PPTX...
+                <Loader2 size={18} className="animate-spin" /> 正在导出...
               </>
             ) : (
               <>
-                <Sparkles size={18} /> 生成可编辑 PPTX
+                <Sparkles size={18} /> 生成最终文件
               </>
             )}
           </button>
           <p className="text-xs text-gray-500 mt-3">
-            导出会把结构化 slide schema 直接生成真实可编辑 PPTX，不再走整页截图。
+            默认导出为可编辑 PPTX；仅在缺少 Canvas 布局信息时回退为截图版。
           </p>
         </div>
       ) : (

@@ -107,19 +107,6 @@ def sample_fill_stroke(image_bgr: np.ndarray, mask: np.ndarray) -> Tuple[str, st
     if stroke_pixels.size == 0:
         stroke_pixels = image_bgr[mask]
 
-    # Select darkest quartile by luminance
-    if stroke_pixels.size > 0:
-        rgb = stroke_pixels[:, ::-1].astype(np.float32)
-        lum = 0.2126 * rgb[:, 0] + 0.7152 * rgb[:, 1] + 0.0722 * rgb[:, 2]
-        if lum.size > 10:
-            thresh = np.percentile(lum, 25)
-            sel = stroke_pixels[lum <= thresh]
-        else:
-            sel = stroke_pixels
-        stroke = tuple(np.mean(sel, axis=0).tolist())
-    else:
-        stroke = (0, 0, 0)
-
     # Fill: erode mask to remove border
     erode_k = max(1, int(min(h, w) * 0.004))
     erode_k = min(erode_k, 7)
@@ -134,14 +121,42 @@ def sample_fill_stroke(image_bgr: np.ndarray, mask: np.ndarray) -> Tuple[str, st
     else:
         fill = (255, 255, 255)
 
+    # Stroke: detect real border vs anti-aliased edge
+    if stroke_pixels.size > 0:
+        stroke_median = tuple(np.median(stroke_pixels, axis=0).tolist())
+        # Compute luminance for stroke candidate and fill
+        def _lum_bgr(bgr):
+            return 0.0722 * bgr[0] + 0.7152 * bgr[1] + 0.2126 * bgr[2]
+        stroke_lum = _lum_bgr(stroke_median)
+        fill_lum = _lum_bgr(fill)
+
+        # Check if edge pixels contain a distinctly dark border
+        rgb = stroke_pixels[:, ::-1].astype(np.float32)
+        lum = 0.2126 * rgb[:, 0] + 0.7152 * rgb[:, 1] + 0.0722 * rgb[:, 2]
+        dark_ratio = float(np.count_nonzero(lum < 50)) / max(1, len(lum))
+
+        if dark_ratio > 0.3:
+            # A significant portion of edge pixels are truly dark → real border
+            thresh = np.percentile(lum, 25)
+            sel = stroke_pixels[lum <= thresh]
+            stroke = tuple(np.mean(sel, axis=0).tolist())
+        elif stroke_lum < 30 and fill_lum > 80:
+            # Stroke looks black but fill is colored → no real border,
+            # use slightly darkened fill
+            stroke = tuple(min(255, max(0, c * 0.7)) for c in fill)
+        else:
+            stroke = stroke_median
+    else:
+        stroke = (0, 0, 0)
+
     return _to_hex(fill), _to_hex(stroke)
 
 
 def extract_text_color(image_bgr: np.ndarray, bbox_px: List[int]) -> str:
     x1, y1, x2, y2 = bbox_px
-    x1 = max(0, min(image_bgr.shape[1] - 1, int(x1)))
+    x1 = max(0, min(image_bgr.shape[1], int(x1)))
     x2 = max(0, min(image_bgr.shape[1], int(x2)))
-    y1 = max(0, min(image_bgr.shape[0] - 1, int(y1)))
+    y1 = max(0, min(image_bgr.shape[0], int(y1)))
     y2 = max(0, min(image_bgr.shape[0], int(y2)))
     if x2 <= x1 or y2 <= y1:
         return "#000000"

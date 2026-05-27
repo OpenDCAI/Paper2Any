@@ -10,10 +10,13 @@ import {
   DESIGN_WIDTH,
   ensureDeckTheme,
   getDeckStyleFamily,
+  getStructuredLayoutData,
+  getStructuredLayoutType,
   getField,
   getListValue,
   getTextValue,
   getVisualAsset,
+  ResolvedFrontendDeckTheme,
 } from './structuredSlideModel';
 
 interface StructuredSlideCanvasProps {
@@ -25,7 +28,7 @@ interface StructuredSlideCanvasProps {
 
 const toCssFont = (value: string) => value || 'system-ui, sans-serif';
 
-const basePanelStyle = (theme: FrontendDeckTheme): React.CSSProperties => {
+const basePanelStyle = (theme: ResolvedFrontendDeckTheme): React.CSSProperties => {
   const family = getDeckStyleFamily(theme);
   if (family === 'academic') {
     return {
@@ -82,7 +85,7 @@ const editableText = (
 
 const editableList = (
   field: FrontendEditableField | undefined,
-  theme: FrontendDeckTheme,
+  theme: ResolvedFrontendDeckTheme,
   compact = false,
 ) => {
   if (!field) return null;
@@ -175,6 +178,8 @@ export const StructuredSlideCanvas: React.FC<StructuredSlideCanvasProps> = ({
   pptxCompatible = false,
 }) => {
   const theme = ensureDeckTheme(deckTheme);
+  const layoutData = getStructuredLayoutData(slide);
+  const layoutType = getStructuredLayoutType(slide);
   const styleFamily = getDeckStyleFamily(theme);
   const field = (key?: string) => getField(slide, key);
   const text = (key?: string) => getTextValue(slide, key);
@@ -316,9 +321,9 @@ export const StructuredSlideCanvas: React.FC<StructuredSlideCanvasProps> = ({
 
   let body: React.ReactNode = null;
 
-  switch (slide.layoutType) {
+  switch (layoutType) {
     case 'cover': {
-      const layout = slide.layoutData.type === 'cover' ? slide.layoutData : null;
+      const layout = layoutData.type === 'cover' ? layoutData : null;
       body = (
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -338,7 +343,7 @@ export const StructuredSlideCanvas: React.FC<StructuredSlideCanvasProps> = ({
       break;
     }
     case 'section': {
-      const layout = slide.layoutData.type === 'section' ? slide.layoutData : null;
+      const layout = layoutData.type === 'section' ? layoutData : null;
       body = (
         <div style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateRows: 'auto 1fr auto', gap: 24, height: '100%' }}>
           {editableText(field(layout?.eyebrowKey), 'eyebrow', eyebrowStyle, 'div')}
@@ -357,7 +362,7 @@ export const StructuredSlideCanvas: React.FC<StructuredSlideCanvasProps> = ({
       break;
     }
     case 'bullets': {
-      const layout = slide.layoutData.type === 'bullets' ? slide.layoutData : null;
+      const layout = layoutData.type === 'bullets' ? layoutData : null;
       body = (
         <div style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateRows: 'auto 1fr auto', gap: 24, height: '100%' }}>
           {editableText(field(layout?.eyebrowKey), 'eyebrow', eyebrowStyle, 'div')}
@@ -378,7 +383,7 @@ export const StructuredSlideCanvas: React.FC<StructuredSlideCanvasProps> = ({
       break;
     }
     case 'two_column': {
-      const layout = slide.layoutData.type === 'two_column' ? slide.layoutData : null;
+      const layout = layoutData.type === 'two_column' ? layoutData : null;
       body = (
         <div style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateRows: 'auto auto 1fr auto', gap: 24, height: '100%' }}>
           {editableText(field(layout?.eyebrowKey), 'eyebrow', eyebrowStyle, 'div')}
@@ -404,7 +409,7 @@ export const StructuredSlideCanvas: React.FC<StructuredSlideCanvasProps> = ({
       break;
     }
     case 'cards_2x2': {
-      const layout = slide.layoutData.type === 'cards_2x2' ? slide.layoutData : null;
+      const layout = layoutData.type === 'cards_2x2' ? layoutData : null;
       body = (
         <div style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateRows: 'auto auto 1fr auto', gap: 22, height: '100%' }}>
           {editableText(field(layout?.eyebrowKey), 'eyebrow', eyebrowStyle, 'div')}
@@ -426,7 +431,7 @@ export const StructuredSlideCanvas: React.FC<StructuredSlideCanvasProps> = ({
       break;
     }
     case 'image_focus': {
-      const layout = slide.layoutData.type === 'image_focus' ? slide.layoutData : null;
+      const layout = layoutData.type === 'image_focus' ? layoutData : null;
       const imageAsset = visual(layout?.visualKey);
       body = (
         <div style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateRows: 'auto 1fr auto', gap: 24, height: '100%' }}>
@@ -450,7 +455,7 @@ export const StructuredSlideCanvas: React.FC<StructuredSlideCanvasProps> = ({
       break;
     }
     case 'comparison': {
-      const layout = slide.layoutData.type === 'comparison' ? slide.layoutData : null;
+      const layout = layoutData.type === 'comparison' ? layoutData : null;
       body = (
         <div style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateRows: 'auto auto 1fr auto', gap: 24, height: '100%' }}>
           {editableText(field(layout?.eyebrowKey), 'eyebrow', eyebrowStyle, 'div')}
@@ -474,7 +479,7 @@ export const StructuredSlideCanvas: React.FC<StructuredSlideCanvasProps> = ({
       break;
     }
     case 'timeline': {
-      const layout = slide.layoutData.type === 'timeline' ? slide.layoutData : null;
+      const layout = layoutData.type === 'timeline' ? layoutData : null;
       body = (
         <div style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateRows: 'auto auto 1fr auto', gap: 24, height: '100%' }}>
           {editableText(field(layout?.eyebrowKey), 'eyebrow', eyebrowStyle, 'div')}
@@ -503,7 +508,7 @@ export const StructuredSlideCanvas: React.FC<StructuredSlideCanvasProps> = ({
       body = (
         <div style={{ position: 'relative', zIndex: 1, display: 'grid', placeItems: 'center', height: '100%' }}>
           <div style={{ ...panel, padding: 32, width: 760, textAlign: 'center' }}>
-            {editableText(field(slide.layoutData.titleKey), 'title', titleStyle, 'h1')}
+            {editableText(field(layoutData.titleKey), 'title', titleStyle, 'h1')}
           </div>
         </div>
       );

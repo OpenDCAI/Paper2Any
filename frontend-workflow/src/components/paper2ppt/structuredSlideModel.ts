@@ -1,8 +1,11 @@
 import {
+  FrontendDeckPalette,
   FrontendDeckTheme,
+  FrontendDeckTypography,
   FrontendEditableField,
   FrontendSlide,
   FrontendDeckStyleFamily,
+  FrontendSlideLayoutData,
   FrontendVisualAsset,
   StructuredSlideLayoutType,
 } from './types';
@@ -15,7 +18,12 @@ export interface StructuredSlideValidationResult {
   issues: string[];
 }
 
-const fallbackTheme: FrontendDeckTheme = {
+export type ResolvedFrontendDeckTheme = FrontendDeckTheme & {
+  palette: FrontendDeckPalette;
+  typography: FrontendDeckTypography;
+};
+
+const fallbackTheme: ResolvedFrontendDeckTheme = {
   themeName: 'paper2ppt_structured',
   visualMood: 'calm academic dark theme',
   styleFamily: 'modern',
@@ -46,7 +54,7 @@ const fallbackTheme: FrontendDeckTheme = {
   },
 };
 
-export const ensureDeckTheme = (theme?: FrontendDeckTheme | null): FrontendDeckTheme => ({
+export const ensureDeckTheme = (theme?: FrontendDeckTheme | null): ResolvedFrontendDeckTheme => ({
   ...fallbackTheme,
   ...theme,
   palette: {
@@ -62,6 +70,22 @@ export const ensureDeckTheme = (theme?: FrontendDeckTheme | null): FrontendDeckT
     ...(theme?.themeLock || {}),
   },
 });
+
+const fallbackLayoutData: FrontendSlideLayoutData = {
+  type: 'bullets',
+  eyebrowKey: 'eyebrow',
+  titleKey: 'title',
+  summaryKey: 'summary',
+  bulletsKey: 'key_points',
+  takeawayKey: 'takeaway',
+  footerKey: 'footer',
+};
+
+export const getStructuredLayoutData = (slide: FrontendSlide): FrontendSlideLayoutData =>
+  slide.layoutData || fallbackLayoutData;
+
+export const getStructuredLayoutType = (slide: FrontendSlide): StructuredSlideLayoutType =>
+  slide.layoutType || getStructuredLayoutData(slide).type;
 
 export const getDeckStyleFamily = (theme?: FrontendDeckTheme | null): FrontendDeckStyleFamily => {
   const candidate = String(theme?.styleFamily || '').trim().toLowerCase();
@@ -118,7 +142,7 @@ const countChars = (values: string[]) =>
   values.reduce((total, value) => total + value.trim().length, 0);
 
 const getListCharLimit = (slide: FrontendSlide) => {
-  switch (slide.layoutType) {
+  switch (getStructuredLayoutType(slide)) {
     case 'bullets':
       return 900;
     case 'image_focus':
@@ -163,29 +187,32 @@ export const validateStructuredSlide = (slide: FrontendSlide): StructuredSlideVa
   }
 
   const imageRequiredLayouts: StructuredSlideLayoutType[] = ['image_focus'];
-  if (imageRequiredLayouts.includes(slide.layoutType) && slide.visualAssets.length === 0) {
+  const layoutType = getStructuredLayoutType(slide);
+  const layoutData = getStructuredLayoutData(slide);
+
+  if (imageRequiredLayouts.includes(layoutType) && slide.visualAssets.length === 0) {
     issues.push('当前页需要图片槽位，但没有可用图片。');
   }
 
-  if (slide.layoutType === 'cards_2x2') {
-    const cardCount = slide.layoutData.type === 'cards_2x2' ? slide.layoutData.cards.length : 0;
+  if (layoutType === 'cards_2x2') {
+    const cardCount = layoutData.type === 'cards_2x2' ? layoutData.cards.length : 0;
     if (cardCount !== 4) {
       issues.push('卡片页必须恰好包含 4 张卡片。');
     }
   }
 
-  if (slide.layoutType === 'timeline') {
-    const count = slide.layoutData.type === 'timeline' ? slide.layoutData.timeline.length : 0;
+  if (layoutType === 'timeline') {
+    const count = layoutData.type === 'timeline' ? layoutData.timeline.length : 0;
     if (count < 3 || count > 5) {
       issues.push('时间线页必须包含 3 到 5 个节点。');
     }
   }
 
-  if (slide.layoutType === 'comparison') {
+  if (layoutType === 'comparison') {
     if (
-      slide.layoutData.type === 'comparison'
-      && getListValue(slide, slide.layoutData.leftPointsKey).length === 0
-      && getListValue(slide, slide.layoutData.rightPointsKey).length === 0
+      layoutData.type === 'comparison'
+      && getListValue(slide, layoutData.leftPointsKey).length === 0
+      && getListValue(slide, layoutData.rightPointsKey).length === 0
     ) {
       issues.push('对比页至少需要一侧包含要点列表。');
     }
@@ -204,7 +231,7 @@ export const buildStructuredSlideRepairPrompt = (
   const summary = validation.issues.join('；') || '请优化当前页的结构和信息密度。';
   return [
     '请保持这一页的主题、配色、页型和主要信息不变，只做结构修正。',
-    `当前页型：${slide.layoutType}。`,
+    `当前页型：${getStructuredLayoutType(slide)}。`,
     `修正目标：${summary}`,
     '要求：',
     '1. 保持可编辑结构，不要改成自由 HTML/CSS。',

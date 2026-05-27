@@ -3,7 +3,16 @@ import {
   FrontendDeckTheme,
   FrontendSlide,
 } from './types';
-import { ensureDeckTheme, getDeckStyleFamily, getListValue, getTextValue, getVisualAsset } from './structuredSlideModel';
+import {
+  ensureDeckTheme,
+  getDeckStyleFamily,
+  getListValue,
+  getStructuredLayoutData,
+  getStructuredLayoutType,
+  getTextValue,
+  getVisualAsset,
+  ResolvedFrontendDeckTheme,
+} from './structuredSlideModel';
 
 const PX_PER_IN = 120;
 const SHAPE_ROUND_RECT = 'roundRect' as const;
@@ -103,7 +112,7 @@ const addTextBox = (
 
 const addPanel = (
   slide: pptxgen.Slide,
-  theme: FrontendDeckTheme,
+  theme: ResolvedFrontendDeckTheme,
   box: { x: number; y: number; w: number; h: number },
 ) => {
   const family = getDeckStyleFamily(theme);
@@ -118,7 +127,7 @@ const addPanel = (
   });
 };
 
-const addFooterPill = (slide: pptxgen.Slide, theme: FrontendDeckTheme, text: string) => {
+const addFooterPill = (slide: pptxgen.Slide, theme: ResolvedFrontendDeckTheme, text: string) => {
   const family = getDeckStyleFamily(theme);
   slide.addShape(SHAPE_ROUND_RECT, {
     x: px(1290),
@@ -236,7 +245,8 @@ export const exportStructuredSlidesToPptx = async ({
         line: { color: resolveHex(theme.palette.primary, '#7dd3fc'), transparency: 82, width: 0.8 },
       });
     }
-    const layout: any = structuredSlide.layoutData;
+    const layout: any = getStructuredLayoutData(structuredSlide);
+    const layoutType = getStructuredLayoutType(structuredSlide);
 
     const titleColor = resolveHex(theme.palette.text, '#e2e8f0');
     const primaryColor = resolveHex(theme.palette.primary, '#7dd3fc');
@@ -261,7 +271,7 @@ export const exportStructuredSlidesToPptx = async ({
       });
     }
 
-    switch (structuredSlide.layoutType) {
+    switch (layoutType) {
       case 'cover':
         addTextBox(slide, getTextValue(structuredSlide, layout.titleKey), {
           x: 250,

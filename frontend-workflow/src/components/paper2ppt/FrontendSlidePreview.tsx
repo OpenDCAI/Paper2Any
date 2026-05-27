@@ -1,18 +1,30 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Pencil, X } from 'lucide-react';
-import { FrontendDeckTheme, FrontendSlide } from './types';
-import StructuredSlideCanvas from './StructuredSlideCanvas';
+import {
+  buildFrontendInsertZoneTarget,
+  FrontendDeckTheme,
+  FrontendLayoutIR,
+  FrontendSlide,
+} from './types';
+import { buildFrontendSlideMarkup } from './frontendSlideUtils';
 import { DESIGN_HEIGHT, DESIGN_WIDTH } from './structuredSlideModel';
 
 interface FrontendSlidePreviewProps {
   slide: FrontendSlide;
   deckTheme?: FrontendDeckTheme | null;
   className?: string;
+  mode?: 'responsive' | 'capture';
+  captureRef?: (node: HTMLDivElement | null) => void;
   inlineEditEnabled?: boolean;
   onInlineFieldChange?: (fieldKey: string, value: string) => void;
   onInlineListItemChange?: (fieldKey: string, itemIndex: number, value: string) => void;
   onInlineListReplace?: (fieldKey: string, items: string[]) => void;
   onReplaceImage?: (imageKey: string, file: File) => void | Promise<void>;
+  onDeleteImage?: (imageKey: string) => void;
+  selectedBlockId?: string | null;
+  onSelectBlock?: (blockId: string | null) => void;
+  onHoverBlock?: (blockId: string | null) => void;
+  onLayoutIrChange?: (layoutIr: FrontendLayoutIR) => void;
 }
 
 interface InlineEditorState {
@@ -27,21 +39,45 @@ interface InlineEditorState {
   multiline: boolean;
 }
 
+interface BlockHoverState {
+  blockId: string;
+  role: string;
+  kind: 'block' | 'zone';
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
   slide,
   deckTheme = null,
   className = '',
+  mode = 'responsive',
+  captureRef,
   inlineEditEnabled = false,
   onInlineFieldChange,
   onInlineListItemChange,
   onInlineListReplace,
   onReplaceImage,
+  onDeleteImage,
+  selectedBlockId = null,
+  onSelectBlock,
+  onHoverBlock,
+  onLayoutIrChange,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const [scale, setScale] = useState(1);
   const [inlineEditor, setInlineEditor] = useState<InlineEditorState | null>(null);
   const [pendingImageKey, setPendingImageKey] = useState<string | null>(null);
+  const [hoveredBlock, setHoveredBlock] = useState<BlockHoverState | null>(null);
+  const lastHoverBlockIdRef = useRef<string | null>(null);
+  const onLayoutIrChangeRef = useRef(onLayoutIrChange);
+
+  useEffect(() => {
+    onLayoutIrChangeRef.current = onLayoutIrChange;
+  }, [onLayoutIrChange]);
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -63,7 +99,149 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
 
   useEffect(() => {
     setInlineEditor(null);
-  }, [slide.slideId, slide.layoutType, slide.title]);
+    setHoveredBlock(null);
+    lastHoverBlockIdRef.current = null;
+    onHoverBlock?.(null);
+  }, [slide.slideId]);
+
+  useEffect(() => {
+    setInlineEditor(null);
+  }, [slide.htmlTemplate, slide.cssCode, slide.templateKey, slide.layoutMode, slide.blocks, slide.root, slide.visualSpec, slide.renderEngine]);
+
+  useEffect(() => {
+    if (slide.renderEngine !== 'canvas' || !containerRef.current) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const measure = () => {
+      const container = containerRef.current;
+      if (!container || cancelled) return;
+      const canvasRoot = container.querySelector('.template-canvas-schema') as HTMLElement | null;
+      if (!canvasRoot) {
+        return;
+      }
+
+      const slideRoot = (canvasRoot.closest('.slide-root') as HTMLElement | null) || canvasRoot;
+      const rootRect = slideRoot.getBoundingClientRect();
+      const nodes = Array.from(canvasRoot.querySelectorAll('[data-canvas-node-id]')) as HTMLElement[];
+      const overflowIssues: string[] = [];
+      const irNodes = nodes.map((node) => {
+        const rect = node.getBoundingClientRect();
+        const style = window.getComputedStyle(node);
+        const nodeId = node.dataset.canvasNodeId || node.dataset.blockId || '';
+        const left = (rect.left - rootRect.left) / Math.max(scale, 0.0001);
+        const top = (rect.top - rootRect.top) / Math.max(scale, 0.0001);
+        const width = rect.width / Math.max(scale, 0.0001);
+        const height = rect.height / Math.max(scale, 0.0001);
+        const overflow = node.scrollWidth > node.clientWidth + 1
+          || node.scrollHeight > node.clientHeight + 1
+          || left < -1
+          || top < -1
+          || left + width > DESIGN_WIDTH + 1
+          || top + height > DESIGN_HEIGHT + 1;
+        if (overflow) {
+          overflowIssues.push(`${nodeId || 'unknown'} overflow`);
+        }
+        return {
+          nodeId,
+          type: node.dataset.blockRole === 'container' ? 'container' as const : 'component' as const,
+          component: node.dataset.blockRole === 'container' ? undefined : node.dataset.blockRole as FrontendLayoutIR['nodes'][number]['component'],
+          box: {
+            x: Math.round(left),
+            y: Math.round(top),
+            w: Math.round(width),
+            h: Math.round(height),
+          },
+          computedStyle: {
+            fontFamily: style.fontFamily,
+            fontSize: style.fontSize,
+            fontWeight: style.fontWeight,
+            fontStyle: style.fontStyle,
+            lineHeight: style.lineHeight,
+            color: style.color,
+            backgroundColor: style.backgroundColor,
+            borderColor: style.borderColor,
+            borderTopColor: style.borderTopColor,
+            borderRightColor: style.borderRightColor,
+            borderBottomColor: style.borderBottomColor,
+            borderLeftColor: style.borderLeftColor,
+            borderTopWidth: style.borderTopWidth,
+            borderRightWidth: style.borderRightWidth,
+            borderBottomWidth: style.borderBottomWidth,
+            borderLeftWidth: style.borderLeftWidth,
+            paddingTop: style.paddingTop,
+            paddingRight: style.paddingRight,
+            paddingBottom: style.paddingBottom,
+            paddingLeft: style.paddingLeft,
+            textAlign: style.textAlign,
+            verticalAlign: style.verticalAlign,
+            display: style.display,
+            alignItems: style.alignItems,
+            justifyContent: style.justifyContent,
+          },
+          overflow,
+        };
+      });
+
+      onLayoutIrChangeRef.current?.({
+        schemaVersion: 'ppt_layout_ir_v1',
+        slideId: slide.slideId,
+        viewport: {
+          width: DESIGN_WIDTH,
+          height: DESIGN_HEIGHT,
+          scale,
+        },
+        nodes: irNodes,
+        overflowIssues,
+      });
+    };
+
+    const frame = window.requestAnimationFrame(() => {
+      measure();
+      window.setTimeout(measure, 120);
+    });
+    const observer = new ResizeObserver(() => measure());
+    observer.observe(containerRef.current);
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [mode, slide.renderEngine, slide.slideId, slide.root, slide.visualSpec, slide.blocks, slide.editableFields, slide.visualAssets, scale]);
+
+  useEffect(() => {
+    if (!inlineEditEnabled || mode !== 'responsive') {
+      return undefined;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setInlineEditor(null);
+        return;
+      }
+      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedBlockId) {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest('input, textarea, [contenteditable="true"]')) {
+          return;
+        }
+        const asset = slide.visualAssets.find((item) => item.key === selectedBlockId);
+        if (!asset) {
+          return;
+        }
+        event.preventDefault();
+        onDeleteImage?.(asset.key);
+        setInlineEditor(null);
+        onSelectBlock?.(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [inlineEditEnabled, mode, onDeleteImage, onSelectBlock, selectedBlockId, slide.visualAssets]);
 
   const persistInlineEdit = (editor: InlineEditorState | null) => {
     if (!editor) return;
@@ -95,6 +273,78 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
     imageInputRef.current?.click();
   };
 
+  const resolveBlockNode = (target: HTMLElement) => {
+    if (target.closest('[data-inline-editor="true"]')) {
+      return null;
+    }
+    return target.closest('[data-block-id]') as HTMLElement | null;
+  };
+
+  const resolveInsertZoneNode = (target: HTMLElement) => {
+    if (target.closest('[data-inline-editor="true"]')) {
+      return null;
+    }
+    return target.closest('[data-insert-zone]') as HTMLElement | null;
+  };
+
+  const notifyHoverBlock = (blockId: string | null) => {
+    if (lastHoverBlockIdRef.current === blockId) {
+      return;
+    }
+    lastHoverBlockIdRef.current = blockId;
+    onHoverBlock?.(blockId);
+  };
+
+  const clearHoveredBlock = () => {
+    setHoveredBlock(null);
+    notifyHoverBlock(null);
+  };
+
+  const handleBlockMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!inlineEditEnabled || mode !== 'responsive' || !containerRef.current) {
+      return;
+    }
+
+    const target = event.target as HTMLElement;
+    const blockNode = resolveBlockNode(target);
+    const zoneNode = resolveInsertZoneNode(target);
+    const blockId = blockNode?.dataset.blockId || '';
+    const zone = zoneNode?.dataset.insertZone || '';
+    const hoverTargetId = blockId || (zone ? buildFrontendInsertZoneTarget(zone) : '');
+    const hoverNode = blockNode || zoneNode;
+    if (!hoverNode || !hoverTargetId) {
+      clearHoveredBlock();
+      return;
+    }
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const blockRect = hoverNode.getBoundingClientRect();
+    const nextHoveredBlock: BlockHoverState = {
+      blockId: hoverTargetId,
+      role: blockNode?.dataset.blockRole || zoneNode?.dataset.insertZoneLabel || zone,
+      kind: blockId ? 'block' : 'zone',
+      left: Math.max(0, blockRect.left - containerRect.left),
+      top: Math.max(0, blockRect.top - containerRect.top),
+      width: Math.max(0, blockRect.width),
+      height: Math.max(0, blockRect.height),
+    };
+
+    setHoveredBlock((prev) => {
+      if (
+        prev
+        && prev.blockId === nextHoveredBlock.blockId
+        && Math.abs(prev.left - nextHoveredBlock.left) < 1
+        && Math.abs(prev.top - nextHoveredBlock.top) < 1
+        && Math.abs(prev.width - nextHoveredBlock.width) < 1
+        && Math.abs(prev.height - nextHoveredBlock.height) < 1
+      ) {
+        return prev;
+      }
+      return nextHoveredBlock;
+    });
+    notifyHoverBlock(hoverTargetId);
+  };
+
   const handleImageInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     const imageKey = pendingImageKey;
@@ -114,13 +364,25 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
       return;
     }
 
+    const blockNode = resolveBlockNode(target);
+    if (blockNode?.dataset.blockId) {
+      onSelectBlock?.(blockNode.dataset.blockId);
+    }
+    const zoneNode = resolveInsertZoneNode(target);
+    const zone = zoneNode?.dataset.insertZone || '';
+    if (!blockNode && zone) {
+      onSelectBlock?.(buildFrontendInsertZoneTarget(zone));
+    }
+
     const imageNode = target.closest('[data-image-key]') as HTMLElement | null;
     if (imageNode) {
       event.preventDefault();
       event.stopPropagation();
       if (inlineEditor) persistInlineEdit(inlineEditor);
       setInlineEditor(null);
-      openImagePicker(imageNode.dataset.imageKey || '');
+      const imageKey = imageNode.dataset.imageKey || '';
+      onSelectBlock?.(imageKey);
+      openImagePicker(imageKey);
       return;
     }
 
@@ -128,6 +390,9 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
     if (!editableNode) {
       if (inlineEditor) persistInlineEdit(inlineEditor);
       setInlineEditor(null);
+      if (!blockNode && !zoneNode) {
+        onSelectBlock?.(null);
+      }
       return;
     }
 
@@ -181,14 +446,49 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
     });
   };
 
-  return (
-    <div
-      ref={containerRef}
-      className={`relative w-full aspect-[16/9] overflow-hidden rounded-[28px] bg-[#07101f] ${className}`}
-      onMouseDown={handleEditableClick}
-    >
+  if (mode === 'capture') {
+    return (
       <div
-        className="absolute left-1/2 top-1/2"
+        ref={(node) => {
+          containerRef.current = node;
+          captureRef?.(node);
+        }}
+        className={className}
+        style={{
+          width: `${DESIGN_WIDTH}px`,
+          height: `${DESIGN_HEIGHT}px`,
+          display: 'block',
+          overflow: 'hidden',
+          background: '#07101f',
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'block',
+            overflow: 'hidden',
+            borderRadius: '28px',
+            background: '#0b1020',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+          }}
+          dangerouslySetInnerHTML={{ __html: buildFrontendSlideMarkup(slide, deckTheme) }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className={`w-full ${className}`}>
+      <div
+        ref={containerRef}
+        className="relative w-full aspect-[16/9] overflow-hidden rounded-[28px] bg-[#07101f]"
+        onMouseMove={handleBlockMouseMove}
+        onMouseLeave={clearHoveredBlock}
+        onMouseDown={handleEditableClick}
+      >
+        <div
+          className="absolute left-1/2 top-1/2"
         style={{
           width: `${DESIGN_WIDTH}px`,
           height: `${DESIGN_HEIGHT}px`,
@@ -196,17 +496,23 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
           transformOrigin: 'center center',
         }}
       >
-        <StructuredSlideCanvas slide={slide} deckTheme={deckTheme} />
+        <div
+          className="w-full h-full overflow-hidden rounded-[28px] bg-[#0b1020] shadow-[0_20px_60px_rgba(0,0,0,0.3)]"
+          dangerouslySetInnerHTML={{ __html: buildFrontendSlideMarkup(slide, deckTheme) }}
+        />
       </div>
 
-      {inlineEditEnabled && (
-        <div className="pointer-events-none absolute inset-x-4 bottom-4 z-20">
-          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-[#06101d]/85 px-3 py-1.5 text-[11px] text-cyan-100/85 shadow-[0_12px_28px_rgba(0,0,0,0.28)] backdrop-blur-xl">
-            <Pencil size={12} />
-            点击文字可直接编辑，点击图片可替换
-          </div>
-        </div>
-      )}
+        {hoveredBlock && (
+          <div
+            className="pointer-events-none absolute z-20 rounded-[18px] border border-white/85 bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.35),0_18px_46px_rgba(15,23,42,0.26)]"
+            style={{
+              left: `${hoveredBlock.left}px`,
+              top: `${hoveredBlock.top}px`,
+              width: `${hoveredBlock.width}px`,
+              height: `${hoveredBlock.height}px`,
+            }}
+          />
+        )}
 
       {inlineEditor && (
         <div
@@ -282,14 +588,44 @@ const FrontendSlidePreview: React.FC<FrontendSlidePreviewProps> = ({
         </div>
       )}
 
+        {inlineEditEnabled && (
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleImageInputChange}
+          />
+        )}
+      </div>
+
       {inlineEditEnabled && (
-        <input
-          ref={imageInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleImageInputChange}
-        />
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-cyan-100/80">
+          <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/15 bg-cyan-500/10 px-3 py-1.5">
+            <Pencil size={12} />
+            {hoveredBlock
+              ? hoveredBlock.kind === 'zone'
+                ? slide.renderEngine === 'canvas'
+                  ? `鼠标所在空白区域：${hoveredBlock.role}，点击后可新增同级节点`
+                  : `鼠标所在空白区域：${hoveredBlock.role}，点击后可新增同级 block`
+                : `鼠标所在区域：${hoveredBlock.blockId}`
+              : selectedBlockId
+                ? `当前选择区域：${selectedBlockId}`
+                : slide.renderEngine === 'canvas'
+                  ? '鼠标移到 Canvas 节点或空白区域上查看目标，点击固定插入位置'
+                  : '鼠标移到 block 或空白区域上查看目标，点击固定插入位置'}
+          </span>
+          {selectedBlockId && (
+            <span className="inline-flex rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-emerald-100/85">
+              已选择：{selectedBlockId}
+            </span>
+          )}
+          {selectedBlockId && slide.visualAssets.some((asset) => asset.key === selectedBlockId) && (
+            <span className="inline-flex rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1.5 text-rose-100/85">
+              按 Delete 删除图片
+            </span>
+          )}
+        </div>
       )}
     </div>
   );

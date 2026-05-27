@@ -286,31 +286,12 @@ const UploadStep: React.FC<UploadStepProps> = ({
       };
   const currentPageCopy = pptMode === 'frontend' ? pageCopy.frontend : pageCopy.image;
   const promptCards = pptMode === 'frontend' ? frontendStylePromptCards : imageStylePromptCards;
-  const presetOptions = pptMode === 'frontend'
-    ? (
-        uiLang === 'zh'
-          ? [
-              { value: 'modern', label: '暖白赤陶' },
-              { value: 'business', label: '午夜蓝冰灰' },
-              { value: 'academic', label: '纸感酒红' },
-              { value: 'creative', label: '森林绿沙金' },
-            ]
-          : [
-              { value: 'modern', label: 'Ivory + Terracotta' },
-              { value: 'business', label: 'Midnight Blue' },
-              { value: 'academic', label: 'Parchment + Burgundy' },
-              { value: 'creative', label: 'Forest Green' },
-            ]
-      )
-    : [
-        { value: 'modern', label: t('upload.config.presets.modern') },
-        { value: 'business', label: t('upload.config.presets.business') },
-        { value: 'academic', label: t('upload.config.presets.academic') },
-        { value: 'creative', label: t('upload.config.presets.creative') },
-      ];
-  const stylePresetLabel = pptMode === 'frontend'
-    ? (uiLang === 'zh' ? '主题色方向' : 'Palette Direction')
-    : t('upload.config.stylePreset');
+  const presetOptions = [
+    { value: 'modern', label: t('upload.config.presets.modern') },
+    { value: 'business', label: t('upload.config.presets.business') },
+    { value: 'academic', label: t('upload.config.presets.academic') },
+    { value: 'creative', label: t('upload.config.presets.creative') },
+  ];
   const promptLabel = pptMode === 'frontend'
     ? (uiLang === 'zh' ? '前端主题提示词' : 'Frontend Theme Prompt')
     : t('upload.config.promptLabel');
@@ -805,18 +786,20 @@ const UploadStep: React.FC<UploadStepProps> = ({
 
             {pptMode === 'frontend' || styleMode === 'prompt' ? (
               <>
-                <div className="mb-3">
-                  <label className="block text-xs text-gray-400 mb-1">{stylePresetLabel}</label>
-                  <select 
-                    value={stylePreset} 
-                    onChange={e => setStylePreset(e.target.value as typeof stylePreset)} 
-                    className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    {presetOptions.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                </div>
+                {pptMode === 'image' && (
+                  <div className="mb-3">
+                    <label className="block text-xs text-gray-400 mb-1">{t('upload.config.stylePreset')}</label>
+                    <select 
+                      value={stylePreset} 
+                      onChange={e => setStylePreset(e.target.value as typeof stylePreset)} 
+                      className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-gray-100 outline-none focus:ring-2 focus:ring-purple-500"
+                    >
+                      {presetOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">{promptLabel}</label>
                   <textarea 
