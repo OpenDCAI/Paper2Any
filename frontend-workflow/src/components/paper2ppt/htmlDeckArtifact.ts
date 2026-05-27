@@ -13,19 +13,21 @@ const buildDeckShellCss = (
   deckTheme: FrontendDeckTheme,
   options: HtmlDeckArtifactOptions = {},
 ) => {
-  const family = getDeckStyleFamily(deckTheme);
+  const theme = ensureDeckTheme(deckTheme);
+  const palette = theme.palette;
+  const family = getDeckStyleFamily(theme);
   const background = options.pptxCompatible
-    ? deckTheme.palette.bg
+    ? palette.bg
     : family === 'academic'
-      ? `linear-gradient(180deg, ${deckTheme.palette.bg}, ${deckTheme.palette.bg}), repeating-linear-gradient(180deg, transparent 0, transparent 35px, ${deckTheme.palette.primary}08 36px)`
+      ? `linear-gradient(180deg, ${palette.bg}, ${palette.bg}), repeating-linear-gradient(180deg, transparent 0, transparent 35px, ${palette.primary}08 36px)`
       : family === 'business'
-        ? `linear-gradient(135deg, ${deckTheme.palette.bg} 0%, ${deckTheme.palette.bg} 74%, ${deckTheme.palette.accent}12 100%)`
+        ? `linear-gradient(135deg, ${palette.bg} 0%, ${palette.bg} 74%, ${palette.accent}12 100%)`
         : family === 'creative'
-          ? `radial-gradient(circle at 12% 18%, ${deckTheme.palette.secondary}28 0%, transparent 24%), radial-gradient(circle at 84% 14%, ${deckTheme.palette.accent}24 0%, transparent 22%), linear-gradient(160deg, ${deckTheme.palette.bg} 0%, ${deckTheme.palette.bg} 62%, ${deckTheme.palette.primary}10 100%)`
+          ? `radial-gradient(circle at 12% 18%, ${palette.secondary}28 0%, transparent 24%), radial-gradient(circle at 84% 14%, ${palette.accent}24 0%, transparent 22%), linear-gradient(160deg, ${palette.bg} 0%, ${palette.bg} 62%, ${palette.primary}10 100%)`
           : `
-              radial-gradient(circle at top right, ${deckTheme.palette.secondary}33 0%, transparent 28%),
-              radial-gradient(circle at bottom left, ${deckTheme.palette.accent}22 0%, transparent 32%),
-              ${deckTheme.palette.bg}
+              radial-gradient(circle at top right, ${palette.secondary}33 0%, transparent 28%),
+              radial-gradient(circle at bottom left, ${palette.accent}22 0%, transparent 32%),
+              ${palette.bg}
             `;
 
   return `
@@ -33,7 +35,7 @@ const buildDeckShellCss = (
     margin: 0;
     padding: 0;
     background: ${background};
-    color: ${deckTheme.palette.text};
+    color: ${palette.text};
   }
   body {
     overflow: auto;
@@ -50,13 +52,13 @@ const buildDeckShellCss = (
     width: ${DESIGN_WIDTH}px;
     height: ${DESIGN_HEIGHT}px;
     flex: 0 0 auto;
-    ${options.pptxCompatible ? `background:${deckTheme.palette.bg};` : ''}
+    ${options.pptxCompatible ? `background:${palette.bg};` : ''}
   }
   .slide-root {
     width: ${DESIGN_WIDTH}px;
     height: ${DESIGN_HEIGHT}px;
     overflow: hidden;
-    ${options.pptxCompatible ? `background:${deckTheme.palette.bg};` : ''}
+    ${options.pptxCompatible ? `background:${palette.bg};` : ''}
   }
 `.trim();
 };

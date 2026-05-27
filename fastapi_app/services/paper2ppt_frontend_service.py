@@ -978,6 +978,69 @@ class Paper2PPTFrontendService:
             "Focus on one clear subject or scene that supports the slide narrative."
         )
 
+    def _clean_text_content(self, value: Any, default: str = "", limit: int = 280) -> str:
+        text = self._extract_outline_text(value)
+        text = re.sub(r"\s+", " ", text)
+        return (text or default)[:limit]
+
+    def _extract_outline_text(self, value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, (int, float, bool)):
+            return str(value).strip()
+        if isinstance(value, dict):
+            preferred_keys = (
+                "text",
+                "value",
+                "content",
+                "summary",
+                "title",
+                "label",
+                "body",
+                "description",
+                "reason",
+                "point",
+            )
+            for key in preferred_keys:
+                extracted = self._extract_outline_text(value.get(key))
+                if extracted:
+                    return extracted
+            parts = [self._extract_outline_text(item) for item in value.values()]
+            joined = " ".join(part for part in parts if part)
+            return joined.strip()
+        if isinstance(value, list):
+            parts = [self._extract_outline_text(item) for item in value]
+            joined = " ".join(part for part in parts if part)
+            return joined.strip()
+        return str(value).strip()
+
+    def _normalize_outline_points(
+        self,
+        value: Any,
+        *,
+        limit: int = 6,
+        item_limit: int = 120,
+    ) -> List[str]:
+        normalized: List[str] = []
+
+        def _append(item: Any) -> None:
+            text = self._clean_text_content(item, "", item_limit)
+            if text and text not in normalized:
+                normalized.append(text)
+
+        if isinstance(value, list):
+            for item in value:
+                if isinstance(item, list):
+                    for nested in item:
+                        _append(nested)
+                else:
+                    _append(item)
+        elif value is not None:
+            _append(value)
+        return normalized[:limit]
+
     def _collect_outline_asset_refs(self, outline_item: Dict[str, Any]) -> List[str]:
         collected: List[str] = []
 
@@ -4618,6 +4681,17 @@ If there are any meaningful problems, set passed=false and provide a concrete re
         theme: Dict[str, Any],
         visual_assets: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
+        fallback_theme = self._build_fallback_theme(language="zh", style="")
+        palette = (
+            theme.get("palette")
+            if isinstance(theme.get("palette"), dict)
+            else fallback_theme["palette"]
+        )
+        typography = (
+            theme.get("typography")
+            if isinstance(theme.get("typography"), dict)
+            else fallback_theme["typography"]
+        )
         visual_assets = (visual_assets or [])[:_MAX_INLINE_VISUAL_ASSETS]
         has_visual = bool(visual_assets)
         has_multi_visual = len(visual_assets) > 1
