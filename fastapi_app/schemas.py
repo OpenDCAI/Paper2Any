@@ -564,6 +564,8 @@ class PPTGenerationRequest(BaseModel):
     image_resolution: Optional[str] = None
     # 增量生成：跳过的页码列表（JSON 格式，0-based），复用已有图片
     skip_pages: Optional[str] = None
+    # PPT 渲染模式：image 为旧图片版，native 为 SVG -> DrawingML 可编辑版
+    render_mode: Literal["image", "native"] = "image"
 
 
 class FullPipelineRequest(BaseModel):

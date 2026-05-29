@@ -128,6 +128,7 @@ from fastapi_app.utils import (
 from fastapi_app.workflow_adapters.wa_paper2ppt import (
     run_paper2page_content_wf_api,
     run_paper2ppt_full_pipeline,
+    run_paper2ppt_svg_native_wf_api,
     run_paper2ppt_wf_api,
 )
 from dataflow_agent.promptstemplates import PromptsTemplateGenerator
@@ -456,16 +457,29 @@ class Paper2PPTService:
             edit_mask_path=str(edit_mask_path) if edit_mask_path else "",
         )
 
-        resp_model = await run_paper2ppt_wf_api(
-            p2ppt_req,
-            pagecontent=pc,
-            result_path=str(base_dir),
-            get_down=get_down_bool,
-            edit_page_num=req.page_id,
-            edit_page_prompt=req.edit_prompt,
-            regenerate_from_outline=regenerate_from_outline_bool,
-            skip_pages=skip_pages,
-        )
+        render_mode = (getattr(req, "render_mode", "image") or "image").lower()
+        if render_mode == "native":
+            if get_down_bool or regenerate_from_outline_bool:
+                raise HTTPException(
+                    status_code=400,
+                    detail="render_mode=native currently supports full generation only, not page edit/regenerate",
+                )
+            resp_model = await run_paper2ppt_svg_native_wf_api(
+                p2ppt_req,
+                pagecontent=pc,
+                result_path=str(base_dir),
+            )
+        else:
+            resp_model = await run_paper2ppt_wf_api(
+                p2ppt_req,
+                pagecontent=pc,
+                result_path=str(base_dir),
+                get_down=get_down_bool,
+                edit_page_num=req.page_id,
+                edit_page_prompt=req.edit_prompt,
+                regenerate_from_outline=regenerate_from_outline_bool,
+                skip_pages=skip_pages,
+            )
 
         resp_dict = resp_model.model_dump()
         return self.normalize_ppt_response(resp_dict, request)

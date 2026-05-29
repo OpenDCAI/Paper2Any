@@ -7,6 +7,7 @@ paper2ppt 工作流封装。
 - run_paper2page_content_wf_api: 只跑 paper2page_content，侧重解析/生成 pagecontent
 - run_paper2page_content_refine_wf_api: 只跑 paper2page_content，用于基于反馈修订 outline
 - run_paper2ppt_wf_api: 只跑 paper2ppt，基于已有 pagecontent 生成 PPT 资源
+- run_paper2ppt_svg_native_wf_api: 只跑 native SVG/DrawingML 版 paper2ppt
 - run_paper2ppt_full_pipeline: full pipeline，串联 paper2page_content + paper2ppt
 """
 
@@ -361,6 +362,46 @@ async def run_paper2ppt_wf_api(
         regenerate_from_outline=regenerate_from_outline,
         auto_fill_generated_pages=auto_fill_generated_pages,
         skip_pages=skip_pages,
+    )
+
+
+async def run_paper2ppt_svg_native_wf_api(
+    req: Paper2PPTRequest,
+    pagecontent: list[dict],
+    result_path: str,
+) -> Paper2PPTResponse:
+    """Run the native editable paper2ppt branch.
+
+    This branch reuses the existing pagecontent output, renders a constrained
+    SVG deck, and exports it through the PPT Master SVG-to-DrawingML converter.
+    """
+    base_dir = Path(result_path).resolve()
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    state = _init_state_from_request(
+        req,
+        result_path=base_dir,
+        override_pagecontent=pagecontent,
+    )
+
+    log.info(
+        "[paper2ppt_svg_native_wf_api] start, result_path=%s, pagecontent_len=%s",
+        state.result_path,
+        len(state.pagecontent or []),
+    )
+    final_state: Paper2FigureState = await run_workflow("paper2ppt_svg_native", state)
+
+    ppt_pdf_path = _state_get(final_state, "ppt_pdf_path", "")
+    ppt_pptx_path = _state_get(final_state, "ppt_pptx_path", "")
+    final_pagecontent = _state_get(final_state, "pagecontent", []) or []
+    final_result_path = _state_get(final_state, "result_path", result_path or "")
+
+    return Paper2PPTResponse(
+        success=True,
+        ppt_pdf_path=str(ppt_pdf_path) if ppt_pdf_path else "",
+        ppt_pptx_path=str(ppt_pptx_path) if ppt_pptx_path else "",
+        pagecontent=final_pagecontent,
+        result_path=final_result_path,
     )
 
 

@@ -232,6 +232,7 @@ def _build_ppt_generation_request(
     regenerate_from_outline: str,
     image_resolution: Optional[str],
     skip_pages: Optional[str],
+    render_mode: str = "image",
 ) -> PPTGenerationRequest:
     return PPTGenerationRequest(
         img_gen_model_name=resolve_model_name(
@@ -261,6 +262,7 @@ def _build_ppt_generation_request(
         regenerate_from_outline=regenerate_from_outline,
         image_resolution=image_resolution,
         skip_pages=skip_pages,
+        render_mode="native" if str(render_mode).lower() == "native" else "image",
     )
 
 
@@ -374,6 +376,7 @@ async def paper2ppt_generate_slides(
     mask_spec: Optional[str] = Form(None),
     mask_file: Optional[UploadFile] = File(None),
     skip_pages: Optional[str] = Form(None),
+    render_mode: str = Form("image"),
     service: Paper2PPTService = Depends(get_service),
 ):
     """
@@ -401,6 +404,7 @@ async def paper2ppt_generate_slides(
         regenerate_from_outline=regenerate_from_outline,
         image_resolution=image_resolution,
         skip_pages=skip_pages,
+        render_mode=render_mode,
     )
     return await _execute_paper2ppt_generate(
         request=request,
@@ -568,6 +572,7 @@ async def paper2ppt_ppt_json(
     mask_file: Optional[UploadFile] = File(None),
     regenerate_from_outline: str = Form("false"),
     skip_pages: Optional[str] = Form(None),
+    render_mode: str = Form("image"),
     service: Paper2PPTService = Depends(get_service),
 ):
     """
@@ -600,6 +605,7 @@ async def paper2ppt_ppt_json(
         regenerate_from_outline=regenerate_from_outline,
         image_resolution=image_resolution,
         skip_pages=skip_pages,
+        render_mode=render_mode,
     )
     return await _execute_paper2ppt_generate(
         request=request,
@@ -633,6 +639,7 @@ async def paper2ppt_generate_slides_task(
     pagecontent: str = Form(...),
     regenerate_from_outline: str = Form("false"),
     skip_pages: Optional[str] = Form(None),
+    render_mode: str = Form("image"),
     task_service: Paper2PPTTaskService = Depends(get_task_service),
 ):
     req = _build_ppt_generation_request(
@@ -655,6 +662,7 @@ async def paper2ppt_generate_slides_task(
         regenerate_from_outline=regenerate_from_outline,
         image_resolution=image_resolution,
         skip_pages=skip_pages,
+        render_mode="native" if str(render_mode).lower() == "native" else "image",
     )
     return await task_service.submit_generate_task(req=req, reference_img=reference_img, request=request)
 
@@ -731,6 +739,7 @@ async def paper2ppt_generate_task(
     edit_prompt: Optional[str] = Form(None),
     regenerate_from_outline: str = Form("false"),
     skip_pages: Optional[str] = Form(None),
+    render_mode: str = Form("image"),
     task_service: Paper2PPTTaskService = Depends(get_task_service),
 ):
     req = PPTGenerationRequest(
@@ -760,6 +769,7 @@ async def paper2ppt_generate_task(
         regenerate_from_outline=regenerate_from_outline,
         image_resolution=image_resolution,
         skip_pages=skip_pages,
+        render_mode="native" if str(render_mode).lower() == "native" else "image",
     )
     return await task_service.submit_generate_task(req=req, reference_img=reference_img, request=request)
 

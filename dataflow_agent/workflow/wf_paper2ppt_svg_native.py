@@ -47,30 +47,49 @@ def create_paper2ppt_svg_native_graph() -> GenericGraphBuilder:  # noqa: N802
         (result_path / "svg_output").mkdir(parents=True, exist_ok=True)
         return state
 
-    def render_svg_pages(state: Paper2FigureState) -> Paper2FigureState:
+    async def render_svg_pages(state: Paper2FigureState) -> Paper2FigureState:
         result_root = Path(_ensure_result_path(state))
         svg_dir = result_root / "svg_output"
-        svg_files = render_pagecontent_to_svg_deck(
+        req = getattr(state, "request", None)
+        api_key = (
+            getattr(req, "chat_api_key", "")
+            or getattr(req, "api_key", "")
+            or ""
+        )
+        render_result = await render_pagecontent_to_svg_deck(
             state.pagecontent or [],
             svg_dir,
             result_root=result_root,
-            style=getattr(getattr(state, "request", None), "style", "") or getattr(state, "style", ""),
-            language=getattr(getattr(state, "request", None), "language", "zh"),
+            style=getattr(req, "style", "") or getattr(state, "style", ""),
+            language=getattr(req, "language", "zh"),
+            chat_api_url=getattr(req, "chat_api_url", "") or "",
+            api_key=api_key,
+            model=getattr(req, "model", "") or "",
         )
+        report_by_index = {
+            int(report.get("page_idx", -1)): report
+            for report in render_result.page_reports
+        }
 
         updated_pagecontent = []
         for idx, item in enumerate(state.pagecontent or []):
             next_item = dict(item) if isinstance(item, dict) else {"title": str(item)}
+            page_report = report_by_index.get(idx, {})
             next_item.update(
                 {
                     "page_idx": idx,
-                    "generated_svg_path": str(svg_files[idx]),
-                    "mode": "native_svg",
+                    "generated_svg_path": str(render_result.svg_files[idx]),
+                    "mode": page_report.get("mode", "native_svg"),
+                    "native_svg_report": page_report,
                 }
             )
             updated_pagecontent.append(next_item)
         state.pagecontent = updated_pagecontent
-        log.info("[paper2ppt_svg_native] rendered %s SVG pages into %s", len(svg_files), svg_dir)
+        log.info(
+            "[paper2ppt_svg_native] rendered %s SVG pages into %s",
+            len(render_result.svg_files),
+            svg_dir,
+        )
         return state
 
     def export_native_pptx(state: Paper2FigureState) -> Paper2FigureState:
