@@ -84,11 +84,12 @@ export function getRuntimeConfigSync(): RuntimeConfig {
 }
 
 export async function fetchRuntimeConfig(force: boolean = false): Promise<RuntimeConfig> {
+  if (runtimeConfigPromise) {
+    return runtimeConfigPromise;
+  }
+
   if (!force && runtimeConfigCache && runtimeConfigCache !== DEFAULT_RUNTIME_CONFIG) {
     return runtimeConfigCache;
-  }
-  if (!force && runtimeConfigPromise) {
-    return runtimeConfigPromise;
   }
 
   runtimeConfigPromise = (async () => {

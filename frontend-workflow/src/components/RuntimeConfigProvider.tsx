@@ -6,7 +6,7 @@ export function RuntimeConfigProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     let cancelled = false;
-    fetchRuntimeConfig()
+    fetchRuntimeConfig(true)
       .catch(() => undefined)
       .finally(() => {
         if (!cancelled) {

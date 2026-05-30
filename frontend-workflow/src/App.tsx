@@ -183,13 +183,13 @@ function App() {
 
       {/* 顶部导航栏 */}
       <header className="absolute top-0 left-0 right-0 h-16 glass-dark border-b border-white/10 z-10">
-        <div className="h-full px-6 flex items-center justify-between">
+        <div className="flex h-full items-center justify-between px-3 sm:px-6">
           {/* Logo */}
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             {/* Hamburger Menu Button */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="group flex items-center gap-2 px-3 py-2 rounded-xl glass border border-white/10 text-gray-300 hover:bg-white/10 hover:text-white transition-all duration-200 shadow-[0_10px_30px_rgba(0,0,0,0.2)]"
+              className="group flex shrink-0 items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-gray-300 shadow-[0_10px_30px_rgba(0,0,0,0.2)] transition-all duration-200 hover:bg-white/10 hover:text-white glass"
               aria-label={t('app.sidebar.toggle')}
             >
               <span className="relative">
@@ -197,29 +197,30 @@ function App() {
                 <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
                 <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-emerald-400" />
               </span>
-              <span className="text-xs font-semibold tracking-wide">菜单 / Menu</span>
+              <span className="hidden text-xs font-semibold tracking-wide sm:inline">菜单 / Menu</span>
             </button>
             <button
               type="button"
               onClick={() => handlePageChange('home')}
-              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-left transition-all duration-200 hover:border-white/20 hover:bg-white/10"
+              className="group flex min-w-0 items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-left text-gray-300 shadow-[0_10px_30px_rgba(0,0,0,0.2)] transition-all duration-200 hover:bg-white/10 hover:text-white glass sm:gap-3"
             >
-              <div className="p-2 rounded-lg bg-primary-500/20">
-                <Workflow className="text-primary-400" size={24} />
+              <div className="rounded-lg bg-primary-500/20 p-2 transition-colors duration-200 group-hover:bg-primary-500/25">
+                <Workflow className="text-primary-400" size={20} />
               </div>
-              <div>
-                <h1 className="text-lg font-bold text-white glow-text">
-                  Paper2Any
-                </h1>
-                <p className="text-xs text-gray-400">{t('app.subtitle')}</p>
+              <div className="min-w-0">
+                <h1 className="hidden truncate text-sm font-semibold text-white sm:block">Paper2Any</h1>
+                <h1 className="text-sm font-semibold text-white sm:hidden">P2A</h1>
+                <p className="hidden max-w-[15rem] truncate text-xs text-gray-400 transition-colors duration-200 group-hover:text-gray-300 lg:block">
+                  {t('app.subtitle')}
+                </p>
               </div>
             </button>
           </div>
 
           {/* 工具栏 */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             {/* 右侧：配额显示 & 用户菜单 */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <LanguageSwitcher />
               <PointsDisplay />
               <PurchaseEntry />

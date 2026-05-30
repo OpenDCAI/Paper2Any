@@ -36,6 +36,16 @@ function buildUnlimitedQuota(): QuotaInfo {
   };
 }
 
+function buildUnavailableQuota(): QuotaInfo {
+  return {
+    used: 0,
+    limit: 0,
+    remaining: 0,
+    isAuthenticated: false,
+    billingMode: getRuntimeConfigSync().billing_mode,
+  };
+}
+
 function getQuotaCacheKey(userId: string | null): string {
   return userId || '__anonymous__';
 }
@@ -107,6 +117,12 @@ export async function checkQuota(userId: string | null, _legacyIsAnonymous: bool
       const response = await backendFetch('/api/v1/account/quota');
       if (!response.ok) {
         console.warn('[quotaService] Quota request failed:', response.status);
+        if (response.status === 401 || response.status === 403) {
+          const runtimeConfig = getRuntimeConfigSync();
+          return runtimeConfig.billing_mode === 'free'
+            ? buildUnavailableQuota()
+            : buildUnlimitedQuota();
+        }
         return readCachedQuota(userId, true) ?? buildUnlimitedQuota();
       }
 

@@ -59,6 +59,16 @@ English | [中文](README_CN.md)
 ## 🔥 News
 
 > [!TIP]
+> 🆕 <strong>2026-05-30 · Editable PPT Workflow Consolidation</strong><br>
+> The latest <strong>frontend editable PPT</strong> workflow is now integrated into Paper2Any, combining outline-assisted generation, canvas editing, gallery review, and <strong>paper / AI image insertion</strong> into editable decks.<br>
+> <strong>HTML-based editable PPTX export</strong> and <strong>ONLYOFFICE online editing</strong> remain available as optional layers on top of the main editable export workflow.
+
+> [!TIP]
+> 🆕 <strong>2026-05-30 · Managed Runtime UX Cleanup</strong><br>
+> In managed deployment mode, workflow pages now refresh runtime config from the backend and no longer ask end users to fill in <strong>API URL / API Key</strong> when server-side billing is enabled.<br>
+> Quota display and frontend proxy resolution were also refreshed for self-hosted open-source deployments.
+
+> [!TIP]
 > 🆕 <strong>2026-04-24 · Image Model Playground Upgrade</strong><br>
 > Added a new <strong>Image Model Playground</strong> page for managed image generation across Nano Banana 2 / Nano Banana Pro / Image 2 / Image 2 All.<br>
 > The workflow now supports language control, model-specific generation options, <strong>batch generation (1 / 2 / 4 / 8 / 16)</strong>, compressed thumbnail previews, and one-click batch download.

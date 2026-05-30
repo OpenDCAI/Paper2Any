@@ -59,6 +59,16 @@
 ## 🔥 News
 
 > [!TIP]
+> 🆕 <strong>2026-05-30 · 可编辑版 PPT 工作流整合</strong><br>
+> 最新的 <strong>前端可编辑 PPT</strong> 工作流已经整合进 Paper2Any，打通了大纲辅助生成、画布编辑、多页画廊审阅，以及 <strong>论文图片 / AI 图片插入</strong> 到可编辑 deck 的链路。<br>
+> <strong>基于 HTML 的可编辑 PPTX 导出</strong> 与 <strong>ONLYOFFICE 在线编辑</strong> 仍然作为可选能力保留在主可编辑导出链路之上。
+
+> [!TIP]
+> 🆕 <strong>2026-05-30 · 托管模式前端体验清理</strong><br>
+> 在后端托管部署模式下，工作流页面现在会强制从后端刷新运行时配置；只要启用了服务端计费，前端就不会再要求终端用户手动填写 <strong>API URL / API Key</strong>。<br>
+> 同时修复了积分展示与前端代理指向的自部署体验问题。
+
+> [!TIP]
 > 🆕 <strong>2026-04-24 · 生图模型体验页升级</strong><br>
 > 新增独立的 <strong>生图模型体验</strong> 页面，可直接调用平台托管的 Nano Banana 2 / Nano Banana Pro / Image 2 / Image 2 All。<br>
 > 现在支持图中文字语言控制、模型专属参数、<strong>批量生图（1 / 2 / 4 / 8 / 16）</strong>、压缩缩略图预览，以及一键打包下载。

@@ -75,15 +75,23 @@ fi
 
 cd "$FRONTEND_DIR" || exit 1
 
+API_PROXY_HOST="$APP_HOST"
+if [ "$API_PROXY_HOST" = "0.0.0.0" ] || [ "$API_PROXY_HOST" = "::" ]; then
+  API_PROXY_HOST="127.0.0.1"
+fi
+VITE_API_PROXY_TARGET="${VITE_API_PROXY_TARGET:-http://$API_PROXY_HOST:$APP_PORT}"
+
 start_cmd=("$FRONTEND_NPM" run dev -- --host "$FRONTEND_HOST" --port "$FRONTEND_PORT" --strictPort)
 
 if command -v setsid >/dev/null 2>&1; then
   nohup setsid env \
     VITE_API_BASE_URL="${VITE_API_BASE_URL:-}" \
+    VITE_API_PROXY_TARGET="$VITE_API_PROXY_TARGET" \
     "${start_cmd[@]}" >> "$LOG_DIR/frontend.log" 2>&1 < /dev/null &
 else
   nohup env \
     VITE_API_BASE_URL="${VITE_API_BASE_URL:-}" \
+    VITE_API_PROXY_TARGET="$VITE_API_PROXY_TARGET" \
     "${start_cmd[@]}" >> "$LOG_DIR/frontend.log" 2>&1 < /dev/null &
 fi
 

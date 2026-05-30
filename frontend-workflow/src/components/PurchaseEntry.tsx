@@ -27,11 +27,12 @@ export function PurchaseEntry() {
         href={purchaseUrl}
         target="_blank"
         rel="noreferrer"
-        className="group inline-flex items-center gap-2 rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-1.5 text-sm text-amber-100 transition-all duration-200 hover:border-amber-300/40 hover:bg-amber-500/15 hover:text-white"
+        className="group inline-flex items-center gap-2 rounded-xl border border-amber-400/20 bg-amber-500/10 px-2.5 py-1.5 text-sm text-amber-100 transition-all duration-200 hover:border-amber-300/40 hover:bg-amber-500/15 hover:text-white sm:px-3"
         title={t('app.purchaseMore')}
+        aria-label={t('app.purchaseMore')}
       >
         <Coins size={16} className="text-amber-300 transition-transform duration-200 group-hover:scale-110" />
-        <span className="whitespace-nowrap">{t('app.purchaseMore')}</span>
+        <span className="hidden whitespace-nowrap sm:inline">{t('app.purchaseMore')}</span>
       </a>
     </QRCodeTooltip>
   );

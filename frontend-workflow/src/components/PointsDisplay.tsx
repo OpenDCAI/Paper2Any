@@ -37,9 +37,9 @@ export function PointsDisplay() {
   // Show loading state if quota hasn't been fetched yet
   if (!quota) {
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-white/5 border-white/10">
+      <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 sm:px-3">
         <Loader2 size={16} className="animate-spin text-gray-400" />
-        <span className="text-sm text-gray-400">...</span>
+        <span className="text-xs text-gray-400 sm:text-sm">...</span>
       </div>
     );
   }
@@ -53,9 +53,9 @@ export function PointsDisplay() {
     : (isAuthenticatedUser ? '剩余点数' : '当前点数');
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-white/5 border-white/10" title={title}>
+    <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 sm:px-3" title={title}>
       <Coins size={16} className="text-yellow-400" />
-      <span className="text-sm text-gray-300">
+      <span className="text-xs text-gray-300 sm:text-sm">
         {isUnlimited ? "∞" : `${quota.remaining} ${balanceLabel}`}
       </span>
     </div>
