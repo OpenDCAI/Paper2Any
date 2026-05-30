@@ -64,11 +64,6 @@ English | [中文](README_CN.md)
 > <strong>HTML-based editable PPTX export</strong> and <strong>ONLYOFFICE online editing</strong> remain available as optional layers on top of the main editable export workflow.
 
 > [!TIP]
-> 🆕 <strong>2026-05-30 · Managed Runtime UX Cleanup</strong><br>
-> In managed deployment mode, workflow pages now refresh runtime config from the backend and no longer ask end users to fill in <strong>API URL / API Key</strong> when server-side billing is enabled.<br>
-> Quota display and frontend proxy resolution were also refreshed for self-hosted open-source deployments.
-
-> [!TIP]
 > 🆕 <strong>2026-04-24 · Image Model Playground Upgrade</strong><br>
 > Added a new <strong>Image Model Playground</strong> page for managed image generation across Nano Banana 2 / Nano Banana Pro / Image 2 / Image 2 All.<br>
 > The workflow now supports language control, model-specific generation options, <strong>batch generation (1 / 2 / 4 / 8 / 16)</strong>, compressed thumbnail previews, and one-click batch download.
@@ -106,6 +101,9 @@ English | [中文](README_CN.md)
 > Added two new <strong>editable PPT</strong> showcase screenshots for the frontend-deck workflow:<br>
 > a generated multi-slide gallery view and the canvas editing workspace with deck theme lock.
 
+<details>
+<summary><strong>Earlier updates</strong></summary>
+
 > [!TIP]
 > 🆕 <strong>2026-03-26 · Workflow Showcase Update</strong><br>
 > Added showcase coverage for <strong>Paper2Video</strong>, <strong>Paper2Poster</strong>, and <strong>Paper2Citation</strong>.<br>
@@ -139,6 +137,8 @@ English | [中文](README_CN.md)
 
 - 2025-12-12 · Paper2Figure Web public beta is live
 - 2025-10-01 · Released the first version <code>0.1.0</code>
+
+</details>
 
 ---
 

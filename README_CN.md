@@ -64,11 +64,6 @@
 > <strong>基于 HTML 的可编辑 PPTX 导出</strong> 与 <strong>ONLYOFFICE 在线编辑</strong> 仍然作为可选能力保留在主可编辑导出链路之上。
 
 > [!TIP]
-> 🆕 <strong>2026-05-30 · 托管模式前端体验清理</strong><br>
-> 在后端托管部署模式下，工作流页面现在会强制从后端刷新运行时配置；只要启用了服务端计费，前端就不会再要求终端用户手动填写 <strong>API URL / API Key</strong>。<br>
-> 同时修复了积分展示与前端代理指向的自部署体验问题。
-
-> [!TIP]
 > 🆕 <strong>2026-04-24 · 生图模型体验页升级</strong><br>
 > 新增独立的 <strong>生图模型体验</strong> 页面，可直接调用平台托管的 Nano Banana 2 / Nano Banana Pro / Image 2 / Image 2 All。<br>
 > 现在支持图中文字语言控制、模型专属参数、<strong>批量生图（1 / 2 / 4 / 8 / 16）</strong>、压缩缩略图预览，以及一键打包下载。
@@ -106,6 +101,9 @@
 > 新增两张 <strong>可编辑版 PPT</strong> 工作流展示图：<br>
 > 一张用于展示多页生成后的 deck 总览，一张用于展示带主题锁定与画布编辑的编辑工作区。
 
+<details>
+<summary><strong>往期更新</strong></summary>
+
 > [!TIP]
 > 🆕 <strong>2026-03-26 · 工作流展示更新</strong><br>
 > 新增 <strong>Paper2Video</strong>、<strong>Paper2Poster</strong>、<strong>Paper2Citation</strong> 的展示内容。<br>
@@ -131,6 +129,8 @@
 > 🌐 在线体验：<a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
 
 - 2025-10-01 · 发布 <code>0.1.0</code> 首个版本
+
+</details>
 
 ---
 
