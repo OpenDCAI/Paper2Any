@@ -31,7 +31,8 @@
       "paper2drawioAi": "流程图/架构图生成",
       "paper2figureModelDrawio": "模型结构图生成",
       "paper2pptImage": "图片版 PPT 生成",
-      "paper2pptFrontend": "可编辑版 PPT 生成"
+      "paper2pptFrontend": "可编辑版 PPT 生成",
+      "paper2pptNative": "Native SVG PPT 测试"
     },
     "navTooltip": {
       "home": "查看全部功能入口、示例预览与推荐使用路径，快速进入各个工作流",
@@ -56,7 +57,8 @@
       "paper2drawioAi": "输入文本生成流程图/架构图（DrawIO），可在线编辑并导出 PNG / SVG / DrawIO",
       "paper2figureModelDrawio": "生成模型结构图，支持提示词微调与预览，并可转 DrawIO 在线编辑或导出 PPT / PNG / SVG",
       "paper2pptImage": "上传论文 PDF 或输入主题，生成带图像设计的图片版学术 PPT",
-      "paper2pptFrontend": "生成 16:9 HTML/CSS 可编辑版 PPT，支持逐页编辑、视觉检查和截图导出 PPTX / PDF"
+      "paper2pptFrontend": "生成 16:9 HTML/CSS 可编辑版 PPT，支持逐页编辑、视觉检查和截图导出 PPTX / PDF",
+      "paper2pptNative": "按 ppt-master 链路生成 spec_lock 与逐页 SVG，并导出 DrawingML 可编辑 PPTX"
     },
     "sidebar": {
       "toggle": "切换菜单",

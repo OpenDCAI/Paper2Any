@@ -3,7 +3,7 @@ import {
   FileText, Sparkles, Loader2, MessageSquare, RefreshCw,
   ArrowLeft, CheckCircle2, AlertCircle, Plus, Trash2, Pencil, Save, X
 } from 'lucide-react';
-import { SlideOutline, GenerateResult, MaskSelectionSpec, Step } from './types';
+import { SlideOutline, GenerateResult, MaskSelectionSpec, Step, PptGenerationMode } from './types';
 import VersionHistory from './VersionHistory';
 import MaskSelectionEditor from './MaskSelectionEditor';
 
@@ -25,6 +25,7 @@ interface GenerateStepProps {
   setCurrentStep: (step: Step) => void;
   error: string | null;
   handleRevertToVersion: (versionNumber: number) => void;
+  pptMode?: PptGenerationMode;
 }
 
 const GenerateStep: React.FC<GenerateStepProps> = ({
@@ -45,9 +46,11 @@ const GenerateStep: React.FC<GenerateStepProps> = ({
   setCurrentStep,
   error,
   handleRevertToVersion,
+  pptMode = 'image',
 }) => {
   const currentSlide = outlineData[currentSlideIndex];
   const currentResult = generateResults[currentSlideIndex];
+  const isNativeMode = pptMode === 'native';
   const [isEditingSlideMeta, setIsEditingSlideMeta] = useState(false);
   const [draftLayoutDescription, setDraftLayoutDescription] = useState('');
   const [draftKeyPoints, setDraftKeyPoints] = useState<string[]>(['']);
@@ -266,28 +269,36 @@ const GenerateStep: React.FC<GenerateStepProps> = ({
                 alt="Generated"
                 value={slideMaskSelection}
                 onChange={setSlideMaskSelection}
-                disabled={isGenerating || isEditingSlideMeta}
+                disabled={isGenerating || isEditingSlideMeta || isNativeMode}
               />
             ) : (
               <div className="aspect-[16/9] flex flex-col items-center justify-center text-center">
-                <FileText size={32} className="text-gray-500 mx-auto mb-2" />
-                <span className="text-gray-500">等待生成</span>
+                <FileText size={32} className={isNativeMode ? 'text-cyan-400 mx-auto mb-2' : 'text-gray-500 mx-auto mb-2'} />
+                <span className={isNativeMode ? 'text-cyan-200' : 'text-gray-500'}>
+                  {isNativeMode && currentResult?.status === 'done' ? 'Native PPTX 已生成，请进入完成页下载查看' : '等待生成'}
+                </span>
               </div>
             )}
           </div>
-          <div className="mt-4 flex justify-center">
-            <button
-              onClick={handleRegenerateSlideFromOutline}
-              disabled={isGenerating || isEditingSlideMeta}
-              className="px-5 py-2.5 rounded-lg border border-white/20 text-gray-300 hover:bg-white/10 text-sm flex items-center gap-2 disabled:opacity-50"
-            >
-              <RefreshCw size={14} /> 按当前内容重新生成
-            </button>
-          </div>
+          {!isNativeMode ? (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={handleRegenerateSlideFromOutline}
+                disabled={isGenerating || isEditingSlideMeta}
+                className="px-5 py-2.5 rounded-lg border border-white/20 text-gray-300 hover:bg-white/10 text-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                <RefreshCw size={14} /> 按当前内容重新生成
+              </button>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-center text-xs text-cyan-100">
+              Native SVG 模式暂不支持逐页重绘；请在完成页下载 PPTX 检查可编辑对象。
+            </div>
+          )}
         </div>
       </div>
 
-      {currentResult?.versionHistory && currentResult.versionHistory.length > 0 ? (
+      {!isNativeMode && currentResult?.versionHistory && currentResult.versionHistory.length > 0 ? (
         <VersionHistory
           versions={currentResult.versionHistory}
           currentVersionIndex={currentResult.currentVersionIndex}
@@ -296,6 +307,7 @@ const GenerateStep: React.FC<GenerateStepProps> = ({
         />
       ) : null}
 
+      {!isNativeMode && (
       <div className="glass rounded-xl border border-white/10 p-4 mb-6">
         <div className="flex items-center gap-3">
           <MessageSquare size={18} className="text-purple-400" />
@@ -324,6 +336,7 @@ const GenerateStep: React.FC<GenerateStepProps> = ({
           <p className="mt-3 text-xs text-amber-300">当前正在编辑页面内容，请先选择保存或舍弃更改，再重新生成或切换页面。</p>
         ) : null}
       </div>
+      )}
 
       <div className="flex justify-between">
         <button

@@ -1,5 +1,5 @@
 export type Step = 'upload' | 'outline' | 'generate' | 'complete';
-export type PptGenerationMode = 'image' | 'frontend';
+export type PptGenerationMode = 'image' | 'frontend' | 'native';
 export type FrontendImageMode = 'paper' | 'generated' | 'hybrid';
 
 export interface SlideOutline {

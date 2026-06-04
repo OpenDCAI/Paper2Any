@@ -86,6 +86,13 @@ export const AppSidebar = ({ isOpen, onClose, activePage, onPageChange }: AppSid
       tooltipKey: t('app.navSubTooltip.paper2pptFrontend'),
       icon: MonitorSmartphone,
       gradient: 'from-amber-500 to-orange-500'
+    },
+    {
+      id: 'paper2ppt-native',
+      labelKey: t('app.navSub.paper2pptNative'),
+      tooltipKey: t('app.navSubTooltip.paper2pptNative'),
+      icon: LayoutTemplate,
+      gradient: 'from-cyan-500 to-blue-500'
     }
   ]), [t]);
 

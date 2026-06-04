@@ -6,6 +6,7 @@ import {
   UploadCloud, Settings2, Loader2, AlertCircle, Sparkles,
   ArrowRight, FileText, Key, Globe, Cpu, Type, Lightbulb,
   MonitorSmartphone,
+  LayoutTemplate,
   Info, X
 } from 'lucide-react';
 import QRCodeTooltip from '../QRCodeTooltip';
@@ -249,7 +250,10 @@ const UploadStep: React.FC<UploadStepProps> = ({
           imageDesc: '沿用现有图像工作流，逐页生成视觉稿并导出。',
           frontendTitle: '可编辑版 PPT',
           frontendDesc: '生成 16:9 结构化 slide schema，文字与图片对象都可编辑，并直接导出真 PPTX。',
+          nativeTitle: 'Native SVG PPT',
+          nativeDesc: '测试 pagecontent -> spec_lock -> SVG -> DrawingML，导出真正可编辑 PPTX。',
           frontendTip: '可编辑版默认文本优先；若开启图像增强，会优先复用论文图表，否则按页面内容自动补示意图。',
+          nativeTip: 'Native SVG 当前用于测试完整生成与最终导出，不支持逐页局部重绘；生成结果以 PPTX 下载为准。',
         }
       : {
           title: 'PPT Mode',
@@ -257,7 +261,10 @@ const UploadStep: React.FC<UploadStepProps> = ({
           imageDesc: 'Use the current image workflow and export generated visual slides.',
           frontendTitle: 'Editable PPT',
           frontendDesc: 'Generate editable 16:9 structured slides and export a real PPTX.',
+          nativeTitle: 'Native SVG PPT',
+          nativeDesc: 'Test pagecontent -> spec_lock -> SVG -> DrawingML editable PPTX export.',
           frontendTip: 'Editable mode stays text-editable and can optionally reuse paper figures/tables or generate supporting images.',
+          nativeTip: 'Native SVG currently supports full generation/export only; use the PPTX download to inspect editability.',
         };
   const pageCopy = uiLang === 'zh'
     ? {
@@ -273,6 +280,12 @@ const UploadStep: React.FC<UploadStepProps> = ({
           desc: '生成 16:9 结构化可编辑页面，支持画布内直接改字、可选首轮结构检查，并导出真可编辑 PPTX。',
           highlight: '这一页只做可编辑版 deck，不再混入图片版配置。',
         },
+        native: {
+          kicker: 'Native SVG Workflow',
+          title: 'Native SVG 可编辑 PPT 测试',
+          desc: '按 ppt-master 架构生成 spec_lock 与逐页 SVG，再转换为 DrawingML，验证 PPTX 对象可编辑。',
+          highlight: '这一页用于测试 native SVG 链路，预览图可能为空，请下载 PPTX 查看。',
+        },
       }
     : {
         image: {
@@ -287,8 +300,14 @@ const UploadStep: React.FC<UploadStepProps> = ({
           desc: 'Generate 16:9 structured editable slides with inline editing, optional first-pass structural QA, and real PPTX export.',
           highlight: 'This page is dedicated to the editable deck workflow only.',
         },
+        native: {
+          kicker: 'Native SVG Workflow',
+          title: 'Native SVG Editable PPT Test',
+          desc: 'Generate spec_lock and per-page SVGs in the ppt-master style, then convert them to DrawingML editable PPTX.',
+          highlight: 'This page tests the native SVG pipeline; previews may be blank, so inspect the downloaded PPTX.',
+        },
       };
-  const currentPageCopy = pptMode === 'frontend' ? pageCopy.frontend : pageCopy.image;
+  const currentPageCopy = pptMode === 'frontend' ? pageCopy.frontend : pptMode === 'native' ? pageCopy.native : pageCopy.image;
   const promptCards = pptMode === 'frontend' ? frontendStylePromptCards : imageStylePromptCards;
   const presetOptions = [
     { value: 'modern', label: t('upload.config.presets.modern') },
@@ -298,18 +317,28 @@ const UploadStep: React.FC<UploadStepProps> = ({
   ];
   const promptLabel = pptMode === 'frontend'
     ? (uiLang === 'zh' ? '前端主题提示词' : 'Frontend Theme Prompt')
-    : t('upload.config.promptLabel');
+    : pptMode === 'native'
+      ? (uiLang === 'zh' ? 'Native SVG 风格提示词' : 'Native SVG Style Prompt')
+      : t('upload.config.promptLabel');
   const promptPlaceholder = pptMode === 'frontend'
     ? (uiLang === 'zh'
         ? '例如：米白背景，酒红强调，像答辩 keynote；标题克制、卡片边框更细...'
         : 'Example: ivory canvas, burgundy accents, keynote-like academic tone; restrained titles and thinner card borders...')
-    : t('upload.config.promptPlaceholder');
+    : pptMode === 'native'
+      ? (uiLang === 'zh'
+          ? '例如：严格学术报告风，白底、蓝灰配色、少卡片、多结构化图形...'
+          : 'Example: rigorous academic report, white canvas, blue-gray palette, fewer cards, more structured diagrams...')
+      : t('upload.config.promptPlaceholder');
   const promptCardsTitle = pptMode === 'frontend'
     ? (uiLang === 'zh' ? '推荐主题 / 配色候选' : 'Recommended Palette / Theme Directions')
-    : t('upload.config.promptCardsTitle');
+    : pptMode === 'native'
+      ? (uiLang === 'zh' ? 'Native SVG 风格候选' : 'Native SVG Style Directions')
+      : t('upload.config.promptCardsTitle');
   const promptCardsTip = pptMode === 'frontend'
     ? (uiLang === 'zh' ? '可编辑版建议直接写颜色、材质和组件气质' : 'For editable decks, specify palette, material, and component language directly')
-    : t('upload.config.promptCardsTip');
+    : pptMode === 'native'
+      ? (uiLang === 'zh' ? 'Native SVG 会把提示词写入 design_spec，并由 spec_lock 约束执行' : 'Native SVG writes this into design_spec and constrains execution through spec_lock')
+      : t('upload.config.promptCardsTip');
   const frontendImageStyleOptions = uiLang === 'zh'
     ? [
         { value: 'academic_illustration', label: '学术示意图' },
@@ -327,21 +356,23 @@ const UploadStep: React.FC<UploadStepProps> = ({
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-10 text-center">
-        <p className={`text-xs uppercase tracking-[0.2em] mb-3 font-semibold ${pptMode === 'frontend' ? 'text-amber-300' : 'text-purple-300'}`}>
+        <p className={`text-xs uppercase tracking-[0.2em] mb-3 font-semibold ${pptMode === 'frontend' ? 'text-amber-300' : pptMode === 'native' ? 'text-cyan-300' : 'text-purple-300'}`}>
           {currentPageCopy.kicker}
         </p>
         <h1 className="text-4xl md:text-5xl font-bold mb-4">
           <span className={`bg-gradient-to-r bg-clip-text text-transparent ${
             pptMode === 'frontend'
               ? 'from-amber-300 via-orange-300 to-yellow-200'
-              : 'from-purple-400 via-pink-400 to-rose-400'
+              : pptMode === 'native'
+                ? 'from-cyan-300 via-blue-300 to-indigo-200'
+                : 'from-purple-400 via-pink-400 to-rose-400'
           }`}>
             {currentPageCopy.title}
           </span>
         </h1>
         <p className="text-base text-gray-300 max-w-2xl mx-auto leading-relaxed">
           {currentPageCopy.desc}<br />
-          <span className={pptMode === 'frontend' ? 'text-amber-300' : 'text-purple-400'}>
+          <span className={pptMode === 'frontend' ? 'text-amber-300' : pptMode === 'native' ? 'text-cyan-300' : 'text-purple-400'}>
             {currentPageCopy.highlight}
           </span>
         </p>
@@ -359,7 +390,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
                 <span className="w-1 h-4 rounded-full bg-cyan-500"></span>
                 <h3 className="text-white font-medium text-sm">{modeTexts.title}</h3>
               </div>
-              <div className="grid grid-cols-2 gap-3 p-1.5 bg-black/40 rounded-2xl border border-white/5">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-1.5 bg-black/40 rounded-2xl border border-white/5">
                 <button
                   type="button"
                   onClick={() => setPptMode('image')}
@@ -394,10 +425,32 @@ const UploadStep: React.FC<UploadStepProps> = ({
                     {modeTexts.frontendDesc}
                   </p>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setPptMode('native')}
+                  className={`text-left rounded-xl px-4 py-4 transition-all ${
+                    pptMode === 'native'
+                      ? 'bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/30 ring-1 ring-white/20'
+                      : 'bg-white/5 text-gray-300 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <LayoutTemplate size={18} className={pptMode === 'native' ? 'text-white' : 'text-cyan-300'} />
+                    <span className="font-semibold text-sm">{modeTexts.nativeTitle}</span>
+                  </div>
+                  <p className={`text-xs leading-relaxed ${pptMode === 'native' ? 'text-cyan-100' : 'text-gray-400'}`}>
+                    {modeTexts.nativeDesc}
+                  </p>
+                </button>
               </div>
               {pptMode === 'frontend' && (
                 <p className="mt-3 text-xs text-amber-200 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
                   {modeTexts.frontendTip}
+                </p>
+              )}
+              {pptMode === 'native' && (
+                <p className="mt-3 text-xs text-cyan-200 bg-cyan-500/10 border border-cyan-500/20 rounded-xl px-3 py-2">
+                  {modeTexts.nativeTip}
                 </p>
               )}
             </div>

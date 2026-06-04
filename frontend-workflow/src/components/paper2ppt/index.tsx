@@ -2477,6 +2477,9 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
   const getEffectiveStylePrompt = (mode: PptGenerationMode = pptMode) =>
     globalPrompt || (mode === 'frontend' ? '' : getStyleDescription(stylePreset));
 
+  const getBackendRenderMode = (mode: PptGenerationMode = pptMode) =>
+    mode === 'native' ? 'native' : 'image';
+
   const getFrontendGenerationCostPerPage = () => (frontendIncludeImages ? 2 : 1);
 
   const waitForFrontendCaptureNodes = async (count: number, timeoutMs: number = 6000) => {
@@ -3899,7 +3902,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
 
       const unchangedIndices = getUnchangedPageIndices(outlineData, confirmedOutlineSnapshot);
       const hasExistingResults = generateResults.some((result) => result.status === 'done' && result.afterImage);
-      const skipPages = hasExistingResults ? unchangedIndices : [];
+      const skipPages = pptMode === 'native' ? [] : (hasExistingResults ? unchangedIndices : []);
       const pagesToGenerate = outlineData.length - skipPages.length;
       const requiredPoints = pagesToGenerate;
 
@@ -3950,7 +3953,10 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
         formData.append('email', user?.id || user?.email || '');
         formData.append('result_path', resultPath || '');
         formData.append('get_down', 'false');
-        if (skipPages.length > 0) {
+        formData.append('render_mode', getBackendRenderMode());
+        if (pptMode === 'native') {
+          formData.delete('skip_pages');
+        } else if (skipPages.length > 0) {
           formData.append('skip_pages', JSON.stringify(skipPages));
         }
 
@@ -4764,6 +4770,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
       formData.append('result_path', resultPath);
       formData.append('get_down', 'false');
       formData.append('all_edited_down', 'true');
+      formData.append('render_mode', getBackendRenderMode());
 
       // 如果用户选的是参考图模式，附加参考图，保留用户显式输入的风格提示词
       if (styleMode === 'reference' && referenceImage) {
@@ -5040,6 +5047,7 @@ const Paper2PptPage: React.FC<Paper2PptPageProps> = ({ initialMode }) => {
                 setCurrentStep={setCurrentStep}
                 error={error}
                 handleRevertToVersion={handleRevertToVersion}
+                pptMode={pptMode}
               />
             )
           )}
