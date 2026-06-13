@@ -22,7 +22,7 @@
 <a href="#-快速开始" target="_self">
   <img alt="Quickstart" src="https://img.shields.io/badge/🚀-快速开始-2F80ED?style=for-the-badge" />
 </a>
-<a href="http://dcai-paper2any.nas.cpolar.cn/" target="_blank">
+<a href="https://paper2any-studio.cpolar.cn/" target="_blank">
   <img alt="Online Demo" src="https://img.shields.io/badge/🌐-在线体验-56CCF2?style=for-the-badge" />
 </a>
 <a href="docs/" target="_blank">
@@ -57,6 +57,12 @@
 ---
 
 ## 🔥 News
+
+> [!IMPORTANT]
+> 🆕 <strong>2026-06-13 · Paper to Any Studio / Nexus 新版本升级</strong><br>
+> 线上版本正在升级为全新的 <strong>Paper to Any Studio</strong> 形态，新增统一 Studio 工作台、个人/项目/团队文件空间、应用实验室、Office 在线预览、Credits 消耗提示和更清晰的长任务体验。<br>
+> 🌐 新版公网入口：<a href="https://paper2any-studio.cpolar.cn/" target="_blank"><strong>https://paper2any-studio.cpolar.cn/</strong></a><br>
+> 📢 完整更新通知：<a href="https://wcny4qa9krto.feishu.cn/wiki/Uq9rwqg5hi7G0RkGBq2cYyuxnie" target="_blank"><strong>Paper to Any Studio 新版本更新通知</strong></a>
 
 > [!TIP]
 > 🆕 <strong>2026-05-30 · 可编辑版 PPT 工作流整合</strong><br>
@@ -121,12 +127,12 @@
 > [!TIP]
 > 🆕 <strong>2026-01-20 · Bug 修复</strong><br>
 > 修复了实验数据图生成的图片和文本 bug，并解决了历史文件缺失的问题。<br>
-> 🌐 在线体验：<a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
+> 🌐 在线体验：<a href="https://paper2any-studio.cpolar.cn/">https://paper2any-studio.cpolar.cn/</a>
 
 > [!TIP]
 > 🆕 <strong>2025-12-12 · Paper2Figure 网页端公测上线</strong><br>
 > 支持一键生成多种<strong>可编辑</strong>科研绘图（模型架构图 / 技术路线图 / 实验数据图）<br>
-> 🌐 在线体验：<a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
+> 🌐 在线体验：<a href="https://paper2any-studio.cpolar.cn/">https://paper2any-studio.cpolar.cn/</a>
 
 - 2025-10-01 · 发布 <code>0.1.0</code> 首个版本
 
