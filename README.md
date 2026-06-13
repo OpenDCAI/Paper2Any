@@ -35,6 +35,11 @@ English | [中文](README_CN.md)
   <img alt="WeChat" src="https://img.shields.io/badge/💬-WeChat_Group-07C160?style=for-the-badge" />
 </a>
 
+<p>
+  <strong>Note:</strong> the online demo points to the hosted Paper to Any Studio / Nexus experience.
+  This repository remains the open-source Paper2Any codebase and does not include the full commercial Studio implementation.
+</p>
+
 <br>
 <br>
 
@@ -62,6 +67,7 @@ English | [中文](README_CN.md)
 > 🆕 <strong>2026-06-13 · Paper to Any Studio / Nexus Upgrade</strong><br>
 > The online version is being upgraded to the new <strong>Paper to Any Studio</strong> experience, with a unified Studio workspace, Spaces for personal/project/team files, Labs apps, online Office previews, Credits visibility, and cleaner long-running workflows.<br>
 > 🌐 New public entry: <a href="https://paper2any-studio.cpolar.cn/" target="_blank"><strong>https://paper2any-studio.cpolar.cn/</strong></a><br>
+> ⚠️ The public entry is a hosted Studio / Nexus experience and is not identical to the open-source code in this repository. The commercial Studio implementation is not fully open-sourced here.<br>
 > 📢 Full update notice: <a href="https://wcny4qa9krto.feishu.cn/wiki/IjBSwlz6AiPTItkw91GcyZCKnyg" target="_blank"><strong>Paper to Any Studio New Version Update Notice</strong></a>
 
 > [!TIP]

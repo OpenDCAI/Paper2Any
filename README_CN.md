@@ -35,6 +35,11 @@
   <img alt="WeChat" src="https://img.shields.io/badge/💬-微信群-07C160?style=for-the-badge" />
 </a>
 
+<p>
+  <strong>说明：</strong>在线体验链接指向托管版 Paper to Any Studio / Nexus。
+  本仓库仍是开源版 Paper2Any 代码库，不包含完整商业版 Studio 实现。
+</p>
+
 <br>
 <br>
 
@@ -62,6 +67,7 @@
 > 🆕 <strong>2026-06-13 · Paper to Any Studio / Nexus 新版本升级</strong><br>
 > 线上版本正在升级为全新的 <strong>Paper to Any Studio</strong> 形态，新增统一 Studio 工作台、个人/项目/团队文件空间、应用实验室、Office 在线预览、Credits 消耗提示和更清晰的长任务体验。<br>
 > 🌐 新版公网入口：<a href="https://paper2any-studio.cpolar.cn/" target="_blank"><strong>https://paper2any-studio.cpolar.cn/</strong></a><br>
+> ⚠️ 该公网入口展示的是托管版 Studio / Nexus 体验，和本开源仓库代码不完全一致；完整商业版 Studio 实现并未在此仓库开源。<br>
 > 📢 完整更新通知：<a href="https://wcny4qa9krto.feishu.cn/wiki/Uq9rwqg5hi7G0RkGBq2cYyuxnie" target="_blank"><strong>Paper to Any Studio 新版本更新通知</strong></a>
 
 > [!TIP]
