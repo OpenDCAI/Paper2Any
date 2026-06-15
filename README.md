@@ -22,7 +22,7 @@ English | [中文](README_CN.md)
 <a href="#-quick-start" target="_self">
   <img alt="Quickstart" src="https://img.shields.io/badge/🚀-Quick_Start-2F80ED?style=for-the-badge" />
 </a>
-<a href="http://dcai-paper2any.nas.cpolar.cn/" target="_blank">
+<a href="https://paper2any-studio.cpolar.cn/" target="_blank">
   <img alt="Online Demo" src="https://img.shields.io/badge/🌐-Online_Demo-56CCF2?style=for-the-badge" />
 </a>
 <a href="docs/" target="_blank">
@@ -34,6 +34,11 @@ English | [中文](README_CN.md)
 <a href="#wechat-group" target="_self">
   <img alt="WeChat" src="https://img.shields.io/badge/💬-WeChat_Group-07C160?style=for-the-badge" />
 </a>
+
+<p>
+  <strong>Note:</strong> the online demo points to the hosted Paper to Any Studio / Nexus experience.
+  This repository remains the open-source Paper2Any codebase and does not include the full commercial Studio implementation.
+</p>
 
 <br>
 <br>
@@ -57,6 +62,13 @@ English | [中文](README_CN.md)
 ---
 
 ## 🔥 News
+
+> [!IMPORTANT]
+> 🆕 <strong>2026-06-13 · Paper to Any Studio / Nexus Upgrade</strong><br>
+> The online version is being upgraded to the new <strong>Paper to Any Studio</strong> experience, with a unified Studio workspace, Spaces for personal/project/team files, Labs apps, online Office previews, Credits visibility, and cleaner long-running workflows.<br>
+> 🌐 New public entry: <a href="https://paper2any-studio.cpolar.cn/" target="_blank"><strong>https://paper2any-studio.cpolar.cn/</strong></a><br>
+> ⚠️ The public entry is a hosted Studio / Nexus experience and is not identical to the open-source code in this repository. The commercial Studio implementation is not fully open-sourced here.<br>
+> 📢 Full update notice: <a href="https://wcny4qa9krto.feishu.cn/wiki/IjBSwlz6AiPTItkw91GcyZCKnyg" target="_blank"><strong>Paper to Any Studio New Version Update Notice</strong></a>
 
 > [!TIP]
 > 🆕 <strong>2026-05-30 · Editable PPT Workflow Consolidation</strong><br>
@@ -121,19 +133,19 @@ English | [中文](README_CN.md)
 > [!TIP]
 > 🆕 <strong>2026-01-25 · New Features</strong><br>
 > Added **AI-assisted outline editing**, **three-layer model configuration system** for flexible model selection, and **user points management** with daily quota allocation.<br>
-> 🌐 Online Demo: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
+> 🌐 Online Demo: <a href="https://paper2any-studio.cpolar.cn/">https://paper2any-studio.cpolar.cn/</a>
 
 > [!TIP]
 > 🆕 <strong>2026-01-20 · Bug Fixes</strong><br>
 > Fixed bugs in experimental plot generation (image/text) and resolved the missing historical files issue.<br>
-> 🌐 Online Demo: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
+> 🌐 Online Demo: <a href="https://paper2any-studio.cpolar.cn/">https://paper2any-studio.cpolar.cn/</a>
 
 > [!TIP]
 > 🆕 <strong>2026-01-14 · Feature Updates & Backend Architecture Upgrade</strong><br>
 > 1. **Feature Updates**: Added **Image2PPT**, optimized **Paper2Figure** interaction, and improved **PDF2PPT** effects.<br>
 > 2. **Standardized API**: Refactored backend interfaces with RESTful `/api/v1/` structure, removing obsolete endpoints for better maintainability.<br>
 > 3. **Dynamic Configuration**: Supported dynamic model selection (e.g., GPT-4o, Qwen-VL) via API parameters, eliminating hardcoded model dependencies.<br>
-> 🌐 Online Demo: <a href="http://dcai-paper2any.nas.cpolar.cn/">http://dcai-paper2any.nas.cpolar.cn/</a>
+> 🌐 Online Demo: <a href="https://paper2any-studio.cpolar.cn/">https://paper2any-studio.cpolar.cn/</a>
 
 - 2025-12-12 · Paper2Figure Web public beta is live
 - 2025-10-01 · Released the first version <code>0.1.0</code>
