@@ -1,4 +1,5 @@
 ARG NODE_BASE_IMAGE=node:20-alpine
+ARG NGINX_BASE_IMAGE=nginx:alpine
 FROM ${NODE_BASE_IMAGE} AS build
 
 ARG VITE_API_KEY=
@@ -28,7 +29,7 @@ RUN cp -f .env.example .env.production || true && \
 
 RUN npm run build
 
-ARG NGINX_BASE_IMAGE=nginx:alpine
+ARG NGINX_BASE_IMAGE
 FROM ${NGINX_BASE_IMAGE}
 
 COPY frontend-workflow/nginx.conf.template /etc/nginx/templates/default.conf.template
