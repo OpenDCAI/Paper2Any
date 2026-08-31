@@ -1,51 +1,152 @@
 <div align="center">
 
-<img src="static/new_readme/branding/logo.png" alt="Paper2Any Logo" width="200"/>
+<h1>Nexus Office</h1>
 
-# Paper2Any
+<p><strong>The next-generation AI Office workspace from Paper2Any</strong></p>
+<p>Give an Agent a goal, your files, and a few constraints. Get back editable PowerPoint, Excel, Word, and visual assets in one persistent workspace.</p>
 
-[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-Apache_2.0-2F80ED?style=flat-square&logo=apache&logoColor=white)](LICENSE)
-[![GitHub Repo](https://img.shields.io/badge/GitHub-OpenDCAI%2FPaper2Any-24292F?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/Paper2Any)
-[![Stars](https://img.shields.io/github/stars/OpenDCAI/Paper2Any?style=flat-square&logo=github&label=Stars&color=F2C94C)](https://github.com/OpenDCAI/Paper2Any/stargazers)
+[![Online](https://img.shields.io/badge/Online-Nexus_Office-0F766E?style=for-the-badge&logo=icloud&logoColor=white)](https://paper2any-studio.cpolar.cn/) [![License](https://img.shields.io/badge/Legacy_Code-Apache_2.0-1D4ED8?style=for-the-badge&logo=apache&logoColor=white)](LICENSE) [![Stars](https://img.shields.io/github/stars/OpenDCAI/Paper2Any?style=for-the-badge&logo=github&label=Stars&color=C96442)](https://github.com/OpenDCAI/Paper2Any/stargazers)
 
-English | [中文](README_CN.md)
-
-<a href="https://trendshift.io/repositories/17634" target="_blank"><img src="https://trendshift.io/api/badge/repositories/17634" alt="OpenDCAI%2FPaper2Any | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-
-✨ **Focus on paper multimodal workflows: from paper PDFs/screenshots/text to one-click generation of model diagrams, technical roadmaps, experimental plots, and slide decks** ✨
-
-| 📄 **Universal File Support** &nbsp;|&nbsp; 🎯 **AI-Powered Generation** &nbsp;|&nbsp; 🎨 **Custom Styling** &nbsp;|&nbsp; ⚡ **Lightning Speed** |
+**English** | [中文](README_CN.md)
 
 <br>
 
-<a href="#-quick-start" target="_self">
-  <img alt="Quickstart" src="https://img.shields.io/badge/🚀-Quick_Start-2F80ED?style=for-the-badge" />
-</a>
 <a href="https://paper2any-studio.cpolar.cn/" target="_blank">
-  <img alt="Online Demo" src="https://img.shields.io/badge/🌐-Online_Demo-56CCF2?style=for-the-badge" />
-</a>
-<a href="docs/" target="_blank">
-  <img alt="Docs" src="https://img.shields.io/badge/📚-Docs-2D9CDB?style=for-the-badge" />
-</a>
-<a href="docs/contributing.md" target="_blank">
-  <img alt="Contributing" src="https://img.shields.io/badge/🤝-Contributing-27AE60?style=for-the-badge" />
-</a>
-<a href="#wechat-group" target="_self">
-  <img alt="WeChat" src="https://img.shields.io/badge/💬-WeChat_Group-07C160?style=for-the-badge" />
+  <img src="static/new_readme/nexus-office/nexus-office-live-cta.gif" alt="Open the live Nexus Office workspace" width="100%"/>
 </a>
 
-<p>
-  <strong>Note:</strong> the online demo points to the hosted Paper to Any Studio / Nexus experience.
-  This repository remains the open-source Paper2Any codebase and does not include the full commercial Studio implementation.
-</p>
-
-<br>
-<br>
-
-<img src="static/new_readme/ui/home.png" alt="Paper2Any Web Interface" width="80%"/>
+<sub><strong>Click the animated banner to open Nexus Office.</strong> Create editable PPTX, XLSX, DOCX, and AI visuals in the live workspace.</sub>
 
 </div>
+
+> [!IMPORTANT]
+> **Repository status: legacy open-source snapshot.** This repository preserves the original Apache-2.0 Paper2Any codebase, but it no longer receives new product features or architecture updates. The actively developed product is **Nexus Office**, rebuilt on a new stack and available as a hosted service. The hosted/commercial implementation is not included in this repository.
+
+## The new Paper2Any is built for Office work
+
+Nexus Office keeps the useful idea behind Paper2Any -- hand a complex document task to an Agent -- but focuses the product on everyday Office delivery instead of adding more isolated paper workflows.
+
+<div align="center">
+  <a href="https://paper2any-studio.cpolar.cn/">
+    <img src="static/new_readme/nexus-office/nexus-office-home.png" alt="The new Nexus Office homepage for PowerPoint, Excel, Word, and AI visuals" width="96%"/>
+  </a>
+  <br>
+  <sub>The redesigned Nexus Office homepage keeps PowerPoint, Excel, Word, and AI visual creation in one focused entry point.</sub>
+</div>
+
+<br>
+
+| PowerPoint | Excel | Word | AI Visual Canvas |
+|:--:|:--:|:--:|:--:|
+| Create, rebuild, restyle, edit selected slides, apply a company template, and deliver native PPTX | Clean data, write formulas, merge sheets, build charts, and deliver editable XLSX | Turn notes and source files into structured reports, summaries, and editable DOCX | Generate, mask, cut out, reference, combine, and reuse visual elements |
+
+## Real workflows, editable deliverables
+
+All examples below come from real end-to-end runs. They are not static mockups: the Office files were structurally checked, rendered, and opened in the browser workspace.
+
+### PowerPoint: use one deck as content and another as the template
+
+The Agent keeps the facts, numbers, charts, and page order from the content deck, while rebuilding the presentation with the visual language of the supplied template. The result remains natively editable.
+
+<div align="center">
+  <img src="static/new_readme/nexus-office/ppt-template-remix.png" alt="Six-slide editable presentation rebuilt with a supplied mint template" width="88%"/>
+  <br>
+  <sub>6 slides, 168 native objects, 154 text objects, and 2 editable PowerPoint charts.</sub>
+</div>
+
+<br>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>Excel: data to an editable analysis dashboard</h3>
+      <p>7,585 public records become four connected sheets, 228 formulas, KPI cards, a trend chart, a ranking chart, and an insight summary.</p>
+      <img src="static/new_readme/nexus-office/excel-dashboard.png" alt="Editable Excel renewable-energy dashboard in Nexus Office" width="100%"/>
+    </td>
+    <td width="50%" valign="top">
+      <h3>Word: rough meeting notes to a formal report</h3>
+      <p>The Agent extracts conclusions, metrics, discussion topics, owners, actions, and risks into a four-page DOCX that is ready to edit and archive.</p>
+      <img src="static/new_readme/nexus-office/word-report.png" alt="Four-page formal meeting report generated by Nexus Office" width="100%"/>
+    </td>
+  </tr>
+</table>
+
+### AI Visual Canvas: local cutout, multi-image composition, and reusable assets
+
+Select an object with local interactive segmentation, save it as a transparent asset, reference multiple canvas images in the prompt, and let the image model rebuild them into one coherent visual.
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="static/new_readme/nexus-office/canvas-cutout.png" alt="Local intelligent cutout inside the Nexus Office canvas" width="100%"/>
+      <br><sub>Click-to-cutout runs locally in the browser and does not consume image-generation credits.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="static/new_readme/nexus-office/canvas-multi-image.png" alt="Multi-image scientific visual composed in Nexus Office" width="100%"/>
+      <br><sub>DNA, a transparent digital globe, and a microscope are recomposed with consistent lighting and perspective.</sub>
+    </td>
+  </tr>
+</table>
+
+<div align="center">
+  <img src="static/new_readme/nexus-office/canvas-workspace.png" alt="The composed visual returned to the persistent Nexus Office canvas workspace" width="96%"/>
+  <br><sub>The composed image returns to the Workspace with its task history and source assets still available for follow-up edits.</sub>
+</div>
+
+## One workspace, one continuous Agent workflow
+
+```text
+Goal + source files
+        -> Agent chooses the Office and visual tools
+        -> editable PPTX / XLSX / DOCX / PNG
+        -> structural checks and visual review
+        -> open, revise, and continue in the same Workspace
+```
+
+The same Workspace retains the conversation, execution trace, source files, deliverables, and follow-up edits. Users do not need to understand individual Skill names before starting.
+
+<div align="center">
+  <img src="static/new_readme/nexus-office/nexus-projects-personal-files-content.png" alt="Nexus Office project files and personal file space" width="96%"/>
+  <br>
+  <sub>Project files stay with the task, while reusable templates, references, and visual assets remain available in the personal file space.</sub>
+</div>
+
+## Open-source repository vs. hosted Nexus Office
+
+| | This repository | Nexus Office |
+|---|---|---|
+| Positioning | Original paper-oriented Paper2Any codebase | AI-native Office workspace |
+| Scope | Historical paper, figure, diagram, and presentation workflows | PowerPoint, Excel, Word, and AI visual creation/editing |
+| Development status | Legacy snapshot; no new architecture or feature synchronization | Actively developed hosted product |
+| Source availability | Apache-2.0 source code in this repository | Hosted/commercial implementation is not distributed here |
+| Entry point | Continue reading the archived documentation below | [Open Nexus Office](https://paper2any-studio.cpolar.cn/) |
+
+> [!NOTE]
+> The Apache License 2.0 applies only to the code and assets distributed in this repository. It does not apply to the hosted Nexus Office implementation.
+
+## API Infrastructure Sponsor
+
+<table>
+  <tr>
+    <td width="110" align="center" valign="middle">
+      <a href="https://console.zcloudapi.com/"><img src="static/new_readme/nexus-office/zcloudapi-logo.svg" alt="ZCloudAPI logo" width="72"/></a>
+    </td>
+    <td valign="middle">
+      <h3>ZCloudAPI</h3>
+      <p>Thanks to <strong>ZCloudAPI</strong> for providing API resource sponsorship for Nexus Office's online demos and capability evaluation.</p>
+      <p><a href="https://console.zcloudapi.com/"><strong>Visit the ZCloudAPI Console -></strong></a></p>
+    </td>
+  </tr>
+</table>
+
+## Legacy Paper2Any documentation
+
+The original setup guide, feature catalog, screenshots, roadmap, and contribution notes remain available below for reproducibility and historical reference. They describe the legacy open-source implementation, not the hosted Nexus Office product.
+
+<details>
+<summary><strong>Open the complete legacy Paper2Any documentation</strong></summary>
+
+<br>
 
 
 ## 📑 Table of Contents
@@ -1143,11 +1244,10 @@ Paper2Any/
 
 ## 🤝 Contributing
 
-We welcome all forms of contribution!
+This is the historical contribution section for the legacy codebase. New product features and architecture changes are no longer synchronized to this repository, and new feature pull requests are not currently planned for review. Existing issues and discussions remain available as a community archive.
 
-[![Issues](https://img.shields.io/badge/Issues-Submit_Bug-red?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/issues)
-[![Discussions](https://img.shields.io/badge/Discussions-Feature_Request-blue?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/discussions)
-[![PR](https://img.shields.io/badge/PR-Submit_Code-green?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/pulls)
+[![Issues](https://img.shields.io/badge/Issues-Community_Archive-6B7280?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/issues)
+[![Discussions](https://img.shields.io/badge/Discussions-Community_Archive-6B7280?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/discussions)
 
 ---
 
@@ -1182,3 +1282,5 @@ This project is licensed under [Apache License 2.0](LICENSE).
 </p>
 
 </div>
+
+</details>
