@@ -2,50 +2,183 @@
 
 <img src="static/new_readme/branding/logo.png" alt="Paper2Any Logo" width="200"/>
 
-# Paper2Any
+<h1>Nexus Office</h1>
 
-[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-Apache_2.0-2F80ED?style=flat-square&logo=apache&logoColor=white)](LICENSE)
-[![GitHub Repo](https://img.shields.io/badge/GitHub-OpenDCAI%2FPaper2Any-24292F?style=flat-square&logo=github&logoColor=white)](https://github.com/OpenDCAI/Paper2Any)
-[![Stars](https://img.shields.io/github/stars/OpenDCAI/Paper2Any?style=flat-square&logo=github&label=Stars&color=F2C94C)](https://github.com/OpenDCAI/Paper2Any/stargazers)
+<p><strong>Paper2Any 的新一代 AI Office 工作台</strong></p>
+<p>把目标、文件和约束交给 Agent，在同一个 Workspace 里拿到可编辑的 PPT、Excel、Word 和图片产物。</p>
 
-中文 | [English](README.md)
+[![Online](https://img.shields.io/badge/在线体验-Nexus_Office-0F766E?style=for-the-badge&logo=icloud&logoColor=white)](https://paper2any-studio.cpolar.cn/) [![License](https://img.shields.io/badge/历史开源代码-Apache_2.0-1D4ED8?style=for-the-badge&logo=apache&logoColor=white)](LICENSE) [![Stars](https://img.shields.io/github/stars/OpenDCAI/Paper2Any?style=for-the-badge&logo=github&label=Stars&color=C96442)](https://github.com/OpenDCAI/Paper2Any/stargazers)
 
-<a href="https://trendshift.io/repositories/17634" target="_blank"><img src="https://trendshift.io/api/badge/repositories/17634" alt="OpenDCAI%2FPaper2Any | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-
-✨ **专注论文多模态工作流：从论文 PDF/截图/文本，一键生成模型示意图、技术路线图、实验图和演示文稿** ✨
-
-| 📄 **Universal File Support** &nbsp;|&nbsp; 🎯 **AI-Powered Generation** &nbsp;|&nbsp; 🎨 **Custom Styling** &nbsp;|&nbsp; ⚡ **Lightning Speed** |
+**中文** | [English](README.md)
 
 <br>
 
-<a href="#-快速开始" target="_self">
-  <img alt="Quickstart" src="https://img.shields.io/badge/🚀-快速开始-2F80ED?style=for-the-badge" />
-</a>
 <a href="https://paper2any-studio.cpolar.cn/" target="_blank">
-  <img alt="Online Demo" src="https://img.shields.io/badge/🌐-在线体验-56CCF2?style=for-the-badge" />
-</a>
-<a href="docs/" target="_blank">
-  <img alt="Docs" src="https://img.shields.io/badge/📚-文档-2D9CDB?style=for-the-badge" />
-</a>
-<a href="docs/contributing.md" target="_blank">
-  <img alt="Contributing" src="https://img.shields.io/badge/🤝-参与贡献-27AE60?style=for-the-badge" />
-</a>
-<a href="#wechat-group" target="_self">
-  <img alt="WeChat" src="https://img.shields.io/badge/💬-微信群-07C160?style=for-the-badge" />
+  <img src="static/new_readme/nexus-office/nexus-office-live-cta.gif" alt="打开 Nexus Office 在线工作台" width="100%"/>
 </a>
 
-<p>
-  <strong>说明：</strong>在线体验链接指向托管版 Paper to Any Studio / Nexus。
-  本仓库仍是开源版 Paper2Any 代码库，不包含完整商业版 Studio 实现。
-</p>
-
-<br>
-<br>
-
-<img src="static/new_readme/ui/home.png" alt="Paper2Any Web Interface" width="80%"/>
+<sub><strong>点击上方动图即可进入 Nexus Office。</strong> 在线生成和继续编辑 PPTX、XLSX、DOCX 与 AI 图片。</sub>
 
 </div>
+
+> [!IMPORTANT]
+> **仓库状态：历史开源版快照。** 本仓库保留原 Paper2Any 的 Apache 2.0 开源代码，但不再同步新功能和新架构。当前持续开发的产品是基于全新技术栈重做的 **Nexus Office**，以托管服务形式提供；其完整商业版实现不在本仓库中开源。
+
+## 一眼看懂：Nexus Office 能做什么
+
+Nexus Office 是 Paper2Any 面向新一代 Office 场景的完整重做。你不需要学习复杂工作流，只要上传现有材料并说清楚目标，Agent 就会继续完成内容理解、文件生成、结构检查、视觉验收和后续修改。
+
+<div align="center">
+  <a href="https://paper2any-studio.cpolar.cn/">
+    <img src="static/new_readme/nexus-office/nexus-office-home.png" alt="面向 PowerPoint、Excel、Word 和 AI 图片的新版 Nexus Office 首页" width="96%"/>
+  </a>
+  <br>
+  <sub>新版首页只保留 PowerPoint、Excel、Word 和 AI 图片四个核心入口，打开后即可开始工作。</sub>
+</div>
+
+<br>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>📊 PowerPoint：从内容到成稿</h3>
+      <p><strong>可以输入：</strong>一句话主题、PDF、Word、旧 PPT、内容稿 PPT 和公司模板 PPT。</p>
+      <p><strong>可以完成：</strong>从零生成、长文档转 PPT、内容提炼、模板套版、整套美化、指定页修改、原生图表重建和后续多轮编辑。</p>
+      <p><strong>最终交付：</strong>可在网页中直接打开和继续修改的原生 <code>.pptx</code>，不是一组不可编辑的截图。</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>📈 Excel：从原始数据到分析看板</h3>
+      <p><strong>可以输入：</strong>CSV、Excel、业务明细、跨表数据和自然语言分析要求。</p>
+      <p><strong>可以完成：</strong>数据清洗、字段整理、多表汇总、公式生成、指标计算、趋势分析、排名对比、图表和管理层摘要。</p>
+      <p><strong>最终交付：</strong>保留 Sheet、公式、单元格和图表结构的可编辑 <code>.xlsx</code>。</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>📝 Word：把零散材料变成正式文档</h3>
+      <p><strong>可以输入：</strong>会议记录、口语草稿、多个参考文档、数据表和排版要求。</p>
+      <p><strong>可以完成：</strong>材料合并、内容改写、层级梳理、正式排版、表格整理、行动项提取、执行摘要和规范化归档。</p>
+      <p><strong>最终交付：</strong>结构完整、可在线继续编辑的 <code>.docx</code>。</p>
+    </td>
+    <td width="50%" valign="top">
+      <h3>🎨 AI 图片画布：生成、编辑、抠取和融合</h3>
+      <p><strong>可以输入：</strong>文字、参考图、文档、Workspace 文件、Mask 选区和素材箱里的科研素材。</p>
+      <p><strong>可以完成：</strong>文生图、单图编辑、局部重绘、本地智能抠图、透明素材保存、精确引用、多图融合和结果继续迭代。</p>
+      <p><strong>最终交付：</strong>高质量图片、透明 PNG 素材和可持续恢复的画布场景。</p>
+    </td>
+  </tr>
+</table>
+
+## 精选 Showcase：看输入，也看真实输出
+
+下面全部来自真实端到端任务，不是静态设计稿。每个 Office 文件都经过结构检查、实际渲染，并在网页工作台中真实打开。
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>Case 01 · 一句话生成整套可编辑 PPT</h3>
+      <p><strong>输入：</strong>主题、受众、页数和风格要求。<br><strong>输出：</strong>结构完整、版式各异、可继续编辑的原生 PPTX。</p>
+      <img src="static/new_readme/nexus-office/office-studio-hero.png" alt="Nexus Office 工作台中打开的可编辑 PowerPoint" width="100%"/>
+      <br><sub>6 页可编辑 PPT 已在 Nexus Office 中直接打开。</sub>
+    </td>
+    <td width="50%" valign="top">
+      <h3>Case 02 · 内容 PPT 一键套用公司模板</h3>
+      <p><strong>输入：</strong>一份内容稿 PPT + 一份模板 PPT。<br><strong>输出：</strong>保留事实与页序、统一品牌视觉的可编辑成稿。</p>
+      <img src="static/new_readme/nexus-office/ppt-template-remix.png" alt="使用创意薄荷模板重建的 6 页可编辑 PPT" width="100%"/>
+      <br><sub>6 页、168 个原生对象、154 个文本对象、2 张原生可编辑图表。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>Case 03 · 7,585 行数据变成 Excel 看板</h3>
+      <p><strong>输入：</strong>公开业务明细 + 指标与分析要求。<br><strong>输出：</strong>4 个联动 Sheet、228 个公式、KPI、趋势图、排名图和洞察摘要。</p>
+      <img src="static/new_readme/nexus-office/excel-dashboard.png" alt="Nexus Office 中的可编辑 Excel 可再生能源看板" width="100%"/>
+      <br><sub>数据、公式、图表和 Sheet 全部保留，可继续分析和修改。</sub>
+    </td>
+    <td width="50%" valign="top">
+      <h3>Case 04 · 会议记录变成正式 Word 报告</h3>
+      <p><strong>输入：</strong>口语化会议记录和零散业务信息。<br><strong>输出：</strong>结论、指标、议题、负责人、行动项和风险完整归档的 4 页 DOCX。</p>
+      <img src="static/new_readme/nexus-office/word-report.png" alt="Nexus Office 生成的四页产品经营周会正式报告" width="100%"/>
+      <br><sub>不是简单摘要，而是一份可以直接流转和继续编辑的正式文档。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>Case 05 · 浏览器本地智能抠图</h3>
+      <p><strong>输入：</strong>画布中的任意图片 + 一个目标点。<br><strong>输出：</strong>自动识别主体边缘并保存为透明 PNG，可继续复用或融合。</p>
+      <img src="static/new_readme/nexus-office/canvas-cutout.png" alt="Nexus Office 画布中的本地智能抠图" width="100%"/>
+      <br><sub>抠图在浏览器本地完成，不消耗图片生成额度。</sub>
+    </td>
+    <td width="50%" valign="top">
+      <h3>Case 06 · 多张素材重新融合成一张图</h3>
+      <p><strong>输入：</strong>DNA、透明数字地球、显微镜等多个独立素材。<br><strong>输出：</strong>构图、透视、边缘和光照统一的科研主视觉。</p>
+      <img src="static/new_readme/nexus-office/canvas-multi-image.png" alt="Nexus Office 多图融合生成的科研主视觉" width="100%"/>
+      <br><sub>在提示词中精确引用画布元素，Agent 知道每一张图分别承担什么作用。</sub>
+    </td>
+  </tr>
+</table>
+
+<div align="center">
+  <h3>Case 07 · 结果回到原画布，继续修改而不是重新开始</h3>
+  <p><strong>输入：</strong>上一次生成结果 + 原始素材 + 新的修改要求。 <strong>输出：</strong>保留任务历史和源素材的下一版本。</p>
+  <img src="static/new_readme/nexus-office/canvas-workspace.png" alt="多图融合结果回到 Nexus Office 持久化画布工作区" width="96%"/>
+  <br><sub>融合结果会回到原 Workspace，任务历史和源素材仍然保留，可以继续追问和修改。</sub>
+</div>
+
+## 一个 Workspace，一条连续的 Agent 工作流
+
+```text
+目标 + 源文件
+        -> Agent 自主选择 Office 和图片工具
+        -> 可编辑 PPTX / XLSX / DOCX / PNG
+        -> 结构检查和视觉验收
+        -> 在同一 Workspace 里打开、修改和继续追问
+```
+
+同一个 Workspace 会保留对话、执行轨迹、源文件、交付物和后续修改。用户不需要先理解每个 Skill 的名字，直接说清楚想要什么即可开始。
+
+<div align="center">
+  <img src="static/new_readme/nexus-office/nexus-projects-personal-files-content.png" alt="Nexus Office 项目文件与个人文件空间" width="96%"/>
+  <br>
+  <sub>项目文件跟随具体任务保存；模板、参考资料和可复用图片可以长期放在个人文件空间中。</sub>
+</div>
+
+## 开源仓库与托管版 Nexus Office
+
+| | 本开源仓库 | Nexus Office |
+|---|---|---|
+| 定位 | 原 Paper2Any 论文工作流代码 | AI Native Office 工作台 |
+| 范围 | 历史论文、科研绘图、流程图和 PPT 工作流 | PowerPoint、Excel、Word 和 AI 图片创作/编辑 |
+| 开发状态 | 历史快照，不再同步新架构和新功能 | 持续开发的托管产品 |
+| 源码 | 本仓库内的 Apache 2.0 开源代码 | 托管/商业版实现不在此开源 |
+| 入口 | 继续阅读下方折叠的历史文档 | [打开 Nexus Office](https://paper2any-studio.cpolar.cn/) |
+
+> [!NOTE]
+> Apache License 2.0 仅适用于本仓库分发的代码和素材，不适用于托管版 Nexus Office 的完整实现。
+
+## API 赞助商
+
+<table>
+  <tr>
+    <td width="110" align="center" valign="middle">
+      <a href="https://console.zcloudapi.com/"><img src="static/new_readme/nexus-office/zcloudapi-logo.svg" alt="ZCloudAPI Logo" width="72"/></a>
+    </td>
+    <td valign="middle">
+      <h3>ZCloudAPI</h3>
+      <p>感谢 <strong>ZCloudAPI</strong> 为 Nexus Office 的在线演示与能力评测提供 API 资源赞助。</p>
+      <p><a href="https://console.zcloudapi.com/"><strong>访问 ZCloudAPI 控制台 -></strong></a></p>
+    </td>
+  </tr>
+</table>
+
+## Paper2Any 历史开源文档
+
+为了保留可复现性和历史信息，原有部署教程、功能目录、截图、Roadmap 和贡献说明仍完整保留在下方。这些内容描述的是历史开源实现，不是当前的托管版 Nexus Office。
+
+<details>
+<summary><strong>展开完整的 Paper2Any 历史开源文档</strong></summary>
+
+<br>
 
 
 ## 📑 目录
@@ -1129,11 +1262,10 @@ Paper2Any/
 
 ## 🤝 贡献
 
-我们欢迎所有形式的贡献！
+这里保留的是历史开源版贡献说明。新产品功能和新架构已不再同步到本仓库，目前也没有继续审核新功能 PR 的计划。现有 Issue 和 Discussion 作为社区历史记录保留。
 
-[![Issues](https://img.shields.io/badge/Issues-提交_Bug-red?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/issues)
-[![Discussions](https://img.shields.io/badge/Discussions-功能建议-blue?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/discussions)
-[![PR](https://img.shields.io/badge/PR-提交代码-green?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/pulls)
+[![Issues](https://img.shields.io/badge/Issues-社区历史记录-6B7280?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/issues)
+[![Discussions](https://img.shields.io/badge/Discussions-社区历史记录-6B7280?style=for-the-badge&logo=github)](https://github.com/OpenDCAI/Paper2Any/discussions)
 
 ---
 
@@ -1168,3 +1300,5 @@ Paper2Any/
 </p>
 
 </div>
+
+</details>

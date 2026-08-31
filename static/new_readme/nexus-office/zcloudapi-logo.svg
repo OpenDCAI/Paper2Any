@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ZhiCloud">
+  <rect width="64" height="64" fill="#f7f5f0"/>
+  <path d="M16 14h33L20 50h30" fill="none" stroke="#191714" stroke-width="7" stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="M47 14h5v5" fill="none" stroke="#c96442" stroke-width="5" stroke-linecap="square"/>
+  <path d="M12 45h5v5" fill="none" stroke="#3b6f6a" stroke-width="5" stroke-linecap="square"/>
+</svg>
